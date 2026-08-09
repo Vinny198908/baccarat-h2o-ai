@@ -1,0 +1,1695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#101114" />
+<link rel="manifest" href="manifest.json" />
+<title>All-In Style Baccarat Roadmap</title>
+<style>
+  :root{
+    --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
+    --text:#f4f6f8; --muted:#9ca5b1; --p:#265cff; --b:#e63b35; --t:#1cab59;
+    --gold:#f1b827; --purple:#a34ce8; --chip:#2b3139;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  body{min-height:100vh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  button{font:inherit}
+  .app{max-width:1200px;margin:0 auto;padding:8px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 4px 10px}
+  .title{font-weight:800;letter-spacing:.2px}
+  .shoe{font-size:12px;color:var(--muted)}
+  .scoreboard{background:#f8f9fb;border-radius:14px;overflow:hidden;border:1px solid #313740}
+  .road-wrap{overflow-x:auto;overscroll-behavior-inline:contain}
+  .road{display:grid;grid-template-rows:repeat(6,28px);grid-auto-flow:column;grid-auto-columns:28px;min-width:100%;width:max-content;padding:8px;background:
+    linear-gradient(#dfe3e8 1px,transparent 1px),
+    linear-gradient(90deg,#dfe3e8 1px,transparent 1px);
+    background-size:28px 28px;background-position:8px 8px}
+  .cell{width:28px;height:28px;display:flex;align-items:center;justify-content:center;position:relative}
+  .mark{width:23px;height:23px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:#fff}
+  .mark.p{border:3px solid var(--p);color:var(--p)}
+  .mark.b{border:3px solid var(--b);color:var(--b)}
+  .mark.t{border:3px solid var(--t);color:var(--t)}
+  .pair-dot{position:absolute;width:6px;height:6px;border-radius:50%;top:1px}
+  .pair-dot.pp{left:2px;background:var(--p)}
+  .pair-dot.bp{right:2px;background:var(--b)}
+  .subroads{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:8px}
+  .derived-roads{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .mini,.history,.predict,.stats,.controls{background:var(--panel);border:1px solid #262c34;border-radius:14px}
+  .mini{padding:8px;min-width:0}
+  .mini-title,.section-title{font-size:12px;font-weight:700;color:#c9d0d8;margin-bottom:6px}
+  .derived-grid{display:grid;grid-template-rows:repeat(6,12px);grid-auto-flow:column;grid-auto-columns:12px;gap:1px;min-height:77px;overflow-x:auto;overflow-y:hidden;padding-bottom:2px}
+  .derived-cell{width:12px;height:12px;display:flex;align-items:center;justify-content:center}
+  .derived-mark{width:9px;height:9px;border-radius:50%}
+  .derived-mark.red-ring{border:2px solid var(--b);background:transparent}
+  .derived-mark.blue-ring{border:2px solid var(--p);background:transparent}
+  .derived-mark.red-dot{background:var(--b)}
+  .derived-mark.blue-dot{background:var(--p)}
+  .derived-mark.red-slash,.derived-mark.blue-slash{width:11px;height:2px;border-radius:2px;transform:rotate(-45deg)}
+  .derived-mark.red-slash{background:var(--b)}
+  .derived-mark.blue-slash{background:var(--p)}
+  .mini-grid{display:grid;grid-template-columns:repeat(18,13px);grid-auto-rows:13px;gap:2px;min-height:58px;overflow:hidden}
+  .mini-dot{width:11px;height:11px;border-radius:50%;border:2px solid}
+  .mini-dot.p{border-color:var(--p)}
+  .mini-dot.b{border-color:var(--b)}
+  .mini-dot.t{border-color:var(--t)}
+  .history{padding:8px}
+  .history-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+  .hist{aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+  .hist.p{background:var(--p)} .hist.b{background:var(--b)} .hist.t{background:var(--t)}
+  .predict{margin-top:8px;padding:10px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}
+  .predict-label{font-weight:800;font-size:20px}
+  .signal{display:flex;align-items:center;gap:9px}
+  .signal-ball{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;background:#2d333b}
+  .signal-ball.p{background:var(--p)} .signal-ball.b{background:var(--b)} .signal-ball.none{background:#3b4149}
+  .reason{font-size:12px;color:var(--muted);line-height:1.25}
+  .confidence{text-align:right}
+  .confidence strong{font-size:18px}
+  .confidence span{display:block;font-size:10px;color:var(--muted)}
+  .next-percentages{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:7px}
+  .next-pct{background:var(--panel);border:1px solid #262c34;border-radius:12px;padding:9px 7px;text-align:center}
+  .next-pct span{display:block;font-size:10px;font-weight:800;color:var(--muted);margin-bottom:2px}
+  .next-pct strong{font-size:20px}
+  .next-pct.player strong{color:#5d83ff}
+  .next-pct.banker strong{color:#ff625c}
+  .next-pct.tie strong{color:#3bd47a}
+  .stats{margin-top:8px;padding:10px}
+  .statrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .stat{background:var(--panel2);border-radius:10px;padding:8px;text-align:center}
+  .stat b{display:block;font-size:16px}.stat span{font-size:10px;color:var(--muted)}
+  .controls{margin-top:8px;padding:10px}
+  .pair-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:9px}
+  .toggle{border:1px solid #454d58;background:#20252c;color:#e6e9ed;border-radius:999px;padding:9px 6px;font-weight:700}
+  .toggle.active.pp{border-color:var(--p);box-shadow:0 0 0 1px var(--p) inset}
+  .toggle.active.bp{border-color:var(--b);box-shadow:0 0 0 1px var(--b) inset}
+  .toggle.active.tiepair{border-color:var(--t)}
+  .main-buttons{display:grid;grid-template-columns:1fr 1fr 1fr .75fr;gap:9px}
+  .big{border:0;color:#fff;border-radius:18px;min-height:72px;font-weight:900;font-size:28px;box-shadow:inset 0 1px rgba(255,255,255,.25),0 5px 15px rgba(0,0,0,.2)}
+  .big.p{background:linear-gradient(#3e6fff,#173fd0)}
+  .big.b{background:linear-gradient(#ff5b55,#bf2320)}
+  .big.t{background:linear-gradient(#33c86c,#117c3a)}
+  .big.undo{background:linear-gradient(#f5c74c,#d99412);font-size:25px}
+  .utility{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:9px}
+  .util{border:1px solid #3b434d;background:#242a31;color:#fff;border-radius:12px;padding:12px 8px;font-weight:700}
+
+  .scanner{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .scanner-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .scanner-title{font-size:14px;font-weight:800}
+  .scanner-note{font-size:11px;color:var(--muted);line-height:1.3;margin-top:4px}
+  .scan-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+  .scan-file{display:none}
+  .scan-btn{border:1px solid #3b434d;background:#242a31;color:#fff;border-radius:12px;padding:11px 8px;font-weight:800;text-align:center}
+  .scan-btn.primary{background:#2f64ff;border-color:#2f64ff}
+  .scan-btn.success{background:#168847;border-color:#168847}
+  .scan-btn:disabled{opacity:.45}
+  .scan-stage{margin-top:9px;display:none}
+  .scan-stage.show{display:block}
+  #scanCanvas{width:100%;max-height:360px;object-fit:contain;background:#0a0b0d;border-radius:10px;border:1px solid #323943}
+  .scan-status{font-size:11px;color:var(--muted);margin-top:6px}
+  .detected{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+  .det-chip{width:28px;height:28px;border-radius:50%;border:0;color:#fff;font-weight:900}
+  .det-chip.p{background:var(--p)} .det-chip.b{background:var(--b)} .det-chip.t{background:var(--t)}
+  .scan-summary{margin-top:8px;font-size:12px;font-weight:700}
+
+
+  .analyzer{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .analyzer-title{font-size:14px;font-weight:800}
+  .analyzer-sub{font-size:11px;color:var(--muted);line-height:1.3;margin-top:3px}
+  .analyzer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+  .analyzer-card{background:var(--panel2);border-radius:11px;padding:9px;text-align:center}
+  .analyzer-card span{display:block;font-size:10px;color:var(--muted);margin-bottom:2px}
+  .analyzer-card strong{font-size:18px}
+  .signal-list{display:grid;gap:6px;margin-top:9px}
+  .signal-line{display:grid;grid-template-columns:90px 1fr 48px;gap:7px;align-items:center;font-size:11px}
+  .signal-bar{height:8px;background:#2b3139;border-radius:999px;overflow:hidden}
+  .signal-fill{height:100%;background:#737d8b;border-radius:999px}
+  .backtest{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .backtest-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:8px}
+  .bt-card{background:var(--panel2);border-radius:10px;padding:8px;text-align:center}
+  .bt-card span{display:block;font-size:9px;color:var(--muted)}
+  .bt-card strong{font-size:16px}
+  .card-entry{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .rank-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+  .rank-btn{border:1px solid #3d4650;background:#20252c;color:#fff;border-radius:10px;padding:9px 4px;font-weight:800;font-size:12px}
+  .rank-btn:active{transform:scale(.98)}
+  .rank-summary{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.35}
+  .rank-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .dual-shoes{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .shoe-columns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+  .shoe-column{background:var(--panel2);border:1px solid #343b45;border-radius:12px;padding:9px;min-width:0}
+  .shoe-column.red-shoe{border-top:3px solid #e44848}
+  .shoe-column.black-shoe{border-top:3px solid #8c96a3}
+  .shoe-col-title{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:900;font-size:13px}
+  .shoe-count{font-size:10px;color:var(--muted);font-weight:700}
+  .shoe-rank-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}
+  .shoe-rank-grid .rank-btn{padding:8px 2px;font-size:11px}
+  .shoe-history{margin-top:7px;font-size:10px;color:var(--muted);line-height:1.35;min-height:28px;word-break:break-word}
+  .shoe-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}
+  @media (max-width:430px){.shoe-columns{grid-template-columns:1fr}.shoe-rank-grid{grid-template-columns:repeat(7,1fr)}}
+  .tiny-btn{border:1px solid #3b434d;background:#242a31;color:#fff;border-radius:10px;padding:9px 6px;font-weight:700;font-size:12px}
+
+
+  .library{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .library-title{font-size:14px;font-weight:800}
+  .library-sub{font-size:11px;color:var(--muted);line-height:1.35;margin-top:3px}
+  .library-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:8px}
+  .lib-card{background:var(--panel2);border-radius:10px;padding:8px;text-align:center}
+  .lib-card strong{display:block;font-size:16px}
+  .lib-card span{font-size:9px;color:var(--muted)}
+  .match-box{margin-top:8px;background:#20252c;border-radius:11px;padding:9px}
+  .match-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .match-head b{font-size:12px}
+  .match-line{font-size:11px;color:var(--muted);line-height:1.35;margin-top:5px}
+  .match-pcts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+  .match-pct{border-radius:9px;background:#181c21;padding:7px;text-align:center}
+  .match-pct strong{display:block;font-size:16px}
+  .match-pct span{font-size:9px;color:var(--muted)}
+  .library-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .library-actions .tiny-btn{width:100%}
+  .import-file{display:none}
+
+  .h2o-panel{background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px;margin-top:8px}
+  .h2o-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .h2o-title{font-size:13px;font-weight:800}
+  .h2o-status{font-size:10px;padding:5px 8px;border-radius:999px;background:#333942;color:#c9d0d8}
+  .h2o-status.on{background:#173c29;color:#8ff0b3}
+  .h2o-status.err{background:#4a2020;color:#ffaaaa}
+  .h2o-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .h2o-input{width:100%;background:#101318;color:var(--text);border:1px solid #343a43;border-radius:9px;padding:9px;font-size:12px}
+  .h2o-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
+  .h2o-result{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+  .h2o-card{background:#101318;border-radius:9px;padding:8px;text-align:center}
+  .h2o-card strong{display:block;font-size:17px}.h2o-card span{font-size:9px;color:var(--muted)}
+  .h2o-note{font-size:10px;color:var(--muted);line-height:1.35;margin-top:7px}
+  .road-predict-panel{margin-top:9px;background:#111419;border:1px solid #2a3038;border-radius:11px;padding:8px}
+  .road-predict-title{font-size:11px;font-weight:800;color:#d5dbe2;margin-bottom:6px}
+  .road-predict-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .road-predict-card{background:#181c21;border-radius:9px;padding:7px;text-align:center;min-width:0}
+  .road-predict-card span{display:block;font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .road-predict-card strong{display:block;font-size:15px;margin-top:2px}
+  .road-predict-card small{display:block;font-size:9px;color:#9ca5b1;margin-top:2px}
+  .dragon-alert{margin-top:8px;border-radius:14px;padding:10px;border:1px solid #3a414b;background:#171a1f}
+  .dragon-alert.watch{border-color:#8a6a16;background:#2a2413}
+  .dragon-alert.hot{border-color:#d08c19;background:#342511;box-shadow:0 0 0 1px rgba(241,184,39,.15) inset}
+  .dragon-alert.live{border-color:#d34a44;background:#351817;box-shadow:0 0 18px rgba(211,74,68,.14)}
+  .dragon-alert-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .dragon-alert-title{font-size:13px;font-weight:900}
+  .dragon-badge{font-size:10px;font-weight:900;border-radius:999px;padding:5px 8px;background:#2e343c;color:#cbd2da}
+  .dragon-alert.watch .dragon-badge{background:#6a5316;color:#ffe293}
+  .dragon-alert.hot .dragon-badge{background:#8a5914;color:#ffe0a0}
+  .dragon-alert.live .dragon-badge{background:#7c2421;color:#ffd0cd}
+  .dragon-alert-main{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-top:8px}
+  .dragon-side{font-size:20px;font-weight:900}
+  .dragon-detail{font-size:11px;color:var(--muted);line-height:1.35;margin-top:2px}
+  .dragon-meter{font-size:22px;font-weight:900}
+  .dragon-actions{display:flex;gap:7px;margin-top:8px}
+  .dragon-actions button{flex:1}
+  .warning{font-size:10px;line-height:1.3;color:#7f8996;text-align:center;padding:10px 4px 4px}
+  @media (min-width:700px){
+    .app{padding:12px}
+    .road{grid-template-rows:repeat(6,34px);grid-auto-columns:34px;background-size:34px 34px}
+    .cell{width:34px;height:34px}.mark{width:28px;height:28px}
+    .layout{display:grid;grid-template-columns:1.5fr .8fr;gap:10px}
+    .right{margin-top:0}
+    .derived-roads{grid-template-columns:repeat(3,1fr)}
+    .controls{position:sticky;bottom:8px}
+  }
+  @media (max-width:430px){
+    .derived-roads{grid-template-columns:1fr}
+    .mini-grid{grid-template-columns:repeat(22,11px);grid-auto-rows:11px}
+    .mini-dot{width:9px;height:9px}
+    .main-buttons{gap:6px}
+    .big{min-height:66px;border-radius:16px;font-size:26px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div>
+      <div class="title">All-In Style Baccarat Roadmap</div>
+      <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
+    </div>
+    <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
+  </div>
+
+  <div class="scoreboard">
+    <div class="road-wrap"><div class="road" id="bigRoad"></div></div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="road-preview">
+        <div class="preview-title">Road Preview</div>
+        <button class="preview-btn pprev" id="previewP">P?</button>
+        <div class="preview-symbols">
+          <span id="pEye" class="preview-symbol">—</span>
+          <span id="pSmall" class="preview-symbol">—</span>
+          <span id="pRoach" class="preview-symbol">—</span>
+        </div>
+        <button class="preview-btn bprev" id="previewB">B?</button>
+        <div class="preview-symbols">
+          <span id="bEye" class="preview-symbol">—</span>
+          <span id="bSmall" class="preview-symbol">—</span>
+          <span id="bRoach" class="preview-symbol">—</span>
+        </div>
+      </div>
+
+      <div class="derived-roads">
+        <div class="mini">
+          <div class="mini-title">Big Eye Boy</div>
+          <div class="derived-grid" id="bigEyeRoad"></div>
+        </div>
+        <div class="mini">
+          <div class="mini-title">Small Road</div>
+          <div class="derived-grid" id="smallRoad"></div>
+        </div>
+        <div class="mini">
+          <div class="mini-title">Cockroach Road</div>
+          <div class="derived-grid" id="roachRoad"></div>
+        </div>
+      </div>
+
+      <div class="road-legend" style="font-size:10px;color:var(--muted);padding:6px 4px 0">
+        Preview order: Big Eye Boy • Small Road • Cockroach Road
+      </div>
+      <div class="history" style="margin-top:8px">
+        <div class="section-title">Recent results</div>
+        <div class="history-grid" id="historyGrid"></div>
+      </div>
+
+      <div class="predict">
+        <div class="predict-label">Next</div>
+        <div class="signal">
+          <div class="signal-ball none" id="signalBall">—</div>
+          <div>
+            <div id="signalText" style="font-weight:800">Waiting for results</div>
+            <div class="reason" id="signalReason">Enter several hands to see a pattern-based estimate.</div>
+          </div>
+        </div>
+        <div class="confidence">
+          <strong id="confidence">0%</strong>
+          <span>top pattern estimate</span>
+        </div>
+      </div>
+      <div class="next-percentages">
+        <div class="next-pct player"><span>PLAYER</span><strong id="nextPlayerPct">—</strong></div>
+        <div class="next-pct banker"><span>BANKER</span><strong id="nextBankerPct">—</strong></div>
+        <div class="next-pct tie"><span>TIE</span><strong id="nextTiePct">—</strong></div>
+      </div>
+      <div class="dragon-alert" id="dragonAlert">
+        <div class="dragon-alert-head">
+          <div class="dragon-alert-title">🐉 Dragon Tail Watch</div>
+          <div class="dragon-badge" id="dragonBadge">Waiting</div>
+        </div>
+        <div class="dragon-alert-main">
+          <div>
+            <div class="dragon-side" id="dragonSide">No active tail</div>
+            <div class="dragon-detail" id="dragonDetail">A watch starts after 3 consecutive Player or Banker results and becomes stronger as the streak continues.</div>
+          </div>
+          <div class="dragon-meter" id="dragonMeter">0%</div>
+        </div>
+        <div class="dragon-actions">
+          <button class="tiny-btn" id="dragonSoundBtn">Sound: ON</button>
+          <button class="tiny-btn" id="dragonPopupBtn">Popup: ON</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="statrow">
+          <div class="stat"><b id="pPct">0%</b><span>Player</span></div>
+          <div class="stat"><b id="bPct">0%</b><span>Banker</span></div>
+          <div class="stat"><b id="tPct">0%</b><span>Tie</span></div>
+          <div class="stat"><b id="streak">0</b><span>Current streak</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="analyzer">
+        <div class="analyzer-title">Best-Estimate Analyzer</div>
+        <div class="analyzer-sub">As your saved library grows, the main result increasingly follows historical pattern matches. Big Eye Boy, Small Road, Cockroach Road, recent-shoe, and optional card-rank signals are used mainly when library evidence is limited.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Top side</span><strong id="bestSide">—</strong></div>
+          <div class="analyzer-card"><span>Combined score</span><strong id="bestScore">0%</strong></div>
+          <div class="analyzer-card"><span>Library influence</span><strong id="libraryInfluence">0%</strong></div>
+        </div>
+        <div class="signal-list">
+          <div class="signal-line"><span>Road signal</span><div class="signal-bar"><div id="roadBar" class="signal-fill" style="width:0%"></div></div><b id="roadScore">0</b></div>
+          <div class="signal-line"><span>Shoe signal</span><div class="signal-bar"><div id="shoeBar" class="signal-fill" style="width:0%"></div></div><b id="shoeScore">0</b></div>
+          <div class="signal-line"><span>History signal</span><div class="signal-bar"><div id="histBar" class="signal-fill" style="width:0%"></div></div><b id="histScore">0</b></div>
+          <div class="signal-line"><span>Library match</span><div class="signal-bar"><div id="libBar" class="signal-fill" style="width:0%"></div></div><b id="libScore">0</b></div>
+          <div class="signal-line"><span>H2O.ai model</span><div class="signal-bar"><div id="h2oBar" class="signal-fill" style="width:0%"></div></div><b id="h2oScore">0</b></div>
+        </div>
+        <div class="road-predict-panel">
+          <div class="road-predict-title">Derived-Road Next Result Signals</div>
+          <div class="road-predict-grid">
+            <div class="road-predict-card"><span>Big Eye Boy</span><strong id="eyeNext">—</strong><small id="eyeNextPct">P 50% • B 50%</small></div>
+            <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
+            <div class="road-predict-card"><span>Roach Road</span><strong id="roachNext">—</strong><small id="roachNextPct">P 50% • B 50%</small></div>
+          </div>
+        </div>
+        <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
+      </div>
+
+      <div class="h2o-panel">
+        <div class="h2o-head">
+          <div>
+            <div class="h2o-title">H2O.ai Model Connector</div>
+            <div class="analyzer-sub">Shared connector mode: when hosted with the H2O API, iPhone and iPad automatically use the same /score endpoint.</div>
+          </div>
+          <span class="h2o-status" id="h2oStatus">Not connected</span>
+        </div>
+        <div class="h2o-grid">
+          <input class="h2o-input" id="h2oUrl" type="url" placeholder="Auto: same server /score" autocomplete="off">
+          <input class="h2o-input" id="h2oKey" type="password" placeholder="API key (optional)" autocomplete="off">
+        </div>
+        <div class="h2o-actions">
+          <button class="tiny-btn" id="h2oSaveBtn">Save Connection</button>
+          <button class="tiny-btn" id="h2oTestBtn">Test / Score Now</button>
+        </div>
+        <div class="h2o-result">
+          <div class="h2o-card"><strong id="h2oP">—</strong><span>H2O Player</span></div>
+          <div class="h2o-card"><strong id="h2oB">—</strong><span>H2O Banker</span></div>
+          <div class="h2o-card"><strong id="h2oT">—</strong><span>H2O Tie</span></div>
+        </div>
+        <div class="h2o-note" id="h2oNote">The app sends only numeric/pattern features for the current shoe. Your endpoint should return JSON such as {"p":0.46,"b":0.49,"t":0.05}. H2O stays optional; the app continues using local analysis when disconnected.</div>
+      </div>
+
+      <div class="card-entry">
+        <div class="analyzer-title">Optional Card-Rank Tracker</div>
+        <div class="analyzer-sub">Tap ranks as cards are exposed. This does not identify exact future cards; it only estimates whether the remaining shoe is slightly richer in low or high baccarat values.</div>
+        <div class="rank-grid" id="rankGrid"></div>
+        <div class="rank-actions">
+          <button class="tiny-btn" id="undoCardBtn">Undo Card</button>
+          <button class="tiny-btn" id="clearCardsBtn">Clear Cards</button>
+        </div>
+        <div class="rank-summary" id="rankSummary">No card ranks entered.</div>
+      </div>
+
+      <div class="dual-shoes">
+        <div class="analyzer-title">Separate Red & Black Card Shoes</div>
+        <div class="analyzer-sub">These are two completely independent 8-deck shoes. Cards entered in one shoe never change the other shoe.</div>
+        <div class="shoe-columns">
+          <div class="shoe-column red-shoe">
+            <div class="shoe-col-title"><span>🔴 Red Shoe</span><span class="shoe-count" id="redShoeCount">416 remaining</span></div>
+            <div class="shoe-rank-grid" id="redShoeRanks"></div>
+            <div class="shoe-history" id="redShoeHistory">No cards entered.</div>
+            <div class="shoe-actions">
+              <button class="tiny-btn" id="redShoeUndo">Undo</button>
+              <button class="tiny-btn" id="redShoeReset">New Red Shoe</button>
+            </div>
+          </div>
+          <div class="shoe-column black-shoe">
+            <div class="shoe-col-title"><span>⚫ Black Shoe</span><span class="shoe-count" id="blackShoeCount">416 remaining</span></div>
+            <div class="shoe-rank-grid" id="blackShoeRanks"></div>
+            <div class="shoe-history" id="blackShoeHistory">No cards entered.</div>
+            <div class="shoe-actions">
+              <button class="tiny-btn" id="blackShoeUndo">Undo</button>
+              <button class="tiny-btn" id="blackShoeReset">New Black Shoe</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="library">
+        <div class="library-title">All In Pattern Library</div>
+        <div class="library-sub">Stores completed shoes and learns what followed matching P/B/T sequences. As the database and number of matching examples grow, these historical matches automatically receive more weight in the main result.</div>
+
+        <div class="library-stats">
+          <div class="lib-card"><strong id="libShoes">0</strong><span>Saved shoes</span></div>
+          <div class="lib-card"><strong id="libHands">0</strong><span>Saved hands</span></div>
+          <div class="lib-card"><strong id="libPatterns">0</strong><span>Pattern windows</span></div>
+          <div class="lib-card"><strong id="libMatches">0</strong><span>Current matches</span></div>
+        </div>
+
+        <div class="match-box">
+          <div class="match-head">
+            <b>Historical pattern match</b>
+            <span id="matchLength" style="font-size:10px;color:var(--muted)">—</span>
+          </div>
+          <div class="match-line" id="matchText">Save completed shoes to build your library.</div>
+          <div class="match-pcts">
+            <div class="match-pct"><strong id="matchP">—</strong><span>Player followed</span></div>
+            <div class="match-pct"><strong id="matchB">—</strong><span>Banker followed</span></div>
+            <div class="match-pct"><strong id="matchT">—</strong><span>Tie followed</span></div>
+          </div>
+        </div>
+
+        <div class="library-actions">
+          <button class="tiny-btn" id="saveShoeBtn">Save Current Shoe</button>
+          <button class="tiny-btn" id="libraryInfoBtn">Library Details</button>
+          <button class="tiny-btn" id="exportLibraryBtn">Export Library</button>
+          <label class="tiny-btn" for="importLibraryInput" style="text-align:center">Import Library</label>
+          <input class="import-file" id="importLibraryInput" type="file" accept=".json,application/json">
+          <button class="tiny-btn" id="clearLibraryBtn">Clear Library</button>
+          <button class="tiny-btn" id="autoSaveBtn">Auto-save: ON</button>
+        </div>
+      </div>
+
+      <div class="backtest">
+        <div class="analyzer-title">Prediction Backtest</div>
+        <div class="analyzer-sub">Tracks how the app’s last prediction performed after you enter the next completed hand.</div>
+        <div class="backtest-grid">
+          <div class="bt-card"><strong id="btPred">0</strong><span>Predictions</span></div>
+          <div class="bt-card"><strong id="btWins">0</strong><span>Correct</span></div>
+          <div class="bt-card"><strong id="btRate">—</strong><span>Hit rate</span></div>
+          <div class="bt-card"><strong id="btRun">0</strong><span>Current run</span></div>
+        </div>
+        <div class="rank-actions">
+          <button class="tiny-btn" id="resetBacktestBtn">Reset Backtest</button>
+          <button class="tiny-btn" id="exportBacktestBtn">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="scanner">
+        <div class="scanner-head">
+          <div>
+            <div class="scanner-title">Full Board Screenshot Sync</div>
+            <div class="scanner-note">Choose a full-screen All In Baccarat screenshot. The scanner imports the visible main shoe from the Big Road, checks the three derived-road bands, and then updates Main Results, Big Road, Big Eye Boy, Small Road, and Roach Road together. Review the detected P/B chips before applying.</div>
+          </div>
+        </div>
+        <div class="scan-actions">
+          <label class="scan-btn primary" for="scanInput">Choose Screenshot</label>
+          <input class="scan-file" id="scanInput" type="file" accept="image/*">
+          <button class="scan-btn" id="scanNowBtn" disabled>Scan Full Board</button>
+        </div>
+        <div class="scan-stage" id="scanStage">
+          <canvas id="scanCanvas"></canvas>
+          <div class="scan-status" id="scanStatus">Screenshot loaded.</div>
+          <div class="scan-summary" id="scanSummary"></div>
+          <div class="scan-status" id="scanRoadSummary"></div>
+          <div class="detected" id="detectedResults"></div>
+          <div class="scan-actions">
+            <button class="scan-btn success" id="applyScanBtn" disabled>Sync Entire Board</button>
+            <button class="scan-btn" id="clearScanBtn">Clear Scan</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="pair-row">
+          <button class="toggle pp" id="ppBtn">P. Pair</button>
+          <button class="toggle bp" id="bpBtn">B. Pair</button>
+          <button class="toggle tiepair" id="specialBtn">Special</button>
+        </div>
+        <div class="main-buttons">
+          <button class="big p" data-result="P">P</button>
+          <button class="big b" data-result="B">B</button>
+          <button class="big t" data-result="T">T</button>
+          <button class="big undo" id="undoBtn">↶</button>
+        </div>
+        <div class="utility">
+          <button class="util" id="clearBtn">New Shoe</button>
+          <button class="util" id="sampleBtn">Demo</button>
+          <button class="util" id="saveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="warning">
+    Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. H2O output is used only when a compatible scoring endpoint is connected.
+  </div>
+</div>
+
+<script>
+const KEY='baccarat-roadmap-v1';
+// Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
+// both iPhone and iPad automatically use https://that-server/score with no re-entry.
+const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
+
+function load(){
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY));
+    if(s && Array.isArray(s.hands)) {
+      state=s;
+      if(!Array.isArray(state.cards)) state.cards=[];
+      if(!Array.isArray(state.redShoeCards)) state.redShoeCards=[];
+      if(!Array.isArray(state.blackShoeCards)) state.blackShoeCards=[];
+      if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
+      if(!Array.isArray(state.backtest.rows)) state.backtest.rows=[];
+      if(!Array.isArray(state.patternLibrary)) state.patternLibrary=[];
+      if(typeof state.autoSaveLibrary!=='boolean') state.autoSaveLibrary=true;
+      if(!state.h2o || typeof state.h2o!=='object') state.h2o={url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''};
+      if(!state.h2o.url && DEFAULT_H2O_SCORE_URL) state.h2o.url=DEFAULT_H2O_SCORE_URL;
+      if(!state.dragon || typeof state.dragon!=='object') state.dragon={sound:true,popup:true,lastAlertKey:''};
+      if(state.scanSnapshot && typeof state.scanSnapshot!=='object') state.scanSnapshot=null;
+    }
+  }catch(e){}
+}
+function persist(){ localStorage.setItem(KEY,JSON.stringify(state)); }
+function toggle(id,key){
+  const el=document.getElementById(id);
+  el.addEventListener('click',()=>{state[key]=!state[key];el.classList.toggle('active',state[key]);});
+}
+toggle('ppBtn','pp'); toggle('bpBtn','bp'); toggle('specialBtn','special');
+
+document.querySelectorAll('[data-result]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const actual=btn.dataset.result;
+    settlePendingPrediction(actual);
+    state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
+    state.scanSnapshot=null;
+    state.pp=state.bp=state.special=false;
+    document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
+    armNextPrediction();
+    persist(); render();
+    if(state.h2o?.url) scoreWithH2O(false);
+  });
+});
+document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);};
+document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);};
+document.getElementById('undoBtn').onclick=()=>{state.hands.pop();state.scanSnapshot=null;persist();render();};
+document.getElementById('clearBtn').onclick=()=>{
+  if(confirm('Start a new shoe and clear all results?')){
+    const seq=currentSequence();
+    if(state.autoSaveLibrary && seq.length>=4) saveSequenceToLibrary(seq,'auto',true);
+    state.hands=[];state.cards=[];state.scanSnapshot=null;
+    if(state.backtest) state.backtest.pending=null;
+    if(state.h2o) state.h2o.last=null;
+    if(state.dragon) state.dragon.lastAlertKey='';
+    persist();render();
+  }
+};
+document.getElementById('saveBtn').onclick=()=>{persist();alert('Saved on this device.');};
+document.getElementById('sampleBtn').onclick=()=>{
+  const demo='BPBPPPPBPPBBPPPBPPBPPBBBPB'.split('');
+  state.hands=demo.map((r,i)=>({r,pp:i%13===0,bp:i%17===0,special:false,ts:Date.now()+i}));
+  persist();render();
+};
+document.getElementById('fullscreenBtn').onclick=()=>{
+  const e=document.documentElement;
+  if(document.fullscreenElement) document.exitFullscreen?.(); else e.requestFullscreen?.();
+};
+
+function bigRoadPositions(hands){
+  // Simplified casino-style streak columns: P/B create road; ties overlay previous cell.
+  const base=hands.filter(h=>h.r!=='T');
+  const tiesByIndex=[];
+  let nonTieIndex=-1;
+  hands.forEach(h=>{ if(h.r==='T'){ if(nonTieIndex>=0) tiesByIndex[nonTieIndex]=(tiesByIndex[nonTieIndex]||0)+1; }
+                     else nonTieIndex++; });
+  const pos=[]; let col=0,row=0,last=null;
+  base.forEach((h,i)=>{
+    if(i===0){col=0;row=0;}
+    else if(h.r===last && row<5){row++;}
+    else if(h.r===last && row===5){col++;}
+    else {col++;row=0;}
+    pos.push({...h,col,row,ties:tiesByIndex[i]||0});
+    last=h.r;
+  });
+  return pos;
+}
+
+function renderRoad(){
+  const road=document.getElementById('bigRoad'); road.innerHTML='';
+  const pos=bigRoadPositions(state.hands);
+  const maxCol=Math.max(19,...pos.map(x=>x.col));
+  road.style.gridTemplateColumns=`repeat(${maxCol+2}, 28px)`;
+  pos.forEach(x=>{
+    const cell=document.createElement('div'); cell.className='cell';
+    cell.style.gridColumn=(x.col+1); cell.style.gridRow=(x.row+1);
+    const m=document.createElement('div'); m.className='mark '+x.r.toLowerCase(); m.textContent=x.r;
+    if(x.ties){ const t=document.createElement('span'); t.textContent=x.ties; t.style.cssText='position:absolute;font-size:8px;color:#159447;font-weight:900'; m.appendChild(t); }
+    if(x.pp){const d=document.createElement('i');d.className='pair-dot pp';cell.appendChild(d)}
+    if(x.bp){const d=document.createElement('i');d.className='pair-dot bp';cell.appendChild(d)}
+    cell.appendChild(m); road.appendChild(cell);
+  });
+  const tiesOnly=state.hands.filter(h=>h.r==='T').length;
+  if(!pos.length && tiesOnly){
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.gridColumn=1;cell.style.gridRow=1;
+    const m=document.createElement('div');m.className='mark t';m.textContent='T';cell.appendChild(m);road.appendChild(cell);
+  }
+}
+
+function buildBigRoadColumns(hands){
+  const base=hands.filter(h=>h.r!=='T');
+  const cols=[];
+  base.forEach(h=>{
+    if(!cols.length || cols[cols.length-1][0]!==h.r) cols.push([h.r]);
+    else cols[cols.length-1].push(h.r);
+  });
+  return cols;
+}
+
+// Standard baccarat derived-road comparison.
+// offset 1 = Big Eye Boy, 2 = Small Road, 3 = Cockroach Road.
+// Red means pattern/structure is matching; blue means it is not.
+function deriveRoad(hands, offset){
+  const cols=buildBigRoadColumns(hands);
+  const marks=[];
+  if(cols.length <= offset) return marks;
+
+  for(let c=offset;c<cols.length;c++){
+    const currentLen=cols[c].length;
+    for(let r=0;r<currentLen;r++){
+      let red=false;
+      if(r===0){
+        // New column: compare the two earlier column lengths.
+        const a=cols[c-1]?.length || 0;
+        const b=cols[c-1-offset]?.length || 0;
+        red = a===b;
+      }else{
+        // Moving down a column: compare whether corresponding cells exist
+        // in the reference column and its next row.
+        const ref=cols[c-offset];
+        const hasSame=!!ref && ref.length>=r+1;
+        const hasNext=!!ref && ref.length>=r+2;
+        red = (hasSame && !hasNext) || (!hasSame && hasNext);
+        // Casino road convention: if the reference column extends to this row,
+        // matching continuity is red; otherwise blue.
+        if(hasSame) red=true;
+        if(!hasSame) red=false;
+      }
+      marks.push(red?'R':'B');
+    }
+  }
+  return marks;
+}
+
+function roadPositionsFromMarks(marks){
+  const pos=[]; let col=0,row=0,last=null;
+  marks.forEach((m,i)=>{
+    if(i===0){col=0;row=0;}
+    else if(m===last && row<5){row++;}
+    else if(m===last && row===5){col++;}
+    else {col++;row=0;}
+    pos.push({m,col,row});
+    last=m;
+  });
+  return pos;
+}
+
+function renderDerivedRoad(id, marks, style){
+  const e=document.getElementById(id); e.innerHTML='';
+  const pos=roadPositionsFromMarks(marks);
+  const maxCol=Math.max(9,...pos.map(x=>x.col));
+  e.style.gridTemplateColumns=`repeat(${maxCol+2},12px)`;
+  pos.forEach(x=>{
+    const cell=document.createElement('div'); cell.className='derived-cell';
+    cell.style.gridColumn=x.col+1; cell.style.gridRow=x.row+1;
+    const mark=document.createElement('div');
+    const color=x.m==='R'?'red':'blue';
+    mark.className=`derived-mark ${color}-${style}`;
+    cell.appendChild(mark); e.appendChild(cell);
+  });
+}
+
+
+function getLastDerivedMark(hands, offset){
+  const marks=deriveRoad(hands,offset);
+  return marks.length ? marks[marks.length-1] : null;
+}
+function previewFor(result){
+  const hypothetical=state.hands.concat([{r:result,pp:false,bp:false,special:false,ts:Date.now()}]);
+  return {
+    eye:getLastDerivedMark(hypothetical,1),
+    small:getLastDerivedMark(hypothetical,2),
+    roach:getLastDerivedMark(hypothetical,3)
+  };
+}
+function setPreviewSymbol(id, mark, kind){
+  const el=document.getElementById(id);
+  el.className='preview-symbol';
+  if(!mark){ el.textContent='—'; return; }
+  el.textContent='';
+  const color=mark==='R'?'red':'blue';
+  if(kind==='ring') el.classList.add('ring-'+color);
+  if(kind==='dot') el.classList.add('dot-'+color);
+  if(kind==='slash') el.classList.add('slash-'+color);
+}
+function renderPreview(){
+  const p=previewFor('P'), b=previewFor('B');
+  setPreviewSymbol('pEye',p.eye,'ring');
+  setPreviewSymbol('pSmall',p.small,'dot');
+  setPreviewSymbol('pRoach',p.roach,'slash');
+  setPreviewSymbol('bEye',b.eye,'ring');
+  setPreviewSymbol('bSmall',b.small,'dot');
+  setPreviewSymbol('bRoach',b.roach,'slash');
+}
+
+function renderDerived(){
+  const snap=state.scanSnapshot;
+  const seq=currentSequence().join('');
+  const useSnap=!!(snap && snap.sequence===seq && snap.locked);
+  renderDerivedRoad('bigEyeRoad', useSnap && snap.eye?.length ? snap.eye : deriveRoad(state.hands,1), 'ring');
+  renderDerivedRoad('smallRoad', useSnap && snap.small?.length ? snap.small : deriveRoad(state.hands,2), 'dot');
+  renderDerivedRoad('roachRoad', useSnap && snap.roach?.length ? snap.roach : deriveRoad(state.hands,3), 'slash');
+}
+function renderHistory(){
+  const e=document.getElementById('historyGrid');e.innerHTML='';
+  state.hands.slice(-24).reverse().forEach(h=>{
+    const d=document.createElement('div');d.className='hist '+h.r.toLowerCase();d.textContent=h.r;e.appendChild(d);
+  });
+}
+function pct(n,d){return d?Math.round(n*100/d):0}
+function computeSignal(){
+  const all=state.hands.map(h=>h.r);
+  const seq=all.filter(r=>r!=='T');
+  if(seq.length<6) return {pick:null,score:0,pPct:null,bPct:null,tPct:null,reason:'Enter at least 6 Player/Banker results.'};
+
+  const recent=seq.slice(-16);
+  const last=recent.at(-1);
+  let streak=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) streak++;
+
+  let alternations=0;
+  for(let i=Math.max(1,recent.length-7);i<recent.length;i++){
+    if(recent[i]!==recent[i-1]) alternations++;
+  }
+
+  const rp=recent.filter(x=>x==='P').length;
+  const rb=recent.filter(x=>x==='B').length;
+  const ties=all.slice(-30).filter(x=>x==='T').length;
+
+  // Start near ordinary baccarat proportions, then apply small roadmap-pattern
+  // adjustments. These are heuristic display scores, not calibrated win odds.
+  let p=44.6, b=45.9, t=9.5;
+
+  const imbalance=(rp-rb)/Math.max(1,recent.length);
+  p += imbalance*5;
+  b -= imbalance*5;
+
+  if(streak>=3){
+    if(last==='P'){p+=Math.min(5,streak); b-=Math.min(5,streak);}
+    else {b+=Math.min(5,streak); p-=Math.min(5,streak);}
+  } else if(alternations>=5){
+    if(last==='P'){b+=3;p-=3;} else {p+=3;b-=3;}
+  }
+
+  const observedTie=ties/Math.max(1,Math.min(30,all.length));
+  t += Math.max(-2,Math.min(2,(observedTie-.095)*10));
+
+  p=Math.max(25,p); b=Math.max(25,b); t=Math.max(3,t);
+  const total=p+b+t;
+  p=p/total*100; b=b/total*100; t=t/total*100;
+
+  // Round while keeping total at exactly 100.
+  let pr=Math.round(p), br=Math.round(b), tr=100-Math.round(p)-Math.round(b);
+  if(tr<0){tr=0;br=100-pr;}
+  const pick=pr>=br && pr>=tr?'P':br>=pr && br>=tr?'B':'T';
+  const score=Math.max(pr,br,tr);
+
+  let reason=`Recent ${recent.length}: P ${rp} / B ${rb}. `;
+  if(streak>=3) reason+=`${streak}-hand ${last==='P'?'Player':'Banker'} streak.`;
+  else if(alternations>=5) reason+='Recent alternating/chop pattern.';
+  else reason+='No strong streak or chop pattern.';
+
+  return {pick,score,pPct:pr,bPct:br,tPct:tr,reason};
+}
+
+
+function dragonTailStatus(){
+  const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r);
+  if(!seq.length) return {side:null,streak:0,level:'none',score:0,label:'Waiting',detail:'Enter results to start Dragon Tail Watch.'};
+  const side=seq.at(-1);
+  let streak=1;
+  for(let i=seq.length-2;i>=0&&seq[i]===side;i--) streak++;
+
+  // This is a pattern-watch score, not a calibrated probability that the next hand repeats.
+  // It rises with a longer current same-side run and is intentionally capped below certainty.
+  let level='none', score=0, label='No active tail';
+  if(streak===2){level='none';score=25;label='Early streak';}
+  if(streak===3){level='watch';score=45;label='Dragon Watch';}
+  if(streak===4){level='watch';score=58;label='Dragon Building';}
+  if(streak===5){level='hot';score=70;label='Dragon Tail Near';}
+  if(streak>=6){level='live';score=Math.min(88,76+(streak-6)*3);label='Dragon Tail Active';}
+
+  const who=side==='P'?'Player':'Banker';
+  let detail=`${who} has ${streak} consecutive non-tie result${streak===1?'':'s'}. `;
+  if(streak<3) detail+='Watch begins at 3 in a row.';
+  else if(streak===3) detail+='The streak has reached the watch threshold.';
+  else if(streak===4) detail+='One more same-side result would make the alert stronger.';
+  else if(streak===5) detail+='A 6th same-side result would create a full six-row dragon-tail run on this simplified Big Road.';
+  else detail+=`The same-side run is continuing beyond ${streak} hands.`;
+
+  return {side,streak,level,score,label,detail};
+}
+
+function playDragonTone(){
+  if(!state.dragon?.sound) return;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC)return;
+    const ctx=new AC(), osc=ctx.createOscillator(), gain=ctx.createGain();
+    osc.type='sine'; osc.frequency.value=levelToFreq(dragonTailStatus().level);
+    gain.gain.setValueAtTime(.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+.02);
+    gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.28);
+    osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.3);
+    osc.onended=()=>ctx.close();
+  }catch(e){}
+}
+function levelToFreq(level){return level==='live'?880:level==='hot'?720:560;}
+
+function maybeDragonAlert(status){
+  if(status.streak<3) return;
+  const key=`${status.side}-${status.streak}`;
+  if(state.dragon?.lastAlertKey===key) return;
+  state.dragon.lastAlertKey=key;
+  persist();
+  playDragonTone();
+  if(state.dragon?.popup){
+    const who=status.side==='P'?'PLAYER':'BANKER';
+    let msg=`🐉 ${status.label}\n\n${who} streak: ${status.streak}\nPattern-watch strength: ${status.score}%\n\n${status.detail}\n\nThis is a streak alert, not a guarantee of the next result.`;
+    setTimeout(()=>alert(msg),40);
+  }
+}
+
+function renderDragonAlert(){
+  const s=dragonTailStatus();
+  const box=document.getElementById('dragonAlert');
+  if(!box)return;
+  box.className='dragon-alert'+(s.level!=='none'?' '+s.level:'');
+  document.getElementById('dragonBadge').textContent=s.label;
+  document.getElementById('dragonSide').textContent=s.side ? `${s.side==='P'?'Player':'Banker'} • ${s.streak} in a row` : 'No active tail';
+  document.getElementById('dragonDetail').textContent=s.detail;
+  document.getElementById('dragonMeter').textContent=s.score+'%';
+  document.getElementById('dragonSoundBtn').textContent='Sound: '+(state.dragon?.sound?'ON':'OFF');
+  document.getElementById('dragonPopupBtn').textContent='Popup: '+(state.dragon?.popup?'ON':'OFF');
+  maybeDragonAlert(s);
+}
+
+function renderStats(){
+  const n=state.hands.length;
+  const p=state.hands.filter(h=>h.r==='P').length,b=state.hands.filter(h=>h.r==='B').length,t=state.hands.filter(h=>h.r==='T').length;
+  document.getElementById('pPct').textContent=pct(p,n)+'%';
+  document.getElementById('bPct').textContent=pct(b,n)+'%';
+  document.getElementById('tPct').textContent=pct(t,n)+'%';
+  let s=0; const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r); if(seq.length){s=1;for(let i=seq.length-2;i>=0&&seq[i]===seq.at(-1);i--)s++;}
+  document.getElementById('streak').textContent=s;
+  document.getElementById('shoeLabel').textContent=`Current shoe • ${n} hands`;
+  const sig=computeSignal(), ball=document.getElementById('signalBall');
+  ball.className='signal-ball '+(sig.pick?sig.pick.toLowerCase():'none'); ball.textContent=sig.pick||'—';
+  document.getElementById('signalText').textContent=sig.pick?(sig.pick==='P'?'Player pattern':'Banker pattern'):'Waiting for results';
+  document.getElementById('signalReason').textContent=sig.reason;
+  document.getElementById('confidence').textContent=sig.score+'%';
+  document.getElementById('nextPlayerPct').textContent=sig.pPct==null?'—':sig.pPct+'%';
+  document.getElementById('nextBankerPct').textContent=sig.bPct==null?'—':sig.bPct+'%';
+  document.getElementById('nextTiePct').textContent=sig.tPct==null?'—':sig.tPct+'%';
+}
+function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();}
+
+
+
+// --- Persistent All In pattern library ---
+function currentSequence(){
+  return state.hands.map(h=>h.r).filter(r=>['P','B','T'].includes(r));
+}
+function makeShoeRecord(seq, source='manual'){
+  return {
+    id:'shoe_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    savedAt:new Date().toISOString(),
+    source,
+    sequence:seq.join('')
+  };
+}
+function saveSequenceToLibrary(seq, source='manual', quiet=false){
+  if(!Array.isArray(seq) || seq.length<4){
+    if(!quiet) alert('Enter at least 4 results before saving a shoe.');
+    return false;
+  }
+  if(!Array.isArray(state.patternLibrary)) state.patternLibrary=[];
+  const s=seq.join('');
+  const duplicate=state.patternLibrary.some(x=>x.sequence===s);
+  if(duplicate){
+    if(!quiet) alert('This exact shoe is already saved in the pattern library.');
+    return false;
+  }
+  state.patternLibrary.push(makeShoeRecord(seq,source));
+  persist();
+  if(!quiet) alert(`Saved ${seq.length} hands to the pattern library.`);
+  return true;
+}
+function patternWindowsCount(){
+  let n=0;
+  (state.patternLibrary||[]).forEach(shoe=>{
+    const len=(shoe.sequence||'').length;
+    for(let k=3;k<=Math.min(12,len-1);k++) n+=Math.max(0,len-k);
+  });
+  return n;
+}
+function findHistoricalMatches(){
+  const cur=currentSequence();
+  if(cur.length<3 || !(state.patternLibrary||[]).length) return {matches:0,len:0,p:0,b:0,t:0};
+
+  // Try longest suffix first, then back off until enough examples exist.
+  for(let k=Math.min(12,cur.length);k>=3;k--){
+    const pattern=cur.slice(-k).join('');
+    let p=0,b=0,t=0,total=0;
+    (state.patternLibrary||[]).forEach(shoe=>{
+      const s=shoe.sequence||'';
+      for(let i=0;i+k<s.length;i++){
+        if(s.slice(i,i+k)===pattern){
+          const nxt=s[i+k];
+          if(nxt==='P')p++;
+          else if(nxt==='B')b++;
+          else if(nxt==='T')t++;
+          total++;
+        }
+      }
+    });
+    if(total>=2 || (k===3 && total>0)) return {matches:total,len:k,p,b,t,pattern};
+  }
+  return {matches:0,len:0,p:0,b:0,t:0};
+}
+function renderPatternLibrary(){
+  const lib=state.patternLibrary||[];
+  const hands=lib.reduce((n,s)=>n+(s.sequence||'').length,0);
+  const m=findHistoricalMatches();
+  document.getElementById('libShoes').textContent=lib.length;
+  document.getElementById('libHands').textContent=hands;
+  document.getElementById('libPatterns').textContent=patternWindowsCount();
+  document.getElementById('libMatches').textContent=m.matches;
+  document.getElementById('autoSaveBtn').textContent='Auto-save: '+(state.autoSaveLibrary?'ON':'OFF');
+
+  if(!m.matches){
+    document.getElementById('matchLength').textContent='No match';
+    document.getElementById('matchText').textContent=lib.length
+      ? 'No saved historical sequence currently matches the recent shoe closely enough.'
+      : 'Save completed shoes to build your library.';
+    ['matchP','matchB','matchT'].forEach(id=>document.getElementById(id).textContent='—');
+    return;
+  }
+
+  // Laplace-style smoothing prevents 1–2 examples from displaying as 100% certainty.
+  const denom=m.matches+3;
+  const pct=n=>Math.round((n+1)*100/denom)+'%';
+  document.getElementById('matchLength').textContent=`${m.len}-hand match`;
+  document.getElementById('matchText').textContent=
+    `${m.matches} historical occurrence${m.matches===1?'':'s'} matched the latest ${m.len} results (${m.pattern}). As the sample grows, this match has more influence on the main result.`;
+  document.getElementById('matchP').textContent=pct(m.p);
+  document.getElementById('matchB').textContent=pct(m.b);
+  document.getElementById('matchT').textContent=pct(m.t);
+}
+
+function librarySignal(){
+  const m=findHistoricalMatches();
+  if(m.matches<2) return {side:null,strength:0,matches:m.matches};
+  const nonTie=m.p+m.b;
+  if(!nonTie) return {side:null,strength:0,matches:m.matches};
+  const p=m.p/nonTie, b=m.b/nonTie;
+  const side=p>=b?'P':'B';
+  const strength=Math.round(50+Math.abs(p-b)*35);
+  return {side,strength:Math.min(85,strength),matches:m.matches};
+}
+
+document.getElementById('saveShoeBtn').onclick=()=>{
+  saveSequenceToLibrary(currentSequence(),'manual');
+  renderPatternLibrary(); renderAnalyzer();
+};
+document.getElementById('autoSaveBtn').onclick=()=>{
+  state.autoSaveLibrary=!state.autoSaveLibrary;persist();renderPatternLibrary();
+};
+document.getElementById('libraryInfoBtn').onclick=()=>{
+  const lib=state.patternLibrary||[];
+  const hands=lib.reduce((n,s)=>n+(s.sequence||'').length,0);
+  alert(`Pattern Library\n\nSaved shoes: ${lib.length}\nSaved hands: ${hands}\nPattern windows: ${patternWindowsCount()}\n\nThe library stays on this device unless you export it.`);
+};
+document.getElementById('exportLibraryBtn').onclick=()=>{
+  const payload={
+    version:1,
+    exportedAt:new Date().toISOString(),
+    shoes:state.patternLibrary||[]
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='all_in_baccarat_pattern_library.json';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+document.getElementById('importLibraryInput').addEventListener('change',async e=>{
+  const f=e.target.files?.[0]; if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    const incoming=Array.isArray(data)?data:(data.shoes||[]);
+    if(!Array.isArray(incoming)) throw new Error('Invalid library');
+    if(!Array.isArray(state.patternLibrary))state.patternLibrary=[];
+    const existing=new Set(state.patternLibrary.map(x=>x.sequence));
+    let added=0;
+    incoming.forEach(x=>{
+      if(x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence) && x.sequence.length>=4 && !existing.has(x.sequence)){
+        state.patternLibrary.push({
+          id:x.id||('import_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)),
+          savedAt:x.savedAt||new Date().toISOString(),
+          source:x.source||'import',
+          sequence:x.sequence
+        });
+        existing.add(x.sequence);added++;
+      }
+    });
+    persist();render();
+    alert(`Imported ${added} new shoe${added===1?'':'s'}.`);
+  }catch(err){alert('Could not import that library file.');}
+  e.target.value='';
+});
+document.getElementById('clearLibraryBtn').onclick=()=>{
+  if(confirm('Delete every saved shoe from the pattern library on this device?')){
+    state.patternLibrary=[];persist();render();
+  }
+};
+
+// --- Multi-signal analyzer, optional card-rank tracker, and backtesting ---
+const rankNames=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+function baccaratValue(rank){
+  if(rank==='A') return 1;
+  if(['10','J','Q','K'].includes(rank)) return 0;
+  return Number(rank);
+}
+
+function initRankGrid(){
+  const grid=document.getElementById('rankGrid');
+  if(!grid || grid.childElementCount) return;
+  rankNames.forEach(rank=>{
+    const b=document.createElement('button');
+    b.className='rank-btn'; b.textContent=rank;
+    b.onclick=()=>{state.cards.push(rank);persist();renderAnalyzer();};
+    grid.appendChild(b);
+  });
+}
+
+function initSeparateShoeGrid(gridId, stateKey){
+  const grid=document.getElementById(gridId);
+  if(!grid || grid.childElementCount) return;
+  rankNames.forEach(rank=>{
+    const b=document.createElement('button');
+    b.className='rank-btn'; b.textContent=rank;
+    b.onclick=()=>{
+      if(!Array.isArray(state[stateKey])) state[stateKey]=[];
+      if(state[stateKey].length>=416){alert('This 8-deck shoe is empty. Start a new shoe.');return;}
+      const used=state[stateKey].filter(x=>x===rank).length;
+      if(used>=32){alert(`All ${rank} cards have already been used in this 8-deck shoe.`);return;}
+      state[stateKey].push(rank);persist();renderSeparateShoes();
+    };
+    grid.appendChild(b);
+  });
+}
+
+function renderSeparateShoes(){
+  initSeparateShoeGrid('redShoeRanks','redShoeCards');
+  initSeparateShoeGrid('blackShoeRanks','blackShoeCards');
+  [['red','redShoeCards'],['black','blackShoeCards']].forEach(([prefix,key])=>{
+    const cards=Array.isArray(state[key])?state[key]:[];
+    const remaining=Math.max(0,416-cards.length);
+    const count=document.getElementById(prefix+'ShoeCount');
+    const history=document.getElementById(prefix+'ShoeHistory');
+    if(count) count.textContent=`${remaining} remaining • ${cards.length} used`;
+    if(history) history.textContent=cards.length ? `Recent: ${cards.slice(-18).join(' • ')}` : 'No cards entered.';
+  });
+}
+
+function bindSeparateShoeControls(){
+  const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};
+  bind('redShoeUndo',()=>{state.redShoeCards.pop();persist();renderSeparateShoes();});
+  bind('blackShoeUndo',()=>{state.blackShoeCards.pop();persist();renderSeparateShoes();});
+  bind('redShoeReset',()=>{if(confirm('Start a new RED 8-deck shoe?')){state.redShoeCards=[];persist();renderSeparateShoes();}});
+  bind('blackShoeReset',()=>{if(confirm('Start a new BLACK 8-deck shoe?')){state.blackShoeCards=[];persist();renderSeparateShoes();}});
+}
+
+function remainingCompositionScore(){
+  // Approximate 8-deck shoe composition from entered ranks.
+  // Positive favors Player signal slightly; negative favors Banker slightly.
+  const decks=8;
+  const initial={};
+  rankNames.forEach(r=>initial[r]=4*decks);
+  state.cards.forEach(r=>{ if(initial[r]>0) initial[r]--; });
+  const remaining=Object.values(initial).reduce((a,b)=>a+b,0);
+  if(!remaining) return 0;
+
+  let low=0, high=0, zero=0;
+  for(const [r,n] of Object.entries(initial)){
+    const v=baccaratValue(r);
+    if(v===0) zero+=n;
+    else if(v<=4) low+=n;
+    else high+=n;
+  }
+  // Heuristic centered around an 8-deck baseline. Small effect only.
+  const lowShare=low/remaining, highShare=high/remaining, zeroShare=zero/remaining;
+  return Math.max(-8,Math.min(8,(lowShare-highShare)*20 + (zeroShare-.3077)*12));
+}
+
+function historyPatternSignal(){
+  const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r);
+  if(seq.length<6) return {side:null, strength:0};
+  const recent=seq.slice(-16);
+  const last=recent.at(-1);
+  let streak=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) streak++;
+  let alt=0;
+  for(let i=Math.max(1,recent.length-7);i<recent.length;i++) if(recent[i]!==recent[i-1]) alt++;
+
+  if(streak>=3) return {side:last,strength:Math.min(78,55+streak*4)};
+  if(alt>=5) return {side:last==='P'?'B':'P',strength:62};
+  const p=recent.filter(x=>x==='P').length,b=recent.length-p;
+  if(p===b) return {side:null,strength:50};
+  return {side:p>b?'P':'B',strength:52+Math.min(10,Math.abs(p-b)*2)};
+}
+
+function derivedRoadNextSignal(offset){
+  const marks=deriveRoad(state.hands,offset);
+  if(marks.length<3) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark:null,bMark:null};
+
+  const recent=marks.slice(-10);
+  const last=recent.at(-1);
+  let run=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) run++;
+  let alternations=0;
+  for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) alternations++;
+  const red=recent.filter(x=>x==='R').length;
+  const blue=recent.length-red;
+
+  // Estimate the next derived-road COLOR from that road's own recent behavior.
+  // This is structural only: red/blue never map directly to Banker/Player.
+  let expected=last;
+  let evidence=0.10;
+  if(run>=3){ expected=last; evidence=Math.min(.34,.16+run*.035); }
+  else if(alternations>=Math.max(4,recent.length-2)){ expected=last==='R'?'B':'R'; evidence=.24; }
+  else if(Math.abs(red-blue)>=3){ expected=red>blue?'R':'B'; evidence=.18; }
+  else { evidence=.10; }
+
+  const pMark=getLastDerivedMark(state.hands.concat([{r:'P',pp:false,bp:false,special:false,ts:Date.now()}]),offset);
+  const bMark=getLastDerivedMark(state.hands.concat([{r:'B',pp:false,bp:false,special:false,ts:Date.now()}]),offset);
+  if(!pMark || !bMark || pMark===bMark) return {side:null,strength:50,pPct:50,bPct:50,expected,pMark,bMark};
+
+  let pScore=.5, bScore=.5;
+  if(pMark===expected) pScore+=evidence; else pScore-=evidence;
+  if(bMark===expected) bScore+=evidence; else bScore-=evidence;
+  const total=Math.max(.01,pScore+bScore);
+  let pPct=Math.round(100*pScore/total);
+  pPct=Math.max(35,Math.min(65,pPct));
+  const bPct=100-pPct;
+  const side=pPct===bPct?null:(pPct>bPct?'P':'B');
+  const strength=Math.max(pPct,bPct);
+  return {side,strength,pPct,bPct,expected,pMark,bMark};
+}
+
+function roadStructureSignal(){
+  const eye=derivedRoadNextSignal(1);
+  const small=derivedRoadNextSignal(2);
+  const roach=derivedRoadNextSignal(3);
+  const signals=[eye,small,roach];
+  const weights=[.40,.33,.27];
+  let edge=0, used=0;
+  signals.forEach((sig,i)=>{
+    if(!sig.side || sig.strength<=50) return;
+    const e=(sig.strength-50)*(sig.side==='P'?1:-1);
+    edge+=e*weights[i]; used+=weights[i];
+  });
+  if(!used) return {side:null,strength:0,eye,small,roach};
+  edge/=used;
+  const side=edge>=0?'P':'B';
+  const strength=Math.round(50+Math.min(15,Math.abs(edge)));
+  return {side,strength,eye,small,roach};
+}
+
+function h2oFeatures(){
+  const all=currentSequence();
+  const nonTie=all.filter(x=>x!=='T');
+  const recent=nonTie.slice(-20);
+  const last=recent.at(-1)||'';
+  let streak=0;
+  if(last){streak=1;for(let i=recent.length-2;i>=0&&recent[i]===last;i--)streak++;}
+  let alternations=0;for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) alternations++;
+  const road=roadStructureSignal(), hist=historyPatternSignal(), lib=librarySignal(), match=findHistoricalMatches();
+  return {
+    sequence:all.slice(-30).join(''),
+    hand_count:all.length,
+    player_count:all.filter(x=>x==='P').length,
+    banker_count:all.filter(x=>x==='B').length,
+    tie_count:all.filter(x=>x==='T').length,
+    recent_player:recent.filter(x=>x==='P').length,
+    recent_banker:recent.filter(x=>x==='B').length,
+    streak_length:streak,
+    streak_side:last,
+    alternations_20:alternations,
+    road_side:road.side||'', road_strength:road.strength||0,
+    history_side:hist.side||'', history_strength:hist.strength||0,
+    library_side:lib.side||'', library_strength:lib.strength||0,
+    library_matches:match.matches||0, library_match_length:match.len||0,
+    saved_shoes:(state.patternLibrary||[]).length
+  };
+}
+function normalizeH2OResponse(data){
+  let p=Number(data?.p ?? data?.player ?? data?.prob_player ?? data?.probabilities?.player);
+  let b=Number(data?.b ?? data?.banker ?? data?.prob_banker ?? data?.probabilities?.banker);
+  let t=Number(data?.t ?? data?.tie ?? data?.prob_tie ?? data?.probabilities?.tie ?? 0);
+  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('Response must include Player and Banker probabilities.');
+  if(p<=1.0001 && b<=1.0001 && t<=1.0001){p*=100;b*=100;t*=100;}
+  p=Math.max(0,p);b=Math.max(0,b);t=Math.max(0,t);
+  const total=p+b+t;if(total<=0) throw new Error('Probabilities total zero.');
+  p=p/total*100;b=b/total*100;t=t/total*100;
+  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
+  const side=pr>=br?'P':'B';
+  return {p:pr,b:br,t:tr,side,strength:Math.max(pr,br),at:new Date().toISOString(),sequence:currentSequence().join('')};
+}
+async function scoreWithH2O(showAlert=false){
+  if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
+  const st=document.getElementById('h2oStatus');
+  if(st){st.textContent='Scoring…';st.className='h2o-status';}
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(state.h2o.key) headers['Authorization']='Bearer '+state.h2o.key;
+    const res=await fetch(state.h2o.url,{method:'POST',headers,body:JSON.stringify({features:h2oFeatures()})});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const out=normalizeH2OResponse(await res.json());
+    state.h2o.last=out;state.h2o.connected=true;state.h2o.error='';persist();renderAnalyzer();renderH2O();
+    return out;
+  }catch(err){
+    state.h2o.connected=false;state.h2o.error=String(err.message||err);persist();renderH2O();
+    if(showAlert) alert('H2O connection failed: '+state.h2o.error+'\n\nIf this file is opened directly on iPhone, your H2O server must allow HTTPS and CORS requests from the browser.');
+    return null;
+  }
+}
+function currentH2OSignal(){
+  const x=state.h2o?.last;
+  if(!x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null};
+  return {side:x.side,strength:x.strength,p:x.p,b:x.b,t:x.t};
+}
+function renderH2O(){
+  const h=state.h2o||{}; const x=currentH2OSignal();
+  const url=document.getElementById('h2oUrl'),key=document.getElementById('h2oKey');
+  if(url && document.activeElement!==url) url.value=h.url||'';
+  if(key && document.activeElement!==key) key.value=h.key||'';
+  const st=document.getElementById('h2oStatus');
+  if(st){
+    if(h.error){st.textContent='Connection error';st.className='h2o-status err';}
+    else if(h.connected){st.textContent='Connected';st.className='h2o-status on';}
+    else {st.textContent='Not connected';st.className='h2o-status';}
+  }
+  document.getElementById('h2oP').textContent=x.p==null?'—':x.p+'%';
+  document.getElementById('h2oB').textContent=x.b==null?'—':x.b+'%';
+  document.getElementById('h2oT').textContent=x.t==null?'—':x.t+'%';
+  const note=document.getElementById('h2oNote');
+  if(note && h.error) note.textContent='Last error: '+h.error;
+  else if(note && x.side) note.textContent=`Live H2O score for this shoe: ${x.side==='P'?'Player':'Banker'} ${x.strength}%. The combined analyzer blends this with your local library and road signals.`;
+}
+
+function computeCombinedAnalyzer(){
+  const hist=historyPatternSignal();
+  const road=roadStructureSignal();
+  const lib=librarySignal();
+  const comp=remainingCompositionScore();
+  const matchInfo=findHistoricalMatches();
+  const h2o=currentH2OSignal();
+  const savedShoes=(state.patternLibrary||[]).length;
+
+  // Library influence grows only when BOTH the database and current-match sample are useful.
+  // This keeps a tiny library from overpowering the other signals.
+  let libraryWeight=0;
+  if(lib.side && matchInfo.matches){
+    const matchFactor=Math.min(1, matchInfo.matches/25);   // reaches full strength around 25 matches
+    const shoeFactor=Math.min(1, savedShoes/50);          // reaches full strength around 50 saved shoes
+    libraryWeight=0.25 + 0.65*(0.65*matchFactor + 0.35*shoeFactor);
+    libraryWeight=Math.min(0.90,libraryWeight);
+  }
+
+  // A current H2O score gets a meaningful but capped share. Local analysis remains available offline.
+  const h2oWeight=h2o.side ? Math.min(0.35, 0.20 + Math.max(0,h2o.strength-50)/100) : 0;
+  libraryWeight=libraryWeight*(1-h2oWeight);
+  const otherWeight=1-libraryWeight-h2oWeight;
+  const histWeight=otherWeight*0.43;
+  const roadWeight=otherWeight*0.37;
+  const cardWeight=otherWeight*0.20;
+
+  let pEdge=0;
+  function signedEdge(sig){
+    if(!sig || !sig.side || !sig.strength) return 0;
+    const magnitude=Math.max(0,sig.strength-50);
+    return sig.side==='P' ? magnitude : -magnitude;
+  }
+
+  pEdge += signedEdge(lib)*libraryWeight;
+  pEdge += signedEdge(h2o)*h2oWeight;
+  pEdge += signedEdge(hist)*histWeight;
+  pEdge += signedEdge(road)*roadWeight;
+  pEdge += comp*cardWeight;
+
+  // Convert the comparative edge into a restrained P/B display.
+  // This is intentionally capped so it is not presented as certainty.
+  pEdge=Math.max(-18,Math.min(18,pEdge));
+  let pPct=Math.round(50+pEdge);
+  let bPct=100-pPct;
+  const side=pPct>=bPct?'P':'B';
+  const top=Math.max(pPct,bPct);
+
+  let quality='Low';
+  if(matchInfo.matches>=15 && savedShoes>=20) quality='Strong library';
+  else if(matchInfo.matches>=5 && savedShoes>=8) quality='Growing library';
+  else if(state.hands.filter(h=>h.r!=='T').length>=12) quality='Mixed signals';
+
+  return {
+    side,top,pPct,bPct,hist,road,lib,h2o,comp,quality,
+    libraryWeight:Math.round(libraryWeight*100),
+    h2oWeight:Math.round(h2oWeight*100),
+    matches:matchInfo.matches,
+    matchLength:matchInfo.len
+  };
+}
+
+function setSignalBar(id,val){
+  const e=document.getElementById(id);
+  if(e)e.style.width=Math.max(0,Math.min(100,val))+'%';
+}
+
+function renderDerivedRoadPredictions(road){
+  const defs=[['eye','eyeNext','eyeNextPct'],['small','smallNext','smallNextPct'],['roach','roachNext','roachNextPct']];
+  defs.forEach(([key,sideId,pctId])=>{
+    const sig=road?.[key]||{side:null,pPct:50,bPct:50};
+    const sideEl=document.getElementById(sideId), pctEl=document.getElementById(pctId);
+    if(sideEl) sideEl.textContent=sig.side==='P'?'Player':sig.side==='B'?'Banker':'Even';
+    if(pctEl) pctEl.textContent=`P ${sig.pPct??50}% • B ${sig.bPct??50}%`;
+  });
+}
+
+function renderAnalyzer(){
+  initRankGrid();
+  const a=computeCombinedAnalyzer();
+  document.getElementById('bestSide').textContent=a.side==='P'?'Player':'Banker';
+  document.getElementById('bestScore').textContent=a.top+'%';
+  document.getElementById('libraryInfluence').textContent=a.libraryWeight+'%';
+
+  const roadVal=a.road.strength||0;
+  const histVal=a.hist.strength||0;
+  const shoeVal=Math.round(50+a.comp*3);
+  document.getElementById('roadScore').textContent=Math.round(roadVal);
+  document.getElementById('shoeScore').textContent=Math.round(shoeVal);
+  const libVal=a.lib?.strength||0;
+  const h2oVal=a.h2o?.strength||0;
+  document.getElementById('histScore').textContent=Math.round(histVal);
+  document.getElementById('libScore').textContent=Math.round(libVal);
+  document.getElementById('h2oScore').textContent=Math.round(h2oVal);
+  setSignalBar('roadBar',roadVal);
+  setSignalBar('shoeBar',shoeVal);
+  setSignalBar('histBar',histVal);
+  setSignalBar('libBar',libVal);
+  setSignalBar('h2oBar',h2oVal);
+  renderDerivedRoadPredictions(a.road);
+
+  const driver=document.getElementById('resultDriver');
+  if(a.h2oWeight>0){
+    driver.textContent=`Hybrid result: H2O.ai contributes ${a.h2oWeight}% and your pattern library contributes ${a.libraryWeight}%; road/history/card signals fill the remaining weight.`;
+  }else if(a.libraryWeight>=70){
+    driver.textContent=`Library-led result: ${a.matches} matching historical occurrence${a.matches===1?'':'s'} are driving ${a.libraryWeight}% of the current signal.`;
+  }else if(a.libraryWeight>=40){
+    driver.textContent=`Library is becoming the main input: ${a.matches} current match${a.matches===1?'':'es'}; ${a.libraryWeight}% influence.`;
+  }else if(a.matches){
+    driver.textContent=`Library evidence is still limited (${a.matches} match${a.matches===1?'':'es'}), so the app is blending it with road and recent-shoe signals.`;
+  }else{
+    driver.textContent='No useful library match yet; the result is currently based on road/recent-shoe signals.';
+  }
+
+  const counts={};
+  state.cards.forEach(r=>counts[r]=(counts[r]||0)+1);
+  const txt=state.cards.length
+    ? `Entered ${state.cards.length} cards • `+rankNames.filter(r=>counts[r]).map(r=>`${r}:${counts[r]}`).join('  ')
+    : 'No card ranks entered.';
+  document.getElementById('rankSummary').textContent=txt;
+
+  const bt=state.backtest||{predictions:0,wins:0,currentRun:0,rows:[]};
+  document.getElementById('btPred').textContent=bt.predictions||0;
+  document.getElementById('btWins').textContent=bt.wins||0;
+  document.getElementById('btRate').textContent=bt.predictions?Math.round(bt.wins*100/bt.predictions)+'%':'—';
+  document.getElementById('btRun').textContent=bt.currentRun||0;
+}
+
+function settlePendingPrediction(actual){
+  if(actual==='T') return; // ignore ties for P/B backtest
+  if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
+  const p=state.backtest.pending;
+  if(!p) return;
+  const win=p.side===actual;
+  state.backtest.predictions++;
+  if(win){state.backtest.wins++;state.backtest.currentRun++;}
+  else state.backtest.currentRun=0;
+  state.backtest.rows.push({
+    time:new Date().toISOString(),
+    predicted:p.side,
+    score:p.score,
+    actual,
+    correct:win?'YES':'NO'
+  });
+  state.backtest.pending=null;
+}
+
+function armNextPrediction(){
+  const a=computeCombinedAnalyzer();
+  if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
+  state.backtest.pending={side:a.side,score:a.top};
+}
+
+document.getElementById('undoCardBtn').onclick=()=>{state.cards.pop();persist();renderAnalyzer();};
+document.getElementById('clearCardsBtn').onclick=()=>{
+  if(confirm('Clear all entered card ranks?')){state.cards=[];persist();renderAnalyzer();}
+};
+document.getElementById('resetBacktestBtn').onclick=()=>{
+  if(confirm('Reset prediction backtest?')){
+    state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};persist();renderAnalyzer();
+  }
+};
+document.getElementById('exportBacktestBtn').onclick=()=>{
+  const rows=state.backtest?.rows||[];
+  if(!rows.length){alert('No backtest results yet.');return;}
+  const csv=['time,predicted,score,actual,correct',
+    ...rows.map(r=>[r.time,r.predicted,r.score,r.actual,r.correct].join(','))].join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='baccarat_backtest.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+
+document.getElementById('h2oSaveBtn').onclick=()=>{
+  state.h2o.url=document.getElementById('h2oUrl').value.trim();
+  state.h2o.key=document.getElementById('h2oKey').value.trim();
+  state.h2o.connected=false;state.h2o.error='';state.h2o.last=null;persist();renderH2O();
+  alert(state.h2o.url?'H2O connection settings saved. Tap Test / Score Now to connect.':'H2O connection cleared. Local predictor remains active.');
+};
+document.getElementById('h2oTestBtn').onclick=async()=>{
+  state.h2o.url=document.getElementById('h2oUrl').value.trim();
+  state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
+  await scoreWithH2O(true);
+};
+
+document.getElementById('dragonSoundBtn').onclick=()=>{state.dragon.sound=!state.dragon.sound;persist();renderDragonAlert();};
+document.getElementById('dragonPopupBtn').onclick=()=>{state.dragon.popup=!state.dragon.popup;persist();renderDragonAlert();};
+
+// --- Screenshot scanner tuned for full-screen All In Baccarat screenshots ---
+// It uses color sampling from the visible Big Road. This is intentionally
+// local-only: the image never leaves the device.
+let scanImage=null, scanDetected=[], scanDerivedDetected={eye:[],small:[],roach:[]};
+
+function rgbClass(r,g,b){
+  // High-saturation baccarat red/blue ring classifier.
+  if(r>150 && r>g*1.25 && r>b*1.15) return 'B';
+  if(b>125 && b>r*1.15 && b>g*1.05) return 'P';
+  if(g>105 && g>r*1.15 && g>b*1.05) return 'T';
+  return null;
+}
+function cellVote(ctx,cx,cy,rad){
+  let counts={P:0,B:0,T:0}, total=0;
+  const step=Math.max(1,Math.floor(rad/3));
+  for(let y=Math.floor(cy-rad);y<=cy+rad;y+=step){
+    for(let x=Math.floor(cx-rad);x<=cx+rad;x+=step){
+      const dx=x-cx,dy=y-cy,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<rad*.45 || d>rad*1.1) continue; // ring band
+      const px=ctx.getImageData(Math.max(0,x),Math.max(0,y),1,1).data;
+      const c=rgbClass(px[0],px[1],px[2]);
+      if(c){counts[c]++;total++;}
+    }
+  }
+  let best=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  if(!best || best[1]<2) return null;
+  return best[0];
+}
+
+function derivedPixelClass(r,g,b){
+  // Derived roads use red/blue symbols regardless of Player/Banker meaning.
+  const sat=Math.max(r,g,b)-Math.min(r,g,b);
+  if(sat<35) return null;
+  if(r>135 && r>g*1.20 && r>b*1.10) return 'R';
+  if(b>115 && b>r*1.12 && b>g*1.03) return 'B';
+  return null;
+}
+function derivedCellVote(ctx,cx,cy,rad){
+  let counts={R:0,B:0};
+  const step=Math.max(1,Math.floor(rad/2.5));
+  for(let y=Math.floor(cy-rad);y<=cy+rad;y+=step){
+    for(let x=Math.floor(cx-rad);x<=cx+rad;x+=step){
+      const dx=x-cx,dy=y-cy,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>rad*1.08) continue;
+      const px=ctx.getImageData(Math.max(0,x),Math.max(0,y),1,1).data;
+      const c=derivedPixelClass(px[0],px[1],px[2]);
+      if(c) counts[c]++;
+    }
+  }
+  const best=counts.R>=counts.B?['R',counts.R]:['B',counts.B];
+  return best[1]>=2?best[0]:null;
+}
+function scanDerivedRegion(ctx,canvas,region){
+  const x=canvas.width*region.x, y=canvas.height*region.y;
+  const w=canvas.width*region.w, h=canvas.height*region.h;
+  const rows=6, cell=h/rows, cols=Math.max(1,Math.floor(w/cell));
+  const grid=[];
+  for(let c=0;c<cols;c++){
+    grid[c]=[];
+    for(let r=0;r<rows;r++){
+      grid[c][r]=derivedCellVote(ctx,x+(c+.5)*cell,y+(r+.5)*cell,cell*.40);
+    }
+  }
+  const out=[];
+  for(let c=0;c<cols;c++){
+    let seen=false;
+    for(let r=0;r<rows;r++){
+      const v=grid[c][r];
+      if(v){out.push(v);seen=true;}
+      else if(seen) break;
+    }
+  }
+  return {out,x,y,w,h};
+}
+
+function drawScanOverlay(img){
+  const canvas=document.getElementById('scanCanvas'),ctx=canvas.getContext('2d');
+  const maxW=900,scale=Math.min(1,maxW/img.naturalWidth);
+  canvas.width=Math.round(img.naturalWidth*scale);
+  canvas.height=Math.round(img.naturalHeight*scale);
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+  // Reference ratios measured from the All In Baccarat screenshot layout.
+  const x=canvas.width*0.055, y=canvas.height*0.665;
+  const w=canvas.width*0.650, h=canvas.height*0.058;
+  ctx.strokeStyle='#f1b827';ctx.lineWidth=2;
+  ctx.strokeRect(x,y,w,h);
+  ctx.fillStyle='rgba(241,184,39,.15)';ctx.fillRect(x,y,w,h);
+  return {canvas,ctx,x,y,w,h};
+}
+function scanBigRoad(){
+  if(!scanImage) return;
+  const {canvas,ctx,x,y,w,h}=drawScanOverlay(scanImage);
+  const rows=6;
+  const cell=h/rows;
+  const cols=Math.max(1,Math.floor(w/cell));
+  let grid=[];
+  for(let c=0;c<cols;c++){
+    grid[c]=[];
+    for(let r=0;r<rows;r++){
+      const cx=x+(c+.5)*cell, cy=y+(r+.5)*cell;
+      grid[c][r]=cellVote(ctx,cx,cy,cell*.42);
+    }
+  }
+
+  let out=[];
+  for(let c=0;c<cols;c++){
+    let seen=false;
+    for(let r=0;r<rows;r++){
+      const v=grid[c][r];
+      if(v){out.push(v);seen=true;}
+      else if(seen) break;
+    }
+  }
+  scanDetected=out;
+
+  // Approximate All-In full-board bands. These are checked independently so
+  // the imported visual roads can be preserved instead of relying only on reconstruction.
+  const regions={
+    eye:{x:.055,y:.729,w:.315,h:.052},
+    small:{x:.382,y:.729,w:.315,h:.052},
+    roach:{x:.055,y:.793,w:.642,h:.052}
+  };
+  const eye=scanDerivedRegion(ctx,canvas,regions.eye);
+  const small=scanDerivedRegion(ctx,canvas,regions.small);
+  const roach=scanDerivedRegion(ctx,canvas,regions.roach);
+  scanDerivedDetected={eye:eye.out,small:small.out,roach:roach.out};
+
+  // Draw scan boxes so the user can visually confirm the areas being read.
+  ctx.save();
+  ctx.lineWidth=1.5;
+  [['#ffcf4b',eye],['#73b6ff',small],['#d98cff',roach]].forEach(([color,r])=>{
+    ctx.strokeStyle=color; ctx.strokeRect(r.x,r.y,r.w,r.h);
+  });
+  ctx.restore();
+
+  renderDetected();
+  document.getElementById('scanStatus').textContent=
+    out.length ? 'Full-board scan complete. Review the P/B sequence below, then tap Sync Entire Board.' :
+    'No main-road circles were detected. Try a screenshot with the roadmap fully visible.';
+  document.getElementById('scanRoadSummary').textContent=
+    `Derived roads detected • Big Eye ${eye.out.length} marks • Small ${small.out.length} marks • Roach ${roach.out.length} marks`;
+  document.getElementById('applyScanBtn').disabled=!out.length;
+
+  ctx.fillStyle='#f1b827';
+  for(let c=0;c<cols;c++) for(let r=0;r<rows;r++){
+    if(grid[c][r]){
+      ctx.beginPath();
+      ctx.arc(x+(c+.5)*cell,y+(r+.5)*cell,2.2,0,Math.PI*2);ctx.fill();
+    }
+  }
+}
+function renderDetected(){
+  const box=document.getElementById('detectedResults'); box.innerHTML='';
+  scanDetected.forEach((v,i)=>{
+    const b=document.createElement('button');
+    b.className='det-chip '+v.toLowerCase(); b.textContent=v; b.title='Tap to switch; long-press to delete';
+    b.onclick=()=>{scanDetected[i]=scanDetected[i]==='P'?'B':'P';renderDetected();};
+    let timer;
+    b.onpointerdown=()=>{timer=setTimeout(()=>{scanDetected.splice(i,1);renderDetected();},650);};
+    b.onpointerup=b.onpointerleave=()=>clearTimeout(timer);
+    box.appendChild(b);
+  });
+  const p=scanDetected.filter(x=>x==='P').length,bn=scanDetected.filter(x=>x==='B').length;
+  document.getElementById('scanSummary').textContent=scanDetected.length?`Main results detected: ${scanDetected.length} hands • P ${p} • B ${bn}`:'';
+}
+document.getElementById('scanInput').addEventListener('change',e=>{
+  const file=e.target.files?.[0]; if(!file) return;
+  const img=new Image();
+  img.onload=()=>{
+    scanImage=img;scanDetected=[];scanDerivedDetected={eye:[],small:[],roach:[]};
+    document.getElementById('scanStage').classList.add('show');
+    document.getElementById('scanNowBtn').disabled=false;
+    drawScanOverlay(img);
+    document.getElementById('scanStatus').textContent='Screenshot loaded. Yellow box shows the area the scanner will inspect.';
+  };
+  img.src=URL.createObjectURL(file);
+});
+document.getElementById('scanNowBtn').onclick=scanBigRoad;
+document.getElementById('applyScanBtn').onclick=()=>{
+  if(!scanDetected.length)return;
+  if(state.hands.length && !confirm('Replace the current shoe with the screenshot and synchronize the whole board?')) return;
+  state.hands=scanDetected.map((r,i)=>({r,pp:false,bp:false,special:false,ts:Date.now()+i}));
+  const seq=scanDetected.join('');
+  state.scanSnapshot={
+    sequence:seq,
+    eye:[...(scanDerivedDetected.eye||[])],
+    small:[...(scanDerivedDetected.small||[])],
+    roach:[...(scanDerivedDetected.roach||[])],
+    locked:true,
+    importedAt:new Date().toISOString()
+  };
+  if(state.backtest) state.backtest.pending=null;
+  if(state.h2o) state.h2o.last=null;
+  if(state.dragon) state.dragon.lastAlertKey='';
+  if(state.autoSaveLibrary && scanDetected.length>=4) saveSequenceToLibrary(scanDetected,'screenshot',true);
+  armNextPrediction();
+  persist();render();
+  document.getElementById('scanStatus').textContent='Board synchronized: main results, Big Road, Big Eye Boy, Small Road, and Roach Road updated from the screenshot.';
+};
+document.getElementById('clearScanBtn').onclick=()=>{
+  scanImage=null;scanDetected=[];scanDerivedDetected={eye:[],small:[],roach:[]};
+  document.getElementById('scanInput').value='';
+  document.getElementById('scanStage').classList.remove('show');
+  document.getElementById('scanRoadSummary').textContent='';
+  document.getElementById('scanNowBtn').disabled=true;
+  document.getElementById('applyScanBtn').disabled=true;
+};
+
+
+bindSeparateShoeControls();
+load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
+</script>
+</body>
+</html>
