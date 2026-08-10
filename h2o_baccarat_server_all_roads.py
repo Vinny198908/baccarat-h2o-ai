@@ -15,6 +15,7 @@ from typing import Any
 import h2o
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from h2o.automl import H2OAutoML
 
