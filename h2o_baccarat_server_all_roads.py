@@ -33,6 +33,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+@app.get("/", include_in_schema=False)
+def homepage():
+    return FileResponse(APP_DIR / "index.html")
 _lock = threading.Lock()
 _model = None
 _model_id = None
