@@ -361,7 +361,7 @@
             <div class="h2o-title">H2O.ai Model Connector</div>
             <div class="analyzer-sub">Shared connector mode: when hosted with the H2O API, iPhone and iPad automatically use the same /score endpoint.</div>
           </div>
-          <span class="h2o-status" id="h2oStatus">Not connected</span>
+          <span class="h2o-status err" id="h2oStatus">🔴 AI OFFLINE</span>
         </div>
         <div class="h2o-grid">
           <input class="h2o-input" id="h2oUrl" type="url" placeholder="Auto: same server /score" autocomplete="off">
@@ -469,13 +469,13 @@
         <div class="scanner-head">
           <div>
             <div class="scanner-title">Full Board Screenshot Sync</div>
-            <div class="scanner-note">Choose a full-screen All In Baccarat screenshot. The scanner imports the visible main shoe from the Big Road, checks the three derived-road bands, and then updates Main Results, Big Road, Big Eye Boy, Small Road, and Roach Road together. Review the detected P/B chips before applying.</div>
+            <div class="scanner-note">Choose a screenshot of the large 6-row P/B/T results grid. The scanner reads Player, Banker, and Tie results first, then rebuilds Big Road, Big Eye Boy, Small Road, and Cockroach Road from that history using baccarat road rules. Review the detected chips before applying.</div>
           </div>
         </div>
         <div class="scan-actions">
           <label class="scan-btn primary" for="scanInput">Choose Screenshot</label>
           <input class="scan-file" id="scanInput" type="file" accept="image/*">
-          <button class="scan-btn" id="scanNowBtn" disabled>Scan Full Board</button>
+          <button class="scan-btn" id="scanNowBtn" disabled>Scan P/B/T Grid</button>
         </div>
         <div class="scan-stage" id="scanStage">
           <canvas id="scanCanvas"></canvas>
@@ -484,7 +484,7 @@
           <div class="scan-status" id="scanRoadSummary"></div>
           <div class="detected" id="detectedResults"></div>
           <div class="scan-actions">
-            <button class="scan-btn success" id="applyScanBtn" disabled>Sync Entire Board</button>
+            <button class="scan-btn success" id="applyScanBtn" disabled>Rebuild Roads</button>
             <button class="scan-btn" id="clearScanBtn">Clear Scan</button>
           </div>
         </div>
@@ -587,23 +587,52 @@ document.getElementById('fullscreenBtn').onclick=()=>{
   if(document.fullscreenElement) document.exitFullscreen?.(); else e.requestFullscreen?.();
 };
 
+// Place a road using standard 6-row baccarat "dragon tail" behavior.
+// A continuing streak goes down when possible; otherwise it moves right.
+// A new streak starts at the top of the next available logical column.
+function placeRoadSequence(items, valueOf){
+  const pos=[];
+  const occupied=new Set();
+  let col=0,row=0,last=null,streakStartCol=0;
+
+  items.forEach((item,i)=>{
+    const value=valueOf(item);
+    if(i===0){
+      col=0;row=0;streakStartCol=0;
+    }else if(value===last){
+      const canGoDown=row<5 && !occupied.has(`${col},${row+1}`);
+      if(canGoDown){
+        row++;
+      }else{
+        col++;
+        while(occupied.has(`${col},${row}`)) col++;
+      }
+    }else{
+      streakStartCol++;
+      col=streakStartCol;row=0;
+      while(occupied.has(`${col},0`)){
+        streakStartCol++;
+        col=streakStartCol;
+      }
+    }
+    occupied.add(`${col},${row}`);
+    pos.push({...item,col,row});
+    last=value;
+  });
+  return pos;
+}
+
 function bigRoadPositions(hands){
-  // Simplified casino-style streak columns: P/B create road; ties overlay previous cell.
+  // Player/Banker create Big Road cells. Ties overlay the previous non-tie cell.
   const base=hands.filter(h=>h.r!=='T');
   const tiesByIndex=[];
   let nonTieIndex=-1;
-  hands.forEach(h=>{ if(h.r==='T'){ if(nonTieIndex>=0) tiesByIndex[nonTieIndex]=(tiesByIndex[nonTieIndex]||0)+1; }
-                     else nonTieIndex++; });
-  const pos=[]; let col=0,row=0,last=null;
-  base.forEach((h,i)=>{
-    if(i===0){col=0;row=0;}
-    else if(h.r===last && row<5){row++;}
-    else if(h.r===last && row===5){col++;}
-    else {col++;row=0;}
-    pos.push({...h,col,row,ties:tiesByIndex[i]||0});
-    last=h.r;
+  hands.forEach(h=>{
+    if(h.r==='T'){
+      if(nonTieIndex>=0) tiesByIndex[nonTieIndex]=(tiesByIndex[nonTieIndex]||0)+1;
+    }else nonTieIndex++;
   });
-  return pos;
+  return placeRoadSequence(base,h=>h.r).map((x,i)=>({...x,ties:tiesByIndex[i]||0}));
 }
 
 function renderRoad(){
@@ -639,32 +668,32 @@ function buildBigRoadColumns(hands){
 
 // Standard baccarat derived-road comparison.
 // offset 1 = Big Eye Boy, 2 = Small Road, 3 = Cockroach Road.
-// Red means pattern/structure is matching; blue means it is not.
+// Red/blue describe structural regularity; they do NOT mean Banker/Player.
 function deriveRoad(hands, offset){
   const cols=buildBigRoadColumns(hands);
   const marks=[];
-  if(cols.length <= offset) return marks;
+  if(cols.length<=offset) return marks;
 
+  // A derived road starts on the hand AFTER the first hand in its starting
+  // Big Road column: column 2 for Big Eye, 3 for Small, 4 for Cockroach.
   for(let c=offset;c<cols.length;c++){
     const currentLen=cols[c].length;
-    for(let r=0;r<currentLen;r++){
-      let red=false;
+    const startRow=(c===offset)?1:0;
+    for(let r=startRow;r<currentLen;r++){
+      let red;
       if(r===0){
-        // New column: compare the two earlier column lengths.
-        const a=cols[c-1]?.length || 0;
-        const b=cols[c-1-offset]?.length || 0;
-        red = a===b;
+        // New Big Road column: compare the depths of the two reference columns.
+        const nearLen=cols[c-1]?.length || 0;
+        const farLen=cols[c-1-offset]?.length || 0;
+        red=nearLen===farLen;
       }else{
-        // Moving down a column: compare whether corresponding cells exist
-        // in the reference column and its next row.
-        const ref=cols[c-offset];
-        const hasSame=!!ref && ref.length>=r+1;
-        const hasNext=!!ref && ref.length>=r+2;
-        red = (hasSame && !hasNext) || (!hasSame && hasNext);
-        // Casino road convention: if the reference column extends to this row,
-        // matching continuity is red; otherwise blue.
-        if(hasSame) red=true;
-        if(!hasSame) red=false;
+        // Continuing in the same Big Road column: look offset columns left.
+        // Compare occupancy at this row with occupancy one row above.
+        // Both occupied OR both empty = red; a change in occupancy = blue.
+        const refLen=cols[c-offset]?.length || 0;
+        const sameRowExists=refLen>=r+1;
+        const aboveRowExists=refLen>=r;
+        red=sameRowExists===aboveRowExists;
       }
       marks.push(red?'R':'B');
     }
@@ -673,16 +702,7 @@ function deriveRoad(hands, offset){
 }
 
 function roadPositionsFromMarks(marks){
-  const pos=[]; let col=0,row=0,last=null;
-  marks.forEach((m,i)=>{
-    if(i===0){col=0;row=0;}
-    else if(m===last && row<5){row++;}
-    else if(m===last && row===5){col++;}
-    else {col++;row=0;}
-    pos.push({m,col,row});
-    last=m;
-  });
-  return pos;
+  return placeRoadSequence(marks.map(m=>({m})),x=>x.m);
 }
 
 function renderDerivedRoad(id, marks, style){
@@ -734,12 +754,11 @@ function renderPreview(){
 }
 
 function renderDerived(){
-  const snap=state.scanSnapshot;
-  const seq=currentSequence().join('');
-  const useSnap=!!(snap && snap.sequence===seq && snap.locked);
-  renderDerivedRoad('bigEyeRoad', useSnap && snap.eye?.length ? snap.eye : deriveRoad(state.hands,1), 'ring');
-  renderDerivedRoad('smallRoad', useSnap && snap.small?.length ? snap.small : deriveRoad(state.hands,2), 'dot');
-  renderDerivedRoad('roachRoad', useSnap && snap.roach?.length ? snap.roach : deriveRoad(state.hands,3), 'slash');
+  // Always rebuild the three derived roads from the imported/entered P/B/T history.
+  // This avoids copying noisy red/blue pixels from a screenshot into the roads.
+  renderDerivedRoad('bigEyeRoad', deriveRoad(state.hands,1), 'ring');
+  renderDerivedRoad('smallRoad', deriveRoad(state.hands,2), 'dot');
+  renderDerivedRoad('roachRoad', deriveRoad(state.hands,3), 'slash');
 }
 function renderHistory(){
   const e=document.getElementById('historyGrid');e.innerHTML='';
@@ -1250,7 +1269,7 @@ function normalizeH2OResponse(data){
 async function scoreWithH2O(showAlert=false){
   if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
   const st=document.getElementById('h2oStatus');
-  if(st){st.textContent='Scoring…';st.className='h2o-status';}
+  if(st){st.textContent='🟡 AI CONNECTING…';st.className='h2o-status';}
   try{
     const headers={'Content-Type':'application/json'};
     if(state.h2o.key) headers['Authorization']='Bearer '+state.h2o.key;
@@ -1278,8 +1297,8 @@ function renderH2O(){
   const st=document.getElementById('h2oStatus');
   if(st){
     if(h.error){st.textContent='🔴 AI OFFLINE';st.className='h2o-status err';}
-    else if(h.connected){st.textContent='🟢 AI Connected';st.className='h2o-status on';}
-    else {st.textContent='🔴 AI OFFLINE';st.className='h2o-status';}
+    else if(h.connected){st.textContent='🟢 AI CONNECTED';st.className='h2o-status on';}
+    else {st.textContent='🔴 AI OFFLINE';st.className='h2o-status err';}
   }
   document.getElementById('h2oP').textContent=x.p==null?'—':x.p+'%';
   document.getElementById('h2oB').textContent=x.b==null?'—':x.b+'%';
@@ -1478,9 +1497,9 @@ document.getElementById('h2oTestBtn').onclick=async()=>{
 document.getElementById('dragonSoundBtn').onclick=()=>{state.dragon.sound=!state.dragon.sound;persist();renderDragonAlert();};
 document.getElementById('dragonPopupBtn').onclick=()=>{state.dragon.popup=!state.dragon.popup;persist();renderDragonAlert();};
 
-// --- Screenshot scanner tuned for full-screen All In Baccarat screenshots ---
-// It uses color sampling from the visible Big Road. This is intentionally
-// local-only: the image never leaves the device.
+// --- Screenshot scanner for the large 6-row P/B/T result grid ---
+// It uses local color sampling; the image never leaves the device.
+// Derived roads are calculated from the detected history, not copied as pixels.
 let scanImage=null, scanDetected=[], scanDerivedDetected={eye:[],small:[],roach:[]};
 
 function rgbClass(r,g,b){
@@ -1560,7 +1579,8 @@ function drawScanOverlay(img){
   canvas.height=Math.round(img.naturalHeight*scale);
   ctx.drawImage(img,0,0,canvas.width,canvas.height);
 
-  // Reference ratios measured from the All In Baccarat screenshot layout.
+  // Bovada-style large 6-row P/B/T results grid (based on the supplied phone screenshot).
+  // The four ratios are intentionally easy to retune if the table skin changes later.
   const x=canvas.width*0.080, y=canvas.height*0.160;
   const w=canvas.width*0.890, h=canvas.height*0.840;
   ctx.strokeStyle='#f1b827';ctx.lineWidth=2;
@@ -1594,32 +1614,16 @@ function scanBigRoad(){
   }
   scanDetected=out;
 
-  // Approximate All-In full-board bands. These are checked independently so
-  // the imported visual roads can be preserved instead of relying only on reconstruction.
-  const regions={
-    eye:{x:.055,y:.729,w:.315,h:.052},
-    small:{x:.382,y:.729,w:.315,h:.052},
-    roach:{x:.055,y:.793,w:.642,h:.052}
-  };
-  const eye=scanDerivedRegion(ctx,canvas,regions.eye);
-  const small=scanDerivedRegion(ctx,canvas,regions.small);
-  const roach=scanDerivedRegion(ctx,canvas,regions.roach);
-  scanDerivedDetected={eye:eye.out,small:small.out,roach:roach.out};
-
-  // Draw scan boxes so the user can visually confirm the areas being read.
-  ctx.save();
-  ctx.lineWidth=1.5;
-  [['#ffcf4b',eye],['#73b6ff',small],['#d98cff',roach]].forEach(([color,r])=>{
-    ctx.strokeStyle=color; ctx.strokeRect(r.x,r.y,r.w,r.h);
-  });
-  ctx.restore();
+  // Do not scan Big Eye/Small/Cockroach pixels. Those symbols are derived from
+  // the P/B/T history and are rebuilt after import, which is much more reliable.
+  scanDerivedDetected={eye:[],small:[],roach:[]};
 
   renderDetected();
   document.getElementById('scanStatus').textContent=
-    out.length ? 'Full-board scan complete. Review the P/B sequence below, then tap Sync Entire Board.' :
-    'No main-road circles were detected. Try a screenshot with the roadmap fully visible.';
+    out.length ? 'P/B/T grid scan complete. Review the detected sequence, then tap Rebuild Roads.' :
+    'No P/B/T circles were detected. Use a screenshot where the large 6-row results grid is clearly visible.';
   document.getElementById('scanRoadSummary').textContent=
-    `Derived roads detected • Big Eye ${eye.out.length} marks • Small ${small.out.length} marks • Roach ${roach.out.length} marks`;
+    out.length ? 'Big Road, Big Eye Boy, Small Road, and Cockroach Road will be rebuilt from these results.' : '';
   document.getElementById('applyScanBtn').disabled=!out.length;
 
   ctx.fillStyle='#f1b827';
@@ -1635,14 +1639,14 @@ function renderDetected(){
   scanDetected.forEach((v,i)=>{
     const b=document.createElement('button');
     b.className='det-chip '+v.toLowerCase(); b.textContent=v; b.title='Tap to switch; long-press to delete';
-    b.onclick=()=>{scanDetected[i]=scanDetected[i]==='P'?'B':'P';renderDetected();};
+    b.onclick=()=>{scanDetected[i]=scanDetected[i]==='P'?'B':scanDetected[i]==='B'?'T':'P';renderDetected();};
     let timer;
     b.onpointerdown=()=>{timer=setTimeout(()=>{scanDetected.splice(i,1);renderDetected();},650);};
     b.onpointerup=b.onpointerleave=()=>clearTimeout(timer);
     box.appendChild(b);
   });
-  const p=scanDetected.filter(x=>x==='P').length,bn=scanDetected.filter(x=>x==='B').length;
-  document.getElementById('scanSummary').textContent=scanDetected.length?`Main results detected: ${scanDetected.length} hands • P ${p} • B ${bn}`:'';
+  const p=scanDetected.filter(x=>x==='P').length,bn=scanDetected.filter(x=>x==='B').length,t=scanDetected.filter(x=>x==='T').length;
+  document.getElementById('scanSummary').textContent=scanDetected.length?`Main results detected: ${scanDetected.length} hands • P ${p} • B ${bn} • T ${t}`:'';
 }
 document.getElementById('scanInput').addEventListener('change',e=>{
   const file=e.target.files?.[0]; if(!file) return;
@@ -1664,11 +1668,9 @@ document.getElementById('applyScanBtn').onclick=()=>{
   const seq=scanDetected.join('');
   state.scanSnapshot={
     sequence:seq,
-    eye:[...(scanDerivedDetected.eye||[])],
-    small:[...(scanDerivedDetected.small||[])],
-    roach:[...(scanDerivedDetected.roach||[])],
-    locked:true,
-    importedAt:new Date().toISOString()
+    locked:false,
+    importedAt:new Date().toISOString(),
+    source:'pbt-grid'
   };
   if(state.backtest) state.backtest.pending=null;
   if(state.h2o) state.h2o.last=null;
@@ -1676,7 +1678,7 @@ document.getElementById('applyScanBtn').onclick=()=>{
   if(state.autoSaveLibrary && scanDetected.length>=4) saveSequenceToLibrary(scanDetected,'screenshot',true);
   armNextPrediction();
   persist();render();
-  document.getElementById('scanStatus').textContent='Board synchronized: main results, Big Road, Big Eye Boy, Small Road, and Roach Road updated from the screenshot.';
+  document.getElementById('scanStatus').textContent='Roads rebuilt from the detected P/B/T history: Big Road, Big Eye Boy, Small Road, and Cockroach Road updated.';
 };
 document.getElementById('clearScanBtn').onclick=()=>{
   scanImage=null;scanDetected=[];scanDerivedDetected={eye:[],small:[],roach:[]};
