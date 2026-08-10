@@ -151,6 +151,14 @@
   @media (max-width:430px){.shoe-columns{grid-template-columns:1fr}.shoe-rank-grid{grid-template-columns:repeat(7,1fr)}}
   .tiny-btn{border:1px solid #3b434d;background:#242a31;color:#fff;border-radius:10px;padding:9px 6px;font-weight:700;font-size:12px}
 
+  .shoe-library{margin-top:8px;background:#171b21;border:1px solid #343b45;border-radius:10px;padding:8px}
+  .shoe-library-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;font-weight:800}
+  .shoe-library-count{color:var(--muted);font-size:10px}
+  .shoe-library-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:7px}
+  .shoe-active{margin-top:7px;width:100%;border:1px solid #4a5563;background:#20262e;color:#fff;border-radius:10px;padding:8px 6px;font-weight:800;font-size:11px}
+  .shoe-active.active{border-color:#f1b827;box-shadow:0 0 0 1px #f1b827 inset}
+  .shoe-comp{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.35}
+
 
   .library{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
   .library-title{font-size:14px;font-weight:800}
@@ -371,12 +379,15 @@
           <button class="tiny-btn" id="h2oSaveBtn">Save Connection</button>
           <button class="tiny-btn" id="h2oTestBtn">Test / Score Now</button>
         </div>
+        <div class="h2o-actions" style="grid-template-columns:1fr;margin-top:7px">
+          <button class="tiny-btn" id="h2oTrainBtn">Train / Retrain H2O from Saved Shoes</button>
+        </div>
         <div class="h2o-result">
           <div class="h2o-card"><strong id="h2oP">—</strong><span>H2O Player</span></div>
           <div class="h2o-card"><strong id="h2oB">—</strong><span>H2O Banker</span></div>
           <div class="h2o-card"><strong id="h2oT">—</strong><span>H2O Tie</span></div>
         </div>
-        <div class="h2o-note" id="h2oNote">The app sends only numeric/pattern features for the current shoe. Your endpoint should return JSON such as {"p":0.46,"b":0.49,"t":0.05}. H2O stays optional; the app continues using local analysis when disconnected.</div>
+        <div class="h2o-note" id="h2oNote">The AI analyzes the full current shoe plus Big Road, Big Eye Boy, Small Road, Cockroach Road, streak/chop structure, recent outcomes, and saved-shoe patterns. Your endpoint should return JSON such as {"p":0.46,"b":0.49,"t":0.05}. H2O stays optional; the app continues using local analysis when disconnected.</div>
       </div>
 
       <div class="card-entry">
@@ -402,6 +413,19 @@
               <button class="tiny-btn" id="redShoeUndo">Undo</button>
               <button class="tiny-btn" id="redShoeReset">New Red Shoe</button>
             </div>
+            <button class="shoe-active" id="redShoeActive">Use RED shoe for analyzer</button>
+            <div class="shoe-comp" id="redShoeComp">Composition: full 8-deck shoe.</div>
+            <div class="shoe-library">
+              <div class="shoe-library-head"><span>Red Shoe Library</span><span class="shoe-library-count" id="redLibraryCount">0 saved</span></div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="redShoeSave">Save Shoe</button>
+                <button class="tiny-btn" id="redLibraryView">View</button>
+                <button class="tiny-btn" id="redLibraryExport">Export</button>
+              </div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="redLibraryClear" style="grid-column:1/-1">Clear Red Library</button>
+              </div>
+            </div>
           </div>
           <div class="shoe-column black-shoe">
             <div class="shoe-col-title"><span>⚫ Black Shoe</span><span class="shoe-count" id="blackShoeCount">416 remaining</span></div>
@@ -410,6 +434,19 @@
             <div class="shoe-actions">
               <button class="tiny-btn" id="blackShoeUndo">Undo</button>
               <button class="tiny-btn" id="blackShoeReset">New Black Shoe</button>
+            </div>
+            <button class="shoe-active" id="blackShoeActive">Use BLACK shoe for analyzer</button>
+            <div class="shoe-comp" id="blackShoeComp">Composition: full 8-deck shoe.</div>
+            <div class="shoe-library">
+              <div class="shoe-library-head"><span>Black Shoe Library</span><span class="shoe-library-count" id="blackLibraryCount">0 saved</span></div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="blackShoeSave">Save Shoe</button>
+                <button class="tiny-btn" id="blackLibraryView">View</button>
+                <button class="tiny-btn" id="blackLibraryExport">Export</button>
+              </div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="blackLibraryClear" style="grid-column:1/-1">Clear Black Library</button>
+              </div>
             </div>
           </div>
         </div>
@@ -521,7 +558,7 @@ const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
 
 function load(){
   try{
@@ -531,6 +568,9 @@ function load(){
       if(!Array.isArray(state.cards)) state.cards=[];
       if(!Array.isArray(state.redShoeCards)) state.redShoeCards=[];
       if(!Array.isArray(state.blackShoeCards)) state.blackShoeCards=[];
+      if(!Array.isArray(state.redShoeLibrary)) state.redShoeLibrary=[];
+      if(!Array.isArray(state.blackShoeLibrary)) state.blackShoeLibrary=[];
+      if(!['red','black'].includes(state.activeCardShoe)) state.activeCardShoe='red';
       if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
       if(!Array.isArray(state.backtest.rows)) state.backtest.rows=[];
       if(!Array.isArray(state.patternLibrary)) state.patternLibrary=[];
@@ -1109,6 +1149,41 @@ function initSeparateShoeGrid(gridId, stateKey){
   });
 }
 
+function shoeCompositionSummary(cards){
+  const initial={}; rankNames.forEach(r=>initial[r]=32);
+  (cards||[]).forEach(r=>{if(initial[r]>0)initial[r]--;});
+  const remaining=Math.max(0,416-(cards||[]).length);
+  let low=0,high=0,zero=0;
+  Object.entries(initial).forEach(([r,n])=>{const v=baccaratValue(r);if(v===0)zero+=n;else if(v<=4)low+=n;else high+=n;});
+  if(!remaining)return 'Shoe empty.';
+  return `Remaining composition • low-value ${low} • high-value ${high} • zero-value ${zero}`;
+}
+
+function saveSeparateShoe(color, quiet=false){
+  const cardsKey=color+'ShoeCards', libKey=color+'ShoeLibrary';
+  const cards=Array.isArray(state[cardsKey])?state[cardsKey]:[];
+  if(!cards.length){if(!quiet)alert(`No cards entered in the ${color.toUpperCase()} shoe.`);return false;}
+  if(!Array.isArray(state[libKey]))state[libKey]=[];
+  const signature=cards.join(',');
+  if(state[libKey].some(x=>x.cards.join(',')===signature)){if(!quiet)alert('This exact shoe is already saved.');return false;}
+  state[libKey].push({id:`${color}_shoe_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,savedAt:new Date().toISOString(),cards:[...cards],used:cards.length});
+  persist(); if(!quiet)alert(`${color==='red'?'Red':'Black'} shoe saved to its own library (${cards.length} cards).`); return true;
+}
+
+function exportSeparateLibrary(color){
+  const lib=state[color+'ShoeLibrary']||[];
+  if(!lib.length){alert(`No ${color} shoes saved yet.`);return;}
+  const blob=new Blob([JSON.stringify({type:'baccarat-card-shoe-library',color,exportedAt:new Date().toISOString(),shoes:lib},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${color}_shoe_library.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function viewSeparateLibrary(color){
+  const lib=state[color+'ShoeLibrary']||[];
+  if(!lib.length){alert(`No ${color} shoes saved yet.`);return;}
+  const lines=lib.slice(-20).reverse().map((x,i)=>`${lib.length-i}. ${x.used} cards • ${new Date(x.savedAt).toLocaleString()}\n   ${x.cards.slice(-24).join(' ')}`);
+  alert(`${color.toUpperCase()} SHOE LIBRARY — ${lib.length} saved\n\n${lines.join('\n\n')}`);
+}
+
 function renderSeparateShoes(){
   initSeparateShoeGrid('redShoeRanks','redShoeCards');
   initSeparateShoeGrid('blackShoeRanks','blackShoeCards');
@@ -1117,26 +1192,41 @@ function renderSeparateShoes(){
     const remaining=Math.max(0,416-cards.length);
     const count=document.getElementById(prefix+'ShoeCount');
     const history=document.getElementById(prefix+'ShoeHistory');
+    const comp=document.getElementById(prefix+'ShoeComp');
+    const active=document.getElementById(prefix+'ShoeActive');
+    const libCount=document.getElementById(prefix+'LibraryCount');
     if(count) count.textContent=`${remaining} remaining • ${cards.length} used`;
     if(history) history.textContent=cards.length ? `Recent: ${cards.slice(-18).join(' • ')}` : 'No cards entered.';
+    if(comp) comp.textContent=shoeCompositionSummary(cards);
+    if(active){active.classList.toggle('active',state.activeCardShoe===prefix);active.textContent=(state.activeCardShoe===prefix?'✓ ACTIVE for analyzer':'Use '+prefix.toUpperCase()+' shoe for analyzer');}
+    if(libCount) libCount.textContent=`${(state[prefix+'ShoeLibrary']||[]).length} saved`;
   });
 }
 
 function bindSeparateShoeControls(){
   const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};
-  bind('redShoeUndo',()=>{state.redShoeCards.pop();persist();renderSeparateShoes();});
-  bind('blackShoeUndo',()=>{state.blackShoeCards.pop();persist();renderSeparateShoes();});
-  bind('redShoeReset',()=>{if(confirm('Start a new RED 8-deck shoe?')){state.redShoeCards=[];persist();renderSeparateShoes();}});
-  bind('blackShoeReset',()=>{if(confirm('Start a new BLACK 8-deck shoe?')){state.blackShoeCards=[];persist();renderSeparateShoes();}});
+  bind('redShoeUndo',()=>{if(state.redShoeCards.length)state.redShoeCards.pop();persist();render();});
+  bind('blackShoeUndo',()=>{if(state.blackShoeCards.length)state.blackShoeCards.pop();persist();render();});
+  bind('redShoeReset',()=>{if(confirm('Start a new RED 8-deck shoe? The current red shoe will be saved first if it contains cards.')){if(state.redShoeCards.length)saveSeparateShoe('red',true);state.redShoeCards=[];persist();render();}});
+  bind('blackShoeReset',()=>{if(confirm('Start a new BLACK 8-deck shoe? The current black shoe will be saved first if it contains cards.')){if(state.blackShoeCards.length)saveSeparateShoe('black',true);state.blackShoeCards=[];persist();render();}});
+  bind('redShoeSave',()=>{saveSeparateShoe('red');renderSeparateShoes();});
+  bind('blackShoeSave',()=>{saveSeparateShoe('black');renderSeparateShoes();});
+  bind('redLibraryView',()=>viewSeparateLibrary('red')); bind('blackLibraryView',()=>viewSeparateLibrary('black'));
+  bind('redLibraryExport',()=>exportSeparateLibrary('red')); bind('blackLibraryExport',()=>exportSeparateLibrary('black'));
+  bind('redLibraryClear',()=>{if(confirm('Delete every saved RED card shoe?')){state.redShoeLibrary=[];persist();renderSeparateShoes();}});
+  bind('blackLibraryClear',()=>{if(confirm('Delete every saved BLACK card shoe?')){state.blackShoeLibrary=[];persist();renderSeparateShoes();}});
+  bind('redShoeActive',()=>{state.activeCardShoe='red';persist();render();});
+  bind('blackShoeActive',()=>{state.activeCardShoe='black';persist();render();});
 }
 
 function remainingCompositionScore(){
-  // Approximate 8-deck shoe composition from entered ranks.
-  // Positive favors Player signal slightly; negative favors Banker slightly.
+  // Use the selected physical red/black shoe when it has entries; otherwise fall back to the optional generic tracker.
   const decks=8;
   const initial={};
   rankNames.forEach(r=>initial[r]=4*decks);
-  state.cards.forEach(r=>{ if(initial[r]>0) initial[r]--; });
+  const activeKey=state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards';
+  const sourceCards=(Array.isArray(state[activeKey]) && state[activeKey].length) ? state[activeKey] : (state.cards||[]);
+  sourceCards.forEach(r=>{ if(initial[r]>0) initial[r]--; });
   const remaining=Object.values(initial).reduce((a,b)=>a+b,0);
   if(!remaining) return 0;
 
@@ -1236,7 +1326,7 @@ function h2oFeatures(){
   let alternations=0;for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) alternations++;
   const road=roadStructureSignal(), hist=historyPatternSignal(), lib=librarySignal(), match=findHistoricalMatches();
   return {
-    sequence:all.slice(-30).join(''),
+    sequence:all.join(''),
     hand_count:all.length,
     player_count:all.filter(x=>x==='P').length,
     banker_count:all.filter(x=>x==='B').length,
@@ -1250,7 +1340,11 @@ function h2oFeatures(){
     history_side:hist.side||'', history_strength:hist.strength||0,
     library_side:lib.side||'', library_strength:lib.strength||0,
     library_matches:match.matches||0, library_match_length:match.len||0,
-    saved_shoes:(state.patternLibrary||[]).length
+    saved_shoes:(state.patternLibrary||[]).length,
+    active_card_shoe:state.activeCardShoe||'red',
+    active_card_used:((state[(state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards')]||[]).length),
+    red_card_shoes_saved:(state.redShoeLibrary||[]).length,
+    black_card_shoes_saved:(state.blackShoeLibrary||[]).length
   };
 }
 function normalizeH2OResponse(data){
@@ -1266,6 +1360,47 @@ function normalizeH2OResponse(data){
   const side=pr>=br?'P':'B';
   return {p:pr,b:br,t:tr,side,strength:Math.max(pr,br),at:new Date().toISOString(),sequence:currentSequence().join('')};
 }
+async function h2oRequestJson(url, options){
+  const res=await fetch(url,options);
+  let data=null;
+  try{ data=await res.json(); }catch(e){ data=null; }
+  if(!res.ok){
+    const detail=data?.detail || data?.message || ('HTTP '+res.status);
+    const err=new Error(detail);
+    err.status=res.status;
+    throw err;
+  }
+  return data;
+}
+function h2oTrainUrl(){
+  const u=(state.h2o?.url||'').trim();
+  if(!u) return '';
+  return /\/score\/?(?:\?.*)?$/i.test(u) ? u.replace(/\/score\/?(?:\?.*)?$/i,'/train') : u.replace(/\/$/,'')+'/train';
+}
+async function trainH2O(showAlert=true){
+  if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
+  const shoes=(state.patternLibrary||[]).filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  if(shoes.length<5){
+    const msg=`H2O training needs at least 5 saved shoes. You currently have ${shoes.length}. Save or import ${5-shoes.length} more complete shoe${5-shoes.length===1?'':'s'}, then tap Train / Retrain H2O again.`;
+    state.h2o.connected=false; state.h2o.error=msg; persist(); renderH2O(); if(showAlert)alert(msg); return null;
+  }
+  const st=document.getElementById('h2oStatus');
+  if(st){st.textContent='🟡 AI TRAINING…';st.className='h2o-status';}
+  const headers={'Content-Type':'application/json'};
+  if(state.h2o.key) headers['Authorization']='Bearer '+state.h2o.key;
+  try{
+    const out=await h2oRequestJson(h2oTrainUrl(),{method:'POST',headers,body:JSON.stringify({shoes})});
+    state.h2o.connected=true; state.h2o.error=''; persist(); renderH2O();
+    if(showAlert) alert('H2O training finished. The model is ready. I will score the current shoe now.');
+    await scoreWithH2O(false);
+    return out;
+  }catch(err){
+    const msg=String(err.message||err);
+    state.h2o.connected=false; state.h2o.error='Training failed: '+msg; persist(); renderH2O();
+    if(showAlert) alert('H2O training failed: '+msg);
+    return null;
+  }
+}
 async function scoreWithH2O(showAlert=false){
   if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
   const st=document.getElementById('h2oStatus');
@@ -1273,14 +1408,15 @@ async function scoreWithH2O(showAlert=false){
   try{
     const headers={'Content-Type':'application/json'};
     if(state.h2o.key) headers['Authorization']='Bearer '+state.h2o.key;
-    const res=await fetch(state.h2o.url,{method:'POST',headers,body:JSON.stringify({features:h2oFeatures()})});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const out=normalizeH2OResponse(await res.json());
+    const data=await h2oRequestJson(state.h2o.url,{method:'POST',headers,body:JSON.stringify({features:h2oFeatures()})});
+    const out=normalizeH2OResponse(data);
     state.h2o.last=out;state.h2o.connected=true;state.h2o.error='';persist();renderAnalyzer();renderH2O();
     return out;
   }catch(err){
-    state.h2o.connected=false;state.h2o.error=String(err.message||err);persist();renderH2O();
-    if(showAlert) alert('H2O connection failed: '+state.h2o.error+'\n\nIf this file is opened directly on iPhone, your H2O server must allow HTTPS and CORS requests from the browser.');
+    let msg=String(err.message||err);
+    if(err.status===409 && /no trained model/i.test(msg)) msg='No trained H2O model yet. Tap “Train / Retrain H2O from Saved Shoes” first.';
+    state.h2o.connected=false;state.h2o.error=msg;persist();renderH2O();
+    if(showAlert) alert('H2O connection failed: '+msg+'\n\nIf this file is opened directly on iPhone/iPad, the H2O server must allow HTTPS and CORS requests from the browser.');
     return null;
   }
 }
@@ -1492,6 +1628,11 @@ document.getElementById('h2oTestBtn').onclick=async()=>{
   state.h2o.url=document.getElementById('h2oUrl').value.trim();
   state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
   await scoreWithH2O(true);
+};
+document.getElementById('h2oTrainBtn').onclick=async()=>{
+  state.h2o.url=document.getElementById('h2oUrl').value.trim();
+  state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
+  await trainH2O(true);
 };
 
 document.getElementById('dragonSoundBtn').onclick=()=>{state.dragon.sound=!state.dragon.sound;persist();renderDragonAlert();};
