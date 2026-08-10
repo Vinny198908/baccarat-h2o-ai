@@ -1573,158 +1573,152 @@ function scanDerivedRegion(ctx,canvas,region){
 }
 
 function drawScanOverlay(img){
-  const canvas=document.getElementById('scanCanvas'),ctx=canvas.getContext('2d');
-  const maxW=900,scale=Math.min(1,maxW/img.naturalWidth);
-  canvas.width=Math.round(img.naturalWidth*scale);
-  canvas.height=Math.round(img.naturalHeight*scale);
+  const canvas=document.getElementById('scanCanvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const maxW=1000,scale=Math.min(1,maxW/img.naturalWidth);
+  canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
   ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  return {canvas,ctx};
+}
 
-  // Bovada-style large 6-row P/B/T results grid (based on the supplied phone screenshot).
-  // The four ratios are intentionally easy to retune if the table skin changes later.
-  const x=canvas.width*0.080, y=canvas.height*0.160;
-  const w=canvas.width*0.890, h=canvas.height*0.840;
-  ctx.strokeStyle='#f1b827';ctx.lineWidth=2;
-  ctx.strokeRect(x,y,w,h);
-  ctx.fillStyle='rgba(241,184,39,.15)';ctx.fillRect(x,y,w,h);
-  return {canvas,ctx,x,y,w,h};
+function smoothProjection(a,radius){
+  const out=new Float32Array(a.length), pre=new Float64Array(a.length+1);
+  for(let i=0;i<a.length;i++) pre[i+1]=pre[i]+a[i];
+  for(let i=0;i<a.length;i++){
+    const lo=Math.max(0,i-radius), hi=Math.min(a.length-1,i+radius);
+    out[i]=(pre[hi+1]-pre[lo])/(hi-lo+1);
+  }
+  return out;
+}
+function localPeaks(a,minGap,minValue){
+  const cand=[];
+  for(let i=1;i<a.length-1;i++) if(a[i]>=a[i-1]&&a[i]>=a[i+1]&&a[i]>=minValue) cand.push(i);
+  cand.sort((x,y)=>a[y]-a[x]);
+  const keep=[];
+  for(const p of cand){
+    if(keep.every(k=>Math.abs(k-p)>=minGap)) keep.push(p);
+  }
+  return keep.sort((x,y)=>x-y);
+}
+function median(vals){
+  if(!vals.length)return 0;
+  const a=[...vals].sort((x,y)=>x-y),m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+function classifyCellFromData(data,w,h,cx,cy,rx,ry){
+  const counts={P:0,B:0,T:0};
+  const x0=Math.max(0,Math.floor(cx-rx)),x1=Math.min(w-1,Math.ceil(cx+rx));
+  const y0=Math.max(0,Math.floor(cy-ry)),y1=Math.min(h-1,Math.ceil(cy+ry));
+  for(let y=y0;y<=y1;y+=2) for(let x=x0;x<=x1;x+=2){
+    const dx=(x-cx)/Math.max(1,rx),dy=(y-cy)/Math.max(1,ry);
+    if(dx*dx+dy*dy>1)continue;
+    const k=(y*w+x)*4,c=rgbClass(data[k],data[k+1],data[k+2]);
+    if(c)counts[c]++;
+  }
+  const ranked=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const best=ranked[0], second=ranked[1];
+  if(!best||best[1]<4)return null;
+  if(second && best[1]<second[1]*1.18)return null;
+  return best[0];
 }
 function scanBigRoad(){
-  if(!scanImage) return;
-  const {canvas,ctx,x,y,w,h}=drawScanOverlay(scanImage);
+  if(!scanImage)return;
+  const {canvas,ctx}=drawScanOverlay(scanImage);
+  const W=canvas.width,H=canvas.height;
+  const image=ctx.getImageData(0,0,W,H),data=image.data;
 
-  // Adaptive chip detector. Instead of assuming the grid starts at one exact
-  // pixel and dividing the yellow box into equal cells, find the actual colored
-  // P/B/T chips first, then snap their centers to six rows and chronological columns.
-  // This is much more tolerant of iPhone/iPad screenshots, browser scaling and
-  // small crops around the results board.
-  const x0=Math.max(0,Math.floor(x)), y0=Math.max(0,Math.floor(y));
-  const x1=Math.min(canvas.width,Math.ceil(x+w)), y1=Math.min(canvas.height,Math.ceil(y+h));
-  const iw=x1-x0, ih=y1-y0;
-  const data=ctx.getImageData(x0,y0,iw,ih).data;
-  const mask=new Uint8Array(iw*ih);
-  const cls=new Uint8Array(iw*ih); // 1=P, 2=B, 3=T
-
-  for(let yy=0;yy<ih;yy++){
-    for(let xx=0;xx<iw;xx++){
-      const i=yy*iw+xx, k=i*4;
-      const c=rgbClass(data[k],data[k+1],data[k+2]);
-      if(c){mask[i]=1;cls[i]=c==='P'?1:c==='B'?2:3;}
+  // Build color-density projections. A bead plate has six dense horizontal
+  // chip rows and a regular set of vertical chip columns. This avoids relying
+  // on one hard-coded crop or on connected components that split letters/rings.
+  const yProj=new Uint32Array(H),xProj=new Uint32Array(W);
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const k=(y*W+x)*4,c=rgbClass(data[k],data[k+1],data[k+2]);
+      if(c){yProj[y]++;xProj[x]++;}
     }
   }
+  const ys=smoothProjection(yProj,Math.max(2,Math.round(H*.004)));
+  const xs=smoothProjection(xProj,Math.max(2,Math.round(W*.004)));
 
-  const seen=new Uint8Array(iw*ih), comps=[];
-  const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
-  for(let sy=0;sy<ih;sy++) for(let sx=0;sx<iw;sx++){
-    const si=sy*iw+sx;
-    if(!mask[si]||seen[si]) continue;
-    const q=[si]; seen[si]=1;
-    let qi=0,n=0,sumX=0,sumY=0,minX=sx,maxX=sx,minY=sy,maxY=sy;
-    const votes=[0,0,0,0];
-    while(qi<q.length){
-      const cur=q[qi++], cy=Math.floor(cur/iw), cx=cur-cy*iw;
-      n++;sumX+=cx;sumY+=cy;votes[cls[cur]]++;
-      if(cx<minX)minX=cx;if(cx>maxX)maxX=cx;if(cy<minY)minY=cy;if(cy>maxY)maxY=cy;
-      for(const [dx,dy] of dirs){
-        const nx=cx+dx,ny=cy+dy;
-        if(nx<0||ny<0||nx>=iw||ny>=ih)continue;
-        const ni=ny*iw+nx;
-        if(mask[ni]&&!seen[ni]){seen[ni]=1;q.push(ni);}
-      }
-    }
-    const bw=maxX-minX+1,bh=maxY-minY+1;
-    // Real chips form compact colored blobs. Reject tiny text/grid noise and
-    // huge UI areas. Thresholds are relative to the six-row board height.
-    const nominal=Math.max(8,ih/6);
-    if(n>=Math.max(10,nominal*nominal*.025) && bw>=nominal*.18 && bh>=nominal*.18 && bw<=nominal*1.35 && bh<=nominal*1.35){
-      const type=votes[1]>=votes[2]&&votes[1]>=votes[3]?'P':votes[2]>=votes[3]?'B':'T';
-      comps.push({cx:x0+sumX/n,cy:y0+sumY/n,type,n,bw,bh});
-    }
-  }
-
-  // Merge fragments belonging to the same chip (rings/letters can split into pieces).
-  comps.sort((a,b)=>a.cy-b.cy||a.cx-b.cx);
-  const approx=Math.max(10,h/6), merged=[];
-  for(const c of comps){
-    let m=merged.find(z=>Math.hypot(z.cx-c.cx,z.cy-c.cy)<approx*.38);
-    if(!m){merged.push({...c,weight:c.n});continue;}
-    const total=m.weight+c.n;
-    m.cx=(m.cx*m.weight+c.cx*c.n)/total;m.cy=(m.cy*m.weight+c.cy*c.n)/total;
-    if(c.n>m.n){m.type=c.type;m.n=c.n;m.bw=c.bw;m.bh=c.bh;}
-    m.weight=total;
-  }
-
-  // Determine the six row centers from chip Y positions. Use the densest 6-row
-  // lattice candidate so a little colored material outside the board is ignored.
-  let chips=merged;
-  let rowCenters=[];
-  if(chips.length>=6){
-    const ys=chips.map(c=>c.cy).sort((a,b)=>a-b);
-    let best=null;
-    for(let a=0;a<ys.length;a++) for(let b=a+1;b<ys.length;b++){
-      const step=(ys[b]-ys[a])/5;
-      if(step<8||step>h*.28)continue;
-      let score=0;
-      for(const c of chips){
-        const rr=Math.round((c.cy-ys[a])/step);
-        if(rr>=0&&rr<6 && Math.abs(c.cy-(ys[a]+rr*step))<step*.28) score++;
-      }
-      if(!best||score>best.score)best={top:ys[a],step,score};
-    }
-    if(best){rowCenters=Array.from({length:6},(_,r)=>best.top+r*best.step);}
-  }
-
-  if(rowCenters.length!==6){
-    // Safe fallback to the original geometry if adaptive row detection cannot lock on.
-    const cell=h/6;rowCenters=Array.from({length:6},(_,r)=>y+(r+.5)*cell);
-  }
-  const rowStep=(rowCenters[5]-rowCenters[0])/5;
-  chips=chips.filter(c=>Math.min(...rowCenters.map(v=>Math.abs(c.cy-v)))<rowStep*.32);
-
-  // Estimate column spacing from neighboring chip X centers, then snap chips to columns.
-  const xs=[...new Set(chips.map(c=>Math.round(c.cx)))].sort((a,b)=>a-b);
-  const diffs=[];
-  for(let i=1;i<xs.length;i++){const d=xs[i]-xs[i-1];if(d>rowStep*.45&&d<rowStep*1.55)diffs.push(d);}
-  diffs.sort((a,b)=>a-b);
-  const colStep=diffs.length?diffs[Math.floor(diffs.length/2)]:rowStep;
-  const left=chips.length?Math.min(...chips.map(c=>c.cx)):x+colStep/2;
-  const cells=new Map();
-  for(const c of chips){
-    const r=rowCenters.reduce((bi,v,i)=>Math.abs(c.cy-v)<Math.abs(c.cy-rowCenters[bi])?i:bi,0);
-    const col=Math.round((c.cx-left)/colStep);
-    if(col<0)continue;
-    const key=col+','+r, old=cells.get(key);
-    if(!old||c.weight>old.weight)cells.set(key,c);
-  }
-
-  // Baccarat bead-plate history is chronological down each 6-row column,
-  // then continues at the top of the next column.
-  const maxCol=Math.max(-1,...[...cells.keys()].map(k=>+k.split(',')[0]));
-  const out=[];
-  for(let c=0;c<=maxCol;c++){
-    let started=false;
+  // Find the best six-row arithmetic lattice among strong horizontal peaks.
+  const yMax=Math.max(...ys), yCandidates=localPeaks(ys,Math.max(5,Math.round(H*.025)),yMax*.16);
+  let bestRows=null;
+  for(let i=0;i<yCandidates.length;i++) for(let j=i+1;j<yCandidates.length;j++){
+    const step=(yCandidates[j]-yCandidates[i])/5;
+    if(step<8||step>H*.22)continue;
+    const rows=[];let score=0,ok=true;
     for(let r=0;r<6;r++){
-      const v=cells.get(c+','+r)?.type||null;
-      if(v){out.push(v);started=true;}
-      else if(started) break;
+      const target=yCandidates[i]+r*step;
+      let p=-1,dist=Infinity;
+      for(const q of yCandidates){const d=Math.abs(q-target);if(d<dist){dist=d;p=q;}}
+      if(p<0||dist>step*.28){ok=false;break;}
+      rows.push(p);score+=ys[p];
+    }
+    if(ok && (!bestRows||score>bestRows.score)) bestRows={rows,score,step};
+  }
+  if(!bestRows){
+    document.getElementById('scanStatus').textContent='Could not lock onto all 6 result rows. Crop the screenshot so the large P/B/T grid fills most of the image, then scan again.';
+    document.getElementById('scanRoadSummary').textContent='';scanDetected=[];renderDetected();document.getElementById('applyScanBtn').disabled=true;return;
+  }
+  const rowCenters=bestRows.rows,rowStep=median(rowCenters.slice(1).map((v,i)=>v-rowCenters[i]));
+
+  // Restrict the X projection to narrow bands around the six confirmed rows.
+  const rowBand=Math.max(3,rowStep*.34), xBand=new Uint32Array(W);
+  for(let r=0;r<6;r++){
+    const y0=Math.max(0,Math.floor(rowCenters[r]-rowBand)),y1=Math.min(H-1,Math.ceil(rowCenters[r]+rowBand));
+    for(let y=y0;y<=y1;y+=2) for(let x=0;x<W;x++){
+      const k=(y*W+x)*4,c=rgbClass(data[k],data[k+1],data[k+2]);if(c)xBand[x]++;
     }
   }
-  scanDetected=out;
-  scanDerivedDetected={eye:[],small:[],roach:[]};
+  const xb=smoothProjection(xBand,Math.max(2,Math.round(W*.004))),xMax=Math.max(...xb);
+  let xPeaks=localPeaks(xb,Math.max(5,Math.round(rowStep*.55)),xMax*.14);
+  if(xPeaks.length<2){
+    document.getElementById('scanStatus').textContent='The 6 rows were found, but the result columns could not be read. Use a clearer/cropped board screenshot.';
+    document.getElementById('scanRoadSummary').textContent='';scanDetected=[];renderDetected();document.getElementById('applyScanBtn').disabled=true;return;
+  }
 
-  renderDetected();
-  document.getElementById('scanStatus').textContent=
-    out.length ? `Adaptive 6-row scan complete (${out.length} chips). Review the sequence, then tap Rebuild Roads.` :
-    'No P/B/T circles were detected. Use a screenshot where the large 6-row results grid is clearly visible.';
-  document.getElementById('scanRoadSummary').textContent=
-    out.length ? 'Results are read top-to-bottom in each 6-row column, left-to-right. All four roads will be rebuilt from this exact history.' : '';
+  // Keep a regular column lattice. Determine typical spacing from neighbor gaps,
+  // then fill any missing peak positions so a faint chip cannot collapse the sequence.
+  const rawDiff=xPeaks.slice(1).map((v,i)=>v-xPeaks[i]).filter(d=>d>rowStep*.45&&d<rowStep*1.65);
+  const colStep=median(rawDiff)||rowStep;
+  const left=xPeaks[0], right=xPeaks[xPeaks.length-1];
+  const colCount=Math.max(1,Math.round((right-left)/colStep)+1);
+  const colCenters=Array.from({length:colCount},(_,c)=>left+c*colStep);
+
+  const cells=[];
+  for(let c=0;c<colCenters.length;c++){
+    for(let r=0;r<6;r++){
+      const type=classifyCellFromData(data,W,H,colCenters[c],rowCenters[r],colStep*.34,rowStep*.34);
+      if(type)cells.push({c,r,type,cx:colCenters[c],cy:rowCenters[r]});
+    }
+  }
+
+  // Chronological order for this 6-row bead-plate: down each column, then right.
+  const out=[];let lastUsedCol=-1;
+  for(let c=0;c<colCenters.length;c++){
+    const col=cells.filter(z=>z.c===c);
+    if(!col.length)continue;
+    lastUsedCol=c;
+    for(let r=0;r<6;r++){
+      const z=col.find(v=>v.r===r);
+      if(z)out.push(z.type);
+      // Only the final live column may be partially filled. Do not stop earlier
+      // columns because one faint cell was missed; classification can still recover
+      // the rows below it independently.
+    }
+  }
+  scanDetected=out;scanDerivedDetected={eye:[],small:[],roach:[]};renderDetected();
+  document.getElementById('scanStatus').textContent=out.length?`6-row grid scan complete (${out.length} chips). Review the sequence, then tap Rebuild Roads.`:'No P/B/T chips were detected.';
+  document.getElementById('scanRoadSummary').textContent=out.length?'Scanner locked onto the six actual result rows and their regular columns. Results are read top-to-bottom in each column, left-to-right.':'';
   document.getElementById('applyScanBtn').disabled=!out.length;
 
-  // Mark exactly the chip centers that were accepted by the adaptive grid.
+  // Visual guide: outline the detected grid and mark every accepted cell center.
+  ctx.strokeStyle='#f1b827';ctx.lineWidth=2;
+  const gx=Math.max(0,left-colStep*.5), gy=Math.max(0,rowCenters[0]-rowStep*.5);
+  const gw=Math.min(W-gx,(colCenters.length)*colStep), gh=Math.min(H-gy,6*rowStep);
+  ctx.strokeRect(gx,gy,gw,gh);
   ctx.fillStyle='#f1b827';
-  for(const [key,c] of cells){
-    const [cc,rr]=key.split(',').map(Number);
-    if(cc>=0&&rr>=0&&rr<6){ctx.beginPath();ctx.arc(c.cx,c.cy,2.5,0,Math.PI*2);ctx.fill();}
-  }
+  for(const z of cells){ctx.beginPath();ctx.arc(z.cx,z.cy,2.5,0,Math.PI*2);ctx.fill();}
 }
 function renderDetected(){
   const box=document.getElementById('detectedResults'); box.innerHTML='';
