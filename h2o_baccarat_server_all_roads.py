@@ -36,7 +36,7 @@ app.add_middleware(
 
 @app.get("/", include_in_schema=False)
 def homepage():
-    return FileResponse(APP_DIR / "index.html")
+        return FileResponse(Path(__file__).resolve().parent / "index.html")
 _lock = threading.Lock()
 _model = None
 _model_id = None
