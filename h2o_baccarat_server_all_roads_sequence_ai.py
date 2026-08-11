@@ -15,6 +15,7 @@ from typing import Any
 import h2o
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from h2o.automl import H2OAutoML
 
@@ -26,6 +27,9 @@ MAX_RUNTIME_SECS = int(os.environ.get("H2O_MAX_RUNTIME_SECS", "240"))
 MIN_PREFIX = int(os.environ.get("BACCARAT_MIN_PREFIX", "6"))
 
 app = FastAPI(title="Baccarat H2O All-Road Predictor", version="3.0")
+@app.get("/", include_in_schema=False)
+def homepage():
+    return FileResponse(Path(__file__).resolve().parent / "index.html")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[x.strip() for x in os.environ.get("BACCARAT_CORS_ORIGINS", "*").split(",") if x.strip()],
