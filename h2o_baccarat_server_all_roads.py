@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from h2o.automl import H2OAutoML
-
+h2o.init()
 APP_DIR = Path(os.environ.get("BACCARAT_MODEL_DIR", "./baccarat_h2o_models")).resolve()
 APP_DIR.mkdir(parents=True, exist_ok=True)
 API_KEY = os.environ.get("BACCARAT_API_KEY", "").strip()
