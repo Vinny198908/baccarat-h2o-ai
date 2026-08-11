@@ -363,6 +363,50 @@
         <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
       </div>
 
+      <div class="analyzer" 
+      <div class="analyzer" id="roadPreviewAiPanel">
+        <div class="analyzer-title">Road Preview AI</div>
+        <div class="analyzer-sub">Scores the hypothetical Player and Banker next-hand previews across Big Eye Boy, Small Road, and Cockroach Road, then compares their road agreement.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
+          <div class="analyzer-card"><span>Road confidence</span><strong id="roadAiStrength">—</strong></div>
+          <div class="analyzer-card"><span>Roads agreeing</span><strong id="roadAiAgree">0/3</strong></div>
+        </div>
+        <div class="match-pcts">
+          <div class="match-pct"><strong id="roadAiP">—</strong><span>Player preview</span></div>
+          <div class="match-pct"><strong id="roadAiB">—</strong><span>Banker preview</span></div>
+          <div class="match-pct"><strong id="roadAiEdge">—</strong><span>Preview edge</span></div>
+        </div>
+        <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Waiting for enough road structure.</div>
+      </div>
+
+id="sequenceAiPanel">
+        <div class="analyzer-title">Sequence AI Analyzer</div>
+        <div class="analyzer-sub">Independent multi-length sequence analysis. It compares the current ending pattern with saved shoes, weighs longer matches more heavily, and reports its sample size separately from H2O.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">—</strong></div>
+          <div class="analyzer-card"><span>Sequence confidence</span><strong id="seqAiStrength">—</strong></div>
+          <div class="analyzer-card"><span>Weighted matches</span><strong id="seqAiMatches">0</strong></div>
+        </div>
+        <div class="match-pcts">
+          <div class="match-pct"><strong id="seqAiP">—</strong><span>Player</span></div>
+          <div class="match-pct"><strong id="seqAiB">—</strong><span>Banker</span></div>
+          <div class="match-pct"><strong id="seqAiT">—</strong><span>Tie</span></div>
+        </div>
+        <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
+      </div>
+
+      <div class="analyzer" id="consensusPanel">
+        <div class="analyzer-title">AI Consensus Engine</div>
+        <div class="analyzer-sub">Combines Sequence AI, H2O.ai, historical-library, road structure, and card-composition signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Consensus</span><strong id="consensusSide">—</strong></div>
+          <div class="analyzer-card"><span>Confidence</span><strong id="consensusStrength">—</strong></div>
+          <div class="analyzer-card"><span>Models agreeing</span><strong id="consensusAgree">0/0</strong></div>
+        </div>
+        <div class="analyzer-sub" id="consensusNote" style="margin-top:8px">Waiting for enough independent signals.</div>
+      </div>
+
       <div class="h2o-panel">
         <div class="h2o-head">
           <div>
@@ -1444,6 +1488,142 @@ function renderH2O(){
   else if(note && x.side) note.textContent=`Live H2O score for this shoe: ${x.side==='P'?'Player':'Banker'} ${x.strength}%. The combined analyzer blends this with your local library and road signals.`;
 }
 
+
+
+function roadPreviewAISignal(){
+  // Use the app's existing derived-road preview machinery. For each hypothetical
+  // next result, compare how many of the three derived roads support that side.
+  const road=roadStructureSignal();
+  const parts=[road?.eye,road?.small,road?.roach].filter(Boolean);
+  if(!parts.length) return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0};
+
+  let pSupport=0,bSupport=0,active=0;
+  parts.forEach((sig,i)=>{
+    if(!sig || !sig.side) return;
+    const w=[1.0,.85,.70][i] || .7;
+    const mag=Math.max(1,(sig.strength||50)-50);
+    if(sig.side==='P') pSupport+=w*mag;
+    if(sig.side==='B') bSupport+=w*mag;
+    active++;
+  });
+  if(!active) return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0};
+
+  const sum=pSupport+bSupport;
+  let pPct=sum ? Math.round(100*pSupport/sum) : 50;
+  let bPct=100-pPct;
+  // Keep display restrained when road evidence is sparse.
+  pPct=Math.round(50+(pPct-50)*Math.min(1,active/3));
+  bPct=100-pPct;
+  const side=pPct>=bPct?'P':'B';
+  const agree=parts.filter(x=>x?.side===side).length;
+  const strength=Math.round(50+Math.abs(pPct-bPct)/2);
+  return {side,strength,pPct,bPct,agree,total:active,edge:Math.abs(pPct-bPct)};
+}
+
+function renderRoadPreviewAI(){
+  const r=roadPreviewAISignal();
+  document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'—';
+  document.getElementById('roadAiStrength').textContent=r.side?r.strength+'%':'—';
+  document.getElementById('roadAiAgree').textContent=r.total?`${r.agree}/${r.total}`:'0/3';
+  document.getElementById('roadAiP').textContent=r.side?r.pPct+'%':'—';
+  document.getElementById('roadAiB').textContent=r.side?r.bPct+'%':'—';
+  document.getElementById('roadAiEdge').textContent=r.side?r.edge+' pts':'—';
+  document.getElementById('roadAiNote').textContent=r.side
+    ? `${r.agree} of ${r.total} active derived-road signals currently favor ${r.side==='P'?'Player':'Banker'}.`
+    : 'Waiting for enough Big Eye, Small Road, and Cockroach Road structure.';
+}
+
+function sequenceAISignal(){
+  const cur=currentSequence();
+  const lib=(state.patternLibrary||[]).filter(x=>x && typeof x.sequence==='string');
+  if(cur.length<3 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0};
+
+  let wp=0,wb=0,wt=0,weightTotal=0,rawMatches=0,bestLen=0;
+  // Blend several suffix lengths instead of relying on only one exact match.
+  // Longer patterns receive more weight, while shorter patterns provide fallback evidence.
+  for(let k=Math.min(12,cur.length);k>=3;k--){
+    const pattern=cur.slice(-k).join('');
+    let p=0,b=0,t=0,total=0;
+    lib.forEach(shoe=>{
+      const s=shoe.sequence||'';
+      for(let i=0;i+k<s.length;i++){
+        if(s.slice(i,i+k)===pattern){
+          const nxt=s[i+k];
+          if(nxt==='P')p++; else if(nxt==='B')b++; else if(nxt==='T')t++;
+          total++;
+        }
+      }
+    });
+    if(!total) continue;
+    if(!bestLen) bestLen=k;
+    rawMatches+=total;
+    const reliability=Math.min(1,total/12);
+    const lengthWeight=Math.pow(k/3,1.35);
+    const w=lengthWeight*(0.35+0.65*reliability);
+    wp+=(p/total)*w; wb+=(b/total)*w; wt+=(t/total)*w; weightTotal+=w;
+  }
+  if(!weightTotal) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0};
+
+  let p=wp/weightTotal, b=wb/weightTotal, t=wt/weightTotal;
+  const total=p+b+t || 1; p=p/total*100; b=b/total*100; t=t/total*100;
+  const pr=Math.round(p), br=Math.round(b), tr=Math.max(0,100-pr-br);
+  const side=pr>=br && pr>=tr?'P':br>=pr && br>=tr?'B':'T';
+  const top=Math.max(pr,br,tr);
+  // Shrink small samples toward neutral so one or two matches cannot look "high confidence".
+  const sampleFactor=Math.min(1,rawMatches/25);
+  const strength=Math.round(50+(top-50)*sampleFactor);
+  return {side,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(weightTotal*10)/10,bestLen};
+}
+
+function renderSequenceAI(){
+  const s=sequenceAISignal();
+  const name=s.side==='P'?'Player':s.side==='B'?'Banker':s.side==='T'?'Tie':'—';
+  document.getElementById('seqAiSide').textContent=name;
+  document.getElementById('seqAiStrength').textContent=s.side ? s.strength+'%' : '—';
+  document.getElementById('seqAiMatches').textContent=s.matches||0;
+  document.getElementById('seqAiP').textContent=s.side ? s.pPct+'%' : '—';
+  document.getElementById('seqAiB').textContent=s.side ? s.bPct+'%' : '—';
+  document.getElementById('seqAiT').textContent=s.side ? s.tPct+'%' : '—';
+  document.getElementById('seqAiNote').textContent=s.side
+    ? `Uses suffix lengths 3–${s.bestLen}; ${s.matches} historical follow-up match${s.matches===1?'':'es'} contributed.`
+    : 'Add at least 3 current hands and saved shoes to build sequence evidence.';
+}
+
+function consensusSignal(){
+  const seq=sequenceAISignal(), h2o=currentH2OSignal(), lib=librarySignal(), road=roadStructureSignal(), roadAI=roadPreviewAISignal(), hist=historyPatternSignal();
+  const signals=[
+    {name:'Sequence AI',sig:seq,weight:.27},
+    {name:'H2O.ai',sig:h2o,weight:.27},
+    {name:'Road Preview AI',sig:roadAI,weight:.18},
+    {name:'Library',sig:lib,weight:.14},
+    {name:'Roads',sig:road,weight:.08},
+    {name:'History',sig:hist,weight:.06}
+  ].filter(x=>x.sig?.side && x.sig.side!=='T' && x.sig.strength>50);
+  if(!signals.length) return {side:null,strength:0,agree:0,total:0,names:[]};
+  let edge=0, used=0;
+  signals.forEach(x=>{
+    const mag=Math.max(0,x.sig.strength-50);
+    edge+=(x.sig.side==='P'?1:-1)*mag*x.weight;
+    used+=x.weight;
+  });
+  edge=used?edge/used:0;
+  const side=edge>=0?'P':'B';
+  const agree=signals.filter(x=>x.sig.side===side).length;
+  const agreement=agree/signals.length;
+  const strength=Math.round(Math.min(75,50+Math.abs(edge)*(0.65+0.35*agreement)));
+  return {side,strength,agree,total:signals.length,names:signals.filter(x=>x.sig.side===side).map(x=>x.name)};
+}
+
+function renderConsensus(){
+  const c=consensusSignal();
+  document.getElementById('consensusSide').textContent=c.side==='P'?'Player':c.side==='B'?'Banker':'—';
+  document.getElementById('consensusStrength').textContent=c.side?c.strength+'%':'—';
+  document.getElementById('consensusAgree').textContent=c.total?`${c.agree}/${c.total}`:'0/0';
+  document.getElementById('consensusNote').textContent=c.side
+    ? `${c.agree} of ${c.total} active analyzers agree on ${c.side==='P'?'Player':'Banker'}${c.names.length?': '+c.names.join(', '):''}.`
+    : 'Waiting for enough independent signals.';
+}
+
 function computeCombinedAnalyzer(){
   const hist=historyPatternSignal();
   const road=roadStructureSignal();
@@ -1451,6 +1631,7 @@ function computeCombinedAnalyzer(){
   const comp=remainingCompositionScore();
   const matchInfo=findHistoricalMatches();
   const h2o=currentH2OSignal();
+  const seqAI=sequenceAISignal();
   const savedShoes=(state.patternLibrary||[]).length;
 
   // Library influence grows only when BOTH the database and current-match sample are useful.
@@ -1464,9 +1645,10 @@ function computeCombinedAnalyzer(){
   }
 
   // A current H2O score gets a meaningful but capped share. Local analysis remains available offline.
-  const h2oWeight=h2o.side ? Math.min(0.35, 0.20 + Math.max(0,h2o.strength-50)/100) : 0;
-  libraryWeight=libraryWeight*(1-h2oWeight);
-  const otherWeight=1-libraryWeight-h2oWeight;
+  const h2oWeight=h2o.side ? Math.min(0.30, 0.18 + Math.max(0,h2o.strength-50)/120) : 0;
+  const seqWeight=seqAI.side ? Math.min(0.25, 0.12 + Math.min(0.13,(seqAI.matches||0)/200)) : 0;
+  libraryWeight=libraryWeight*(1-h2oWeight-seqWeight);
+  const otherWeight=Math.max(0,1-libraryWeight-h2oWeight-seqWeight);
   const histWeight=otherWeight*0.43;
   const roadWeight=otherWeight*0.37;
   const cardWeight=otherWeight*0.20;
@@ -1480,6 +1662,7 @@ function computeCombinedAnalyzer(){
 
   pEdge += signedEdge(lib)*libraryWeight;
   pEdge += signedEdge(h2o)*h2oWeight;
+  pEdge += signedEdge(seqAI)*seqWeight;
   pEdge += signedEdge(hist)*histWeight;
   pEdge += signedEdge(road)*roadWeight;
   pEdge += comp*cardWeight;
@@ -1498,9 +1681,10 @@ function computeCombinedAnalyzer(){
   else if(state.hands.filter(h=>h.r!=='T').length>=12) quality='Mixed signals';
 
   return {
-    side,top,pPct,bPct,hist,road,lib,h2o,comp,quality,
+    side,top,pPct,bPct,hist,road,lib,h2o,seqAI,comp,quality,
     libraryWeight:Math.round(libraryWeight*100),
     h2oWeight:Math.round(h2oWeight*100),
+    seqWeight:Math.round(seqWeight*100),
     matches:matchInfo.matches,
     matchLength:matchInfo.len
   };
@@ -1523,6 +1707,9 @@ function renderDerivedRoadPredictions(road){
 
 function renderAnalyzer(){
   initRankGrid();
+  renderRoadPreviewAI();
+  renderSequenceAI();
+  renderConsensus();
   const a=computeCombinedAnalyzer();
   document.getElementById('bestSide').textContent=a.side==='P'?'Player':'Banker';
   document.getElementById('bestScore').textContent=a.top+'%';
