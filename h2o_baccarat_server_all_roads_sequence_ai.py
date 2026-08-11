@@ -80,9 +80,16 @@ CATEGORICAL = [
 
 def ensure_h2o() -> None:
     try:
-        h2o.connection()
+        conn = h2o.connection()
+        if conn is None:
+            raise RuntimeError("No H2O connection")
+        h2o.cluster().show_status()
     except Exception:
-        h2o.init(nthreads=-1, min_mem_size="1G", max_mem_size=os.environ.get("H2O_MAX_MEM", "4G"))
+        try:
+            h2o.shutdown(prompt=False)
+        except Exception:
+            pass
+        h2o.init(nthreads=-1, min_mem_size="512m", max_mem_size="1g")
 
 
 def auth(request: Request) -> None:
