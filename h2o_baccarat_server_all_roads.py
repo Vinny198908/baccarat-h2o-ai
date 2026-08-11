@@ -344,6 +344,7 @@ def health() -> dict[str, Any]:
 @app.post("/train")
 def train(payload: dict[str, Any], request: Request) -> dict[str, Any]:
     auth(request)
+    ensure_h2o()
     shoes = payload.get("shoes") or []
     if len(shoes) < 5:
         raise HTTPException(400, "At least 5 saved shoes are required")
