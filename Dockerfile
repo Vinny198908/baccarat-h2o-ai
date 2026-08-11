@@ -16,4 +16,4 @@ ENV H2O_MAX_MEM=1G
 ENV H2O_MAX_MODELS=10
 ENV H2O_MAX_RUNTIME_SECS=120
 
-CMD ["python", "h2o_baccarat_server_all_roads.py"]
+CMD ["python", "h2o_baccarat_server_all_roads_sequence_ai.py"]
