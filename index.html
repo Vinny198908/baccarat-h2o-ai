@@ -158,6 +158,13 @@
   .shoe-active{margin-top:7px;width:100%;border:1px solid #4a5563;background:#20262e;color:#fff;border-radius:10px;padding:8px 6px;font-weight:800;font-size:11px}
   .shoe-active.active{border-color:#f1b827;box-shadow:0 0 0 1px #f1b827 inset}
   .shoe-comp{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.35}
+  .current-shoe-color{margin-bottom:9px;background:#111419;border:1px solid #343b45;border-radius:12px;padding:9px}
+  .current-shoe-color-title{font-size:12px;font-weight:900;margin-bottom:7px}
+  .current-shoe-color-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .shoe-color-btn{border:1px solid #46505c;background:#242a31;color:#fff;border-radius:11px;padding:11px 7px;font-weight:900}
+  .shoe-color-btn.red.active{border-color:#e44848;box-shadow:0 0 0 1px #e44848 inset;background:#33191b}
+  .shoe-color-btn.black.active{border-color:#aab2bd;box-shadow:0 0 0 1px #aab2bd inset;background:#22262d}
+  .current-shoe-color-status{margin-top:7px;font-size:11px;color:var(--muted);font-weight:700}
 
 
   .library{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
@@ -338,6 +345,14 @@
 
     <div class="right">
       <div class="analyzer">
+        <div class="current-shoe-color">
+          <div class="current-shoe-color-title">Current Shoe Color — choose before playing</div>
+          <div class="current-shoe-color-actions">
+            <button class="shoe-color-btn red" id="currentRedShoeBtn">🔴 RED SHOE</button>
+            <button class="shoe-color-btn black" id="currentBlackShoeBtn">⚫ BLACK SHOE</button>
+          </div>
+          <div class="current-shoe-color-status" id="currentShoeColorStatus">No color selected — color library analysis is paused.</div>
+        </div>
         <div class="analyzer-title">Best-Estimate Analyzer</div>
         <div class="analyzer-sub">As your saved library grows, the main result increasingly follows historical pattern matches. Big Eye Boy, Small Road, Cockroach Road, recent-shoe, and optional card-rank signals are used mainly when library evidence is limited.</div>
         <div class="analyzer-grid">
@@ -497,8 +512,8 @@ id="sequenceAiPanel">
       </div>
 
       <div class="library">
-        <div class="library-title">All In Pattern Library</div>
-        <div class="library-sub">Stores completed shoes and learns what followed matching P/B/T sequences. As the database and number of matching examples grow, these historical matches automatically receive more weight in the main result.</div>
+        <div class="library-title" id="patternLibraryTitle">Color Pattern Library</div>
+        <div class="library-sub" id="patternLibrarySub">Choose the current shoe color. Completed P/B/T shoes are saved only to that color, and historical prediction matching uses only that color library.</div>
 
         <div class="library-stats">
           <div class="lib-card"><strong id="libShoes">0</strong><span>Saved shoes</span></div>
@@ -602,7 +617,7 @@ const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
 
 function load(){
   try{
@@ -614,6 +629,9 @@ function load(){
       if(!Array.isArray(state.blackShoeCards)) state.blackShoeCards=[];
       if(!Array.isArray(state.redShoeLibrary)) state.redShoeLibrary=[];
       if(!Array.isArray(state.blackShoeLibrary)) state.blackShoeLibrary=[];
+      if(!Array.isArray(state.redPatternLibrary)) state.redPatternLibrary=[];
+      if(!Array.isArray(state.blackPatternLibrary)) state.blackPatternLibrary=[];
+      if(!['red','black'].includes(state.currentShoeColor)) state.currentShoeColor=null;
       if(!['red','black'].includes(state.activeCardShoe)) state.activeCardShoe='red';
       if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
       if(!Array.isArray(state.backtest.rows)) state.backtest.rows=[];
@@ -652,8 +670,9 @@ document.getElementById('undoBtn').onclick=()=>{state.hands.pop();state.scanSnap
 document.getElementById('clearBtn').onclick=()=>{
   if(confirm('Start a new shoe and clear all results?')){
     const seq=currentSequence();
-    if(state.autoSaveLibrary && seq.length>=4) saveSequenceToLibrary(seq,'auto',true);
+    if(state.autoSaveLibrary && seq.length>=4 && state.currentShoeColor) saveSequenceToLibrary(seq,'auto',true);
     state.hands=[];state.cards=[];state.scanSnapshot=null;
+    state.currentShoeColor=null;
     if(state.backtest) state.backtest.pending=null;
     if(state.h2o) state.h2o.last=null;
     if(state.dragon) state.dragon.lastAlertKey='';
@@ -996,19 +1015,28 @@ function renderStats(){
   document.getElementById('nextBankerPct').textContent=sig.bPct==null?'—':sig.bPct+'%';
   document.getElementById('nextTiePct').textContent=sig.tPct==null?'—':sig.tPct+'%';
 }
-function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();}
+function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();renderCurrentShoeColor();}
 
 
 
-// --- Persistent All In pattern library ---
+// --- Persistent color-separated All In pattern libraries ---
 function currentSequence(){
   return state.hands.map(h=>h.r).filter(r=>['P','B','T'].includes(r));
 }
+function activePatternLibraryKey(){
+  return state.currentShoeColor==='red'?'redPatternLibrary':state.currentShoeColor==='black'?'blackPatternLibrary':null;
+}
+function activePatternLibrary(){
+  const key=activePatternLibraryKey();
+  return key && Array.isArray(state[key]) ? state[key] : [];
+}
+function activeColorName(){ return state.currentShoeColor==='red'?'RED':state.currentShoeColor==='black'?'BLACK':''; }
 function makeShoeRecord(seq, source='manual'){
   return {
     id:'shoe_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
     savedAt:new Date().toISOString(),
     source,
+    shoeColor:state.currentShoeColor||null,
     sequence:seq.join('')
   };
 }
@@ -1017,21 +1045,23 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
     if(!quiet) alert('Enter at least 4 results before saving a shoe.');
     return false;
   }
-  if(!Array.isArray(state.patternLibrary)) state.patternLibrary=[];
+  const key=activePatternLibraryKey();
+  if(!key){ if(!quiet) alert('Choose 🔴 RED SHOE or ⚫ BLACK SHOE first.'); return false; }
+  if(!Array.isArray(state[key])) state[key]=[];
   const s=seq.join('');
-  const duplicate=state.patternLibrary.some(x=>x.sequence===s);
+  const duplicate=state[key].some(x=>x.sequence===s);
   if(duplicate){
     if(!quiet) alert('This exact shoe is already saved in the pattern library.');
     return false;
   }
-  state.patternLibrary.push(makeShoeRecord(seq,source));
+  state[key].push(makeShoeRecord(seq,source));
   persist();
-  if(!quiet) alert(`Saved ${seq.length} hands to the pattern library.`);
+  if(!quiet) alert(`Saved ${seq.length} hands to the ${activeColorName()} pattern library.`);
   return true;
 }
 function patternWindowsCount(){
   let n=0;
-  (state.patternLibrary||[]).forEach(shoe=>{
+  activePatternLibrary().forEach(shoe=>{
     const len=(shoe.sequence||'').length;
     for(let k=3;k<=Math.min(12,len-1);k++) n+=Math.max(0,len-k);
   });
@@ -1039,13 +1069,13 @@ function patternWindowsCount(){
 }
 function findHistoricalMatches(){
   const cur=currentSequence();
-  if(cur.length<3 || !(state.patternLibrary||[]).length) return {matches:0,len:0,p:0,b:0,t:0};
+  if(cur.length<3 || !activePatternLibrary().length) return {matches:0,len:0,p:0,b:0,t:0};
 
   // Try longest suffix first, then back off until enough examples exist.
   for(let k=Math.min(12,cur.length);k>=3;k--){
     const pattern=cur.slice(-k).join('');
     let p=0,b=0,t=0,total=0;
-    (state.patternLibrary||[]).forEach(shoe=>{
+    activePatternLibrary().forEach(shoe=>{
       const s=shoe.sequence||'';
       for(let i=0;i+k<s.length;i++){
         if(s.slice(i,i+k)===pattern){
@@ -1062,7 +1092,7 @@ function findHistoricalMatches(){
   return {matches:0,len:0,p:0,b:0,t:0};
 }
 function renderPatternLibrary(){
-  const lib=state.patternLibrary||[];
+  const lib=activePatternLibrary();
   const hands=lib.reduce((n,s)=>n+(s.sequence||'').length,0);
   const m=findHistoricalMatches();
   document.getElementById('libShoes').textContent=lib.length;
@@ -1070,6 +1100,12 @@ function renderPatternLibrary(){
   document.getElementById('libPatterns').textContent=patternWindowsCount();
   document.getElementById('libMatches').textContent=m.matches;
   document.getElementById('autoSaveBtn').textContent='Auto-save: '+(state.autoSaveLibrary?'ON':'OFF');
+  const title=document.getElementById('patternLibraryTitle');
+  const sub=document.getElementById('patternLibrarySub');
+  if(title) title.textContent=state.currentShoeColor ? `${activeColorName()} Shoe Pattern Library` : 'Color Pattern Library — choose RED or BLACK';
+  if(sub) sub.textContent=state.currentShoeColor
+    ? `Only ${activeColorName()}-shoe history is being used for pattern matching and Sequence AI for this current shoe.`
+    : 'Choose the current shoe color before playing. Red and Black P/B/T history stay completely separate.';
 
   if(!m.matches){
     document.getElementById('matchLength').textContent='No match';
@@ -1110,19 +1146,20 @@ document.getElementById('autoSaveBtn').onclick=()=>{
   state.autoSaveLibrary=!state.autoSaveLibrary;persist();renderPatternLibrary();
 };
 document.getElementById('libraryInfoBtn').onclick=()=>{
-  const lib=state.patternLibrary||[];
+  const lib=activePatternLibrary();
   const hands=lib.reduce((n,s)=>n+(s.sequence||'').length,0);
-  alert(`Pattern Library\n\nSaved shoes: ${lib.length}\nSaved hands: ${hands}\nPattern windows: ${patternWindowsCount()}\n\nThe library stays on this device unless you export it.`);
+  alert(`${activeColorName()||'NO COLOR'} Pattern Library\n\nSaved shoes: ${lib.length}\nSaved hands: ${hands}\nPattern windows: ${patternWindowsCount()}\n\nThe library stays on this device unless you export it.`);
 };
 document.getElementById('exportLibraryBtn').onclick=()=>{
   const payload={
     version:1,
     exportedAt:new Date().toISOString(),
-    shoes:state.patternLibrary||[]
+    color:state.currentShoeColor,
+    shoes:activePatternLibrary()
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download='all_in_baccarat_pattern_library.json';a.click();
+  const a=document.createElement('a');a.href=url;a.download=(state.currentShoeColor||'unselected')+'_baccarat_pattern_library.json';a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 };
 document.getElementById('importLibraryInput').addEventListener('change',async e=>{
@@ -1131,15 +1168,18 @@ document.getElementById('importLibraryInput').addEventListener('change',async e=
     const data=JSON.parse(await f.text());
     const incoming=Array.isArray(data)?data:(data.shoes||[]);
     if(!Array.isArray(incoming)) throw new Error('Invalid library');
-    if(!Array.isArray(state.patternLibrary))state.patternLibrary=[];
-    const existing=new Set(state.patternLibrary.map(x=>x.sequence));
+    const key=activePatternLibraryKey();
+    if(!key) throw new Error('Choose RED or BLACK before importing');
+    if(!Array.isArray(state[key]))state[key]=[];
+    const existing=new Set(state[key].map(x=>x.sequence));
     let added=0;
     incoming.forEach(x=>{
       if(x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence) && x.sequence.length>=4 && !existing.has(x.sequence)){
-        state.patternLibrary.push({
+        state[key].push({
           id:x.id||('import_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)),
           savedAt:x.savedAt||new Date().toISOString(),
           source:x.source||'import',
+          shoeColor:state.currentShoeColor,
           sequence:x.sequence
         });
         existing.add(x.sequence);added++;
@@ -1147,12 +1187,14 @@ document.getElementById('importLibraryInput').addEventListener('change',async e=
     });
     persist();render();
     alert(`Imported ${added} new shoe${added===1?'':'s'}.`);
-  }catch(err){alert('Could not import that library file.');}
+  }catch(err){alert(err.message==='Choose RED or BLACK before importing'?'Choose 🔴 RED SHOE or ⚫ BLACK SHOE before importing a library.':'Could not import that library file.');}
   e.target.value='';
 });
 document.getElementById('clearLibraryBtn').onclick=()=>{
-  if(confirm('Delete every saved shoe from the pattern library on this device?')){
-    state.patternLibrary=[];persist();render();
+  const key=activePatternLibraryKey();
+  if(!key){alert('Choose 🔴 RED SHOE or ⚫ BLACK SHOE first.');return;}
+  if(confirm(`Delete every saved ${activeColorName()} shoe from its pattern library on this device?`)){
+    state[key]=[];persist();render();
   }
 };
 
@@ -1262,6 +1304,32 @@ function bindSeparateShoeControls(){
   bind('redShoeActive',()=>{state.activeCardShoe='red';persist();render();});
   bind('blackShoeActive',()=>{state.activeCardShoe='black';persist();render();});
 }
+
+function renderCurrentShoeColor(){
+  const red=document.getElementById('currentRedShoeBtn');
+  const black=document.getElementById('currentBlackShoeBtn');
+  const status=document.getElementById('currentShoeColorStatus');
+  if(red) red.classList.toggle('active',state.currentShoeColor==='red');
+  if(black) black.classList.toggle('active',state.currentShoeColor==='black');
+  if(status){
+    if(state.currentShoeColor){
+      const n=activePatternLibrary().length;
+      status.textContent=`ACTIVE: ${activeColorName()} SHOE • predictions use only the ${activeColorName()} pattern library (${n} saved shoe${n===1?'':'s'}).`;
+    }else status.textContent='No color selected — color library analysis is paused.';
+  }
+}
+function setCurrentShoeColor(color){
+  if(!['red','black'].includes(color)) return;
+  state.currentShoeColor=color;
+  if(state.h2o) state.h2o.last=null;
+  if(state.backtest) state.backtest.pending=null;
+  persist();render();
+  if(state.h2o?.url) scoreWithH2O(false);
+}
+const currentRedBtn=document.getElementById('currentRedShoeBtn');
+const currentBlackBtn=document.getElementById('currentBlackShoeBtn');
+if(currentRedBtn) currentRedBtn.onclick=()=>setCurrentShoeColor('red');
+if(currentBlackBtn) currentBlackBtn.onclick=()=>setCurrentShoeColor('black');
 
 function remainingCompositionScore(){
   // Use the selected physical red/black shoe when it has entries; otherwise fall back to the optional generic tracker.
@@ -1384,7 +1452,8 @@ function h2oFeatures(){
     history_side:hist.side||'', history_strength:hist.strength||0,
     library_side:lib.side||'', library_strength:lib.strength||0,
     library_matches:match.matches||0, library_match_length:match.len||0,
-    saved_shoes:(state.patternLibrary||[]).length,
+    saved_shoes:activePatternLibrary().length,
+    current_shoe_color:state.currentShoeColor||'',
     active_card_shoe:state.activeCardShoe||'red',
     active_card_used:((state[(state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards')]||[]).length),
     red_card_shoes_saved:(state.redShoeLibrary||[]).length,
@@ -1423,9 +1492,9 @@ function h2oTrainUrl(){
 }
 async function trainH2O(showAlert=true){
   if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
-  const shoes=(state.patternLibrary||[]).filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  const shoes=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(shoes.length<5){
-    const msg=`H2O training needs at least 5 saved shoes. You currently have ${shoes.length}. Save or import ${5-shoes.length} more complete shoe${5-shoes.length===1?'':'s'}, then tap Train / Retrain H2O again.`;
+    const msg=`H2O training for the ${activeColorName()||'selected'} color needs at least 5 saved shoes. You currently have ${shoes.length}. Save or import ${5-shoes.length} more complete shoe${5-shoes.length===1?'':'s'}, then tap Train / Retrain H2O again.`;
     state.h2o.connected=false; state.h2o.error=msg; persist(); renderH2O(); if(showAlert)alert(msg); return null;
   }
   const st=document.getElementById('h2oStatus');
@@ -1535,7 +1604,7 @@ function renderRoadPreviewAI(){
 
 function sequenceAISignal(){
   const cur=currentSequence();
-  const lib=(state.patternLibrary||[]).filter(x=>x && typeof x.sequence==='string');
+  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string');
   if(cur.length<3 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0};
 
   let wp=0,wb=0,wt=0,weightTotal=0,rawMatches=0,bestLen=0;
@@ -1632,7 +1701,7 @@ function computeCombinedAnalyzer(){
   const matchInfo=findHistoricalMatches();
   const h2o=currentH2OSignal();
   const seqAI=sequenceAISignal();
-  const savedShoes=(state.patternLibrary||[]).length;
+  const savedShoes=activePatternLibrary().length;
 
   // Library influence grows only when BOTH the database and current-match sample are useful.
   // This keeps a tiny library from overpowering the other signals.
