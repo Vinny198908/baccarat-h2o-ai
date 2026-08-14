@@ -366,6 +366,7 @@
           <div class="signal-line"><span>History signal</span><div class="signal-bar"><div id="histBar" class="signal-fill" style="width:0%"></div></div><b id="histScore">0</b></div>
           <div class="signal-line"><span>Library match</span><div class="signal-bar"><div id="libBar" class="signal-fill" style="width:0%"></div></div><b id="libScore">0</b></div>
           <div class="signal-line"><span>H2O.ai model</span><div class="signal-bar"><div id="h2oBar" class="signal-fill" style="width:0%"></div></div><b id="h2oScore">0</b></div>
+          <div class="signal-line"><span>DeepSeek AI</span><div class="signal-bar"><div id="deepseekBar" class="signal-fill" style="width:0%"></div></div><b id="deepseekScore">0</b></div>
         </div>
         <div class="road-predict-panel">
           <div class="road-predict-title">Derived-Road Next Result Signals</div>
@@ -378,7 +379,6 @@
         <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
       </div>
 
-      <div class="analyzer" 
       <div class="analyzer" id="roadPreviewAiPanel">
         <div class="analyzer-title">Road Preview AI</div>
         <div class="analyzer-sub">Scores the hypothetical Player and Banker next-hand previews across Big Eye Boy, Small Road, and Cockroach Road, then compares their road agreement.</div>
@@ -395,7 +395,7 @@
         <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Waiting for enough road structure.</div>
       </div>
 
-id="sequenceAiPanel">
+      <div class="analyzer" id="sequenceAiPanel">
         <div class="analyzer-title">Sequence AI Analyzer</div>
         <div class="analyzer-sub">Independent multi-length sequence analysis. It compares the current ending pattern with saved shoes, weighs longer matches more heavily, and reports its sample size separately from H2O.</div>
         <div class="analyzer-grid">
@@ -413,7 +413,7 @@ id="sequenceAiPanel">
 
       <div class="analyzer" id="consensusPanel">
         <div class="analyzer-title">AI Consensus Engine</div>
-        <div class="analyzer-sub">Combines Sequence AI, H2O.ai, historical-library, road structure, and card-composition signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
+        <div class="analyzer-sub">Combines Sequence AI, H2O.ai, DeepSeek, historical-library, road structure, and card-composition signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
         <div class="analyzer-grid">
           <div class="analyzer-card"><span>Consensus</span><strong id="consensusSide">—</strong></div>
           <div class="analyzer-card"><span>Confidence</span><strong id="consensusStrength">—</strong></div>
@@ -447,6 +447,30 @@ id="sequenceAiPanel">
           <div class="h2o-card"><strong id="h2oT">—</strong><span>H2O Tie</span></div>
         </div>
         <div class="h2o-note" id="h2oNote">The AI analyzes the full current shoe plus Big Road, Big Eye Boy, Small Road, Cockroach Road, streak/chop structure, recent outcomes, and saved-shoe patterns. Your endpoint should return JSON such as {"p":0.46,"b":0.49,"t":0.05}. H2O stays optional; the app continues using local analysis when disconnected.</div>
+      </div>
+
+      <div class="h2o-panel" id="deepseekPanel">
+        <div class="h2o-head">
+          <div>
+            <div class="h2o-title">DeepSeek Road Intelligence</div>
+            <div class="analyzer-sub">Server-side AI analysis of the current sequence, Big Road, Big Eye Boy, Small Road, Cockroach Road, and same-color saved shoe summaries. Your DeepSeek key stays on Render, not in this HTML file.</div>
+          </div>
+          <span class="h2o-status err" id="deepseekStatus">🔴 DEEPSEEK OFFLINE</span>
+        </div>
+        <div class="h2o-actions" style="grid-template-columns:1fr">
+          <button class="tiny-btn" id="deepseekScoreBtn">Analyze Current Shoe with DeepSeek</button>
+        </div>
+        <div class="h2o-result">
+          <div class="h2o-card"><strong id="deepseekP">—</strong><span>DeepSeek Player</span></div>
+          <div class="h2o-card"><strong id="deepseekB">—</strong><span>DeepSeek Banker</span></div>
+          <div class="h2o-card"><strong id="deepseekT">—</strong><span>DeepSeek Tie</span></div>
+        </div>
+        <div class="analyzer-grid" style="margin-top:8px">
+          <div class="analyzer-card"><span>Pattern</span><strong id="deepseekPattern" style="font-size:12px">—</strong></div>
+          <div class="analyzer-card"><span>AI confidence</span><strong id="deepseekConfidence">—</strong></div>
+          <div class="analyzer-card"><span>Model</span><strong id="deepseekModel" style="font-size:10px">—</strong></div>
+        </div>
+        <div class="h2o-note" id="deepseekNote">DeepSeek is an additional opinion, not a guarantee. Strong disagreement between engines lowers the final consensus.</div>
       </div>
 
       <div class="card-entry">
@@ -520,6 +544,11 @@ id="sequenceAiPanel">
           <div class="lib-card"><strong id="libHands">0</strong><span>Saved hands</span></div>
           <div class="lib-card"><strong id="libPatterns">0</strong><span>Pattern windows</span></div>
           <div class="lib-card"><strong id="libMatches">0</strong><span>Current matches</span></div>
+        </div>
+
+        <div class="match-box" id="savedRoadHistoryBox">
+          <div class="match-head"><b>Saved Derived-Road History</b><span id="savedRoadHistoryCount" style="font-size:10px;color:var(--muted)">0 road sets</span></div>
+          <div class="match-line" id="savedRoadHistoryText">Each saved shoe keeps its Big Eye Boy, Small Road, and Cockroach Road history separately for road-pattern comparison.</div>
         </div>
 
         <div class="match-box">
@@ -608,7 +637,7 @@ id="sequenceAiPanel">
   </div>
 
   <div class="warning">
-    Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. H2O output is used only when a compatible scoring endpoint is connected.
+    Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. H2O and DeepSeek outputs are additional analysis signals only; disagreement lowers the consensus, and none of the displayed percentages guarantees a future result.
   </div>
 </div>
 
@@ -617,7 +646,8 @@ const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
+const DEFAULT_DEEPSEEK_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/deepseek-score') : '';
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
 
 function load(){
   try{
@@ -639,6 +669,8 @@ function load(){
       if(typeof state.autoSaveLibrary!=='boolean') state.autoSaveLibrary=true;
       if(!state.h2o || typeof state.h2o!=='object') state.h2o={url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''};
       if(!state.h2o.url && DEFAULT_H2O_SCORE_URL) state.h2o.url=DEFAULT_H2O_SCORE_URL;
+      if(!state.deepseek || typeof state.deepseek!=='object') state.deepseek={url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''};
+      if(!state.deepseek.url && DEFAULT_DEEPSEEK_SCORE_URL) state.deepseek.url=DEFAULT_DEEPSEEK_SCORE_URL;
       if(!state.dragon || typeof state.dragon!=='object') state.dragon={sound:true,popup:true,lastAlertKey:''};
       if(state.scanSnapshot && typeof state.scanSnapshot!=='object') state.scanSnapshot=null;
     }
@@ -662,10 +694,11 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     armNextPrediction();
     persist(); render();
     if(state.h2o?.url) scoreWithH2O(false);
+    if(state.deepseek?.url) scoreWithDeepSeek(false);
   });
 });
-document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);};
-document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);};
+document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
+document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
 document.getElementById('undoBtn').onclick=()=>{state.hands.pop();state.scanSnapshot=null;persist();render();};
 document.getElementById('clearBtn').onclick=()=>{
   if(confirm('Start a new shoe and clear all results?')){
@@ -1015,7 +1048,7 @@ function renderStats(){
   document.getElementById('nextBankerPct').textContent=sig.bPct==null?'—':sig.bPct+'%';
   document.getElementById('nextTiePct').textContent=sig.tPct==null?'—':sig.tPct+'%';
 }
-function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();renderCurrentShoeColor();}
+function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderDeepSeek();renderSeparateShoes();renderCurrentShoeColor();}
 
 
 
@@ -1037,7 +1070,12 @@ function makeShoeRecord(seq, source='manual'){
     savedAt:new Date().toISOString(),
     source,
     shoeColor:state.currentShoeColor||null,
-    sequence:seq.join('')
+    sequence:seq.join(''),
+    derivedRoadHistory:{
+      bigEye:deriveRoad(seq.map(r=>({r})),1),
+      small:deriveRoad(seq.map(r=>({r})),2),
+      roach:deriveRoad(seq.map(r=>({r})),3)
+    }
   };
 }
 function saveSequenceToLibrary(seq, source='manual', quiet=false){
@@ -1091,7 +1129,20 @@ function findHistoricalMatches(){
   }
   return {matches:0,len:0,p:0,b:0,t:0};
 }
+function renderSavedRoadHistorySummary(){
+  const lib=activePatternLibrary();
+  let sets=0,eye=0,small=0,roach=0;
+  lib.forEach(s=>{
+    let d=s?.derivedRoadHistory;
+    if(!d && typeof s?.sequence==='string'){const hs=s.sequence.split('').map(r=>({r}));d={bigEye:deriveRoad(hs,1),small:deriveRoad(hs,2),roach:deriveRoad(hs,3)};}
+    if(d){sets++;eye+=(d.bigEye||[]).length;small+=(d.small||[]).length;roach+=(d.roach||[]).length;}
+  });
+  const c=document.getElementById('savedRoadHistoryCount'),t=document.getElementById('savedRoadHistoryText');
+  if(c)c.textContent=`${sets} road set${sets===1?'':'s'}`;
+  if(t)t.textContent=sets?`${activeColorName()} saved roads: Big Eye ${eye} marks • Small ${small} marks • Roach ${roach} marks. These remain separate from the live shoe.`:'Each newly saved shoe will keep its Big Eye Boy, Small Road, and Cockroach Road history separately.';
+}
 function renderPatternLibrary(){
+  renderSavedRoadHistorySummary();
   const lib=activePatternLibrary();
   const hands=lib.reduce((n,s)=>n+(s.sequence||'').length,0);
   const m=findHistoricalMatches();
@@ -1322,10 +1373,15 @@ function setCurrentShoeColor(color){
   if(!['red','black'].includes(color)) return;
   state.currentShoeColor=color;
   if(state.h2o) state.h2o.last=null;
+  if(state.deepseek) state.deepseek.last=null;
   if(state.backtest) state.backtest.pending=null;
   persist();render();
   if(state.h2o?.url) scoreWithH2O(false);
+  if(state.deepseek?.url) scoreWithDeepSeek(false);
 }
+const deepseekScoreBtn=document.getElementById('deepseekScoreBtn');
+if(deepseekScoreBtn) deepseekScoreBtn.onclick=()=>scoreWithDeepSeek(true);
+
 const currentRedBtn=document.getElementById('currentRedShoeBtn');
 const currentBlackBtn=document.getElementById('currentBlackShoeBtn');
 if(currentRedBtn) currentRedBtn.onclick=()=>setCurrentShoeColor('red');
@@ -1558,6 +1614,63 @@ function renderH2O(){
 }
 
 
+function normalizeDeepSeekResponse(data){
+  let p=Number(data?.p), b=Number(data?.b), t=Number(data?.t ?? 0);
+  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('DeepSeek response did not include P/B scores.');
+  if(p<=1.0001&&b<=1.0001&&t<=1.0001){p*=100;b*=100;t*=100;}
+  p=Math.max(0,p);b=Math.max(0,b);t=Math.max(0,t); const sum=p+b+t||1;
+  p=p/sum*100;b=b/sum*100;t=t/sum*100;
+  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
+  const side=pr>=br?'P':'B';
+  const rawConfidence=Number(data?.confidence);
+  const conf=Number.isFinite(rawConfidence)?Math.max(0,Math.min(100,Math.round(rawConfidence))):50;
+  // Restrain LLM influence: confidence is not treated as a calibrated probability.
+  const strength=Math.round(50+Math.min(20,Math.abs(pr-br)/2)*Math.min(1,conf/70));
+  return {p:pr,b:br,t:tr,side,strength,confidence:conf,pattern:String(data?.pattern||''),rationale:String(data?.rationale||''),model:String(data?.model||''),sequence:currentSequence().join(''),at:new Date().toISOString()};
+}
+async function scoreWithDeepSeek(showAlert=false){
+  if(!state.deepseek?.url){if(showAlert)alert('DeepSeek endpoint is not available. Host this HTML with the upgraded Python server.');return null;}
+  const st=document.getElementById('deepseekStatus');
+  if(st){st.textContent='🟡 DEEPSEEK ANALYZING…';st.className='h2o-status';}
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
+    const payload={features:h2oFeatures(),shoes:activePatternLibrary().slice(-120)};
+    const data=await h2oRequestJson(state.deepseek.url,{method:'POST',headers,body:JSON.stringify(payload)});
+    const out=normalizeDeepSeekResponse(data);
+    state.deepseek.last=out;state.deepseek.connected=true;state.deepseek.error='';persist();renderAnalyzer();renderDeepSeek();
+    return out;
+  }catch(err){
+    const msg=String(err.message||err);
+    state.deepseek.connected=false;state.deepseek.error=msg;persist();renderDeepSeek();
+    if(showAlert) alert('DeepSeek analysis failed: '+msg+'\n\nMake sure DEEPSEEK_API_KEY is set in Render.');
+    return null;
+  }
+}
+function currentDeepSeekSignal(){
+  const x=state.deepseek?.last;
+  if(!x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null,confidence:0};
+  return x;
+}
+function renderDeepSeek(){
+  const d=state.deepseek||{}, x=currentDeepSeekSignal();
+  const st=document.getElementById('deepseekStatus');
+  if(st){
+    if(d.error){st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
+    else if(d.connected){st.textContent='🟢 DEEPSEEK CONNECTED';st.className='h2o-status on';}
+    else {st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
+  }
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('deepseekP',x.p==null?'—':x.p+'%');set('deepseekB',x.b==null?'—':x.b+'%');set('deepseekT',x.t==null?'—':x.t+'%');
+  set('deepseekPattern',x.pattern||'—');set('deepseekConfidence',x.side?x.confidence+'%':'—');set('deepseekModel',x.model||'—');
+  const note=document.getElementById('deepseekNote');
+  if(note){
+    if(d.error) note.textContent='Last error: '+d.error;
+    else if(x.side) note.textContent=(x.rationale||'DeepSeek analysis ready.')+' This is an analysis signal, not a guaranteed probability.';
+  }
+}
+
+
 
 function roadPreviewAISignal(){
   // Use the app's existing derived-road preview machinery. For each hypothetical
@@ -1659,14 +1772,15 @@ function renderSequenceAI(){
 }
 
 function consensusSignal(){
-  const seq=sequenceAISignal(), h2o=currentH2OSignal(), lib=librarySignal(), road=roadStructureSignal(), roadAI=roadPreviewAISignal(), hist=historyPatternSignal();
+  const seq=sequenceAISignal(), h2o=currentH2OSignal(), deepseek=currentDeepSeekSignal(), lib=librarySignal(), road=roadStructureSignal(), roadAI=roadPreviewAISignal(), hist=historyPatternSignal();
   const signals=[
-    {name:'Sequence AI',sig:seq,weight:.27},
-    {name:'H2O.ai',sig:h2o,weight:.27},
-    {name:'Road Preview AI',sig:roadAI,weight:.18},
-    {name:'Library',sig:lib,weight:.14},
-    {name:'Roads',sig:road,weight:.08},
-    {name:'History',sig:hist,weight:.06}
+    {name:'Sequence AI',sig:seq,weight:.22},
+    {name:'H2O.ai',sig:h2o,weight:.22},
+    {name:'DeepSeek',sig:deepseek,weight:.18},
+    {name:'Road Preview AI',sig:roadAI,weight:.16},
+    {name:'Library',sig:lib,weight:.12},
+    {name:'Roads',sig:road,weight:.06},
+    {name:'History',sig:hist,weight:.04}
   ].filter(x=>x.sig?.side && x.sig.side!=='T' && x.sig.strength>50);
   if(!signals.length) return {side:null,strength:0,agree:0,total:0,names:[]};
   let edge=0, used=0;
@@ -1700,6 +1814,7 @@ function computeCombinedAnalyzer(){
   const comp=remainingCompositionScore();
   const matchInfo=findHistoricalMatches();
   const h2o=currentH2OSignal();
+  const deepseek=currentDeepSeekSignal();
   const seqAI=sequenceAISignal();
   const savedShoes=activePatternLibrary().length;
 
@@ -1715,9 +1830,10 @@ function computeCombinedAnalyzer(){
 
   // A current H2O score gets a meaningful but capped share. Local analysis remains available offline.
   const h2oWeight=h2o.side ? Math.min(0.30, 0.18 + Math.max(0,h2o.strength-50)/120) : 0;
-  const seqWeight=seqAI.side ? Math.min(0.25, 0.12 + Math.min(0.13,(seqAI.matches||0)/200)) : 0;
-  libraryWeight=libraryWeight*(1-h2oWeight-seqWeight);
-  const otherWeight=Math.max(0,1-libraryWeight-h2oWeight-seqWeight);
+  const seqWeight=seqAI.side ? Math.min(0.22, 0.10 + Math.min(0.12,(seqAI.matches||0)/220)) : 0;
+  const deepseekWeight=deepseek.side ? Math.min(0.18,0.08 + Math.max(0,deepseek.strength-50)/140) : 0;
+  libraryWeight=libraryWeight*Math.max(0,1-h2oWeight-seqWeight-deepseekWeight);
+  const otherWeight=Math.max(0,1-libraryWeight-h2oWeight-seqWeight-deepseekWeight);
   const histWeight=otherWeight*0.43;
   const roadWeight=otherWeight*0.37;
   const cardWeight=otherWeight*0.20;
@@ -1732,6 +1848,7 @@ function computeCombinedAnalyzer(){
   pEdge += signedEdge(lib)*libraryWeight;
   pEdge += signedEdge(h2o)*h2oWeight;
   pEdge += signedEdge(seqAI)*seqWeight;
+  pEdge += signedEdge(deepseek)*deepseekWeight;
   pEdge += signedEdge(hist)*histWeight;
   pEdge += signedEdge(road)*roadWeight;
   pEdge += comp*cardWeight;
@@ -1750,9 +1867,10 @@ function computeCombinedAnalyzer(){
   else if(state.hands.filter(h=>h.r!=='T').length>=12) quality='Mixed signals';
 
   return {
-    side,top,pPct,bPct,hist,road,lib,h2o,seqAI,comp,quality,
+    side,top,pPct,bPct,hist,road,lib,h2o,deepseek,seqAI,comp,quality,
     libraryWeight:Math.round(libraryWeight*100),
     h2oWeight:Math.round(h2oWeight*100),
+    deepseekWeight:Math.round(deepseekWeight*100),
     seqWeight:Math.round(seqWeight*100),
     matches:matchInfo.matches,
     matchLength:matchInfo.len
@@ -1791,19 +1909,22 @@ function renderAnalyzer(){
   document.getElementById('shoeScore').textContent=Math.round(shoeVal);
   const libVal=a.lib?.strength||0;
   const h2oVal=a.h2o?.strength||0;
+  const deepseekVal=a.deepseek?.strength||0;
   document.getElementById('histScore').textContent=Math.round(histVal);
   document.getElementById('libScore').textContent=Math.round(libVal);
   document.getElementById('h2oScore').textContent=Math.round(h2oVal);
+  const dsScore=document.getElementById('deepseekScore'); if(dsScore) dsScore.textContent=Math.round(deepseekVal);
   setSignalBar('roadBar',roadVal);
   setSignalBar('shoeBar',shoeVal);
   setSignalBar('histBar',histVal);
   setSignalBar('libBar',libVal);
   setSignalBar('h2oBar',h2oVal);
+  setSignalBar('deepseekBar',deepseekVal);
   renderDerivedRoadPredictions(a.road);
 
   const driver=document.getElementById('resultDriver');
-  if(a.h2oWeight>0){
-    driver.textContent=`Hybrid result: H2O.ai contributes ${a.h2oWeight}% and your pattern library contributes ${a.libraryWeight}%; road/history/card signals fill the remaining weight.`;
+  if(a.h2oWeight>0 || a.deepseekWeight>0){
+    driver.textContent=`Hybrid result: H2O.ai ${a.h2oWeight||0}% • DeepSeek ${a.deepseekWeight||0}% • pattern library ${a.libraryWeight}%; road/history/card signals fill the remaining weight.`;
   }else if(a.libraryWeight>=70){
     driver.textContent=`Library-led result: ${a.matches} matching historical occurrence${a.matches===1?'':'s'} are driving ${a.libraryWeight}% of the current signal.`;
   }else if(a.libraryWeight>=40){
