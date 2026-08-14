@@ -10,6 +10,9 @@ import json
 import os
 import threading
 import re
+import gzip
+import time
+from collections import OrderedDict
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -31,8 +34,13 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "").strip()
 DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro").strip() or "deepseek-v4-pro"
 DEEPSEEK_API_URL = os.environ.get("DEEPSEEK_API_URL", "https://api.deepseek.com/chat/completions").strip()
 DEEPSEEK_TIMEOUT_SECS = int(os.environ.get("DEEPSEEK_TIMEOUT_SECS", "45"))
+COMPACT_LIBRARY_PATH = Path(os.environ.get("BACCARAT_COMPACT_LIBRARY", "./baccarat_shoes_compact.txt.gz")).resolve()
+LIBRARY_MIN_SUFFIX = int(os.environ.get("BACCARAT_LIBRARY_MIN_SUFFIX", "4"))
+LIBRARY_MAX_SUFFIX = int(os.environ.get("BACCARAT_LIBRARY_MAX_SUFFIX", "12"))
+LIBRARY_MIN_MATCHES = int(os.environ.get("BACCARAT_LIBRARY_MIN_MATCHES", "30"))
+LIBRARY_CACHE_SIZE = int(os.environ.get("BACCARAT_LIBRARY_CACHE_SIZE", "128"))
 
-app = FastAPI(title="Baccarat H2O + DeepSeek Road Intelligence", version="4.0")
+app = FastAPI(title="Baccarat H2O + DeepSeek Road Intelligence", version="4.1")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[x.strip() for x in os.environ.get("BACCARAT_CORS_ORIGINS", "*").split(",") if x.strip()],
@@ -45,6 +53,8 @@ _model = None
 _model_id = None
 _model_classes: list[str] = []
 _meta: dict[str, Any] = {}
+_library_cache: "OrderedDict[str, dict[str, Any]]" = OrderedDict()
+_library_cache_lock = threading.Lock()
 
 BASE_NUMERIC = [
     "hand_count", "player_count", "banker_count", "tie_count",
@@ -85,7 +95,9 @@ def ensure_h2o() -> None:
     try:
         h2o.connection()
     except Exception:
-        h2o.init(nthreads=-1, min_mem_size="1G", max_mem_size=os.environ.get("H2O_MAX_MEM", "4G"))
+        # Keep H2O optional and memory-bounded for small Render instances.
+        # The full 200k-shoe library is streamed from gzip and is NOT loaded into H2O RAM.
+        h2o.init(nthreads=int(os.environ.get("H2O_NTHREADS", "2")), max_mem_size=os.environ.get("H2O_MAX_MEM", "384M"))
 
 
 def auth(request: Request) -> None:
@@ -273,6 +285,115 @@ def features_for_sequence(seq: str) -> dict[str, Any]:
     return row
 
 
+def _iter_compact_shoes():
+    """Yield (shoe_id, sequence) one line at a time with constant memory use."""
+    if not COMPACT_LIBRARY_PATH.exists():
+        return
+    with gzip.open(COMPACT_LIBRARY_PATH, "rt", encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            if "\t" in line:
+                sid, seq = line.split("\t", 1)
+            else:
+                sid, seq = "", line
+            seq = clean_sequence(seq)
+            if seq:
+                yield sid, seq
+
+
+def compact_library_score(seq: str) -> dict[str, Any]:
+    """Search all compact shoes in one gzip pass without loading them into RAM."""
+    seq = clean_sequence(seq)
+    if len(seq) < LIBRARY_MIN_SUFFIX:
+        raise HTTPException(400, f"Need at least {LIBRARY_MIN_SUFFIX} hands for library matching")
+    if not COMPACT_LIBRARY_PATH.exists():
+        raise HTTPException(503, f"Compact shoe library not found: {COMPACT_LIBRARY_PATH.name}")
+
+    cache_key = seq[-LIBRARY_MAX_SUFFIX:]
+    with _library_cache_lock:
+        cached = _library_cache.get(cache_key)
+        if cached is not None:
+            _library_cache.move_to_end(cache_key)
+            return dict(cached)
+
+    started = time.perf_counter()
+    max_len = min(LIBRARY_MAX_SUFFIX, len(seq))
+    suffixes = {n: seq[-n:] for n in range(LIBRARY_MIN_SUFFIX, max_len + 1)}
+    stats = {
+        n: {"counts": {"P": 0, "B": 0, "T": 0}, "matched_shoes": 0}
+        for n in suffixes
+    }
+    scanned = 0
+
+    for _sid, hist in _iter_compact_shoes():
+        scanned += 1
+        for n, suffix in suffixes.items():
+            shoe_hit = False
+            start_at = 0
+            while True:
+                pos = hist.find(suffix, start_at)
+                if pos < 0:
+                    break
+                nxt_idx = pos + n
+                if nxt_idx < len(hist):
+                    nxt = hist[nxt_idx]
+                    if nxt in "PBT":
+                        stats[n]["counts"][nxt] += 1
+                        shoe_hit = True
+                start_at = pos + 1
+            if shoe_hit:
+                stats[n]["matched_shoes"] += 1
+
+    best = None
+    fallback = None
+    for n in range(max_len, LIBRARY_MIN_SUFFIX - 1, -1):
+        counts = stats[n]["counts"]
+        total = sum(counts.values())
+        candidate = {
+            "suffix": suffixes[n],
+            "suffix_length": n,
+            "matches": total,
+            "matched_shoes": stats[n]["matched_shoes"],
+            "scanned_shoes": scanned,
+            "counts": counts,
+        }
+        if total > 0 and fallback is None:
+            fallback = candidate
+        if total >= LIBRARY_MIN_MATCHES:
+            best = candidate
+            break
+
+    best = best or fallback or {
+        "suffix": seq[-LIBRARY_MIN_SUFFIX:], "suffix_length": LIBRARY_MIN_SUFFIX,
+        "matches": 0, "matched_shoes": 0, "scanned_shoes": scanned,
+        "counts": {"P": 0, "B": 0, "T": 0},
+    }
+    total = best["matches"]
+    if total:
+        probs = {k: best["counts"][k] / total for k in ("P", "B", "T")}
+    else:
+        probs = {"P": 0.446, "B": 0.458, "T": 0.096}
+
+    evidence = min(1.0, total / 500.0)
+    spread = max(probs.values()) - min(probs.values())
+    confidence = min(70.0, 20.0 + 40.0 * evidence + 25.0 * spread)
+    result = {
+        "p": probs["P"], "b": probs["B"], "t": probs["T"],
+        "confidence": round(confidence, 1),
+        **best,
+        "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+        "source": "compact-200k-stream",
+    }
+    with _library_cache_lock:
+        _library_cache[cache_key] = dict(result)
+        _library_cache.move_to_end(cache_key)
+        while len(_library_cache) > LIBRARY_CACHE_SIZE:
+            _library_cache.popitem(last=False)
+    return result
+
+
 def rows_from_shoes(shoes: list[dict[str, Any]]) -> pd.DataFrame:
     rows = []
     for shoe_idx, shoe in enumerate(shoes):
@@ -290,11 +411,11 @@ def rows_from_shoes(shoes: list[dict[str, Any]]) -> pd.DataFrame:
 
 def load_latest() -> None:
     global _model, _model_id, _model_classes, _meta
-    ensure_h2o()
     meta_path = APP_DIR / "latest.json"
     if not meta_path.exists():
         return
     try:
+        ensure_h2o()
         meta = json.loads(meta_path.read_text())
         model_path = meta.get("model_path")
         if model_path and Path(model_path).exists():
@@ -474,12 +595,18 @@ def startup() -> None:
 def health() -> dict[str, Any]:
     return {
         "ok": True,
-        "version": "4.0-deepseek-road-intelligence",
+        "version": "4.1-compact-200k-stream",
         "deepseek_configured": bool(DEEPSEEK_API_KEY),
         "deepseek_model": DEEPSEEK_MODEL,
         "model_id": _model_id,
         "classes": _model_classes,
         "feature_count": len(FEATURE_COLUMNS),
+        "compact_library": {
+            "configured_path": str(COMPACT_LIBRARY_PATH),
+            "available": COMPACT_LIBRARY_PATH.exists(),
+            "size_bytes": COMPACT_LIBRARY_PATH.stat().st_size if COMPACT_LIBRARY_PATH.exists() else 0,
+            "streaming": True,
+        },
         "meta": _meta,
     }
 
@@ -547,27 +674,64 @@ def train(payload: dict[str, Any], request: Request) -> dict[str, Any]:
         return _meta
 
 
+@app.post("/library-score")
+def library_score(payload: dict[str, Any], request: Request) -> dict[str, Any]:
+    auth(request)
+    features = payload.get("features") or payload
+    seq = clean_sequence(str(features.get("sequence") or features.get("recent_sequence") or ""))
+    return compact_library_score(seq)
+
+
 @app.post("/score")
 def score(payload: dict[str, Any], request: Request) -> dict[str, Any]:
+    """Score with the full compact library; blend H2O only when a model exists."""
     auth(request)
-    if _model is None:
-        raise HTTPException(409, "No trained model. POST your library to /train first.")
     features = payload.get("features") or payload
     seq = clean_sequence(str(features.get("sequence") or features.get("recent_sequence") or ""))
     if len(seq) < MIN_PREFIX:
         raise HTTPException(400, f"Need at least {MIN_PREFIX} entered hands before scoring")
     row = features_for_sequence(seq)
-    ensure_h2o()
-    hf = h2o.H2OFrame(pd.DataFrame([row], columns=FEATURE_COLUMNS))
-    for col in CATEGORICAL:
-        hf[col] = hf[col].asfactor()
-    probs = prediction_probabilities(_model, hf, _model_classes)
+
+    use_kaggle = bool(features.get("use_kaggle_library", payload.get("use_kaggle_library", True)))
+    library = compact_library_score(seq) if use_kaggle else None
+    final_probs = ({"P": library["p"], "B": library["b"], "T": library["t"]} if library else None)
+    h2o_probs = None
+
+    if _model is not None:
+        try:
+            ensure_h2o()
+            hf = h2o.H2OFrame(pd.DataFrame([row], columns=FEATURE_COLUMNS))
+            for col in CATEGORICAL:
+                hf[col] = hf[col].asfactor()
+            h2o_probs = prediction_probabilities(_model, hf, _model_classes)
+            if use_kaggle and final_probs is not None:
+                # Kaggle ON: blend the streamed 200k-shoe library with the saved-shoe H2O model.
+                final_probs = {
+                    k: 0.70 * final_probs[k] + 0.30 * h2o_probs[k]
+                    for k in ("P", "B", "T")
+                }
+                total = sum(final_probs.values()) or 1.0
+                final_probs = {k: v / total for k, v in final_probs.items()}
+            else:
+                # Kaggle OFF: use only the H2O model trained from the user's saved All In shoes.
+                final_probs = dict(h2o_probs)
+        except Exception as exc:
+            # Do not make scoring fail just because H2O is unavailable on a
+            # low-memory instance; the full streaming library still works.
+            h2o_probs = {"error": str(exc)[:300]}
+
+    if final_probs is None:
+        raise HTTPException(409, "Kaggle shoe library is OFF and no trained H2O model is available. Train H2O from your saved All In Baccarat shoes first, or turn the Kaggle library back ON.")
+
     return {
-        "p": probs["P"], "b": probs["B"], "t": probs["T"],
+        "p": final_probs["P"], "b": final_probs["B"], "t": final_probs["T"],
         "model_id": _model_id,
         "classes": _model_classes,
-        "feature_version": "3.0-all-roads",
+        "feature_version": "4.1-compact-200k-stream",
         "pattern_type": row["pattern_type"],
+        "library": library,
+        "kaggle_library_enabled": use_kaggle,
+        "h2o": h2o_probs,
         "road_snapshot": {
             "eye": row["eye_last"], "small": row["small_last"], "roach": row["roach_last"],
             "preview_p": [row["preview_p_eye"], row["preview_p_small"], row["preview_p_roach"]],
