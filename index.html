@@ -654,7 +654,7 @@ const KEY='baccarat-roadmap-v1';
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
 const DEFAULT_DEEPSEEK_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/deepseek-score') : '';
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:true};
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:true,kaggle:{last:null,error:''}};
 
 function load(){
   try{
@@ -678,6 +678,7 @@ function load(){
       if(!state.h2o.url && DEFAULT_H2O_SCORE_URL) state.h2o.url=DEFAULT_H2O_SCORE_URL;
       if(!state.deepseek || typeof state.deepseek!=='object') state.deepseek={url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''};
       if(typeof state.kaggleLibraryEnabled!=='boolean') state.kaggleLibraryEnabled=true;
+      if(!state.kaggle || typeof state.kaggle!=='object') state.kaggle={last:null,error:''};
       if(!state.deepseek.url && DEFAULT_DEEPSEEK_SCORE_URL) state.deepseek.url=DEFAULT_DEEPSEEK_SCORE_URL;
       if(!state.dragon || typeof state.dragon!=='object') state.dragon={sound:true,popup:true,lastAlertKey:''};
       if(state.scanSnapshot && typeof state.scanSnapshot!=='object') state.scanSnapshot=null;
@@ -702,11 +703,12 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     armNextPrediction();
     persist(); render();
     if(state.h2o?.url) scoreWithH2O(false);
+    if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
     if(state.deepseek?.url) scoreWithDeepSeek(false);
   });
 });
-document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
-document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
+document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
+document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
 document.getElementById('undoBtn').onclick=()=>{state.hands.pop();state.scanSnapshot=null;persist();render();};
 document.getElementById('clearBtn').onclick=()=>{
   if(confirm('Start a new shoe and clear all results?')){
@@ -1382,9 +1384,11 @@ function setCurrentShoeColor(color){
   state.currentShoeColor=color;
   if(state.h2o) state.h2o.last=null;
   if(state.deepseek) state.deepseek.last=null;
+  if(state.kaggle) state.kaggle.last=null;
   if(state.backtest) state.backtest.pending=null;
   persist();render();
   if(state.h2o?.url) scoreWithH2O(false);
+  if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
   if(state.deepseek?.url) scoreWithDeepSeek(false);
 }
 const deepseekScoreBtn=document.getElementById('deepseekScoreBtn');
@@ -1525,6 +1529,63 @@ function h2oFeatures(){
     use_kaggle_library:state.kaggleLibraryEnabled!==false
   };
 }
+
+function kaggleScoreUrl(){
+  const u=(state.h2o?.url||'').trim();
+  if(!u) return '';
+  if(/\/score\/?(?:\?.*)?$/i.test(u)) return u.replace(/\/score\/?(?:\?.*)?$/i,'/library-score');
+  return u.replace(/\/$/,'')+'/library-score';
+}
+function normalizeKaggleLibrary(data){
+  if(!data || typeof data!=='object') throw new Error('Kaggle library response was empty.');
+  let p=Number(data.p), b=Number(data.b), t=Number(data.t ?? 0);
+  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('Kaggle response did not include P/B probabilities.');
+  if(p<=1.0001 && b<=1.0001 && t<=1.0001){p*=100;b*=100;t*=100;}
+  const total=p+b+t||1; p=p/total*100;b=b/total*100;t=t/total*100;
+  const pr=Math.round(p), br=Math.round(b), tr=Math.max(0,100-pr-br);
+  const side=pr===br?null:(pr>br?'P':'B');
+  const strength=Math.max(pr,br);
+  return {
+    p:pr,b:br,t:tr,side,strength,
+    matches:Number(data.matches||0),
+    matchedShoes:Number(data.matched_shoes||0),
+    scannedShoes:Number(data.scanned_shoes||0),
+    suffixLength:Number(data.suffix_length||0),
+    suffix:String(data.suffix||''),
+    confidence:Number(data.confidence||0),
+    elapsedMs:Number(data.elapsed_ms||0),
+    sequence:currentSequence().join(''),
+    at:new Date().toISOString()
+  };
+}
+async function scoreWithKaggle(showAlert=false){
+  if(state.kaggleLibraryEnabled===false){
+    if(state.kaggle) state.kaggle.last=null;
+    persist(); renderAnalyzer(); return null;
+  }
+  const seq=currentSequence().join('');
+  if(seq.length<4) return null;
+  const url=kaggleScoreUrl();
+  if(!url){if(showAlert)alert('Enter your deployed scoring URL first.');return null;}
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
+    const data=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq}})});
+    const out=normalizeKaggleLibrary(data);
+    state.kaggle.last=out; state.kaggle.error=''; persist(); renderAnalyzer();
+    return out;
+  }catch(err){
+    state.kaggle.error=String(err.message||err); state.kaggle.last=null; persist(); renderAnalyzer();
+    if(showAlert) alert('Kaggle library scan failed: '+state.kaggle.error);
+    return null;
+  }
+}
+function currentKaggleSignal(){
+  const x=state.kaggle?.last;
+  if(state.kaggleLibraryEnabled===false || !x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null,matches:0,suffixLength:0,scannedShoes:0};
+  return x;
+}
+
 function normalizeH2OResponse(data){
   let p=Number(data?.p ?? data?.player ?? data?.prob_player ?? data?.probabilities?.player);
   let b=Number(data?.b ?? data?.banker ?? data?.prob_banker ?? data?.probabilities?.banker);
@@ -1819,9 +1880,12 @@ function renderConsensus(){
 function computeCombinedAnalyzer(){
   const hist=historyPatternSignal();
   const road=roadStructureSignal();
-  const lib=librarySignal();
+  const localLib=librarySignal();
+  const localMatchInfo=findHistoricalMatches();
+  const kaggle=currentKaggleSignal();
+  const lib=(state.kaggleLibraryEnabled!==false && kaggle.side) ? kaggle : localLib;
+  const matchInfo=(state.kaggleLibraryEnabled!==false && kaggle.matches) ? {matches:kaggle.matches,len:kaggle.suffixLength,source:'kaggle'} : localMatchInfo;
   const comp=remainingCompositionScore();
-  const matchInfo=findHistoricalMatches();
   const h2o=currentH2OSignal();
   const deepseek=currentDeepSeekSignal();
   const seqAI=sequenceAISignal();
@@ -1831,10 +1895,14 @@ function computeCombinedAnalyzer(){
   // This keeps a tiny library from overpowering the other signals.
   let libraryWeight=0;
   if(lib.side && matchInfo.matches){
-    const matchFactor=Math.min(1, matchInfo.matches/25);   // reaches full strength around 25 matches
-    const shoeFactor=Math.min(1, savedShoes/50);          // reaches full strength around 50 saved shoes
-    libraryWeight=0.25 + 0.65*(0.65*matchFactor + 0.35*shoeFactor);
-    libraryWeight=Math.min(0.90,libraryWeight);
+    const matchFactor=Math.min(1, matchInfo.matches/250);
+    if(matchInfo.source==='kaggle') {
+      // The streamed 200k library has ample database size; weight depends on current match sample.
+      libraryWeight=Math.min(0.55,0.16+0.39*matchFactor);
+    } else {
+      const shoeFactor=Math.min(1, savedShoes/50);
+      libraryWeight=Math.min(0.55,0.16+0.39*(0.65*matchFactor+0.35*shoeFactor));
+    }
   }
 
   // A current H2O score gets a meaningful but capped share. Local analysis remains available offline.
@@ -1882,7 +1950,9 @@ function computeCombinedAnalyzer(){
     deepseekWeight:Math.round(deepseekWeight*100),
     seqWeight:Math.round(seqWeight*100),
     matches:matchInfo.matches,
-    matchLength:matchInfo.len
+    matchLength:matchInfo.len,
+    librarySource:matchInfo.source||'local',
+    kaggle
   };
 }
 
@@ -1935,11 +2005,11 @@ function renderAnalyzer(){
   if(a.h2oWeight>0 || a.deepseekWeight>0){
     driver.textContent=`Hybrid result: H2O.ai ${a.h2oWeight||0}% • DeepSeek ${a.deepseekWeight||0}% • pattern library ${a.libraryWeight}%; road/history/card signals fill the remaining weight.`;
   }else if(a.libraryWeight>=70){
-    driver.textContent=`Library-led result: ${a.matches} matching historical occurrence${a.matches===1?'':'s'} are driving ${a.libraryWeight}% of the current signal.`;
+    driver.textContent=`${a.librarySource==='kaggle'?'Kaggle 200k':'Saved'} library: ${a.matches} matches (latest ${a.matchLength} hands) • P ${a.lib.p??'—'}% / B ${a.lib.b??'—'}% / T ${a.lib.t??'—'}% • ${a.libraryWeight}% analyzer influence.`;
   }else if(a.libraryWeight>=40){
-    driver.textContent=`Library is becoming the main input: ${a.matches} current match${a.matches===1?'':'es'}; ${a.libraryWeight}% influence.`;
+    driver.textContent=`${a.librarySource==='kaggle'?'Kaggle 200k':'Saved'} library: ${a.matches} matches (latest ${a.matchLength} hands) • P ${a.lib.p??'—'}% / B ${a.lib.b??'—'}% / T ${a.lib.t??'—'}% • ${a.libraryWeight}% influence.`;
   }else if(a.matches){
-    driver.textContent=`Library evidence is still limited (${a.matches} match${a.matches===1?'':'es'}), so the app is blending it with road and recent-shoe signals.`;
+    driver.textContent=`${a.librarySource==='kaggle'?'Kaggle 200k':'Saved'} library: ${a.matches} matches (latest ${a.matchLength} hands) • P ${a.lib.p??'—'}% / B ${a.lib.b??'—'}% / T ${a.lib.t??'—'}%. Blended with other signals.`;
   }else{
     driver.textContent='No useful library match yet; the result is currently based on road/recent-shoe signals.';
   }
@@ -2016,8 +2086,11 @@ const kaggleLibraryToggle=document.getElementById('kaggleLibraryToggle');
 if(kaggleLibraryToggle) kaggleLibraryToggle.onchange=()=>{
   state.kaggleLibraryEnabled=!!kaggleLibraryToggle.checked;
   state.h2o.last=null;
+  if(!state.kaggleLibraryEnabled && state.kaggle) state.kaggle.last=null;
   persist();
   renderKaggleLibraryToggle();
+  renderAnalyzer();
+  if(state.kaggleLibraryEnabled) scoreWithKaggle(false);
   if(state.h2o?.url) scoreWithH2O(false);
 };
 renderKaggleLibraryToggle();
@@ -2031,6 +2104,7 @@ document.getElementById('h2oSaveBtn').onclick=()=>{
 document.getElementById('h2oTestBtn').onclick=async()=>{
   state.h2o.url=document.getElementById('h2oUrl').value.trim();
   state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
+  if(state.kaggleLibraryEnabled!==false) await scoreWithKaggle(true);
   await scoreWithH2O(true);
 };
 document.getElementById('h2oTrainBtn').onclick=async()=>{
