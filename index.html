@@ -441,6 +441,13 @@
         <div class="h2o-actions" style="grid-template-columns:1fr;margin-top:7px">
           <button class="tiny-btn" id="h2oTrainBtn">Train / Retrain H2O from Saved Shoes</button>
         </div>
+        <div class="h2o-note" style="margin-top:9px;padding:9px;border:1px solid #2a3850;border-radius:10px">
+          <label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer">
+            <input id="kaggleLibraryToggle" type="checkbox" style="width:20px;height:20px">
+            <span>Kaggle 200,000-Shoe Library</span>
+          </label>
+          <div id="kaggleLibraryNote" style="margin-top:5px">ON: use Kaggle history with your trained model. OFF: ignore Kaggle and use your All In Baccarat saved-shoe H2O model.</div>
+        </div>
         <div class="h2o-result">
           <div class="h2o-card"><strong id="h2oP">—</strong><span>H2O Player</span></div>
           <div class="h2o-card"><strong id="h2oB">—</strong><span>H2O Banker</span></div>
@@ -647,7 +654,7 @@ const KEY='baccarat-roadmap-v1';
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
 const DEFAULT_DEEPSEEK_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/deepseek-score') : '';
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null};
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:true};
 
 function load(){
   try{
@@ -670,6 +677,7 @@ function load(){
       if(!state.h2o || typeof state.h2o!=='object') state.h2o={url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''};
       if(!state.h2o.url && DEFAULT_H2O_SCORE_URL) state.h2o.url=DEFAULT_H2O_SCORE_URL;
       if(!state.deepseek || typeof state.deepseek!=='object') state.deepseek={url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''};
+      if(typeof state.kaggleLibraryEnabled!=='boolean') state.kaggleLibraryEnabled=true;
       if(!state.deepseek.url && DEFAULT_DEEPSEEK_SCORE_URL) state.deepseek.url=DEFAULT_DEEPSEEK_SCORE_URL;
       if(!state.dragon || typeof state.dragon!=='object') state.dragon={sound:true,popup:true,lastAlertKey:''};
       if(state.scanSnapshot && typeof state.scanSnapshot!=='object') state.scanSnapshot=null;
@@ -1513,7 +1521,8 @@ function h2oFeatures(){
     active_card_shoe:state.activeCardShoe||'red',
     active_card_used:((state[(state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards')]||[]).length),
     red_card_shoes_saved:(state.redShoeLibrary||[]).length,
-    black_card_shoes_saved:(state.blackShoeLibrary||[]).length
+    black_card_shoes_saved:(state.blackShoeLibrary||[]).length,
+    use_kaggle_library:state.kaggleLibraryEnabled!==false
   };
 }
 function normalizeH2OResponse(data){
@@ -1994,6 +2003,24 @@ document.getElementById('exportBacktestBtn').onclick=()=>{
   setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
+
+function renderKaggleLibraryToggle(){
+  const box=document.getElementById('kaggleLibraryToggle');
+  const note=document.getElementById('kaggleLibraryNote');
+  if(box) box.checked=state.kaggleLibraryEnabled!==false;
+  if(note) note.textContent=(state.kaggleLibraryEnabled!==false)
+    ? 'ON: predictions can use the streamed 200,000-shoe Kaggle library plus your trained All In Baccarat model.'
+    : 'OFF: Kaggle shoes are ignored. Predictions use your H2O model trained from saved All In Baccarat shoes.';
+}
+const kaggleLibraryToggle=document.getElementById('kaggleLibraryToggle');
+if(kaggleLibraryToggle) kaggleLibraryToggle.onchange=()=>{
+  state.kaggleLibraryEnabled=!!kaggleLibraryToggle.checked;
+  state.h2o.last=null;
+  persist();
+  renderKaggleLibraryToggle();
+  if(state.h2o?.url) scoreWithH2O(false);
+};
+renderKaggleLibraryToggle();
 
 document.getElementById('h2oSaveBtn').onclick=()=>{
   state.h2o.url=document.getElementById('h2oUrl').value.trim();
