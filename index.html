@@ -649,12 +649,12 @@
 </div>
 
 <script>
+// ROAD ENGINE BUILD: 2026-08-15-dragon-tail-lock
 const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
-const DEFAULT_H2O_SCORE_URL = 'https://baccarat-h2o-ai-1.onrender.com/score';
-const DEFAULT_DEEPSEEK_SCORE_URL = 'https://baccarat-h2o-ai-1.onrender.com/deepseek-score';
-
+const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
+const DEFAULT_DEEPSEEK_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/deepseek-score') : '';
 let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:true,kaggle:{last:null,error:''}};
 
 function load(){
@@ -740,32 +740,39 @@ document.getElementById('fullscreenBtn').onclick=()=>{
 function placeRoadSequence(items, valueOf){
   const pos=[];
   const occupied=new Set();
-  let col=0,row=0,last=null,streakStartCol=0;
+  let col=-1,row=0,last=null,streakStartCol=-1;
+  let turnedRight=false;
 
-  items.forEach((item,i)=>{
+  items.forEach((item)=>{
     const value=valueOf(item);
-    if(i===0){
-      col=0;row=0;streakStartCol=0;
-    }else if(value===last){
-      const canGoDown=row<5 && !occupied.has(`${col},${row+1}`);
+
+    if(value!==last){
+      // New streak: begin at the next free top-row column.
+      let candidate=streakStartCol+1;
+      while(occupied.has(`${candidate},0`)) candidate++;
+      streakStartCol=candidate;
+      col=streakStartCol;
+      row=0;
+      turnedRight=false;
+    }else{
+      // Same streak: move down until the bottom or a collision is reached.
+      // IMPORTANT: after a streak turns right (dragon tail), it must remain
+      // horizontal for the rest of that streak; it must never drop down again.
+      const canGoDown=!turnedRight && row<5 && !occupied.has(`${col},${row+1}`);
       if(canGoDown){
         row++;
       }else{
+        turnedRight=true;
         col++;
         while(occupied.has(`${col},${row}`)) col++;
       }
-    }else{
-      streakStartCol++;
-      col=streakStartCol;row=0;
-      while(occupied.has(`${col},0`)){
-        streakStartCol++;
-        col=streakStartCol;
-      }
     }
+
     occupied.add(`${col},${row}`);
     pos.push({...item,col,row});
     last=value;
   });
+
   return pos;
 }
 
