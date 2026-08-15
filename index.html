@@ -307,7 +307,7 @@
         </div>
         <div class="confidence">
           <strong id="confidence">0%</strong>
-          <span>top pattern estimate</span>
+          <span>qualified signal strength</span>
         </div>
       </div>
       <div class="next-percentages">
@@ -649,7 +649,7 @@
 </div>
 
 <script>
-// ROAD ENGINE BUILD: 2026-08-15-dragon-tail-lock
+// ROAD ENGINE BUILD: 2026-08-15-final-consensus-lock
 const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
@@ -1057,14 +1057,28 @@ function renderStats(){
   let s=0; const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r); if(seq.length){s=1;for(let i=seq.length-2;i>=0&&seq[i]===seq.at(-1);i--)s++;}
   document.getElementById('streak').textContent=s;
   document.getElementById('shoeLabel').textContent=`Current shoe • ${n} hands`;
-  const sig=computeSignal(), ball=document.getElementById('signalBall');
-  ball.className='signal-ball '+(sig.pick?sig.pick.toLowerCase():'none'); ball.textContent=sig.pick||'—';
-  document.getElementById('signalText').textContent=sig.pick?(sig.pick==='P'?'Player pattern':'Banker pattern'):'Waiting for results';
-  document.getElementById('signalReason').textContent=sig.reason;
-  document.getElementById('confidence').textContent=sig.score+'%';
-  document.getElementById('nextPlayerPct').textContent=sig.pPct==null?'—':sig.pPct+'%';
-  document.getElementById('nextBankerPct').textContent=sig.bPct==null?'—':sig.bPct+'%';
-  document.getElementById('nextTiePct').textContent=sig.tPct==null?'—':sig.tPct+'%';
+  // FINAL DECISION: use the same combined analyzer everywhere on screen.
+  // Older builds showed computeSignal() here while Best-Estimate used a different
+  // engine, which could display Banker in one place and Player in another.
+  const local=computeSignal();
+  const a=computeCombinedAnalyzer();
+  const c=consensusSignal();
+  const nonTieCount=state.hands.filter(h=>h.r!=='T').length;
+  const agreement=c.total ? c.agree/c.total : 0;
+  const actionable=nonTieCount>=12 && a.top>=56 && c.total>=2 && agreement>=0.67 && c.side===a.side;
+  const pick=actionable?a.side:null;
+  const ball=document.getElementById('signalBall');
+  ball.className='signal-ball '+(pick?pick.toLowerCase():'none'); ball.textContent=pick||'WAIT';
+  document.getElementById('signalText').textContent=pick?(pick==='P'?'Player — qualified signal':'Banker — qualified signal'):'WAIT / NO BET';
+  document.getElementById('signalReason').textContent=pick
+    ? `Combined analyzer and consensus agree (${c.agree}/${c.total}); signal strength ${a.top}%.`
+    : nonTieCount<12
+      ? `Need at least 12 non-tie hands before a qualified signal (${nonTieCount}/12).`
+      : `No qualified signal: combined=${a.side==='P'?'Player':'Banker'} ${a.top}%, consensus=${c.side==='P'?'Player':c.side==='B'?'Banker':'none'} ${c.strength||0}% (${c.agree}/${c.total}).`;
+  document.getElementById('confidence').textContent=pick?a.top+'%':'WAIT';
+  document.getElementById('nextPlayerPct').textContent=a.pPct+'%';
+  document.getElementById('nextBankerPct').textContent=a.bPct+'%';
+  document.getElementById('nextTiePct').textContent=local.tPct==null?'—':local.tPct+'%';
 }
 function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderDeepSeek();renderSeparateShoes();renderCurrentShoeColor();}
 
@@ -2057,8 +2071,13 @@ function settlePendingPrediction(actual){
 
 function armNextPrediction(){
   const a=computeCombinedAnalyzer();
+  const c=consensusSignal();
+  const nonTieCount=state.hands.filter(h=>h.r!=='T').length;
+  const agreement=c.total ? c.agree/c.total : 0;
+  const actionable=nonTieCount>=12 && a.top>=56 && c.total>=2 && agreement>=0.67 && c.side===a.side;
   if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
-  state.backtest.pending={side:a.side,score:a.top};
+  // Backtest only signals the UI would actually qualify; WAIT is not counted as a prediction.
+  state.backtest.pending=actionable?{side:a.side,score:a.top}:null;
 }
 
 document.getElementById('undoCardBtn').onclick=()=>{state.cards.pop();persist();renderAnalyzer();};
