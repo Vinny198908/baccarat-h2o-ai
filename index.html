@@ -397,11 +397,16 @@
 
       <div class="analyzer" id="sequenceAiPanel">
         <div class="analyzer-title">Sequence AI Analyzer</div>
-        <div class="analyzer-sub">Independent multi-length sequence analysis. It compares the current ending pattern with saved shoes, weighs longer matches more heavily, and reports its sample size separately from H2O.</div>
+        <div class="analyzer-sub">Live shoe-similarity engine. It scans multiple rolling endings of the current shoe against historical shoes. Strong, persistent matches increase Sequence AI influence; weak or conflicting matches return WAIT.</div>
         <div class="analyzer-grid">
-          <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">—</strong></div>
+          <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">WAIT</strong></div>
           <div class="analyzer-card"><span>Sequence confidence</span><strong id="seqAiStrength">—</strong></div>
-          <div class="analyzer-card"><span>Weighted matches</span><strong id="seqAiMatches">0</strong></div>
+          <div class="analyzer-card"><span>Historical matches</span><strong id="seqAiMatches">0</strong></div>
+        </div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Shoe similarity</span><strong id="seqAiSimilarity">0%</strong></div>
+          <div class="analyzer-card"><span>Match grade</span><strong id="seqAiGrade">LOW</strong></div>
+          <div class="analyzer-card"><span>Windows agreeing</span><strong id="seqAiWindows">0/0</strong></div>
         </div>
         <div class="match-pcts">
           <div class="match-pct"><strong id="seqAiP">—</strong><span>Player</span></div>
@@ -420,6 +425,17 @@
           <div class="analyzer-card"><span>Models agreeing</span><strong id="consensusAgree">0/0</strong></div>
         </div>
         <div class="analyzer-sub" id="consensusNote" style="margin-top:8px">Waiting for enough independent signals.</div>
+      </div>
+
+      <div class="analyzer" id="decisionGatePanel">
+        <div class="analyzer-title">Top-Tier Decision Gate</div>
+        <div class="analyzer-sub">De-duplicates related evidence, checks independent agreement, blocks contradictory signals, and qualifies a pick only when coverage and edge are strong enough.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Decision</span><strong id="gateDecision">WAIT</strong></div>
+          <div class="analyzer-card"><span>Independent agreement</span><strong id="gateAgree">0/0</strong></div>
+          <div class="analyzer-card"><span>Evidence quality</span><strong id="gateQuality">LOW</strong></div>
+        </div>
+        <div class="analyzer-sub" id="gateNote" style="margin-top:8px">Waiting for enough independent evidence.</div>
       </div>
 
       <div class="h2o-panel">
@@ -568,6 +584,45 @@
             <div class="match-pct"><strong id="matchP">—</strong><span>Player followed</span></div>
             <div class="match-pct"><strong id="matchB">—</strong><span>Banker followed</span></div>
             <div class="match-pct"><strong id="matchT">—</strong><span>Tie followed</span></div>
+          </div>
+        </div>
+
+
+
+        <div class="match-box" id="reuseScannerBox">
+          <div class="match-head">
+            <b>Same-Color Shoe Reuse Scanner</b>
+            <span id="reuseScannerStatus" style="font-size:10px;color:var(--muted)">READY</span>
+          </div>
+          <div class="match-line" id="reuseScannerText">During live play, scan the current RED or BLACK shoe against the two most recent saved shoes of that same color. It looks for partial patterns and shifted similarities, not exact copies.</div>
+          <div class="match-pcts">
+            <div class="match-pct"><strong id="reusePrev1">—</strong><span>Previous same-color</span></div>
+            <div class="match-pct"><strong id="reusePrev2">—</strong><span>2 shoes back</span></div>
+            <div class="match-pct"><strong id="reuseNext">—</strong><span>Matched next result</span></div>
+          </div>
+          <div class="library-actions" style="margin-top:10px">
+            <button class="tiny-btn" id="scanReuseBtn" style="grid-column:1/-1">Scan Previous RED / BLACK Shoes</button>
+          </div>
+        </div>
+
+        <div class="match-box" id="roadReuseScannerBox">
+          <div class="match-head">
+            <b>Previous Roads Scanner</b>
+            <span id="roadReuseStatus" style="font-size:10px;color:var(--muted)">READY</span>
+          </div>
+          <div class="match-line" id="roadReuseText">Compare the current Big Eye Boy, Small Road, and Cockroach Road against the two most recent saved shoes of the same color. This checks whether road structure is repeating after a possible reshuffle.</div>
+          <div class="match-pcts">
+            <div class="match-pct"><strong id="roadReuseEye">—</strong><span>Big Eye similarity</span></div>
+            <div class="match-pct"><strong id="roadReuseSmall">—</strong><span>Small Road similarity</span></div>
+            <div class="match-pct"><strong id="roadReuseRoach">—</strong><span>Cockroach similarity</span></div>
+          </div>
+          <div class="match-pcts" style="margin-top:8px">
+            <div class="match-pct"><strong id="roadReusePrev1">—</strong><span>Previous same-color</span></div>
+            <div class="match-pct"><strong id="roadReusePrev2">—</strong><span>2 shoes back</span></div>
+            <div class="match-pct"><strong id="roadReuseNext">—</strong><span>Historical next road</span></div>
+          </div>
+          <div class="library-actions" style="margin-top:10px">
+            <button class="tiny-btn" id="scanRoadReuseBtn" style="grid-column:1/-1">Scan Previous Same-Color Roads</button>
           </div>
         </div>
 
@@ -1074,15 +1129,15 @@ function renderStats(){
   const c=consensusSignal();
   const nonTieCount=state.hands.filter(h=>h.r!=='T').length;
   const agreement=c.total ? c.agree/c.total : 0;
-  const actionable=nonTieCount>=12 && a.top>=56 && c.total>=2 && agreement>=0.67 && c.side===a.side;
+  const actionable=!!a.qualified && c.total>=2 && agreement>=0.67 && c.side===a.side && !c.contradiction;
   const pick=actionable?a.side:null;
   const ball=document.getElementById('signalBall');
   ball.className='signal-ball '+(pick?pick.toLowerCase():'none'); ball.textContent=pick||'WAIT';
   document.getElementById('signalText').textContent=pick?(pick==='P'?'Player — qualified signal':'Banker — qualified signal'):'WAIT / NO BET';
   document.getElementById('signalReason').textContent=pick
     ? `Combined analyzer and consensus agree (${c.agree}/${c.total}); signal strength ${a.top}%.`
-    : nonTieCount<12
-      ? `Need at least 12 non-tie hands before a qualified signal (${nonTieCount}/12).`
+    : nonTieCount<10
+      ? `Need at least 10 non-tie hands before a qualified signal (${nonTieCount}/10).`
       : `No qualified signal: combined=${a.side==='P'?'Player':'Banker'} ${a.top}%, consensus=${c.side==='P'?'Player':c.side==='B'?'Banker':'none'} ${c.strength||0}% (${c.agree}/${c.total}).`;
   document.getElementById('confidence').textContent=pick?a.top+'%':'WAIT';
   document.getElementById('nextPlayerPct').textContent=a.pPct+'%';
@@ -1229,6 +1284,205 @@ function librarySignal(){
   const strength=Math.round(50+Math.abs(p-b)*35);
   return {side,strength:Math.min(85,strength),matches:m.matches};
 }
+
+
+
+// --- Same-color recent-shoe reuse scanner ---
+// This is a pattern-comparison tool, not proof that a physical deck was reused.
+function sameColorReuseCandidates(){
+  const cur=currentSequence().join('');
+  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=4);
+  // Newest saved same-color shoe first. If an identical copy of the live shoe was
+  // accidentally saved mid-shoe, ignore that exact current snapshot.
+  const usable=lib.filter(x=>x.sequence!==cur);
+  return usable.slice(-2).reverse();
+}
+function bestShiftSimilarity(cur, hist){
+  if(!cur || !hist) return {score:0,offset:0,compared:0};
+  let best={score:0,offset:0,compared:0};
+  const maxShift=Math.min(30, Math.max(cur.length,hist.length));
+  for(let offset=-maxShift;offset<=maxShift;offset++){
+    let same=0, compared=0;
+    for(let i=0;i<cur.length;i++){
+      const j=i+offset;
+      if(j<0 || j>=hist.length) continue;
+      compared++;
+      if(cur[i]===hist[j]) same++;
+    }
+    if(compared<4) continue;
+    const raw=same/compared;
+    // Penalize tiny overlaps so four lucky hands do not look like a strong match.
+    const coverage=Math.min(1,compared/Math.max(10,Math.min(cur.length,20)));
+    const score=raw*(0.55+0.45*coverage);
+    if(score>best.score) best={score,offset,compared};
+  }
+  return best;
+}
+function blockPatternSimilarity(cur,hist){
+  if(cur.length<3 || hist.length<4) return {score:0,hits:0,total:0,next:{P:0,B:0,T:0}};
+  let weightedHits=0, weightedTotal=0, hits=0, total=0;
+  const next={P:0,B:0,T:0};
+  const maxK=Math.min(8,cur.length,hist.length-1);
+  for(let k=3;k<=maxK;k++){
+    const weight=k*k;
+    const seen=new Set();
+    for(let i=0;i+k<=cur.length;i++){
+      const pat=cur.slice(i,i+k);
+      if(seen.has(k+':'+pat)) continue;
+      seen.add(k+':'+pat); total++; weightedTotal+=weight;
+      let pos=hist.indexOf(pat), found=false;
+      while(pos!==-1){
+        found=true;
+        const n=hist[pos+k];
+        if(n && next[n]!=null) next[n]+=weight;
+        pos=hist.indexOf(pat,pos+1);
+      }
+      if(found){hits++; weightedHits+=weight;}
+    }
+  }
+  return {score:weightedTotal?weightedHits/weightedTotal:0,hits,total,next};
+}
+function analyzeReuseCandidate(cur,hist){
+  const shift=bestShiftSimilarity(cur,hist);
+  const blocks=blockPatternSimilarity(cur,hist);
+  // Partial repeated blocks matter more than position because a shuffle can move blocks.
+  let score=(blocks.score*0.68)+(shift.score*0.32);
+  // Require more live evidence before allowing high displayed scores.
+  const evidence=Math.min(1,cur.length/18);
+  score*=0.55+0.45*evidence;
+  return {score:Math.round(score*100),shift,blocks};
+}
+function scanSameColorReuse(){
+  const status=document.getElementById('reuseScannerStatus');
+  const text=document.getElementById('reuseScannerText');
+  const p1=document.getElementById('reusePrev1'),p2=document.getElementById('reusePrev2'),nextEl=document.getElementById('reuseNext');
+  if(!state.currentShoeColor){
+    status.textContent='CHOOSE COLOR'; text.textContent='Choose RED SHOE or BLACK SHOE first so I know which recent history to scan.';
+    p1.textContent=p2.textContent=nextEl.textContent='—'; return;
+  }
+  const cur=currentSequence().join('');
+  if(cur.length<6){
+    status.textContent='NEED MORE HANDS'; text.textContent=`Enter at least 6 live results before scanning (${cur.length}/6). More hands make the comparison more meaningful.`;
+    p1.textContent=p2.textContent=nextEl.textContent='—'; return;
+  }
+  const cand=sameColorReuseCandidates();
+  if(!cand.length){
+    status.textContent='NO HISTORY'; text.textContent=`No earlier ${activeColorName()} shoes are saved yet. Finish and save ${activeColorName()} shoes first.`;
+    p1.textContent=p2.textContent=nextEl.textContent='—'; return;
+  }
+  const results=cand.map((shoe,idx)=>({shoe,idx,...analyzeReuseCandidate(cur,shoe.sequence)}));
+  p1.textContent=results[0]?results[0].score+'%':'—';
+  p2.textContent=results[1]?results[1].score+'%':'—';
+  const best=results.slice().sort((a,b)=>b.score-a.score)[0];
+  const nextCounts=best.blocks.next;
+  const nextTotal=nextCounts.P+nextCounts.B+nextCounts.T;
+  let next='—';
+  if(nextTotal){
+    const side=['P','B','T'].sort((a,b)=>nextCounts[b]-nextCounts[a])[0];
+    const pct=Math.round(nextCounts[side]*100/nextTotal);
+    next=`${side} ${pct}%`;
+  }
+  nextEl.textContent=next;
+  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
+  const offset=best.shift.offset===0?'near the same positions':`best aligned about ${Math.abs(best.shift.offset)} hand${Math.abs(best.shift.offset)===1?'':'s'} ${best.shift.offset>0?'later':'earlier'}`;
+  const level=best.score>=75?'STRONG':best.score>=60?'MODERATE':best.score>=45?'WEAK':'LOW';
+  status.textContent=level+' MATCH';
+  text.textContent=`Best current match: ${label} at ${best.score}%. Found ${best.blocks.hits}/${best.blocks.total} partial pattern windows; ${offset}. ${nextTotal?`Among matched blocks with a following result, the strongest continuation is ${next}.`:'Not enough matched continuations yet for a next-result read.'} This is similarity evidence only, not proof the same physical cards were reused.`;
+}
+
+
+
+// --- Previous same-color derived-road scanner ---
+// Derived-road R/B marks represent structural regularity, not Banker/Player.
+function roadHistoryForShoe(shoe){
+  if(shoe?.derivedRoadHistory) return shoe.derivedRoadHistory;
+  const seq=(shoe?.sequence||'').split('').filter(r=>'PBT'.includes(r));
+  const hs=seq.map(r=>({r}));
+  return {bigEye:deriveRoad(hs,1),small:deriveRoad(hs,2),roach:deriveRoad(hs,3)};
+}
+function currentDerivedRoadSet(){
+  const hs=currentSequence().map(r=>({r}));
+  return {bigEye:deriveRoad(hs,1),small:deriveRoad(hs,2),roach:deriveRoad(hs,3)};
+}
+function roadBlockSimilarity(curMarks,histMarks){
+  const cur=(curMarks||[]).join(''), hist=(histMarks||[]).join('');
+  if(cur.length<3 || hist.length<4) return {score:0,hits:0,total:0,next:{R:0,B:0}};
+  let weightedHits=0,weightedTotal=0,hits=0,total=0;
+  const next={R:0,B:0};
+  const maxK=Math.min(10,cur.length,hist.length-1);
+  for(let k=3;k<=maxK;k++){
+    const weight=k*k;
+    const seen=new Set();
+    for(let i=0;i+k<=cur.length;i++){
+      const pat=cur.slice(i,i+k), key=k+':'+pat;
+      if(seen.has(key)) continue;
+      seen.add(key); total++; weightedTotal+=weight;
+      let pos=hist.indexOf(pat),found=false;
+      while(pos!==-1){
+        found=true;
+        const n=hist[pos+k];
+        if(n==='R'||n==='B') next[n]+=weight;
+        pos=hist.indexOf(pat,pos+1);
+      }
+      if(found){hits++;weightedHits+=weight;}
+    }
+  }
+  const block=weightedTotal?weightedHits/weightedTotal:0;
+  const shift=bestShiftSimilarity(cur,hist);
+  const evidence=Math.min(1,cur.length/16);
+  const score=((block*.72)+(shift.score*.28))*(.55+.45*evidence);
+  return {score:Math.round(score*100),hits,total,next,shift};
+}
+function analyzeRoadCandidate(curRoads,shoe){
+  const hist=roadHistoryForShoe(shoe);
+  const eye=roadBlockSimilarity(curRoads.bigEye,hist.bigEye);
+  const small=roadBlockSimilarity(curRoads.small,hist.small);
+  const roach=roadBlockSimilarity(curRoads.roach,hist.roach);
+  const available=[eye,small,roach].filter(x=>x.total>0);
+  const weights=[1,.9,.8];
+  const arr=[eye,small,roach];
+  let num=0,den=0;
+  arr.forEach((x,i)=>{if(x.total>0){num+=x.score*weights[i];den+=weights[i];}});
+  const overall=den?Math.round(num/den):0;
+  const next={R:0,B:0};
+  arr.forEach((x,i)=>{const w=weights[i];next.R+=x.next.R*w;next.B+=x.next.B*w;});
+  return {overall,eye,small,roach,next,available:available.length};
+}
+function scanPreviousRoads(){
+  const status=document.getElementById('roadReuseStatus');
+  const text=document.getElementById('roadReuseText');
+  const eyeEl=document.getElementById('roadReuseEye'),smallEl=document.getElementById('roadReuseSmall'),roachEl=document.getElementById('roadReuseRoach');
+  const p1=document.getElementById('roadReusePrev1'),p2=document.getElementById('roadReusePrev2'),nextEl=document.getElementById('roadReuseNext');
+  const clear=()=>{eyeEl.textContent=smallEl.textContent=roachEl.textContent=p1.textContent=p2.textContent=nextEl.textContent='—';};
+  if(!state.currentShoeColor){status.textContent='CHOOSE COLOR';text.textContent='Choose RED SHOE or BLACK SHOE first.';clear();return;}
+  const roads=currentDerivedRoadSet();
+  const roadMarks=roads.bigEye.length+roads.small.length+roads.roach.length;
+  if(roadMarks<9){status.textContent='NEED MORE ROAD';text.textContent=`Not enough derived-road history yet (${roadMarks} marks). Keep entering live hands, then scan again.`;clear();return;}
+  const cand=sameColorReuseCandidates();
+  if(!cand.length){status.textContent='NO HISTORY';text.textContent=`No earlier ${activeColorName()} shoes are saved yet.`;clear();return;}
+  const results=cand.map((shoe,idx)=>({shoe,idx,...analyzeRoadCandidate(roads,shoe)}));
+  p1.textContent=results[0]?results[0].overall+'%':'—';
+  p2.textContent=results[1]?results[1].overall+'%':'—';
+  const best=results.slice().sort((a,b)=>b.overall-a.overall)[0];
+  eyeEl.textContent=best.eye.total?best.eye.score+'%':'N/A';
+  smallEl.textContent=best.small.total?best.small.score+'%':'N/A';
+  roachEl.textContent=best.roach.total?best.roach.score+'%':'N/A';
+  const total=best.next.R+best.next.B;
+  let next='—';
+  if(total>0){
+    const side=best.next.R>=best.next.B?'R':'B';
+    const pct=Math.round((side==='R'?best.next.R:best.next.B)*100/total);
+    next=`${side==='R'?'RED':'BLUE'} ${pct}%`;
+  }
+  nextEl.textContent=next;
+  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
+  const level=best.overall>=75?'STRONG':best.overall>=60?'MODERATE':best.overall>=45?'WEAK':'LOW';
+  status.textContent=level+' ROAD MATCH';
+  text.textContent=`Best road-structure match: ${label} at ${best.overall}%. Big Eye ${best.eye.total?best.eye.score+'%':'N/A'}, Small ${best.small.total?best.small.score+'%':'N/A'}, Cockroach ${best.roach.total?best.roach.score+'%':'N/A'}. ${total?`Matched historical road blocks most often continued with ${next}.`:'There are not enough historical continuations yet.'} RED/BLUE here are derived-road colors, not Banker/Player bets.`;
+}
+
+document.getElementById('scanReuseBtn').onclick=scanSameColorReuse;
+document.getElementById('scanRoadReuseBtn').onclick=scanPreviousRoads;
 
 document.getElementById('saveShoeBtn').onclick=()=>{
   saveSequenceToLibrary(currentSequence(),'manual');
@@ -1584,6 +1838,14 @@ function normalizeKaggleLibrary(data){
     suffixLength:Number(data.suffix_length||0),
     suffix:String(data.suffix||''),
     confidence:Number(data.confidence||0),
+    similarityScore:Number(data.similarity_score||0),
+    windowAgreement:Number(data.window_agreement||0),
+    usableWindows:Number(data.usable_windows||0),
+    multiP:Number(data.multi_p ?? data.p ?? 0),
+    multiB:Number(data.multi_b ?? data.b ?? 0),
+    multiT:Number(data.multi_t ?? data.t ?? 0),
+    multiLeader:String(data.multi_leader||''),
+    multiWindow:Array.isArray(data.multi_window)?data.multi_window:[],
     elapsedMs:Number(data.elapsed_ms||0),
     sequence:currentSequence().join(''),
     at:new Date().toISOString()
@@ -1903,83 +2165,157 @@ function renderRoadPreviewAI(){
 function sequenceAISignal(){
   const cur=currentSequence();
   const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string');
-  if(cur.length<3 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0};
+  const kag=currentKaggleSignal();
+  if(cur.length<4 || (!lib.length && !kag.side)) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus historical library evidence.'};
 
+  // LOCAL SAVED-SHOE MULTI-WINDOW SCAN
   let wp=0,wb=0,wt=0,weightTotal=0,rawMatches=0,bestLen=0;
-  // Blend several suffix lengths instead of relying on only one exact match.
-  // Longer patterns receive more weight, while shorter patterns provide fallback evidence.
-  for(let k=Math.min(12,cur.length);k>=3;k--){
+  let localWindows=[];
+  for(let k=Math.min(20,cur.length);k>=3;k--){
     const pattern=cur.slice(-k).join('');
-    let p=0,b=0,t=0,total=0;
+    let p=0,b=0,t=0,total=0,matchedShoes=0;
     lib.forEach(shoe=>{
-      const s=shoe.sequence||'';
-      for(let i=0;i+k<s.length;i++){
-        if(s.slice(i,i+k)===pattern){
-          const nxt=s[i+k];
+      const ss=shoe.sequence||''; let shoeHit=false;
+      for(let i=0;i+k<ss.length;i++){
+        if(ss.slice(i,i+k)===pattern){
+          const nxt=ss[i+k];
           if(nxt==='P')p++; else if(nxt==='B')b++; else if(nxt==='T')t++;
-          total++;
+          total++; shoeHit=true;
         }
       }
+      if(shoeHit) matchedShoes++;
     });
     if(!total) continue;
     if(!bestLen) bestLen=k;
     rawMatches+=total;
     const reliability=Math.min(1,total/12);
-    const lengthWeight=Math.pow(k/3,1.35);
-    const w=lengthWeight*(0.35+0.65*reliability);
+    const lengthWeight=Math.pow(k/3,1.45);
+    const w=lengthWeight*(0.30+0.70*reliability);
     wp+=(p/total)*w; wb+=(b/total)*w; wt+=(t/total)*w; weightTotal+=w;
+    const leader=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
+    localWindows.push({length:k,matches:total,matchedShoes,p,b,t,leader,weight:w});
   }
-  if(!weightTotal) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0};
 
-  let p=wp/weightTotal, b=wb/weightTotal, t=wt/weightTotal;
-  const total=p+b+t || 1; p=p/total*100; b=b/total*100; t=t/total*100;
-  const pr=Math.round(p), br=Math.round(b), tr=Math.max(0,100-pr-br);
-  const side=pr>=br && pr>=tr?'P':br>=pr && br>=tr?'B':'T';
-  const top=Math.max(pr,br,tr);
-  // Shrink small samples toward neutral so one or two matches cannot look "high confidence".
-  const sampleFactor=Math.min(1,rawMatches/25);
-  const strength=Math.round(50+(top-50)*sampleFactor);
-  return {side,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(weightTotal*10)/10,bestLen};
+  let sources=[];
+  if(weightTotal){
+    const lp=wp/weightTotal, lb=wb/weightTotal, lt=wt/weightTotal;
+    const leader=lp>=lb&&lp>=lt?'P':lb>=lp&&lb>=lt?'B':'T';
+    const agree=localWindows.filter(x=>x.leader===leader).length;
+    const agreement=agree/Math.max(1,localWindows.length);
+    const avgSample=localWindows.reduce((a,x)=>a+Math.min(1,x.matches/12),0)/Math.max(1,localWindows.length);
+    const lengthQuality=Math.min(1,(bestLen||0)/12);
+    const sim=Math.round(100*(.42*agreement+.33*avgSample+.25*lengthQuality));
+    sources.push({name:'saved',p:lp,b:lb,t:lt,similarity:sim,agreement,windows:localWindows.length,agree,matches:rawMatches,weight:Math.max(.15,sim/100)});
+  }
+
+  // KAGGLE 200K MULTI-WINDOW SCAN (returned by the server in one streaming pass).
+  if(state.kaggleLibraryEnabled!==false && kag && kag.sequence===cur.join('') && kag.usableWindows){
+    let kp=Number(kag.multiP),kb=Number(kag.multiB),kt=Number(kag.multiT);
+    if(kp<=1.0001&&kb<=1.0001&&kt<=1.0001){/* already fractions */}else{const z=kp+kb+kt||1;kp/=z;kb/=z;kt/=z;}
+    const kagLeader=kp>=kb&&kp>=kt?'P':kb>=kp&&kb>=kt?'B':'T';
+    const agree=Math.round((kag.windowAgreement||0)*kag.usableWindows);
+    sources.push({name:'kaggle',p:kp,b:kb,t:kt,similarity:Math.round(kag.similarityScore||0),agreement:kag.windowAgreement||0,windows:kag.usableWindows||0,agree,matches:kag.matches||0,weight:Math.max(.20,(kag.similarityScore||0)/100),leader:kagLeader});
+  }
+
+  if(!sources.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable historical sequences yet.'};
+
+  // Similarity itself controls how much a source can influence Sequence AI.
+  // Very strong persistent matches get heavy weight; weak matches stay muted.
+  let ap=0,ab=0,at=0,aw=0,totalWindows=0,agreeWindows=0,totalMatches=0;
+  sources.forEach(x=>{
+    const simGate=x.similarity>=80?1.50:x.similarity>=65?1.10:x.similarity>=50?.70:.30;
+    const w=x.weight*simGate;
+    ap+=x.p*w;ab+=x.b*w;at+=x.t*w;aw+=w;
+    totalWindows+=x.windows;agreeWindows+=x.agree;totalMatches+=x.matches;
+  });
+  let p=ap/aw,b=ab/aw,t=at/aw; const z=p+b+t||1;p=p/z*100;b=b/z*100;t=t/z*100;
+  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
+  const nonTieTotal=pr+br||1;
+  const nonTieEdge=Math.abs(pr-br)/nonTieTotal*100;
+  const similarityScore=Math.round(sources.reduce((a,x)=>a+x.similarity*x.weight,0)/Math.max(.001,sources.reduce((a,x)=>a+x.weight,0)));
+  const agreement=agreeWindows/Math.max(1,totalWindows);
+  const grade=similarityScore>=82&&agreement>=.70?'VERY STRONG':similarityScore>=68&&agreement>=.60?'STRONG':similarityScore>=52?'MODERATE':'LOW';
+
+  const candidate=pr>=br?'P':'B';
+  // WAIT protects against forcing a bet from weak resemblance or conflicting windows.
+  if(similarityScore<52 || agreement<.55 || nonTieEdge<5){
+    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:totalMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:`WAIT: ${similarityScore}% shoe similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge.`};
+  }
+
+  const sampleFactor=Math.min(1,totalMatches/30);
+  const strength=Math.min(88,Math.round(50 + nonTieEdge*.22 + Math.max(0,similarityScore-50)*.42 + sampleFactor*5));
+  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:totalMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources};
 }
 
 function renderSequenceAI(){
   const s=sequenceAISignal();
-  const name=s.side==='P'?'Player':s.side==='B'?'Banker':s.side==='T'?'Tie':'—';
+  const name=s.side==='P'?'Player':s.side==='B'?'Banker':'WAIT';
   document.getElementById('seqAiSide').textContent=name;
-  document.getElementById('seqAiStrength').textContent=s.side ? s.strength+'%' : '—';
+  document.getElementById('seqAiStrength').textContent=s.side ? s.strength+'%' : 'WAIT';
   document.getElementById('seqAiMatches').textContent=s.matches||0;
-  document.getElementById('seqAiP').textContent=s.side ? s.pPct+'%' : '—';
-  document.getElementById('seqAiB').textContent=s.side ? s.bPct+'%' : '—';
-  document.getElementById('seqAiT').textContent=s.side ? s.tPct+'%' : '—';
+  document.getElementById('seqAiP').textContent=(s.pPct||0)+'%';
+  document.getElementById('seqAiB').textContent=(s.bPct||0)+'%';
+  document.getElementById('seqAiT').textContent=(s.tPct||0)+'%';
+  const sim=document.getElementById('seqAiSimilarity'); if(sim) sim.textContent=(s.similarityScore||0)+'%';
+  const grade=document.getElementById('seqAiGrade'); if(grade) grade.textContent=s.grade||'LOW';
+  const wins=document.getElementById('seqAiWindows'); if(wins) wins.textContent=`${s.agreeWindows||0}/${s.totalWindows||0}`;
   document.getElementById('seqAiNote').textContent=s.side
-    ? `Uses suffix lengths 3–${s.bestLen}; ${s.matches} historical follow-up match${s.matches===1?'':'es'} contributed.`
-    : 'Add at least 3 current hands and saved shoes to build sequence evidence.';
+    ? `${s.grade} historical resemblance: ${s.similarityScore}% similarity. ${s.agreeWindows}/${s.totalWindows} rolling windows agree on ${name}. Strong persistent similarity now increases Sequence AI influence; Road Preview AI remains library-free.`
+    : (s.waitReason||'WAIT: historical resemblance is not strong or consistent enough yet.');
+}
+
+function combineEvidenceFamily(name, members){
+  const live=members.filter(x=>x.sig?.side && x.sig.side!=='T' && Number(x.sig.strength)>50 && Number(x.weight)>0);
+  if(!live.length) return {name,side:null,strength:0,members:0,agreement:0};
+  let edge=0,wSum=0;
+  live.forEach(x=>{
+    const mag=Math.max(0,Math.min(38,Number(x.sig.strength)-50));
+    edge+=(x.sig.side==='P'?1:-1)*mag*x.weight;
+    wSum+=x.weight;
+  });
+  edge=wSum?edge/wSum:0;
+  const side=edge>=0?'P':'B';
+  const agree=live.filter(x=>x.sig.side===side).length;
+  const agreement=agree/live.length;
+  // Family confidence is deliberately restrained when members conflict.
+  const strength=Math.round(Math.min(82,50+Math.abs(edge)*(0.62+0.38*agreement)));
+  return {name,side,strength,members:live.length,agree,agreement};
+}
+
+function independentEvidenceFamilies(){
+  const seq=sequenceAISignal(), h2o=currentH2OSignal(), deepseek=currentDeepSeekSignal();
+  const lib=(state.kaggleLibraryEnabled!==false && currentKaggleSignal()?.side)?currentKaggleSignal():librarySignal();
+  const roadAI=roadPreviewAISignal(), road=roadStructureSignal(), hist=historyPatternSignal();
+  const historical=combineEvidenceFamily('Historical Intelligence',[
+    {sig:seq,weight:seq.similarityScore>=82?.42:seq.similarityScore>=68?.34:.24},
+    {sig:h2o,weight:.24},{sig:lib,weight:.22},{sig:hist,weight:.12}
+  ]);
+  const roads=combineEvidenceFamily('Road Intelligence',[
+    {sig:roadAI,weight:.72},{sig:road,weight:.28}
+  ]);
+  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
+  return [historical,roads,external].filter(x=>x.side && x.strength>50);
 }
 
 function consensusSignal(){
-  const seq=sequenceAISignal(), h2o=currentH2OSignal(), deepseek=currentDeepSeekSignal(), lib=librarySignal(), road=roadStructureSignal(), roadAI=roadPreviewAISignal(), hist=historyPatternSignal();
-  const signals=[
-    {name:'Sequence AI',sig:seq,weight:.22},
-    {name:'H2O.ai',sig:h2o,weight:.22},
-    {name:'DeepSeek',sig:deepseek,weight:.18},
-    {name:'Road Preview AI',sig:roadAI,weight:.16},
-    {name:'Library',sig:lib,weight:.12},
-    {name:'Roads',sig:road,weight:.06},
-    {name:'History',sig:hist,weight:.04}
-  ].filter(x=>x.sig?.side && x.sig.side!=='T' && x.sig.strength>50);
-  if(!signals.length) return {side:null,strength:0,agree:0,total:0,names:[]};
-  let edge=0, used=0;
-  signals.forEach(x=>{
-    const mag=Math.max(0,x.sig.strength-50);
-    edge+=(x.sig.side==='P'?1:-1)*mag*x.weight;
-    used+=x.weight;
+  const families=independentEvidenceFamilies();
+  if(!families.length) return {side:null,strength:0,agree:0,total:0,names:[],families:[],contradiction:false};
+  let edge=0,wSum=0;
+  families.forEach(f=>{
+    // Higher-quality families matter more, but no one family can monopolize consensus.
+    const w=Math.min(1.25,.65+(f.strength-50)/30);
+    edge+=(f.side==='P'?1:-1)*(f.strength-50)*w;
+    wSum+=w;
   });
-  edge=used?edge/used:0;
+  edge=wSum?edge/wSum:0;
   const side=edge>=0?'P':'B';
-  const agree=signals.filter(x=>x.sig.side===side).length;
-  const agreement=agree/signals.length;
-  const strength=Math.round(Math.min(75,50+Math.abs(edge)*(0.65+0.35*agreement)));
-  return {side,strength,agree,total:signals.length,names:signals.filter(x=>x.sig.side===side).map(x=>x.name)};
+  const agree=families.filter(x=>x.side===side).length;
+  const agreement=agree/families.length;
+  const strongOpposition=families.filter(x=>x.side!==side && x.strength>=64);
+  const strongSupport=families.filter(x=>x.side===side && x.strength>=64);
+  const contradiction=strongOpposition.length>0 && strongSupport.length>0;
+  const strength=Math.round(Math.min(78,50+Math.abs(edge)*(0.58+0.42*agreement)));
+  return {side,strength,agree,total:families.length,names:families.filter(x=>x.side===side).map(x=>x.name),families,contradiction,agreement};
 }
 
 function renderConsensus(){
@@ -2004,71 +2340,77 @@ function computeCombinedAnalyzer(){
   const h2o=currentH2OSignal();
   const deepseek=currentDeepSeekSignal();
   const seqAI=sequenceAISignal();
+  const roadAI=roadPreviewAISignal();
   const savedShoes=activePatternLibrary().length;
 
-  // Library influence grows only when BOTH the database and current-match sample are useful.
-  // This keeps a tiny library from overpowering the other signals.
-  let libraryWeight=0;
-  if(lib.side && matchInfo.matches){
-    const matchFactor=Math.min(1, matchInfo.matches/250);
-    if(matchInfo.source==='kaggle') {
-      // The streamed 200k library has ample database size; weight depends on current match sample.
-      libraryWeight=Math.min(0.55,0.16+0.39*matchFactor);
-    } else {
-      const shoeFactor=Math.min(1, savedShoes/50);
-      libraryWeight=Math.min(0.55,0.16+0.39*(0.65*matchFactor+0.35*shoeFactor));
-    }
+  // TOP-TIER V1: combine correlated analyzers into evidence families first.
+  // This prevents Sequence AI + Library + H2O from triple-counting similar historical evidence.
+  const historical=combineEvidenceFamily('Historical Intelligence',[
+    {sig:seqAI,weight:seqAI.similarityScore>=82?.46:seqAI.similarityScore>=68?.38:.27},
+    {sig:h2o,weight:.23},{sig:lib,weight:.20},{sig:hist,weight:.11}
+  ]);
+  const roadFamily=combineEvidenceFamily('Road Intelligence',[
+    {sig:roadAI,weight:.74},{sig:road,weight:.26}
+  ]);
+  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
+
+  const histQuality=historical.side ? Math.min(.52,.28+Math.max(0,historical.strength-50)/90) : 0;
+  const roadQuality=roadFamily.side ? Math.min(.34,.18+Math.max(0,roadFamily.strength-50)/95) : 0;
+  const externalQuality=external.side ? Math.min(.18,.08+Math.max(0,external.strength-50)/120) : 0;
+  const compQuality=Math.min(.10,Math.abs(comp)/120);
+  let qsum=histQuality+roadQuality+externalQuality+compQuality;
+  if(qsum>1){const sc=1/qsum; qsum=1;}
+
+  function signedFamily(f){
+    if(!f?.side || !f.strength) return 0;
+    return (f.side==='P'?1:-1)*Math.max(0,f.strength-50);
   }
+  let pEdge=signedFamily(historical)*histQuality + signedFamily(roadFamily)*roadQuality + signedFamily(external)*externalQuality + comp*compQuality;
+  pEdge=Math.max(-16,Math.min(16,pEdge));
+  let pPct=Math.round(50+pEdge), bPct=100-pPct;
+  const side=pPct>=bPct?'P':'B', top=Math.max(pPct,bPct);
 
-  // A current H2O score gets a meaningful but capped share. Local analysis remains available offline.
-  const h2oWeight=h2o.side ? Math.min(0.30, 0.18 + Math.max(0,h2o.strength-50)/120) : 0;
-  const seqWeight=seqAI.side ? Math.min(0.22, 0.10 + Math.min(0.12,(seqAI.matches||0)/220)) : 0;
-  const deepseekWeight=deepseek.side ? Math.min(0.18,0.08 + Math.max(0,deepseek.strength-50)/140) : 0;
-  libraryWeight=libraryWeight*Math.max(0,1-h2oWeight-seqWeight-deepseekWeight);
-  const otherWeight=Math.max(0,1-libraryWeight-h2oWeight-seqWeight-deepseekWeight);
-  const histWeight=otherWeight*0.43;
-  const roadWeight=otherWeight*0.37;
-  const cardWeight=otherWeight*0.20;
+  const families=[historical,roadFamily,external].filter(x=>x.side && x.strength>50);
+  const familyAgree=families.filter(x=>x.side===side).length;
+  const strongFor=families.filter(x=>x.side===side && x.strength>=64).length;
+  const strongAgainst=families.filter(x=>x.side!==side && x.strength>=64).length;
+  const contradiction=strongFor>0 && strongAgainst>0;
+  const nonTieCount=state.hands.filter(h=>h.r!=='T').length;
+  const independentAgreement=families.length?familyAgree/families.length:0;
+  const coverage=Math.min(100,Math.round((Math.min(1,nonTieCount/16)*.30 + Math.min(1,(seqAI.matches||0)/50)*.30 + Math.min(1,families.length/3)*.40)*100));
 
-  let pEdge=0;
-  function signedEdge(sig){
-    if(!sig || !sig.side || !sig.strength) return 0;
-    const magnitude=Math.max(0,sig.strength-50);
-    return sig.side==='P' ? magnitude : -magnitude;
-  }
+  let quality='LOW';
+  if(coverage>=78 && independentAgreement>=.67 && !contradiction) quality='HIGH';
+  else if(coverage>=55 && independentAgreement>=.50) quality='MEDIUM';
 
-  pEdge += signedEdge(lib)*libraryWeight;
-  pEdge += signedEdge(h2o)*h2oWeight;
-  pEdge += signedEdge(seqAI)*seqWeight;
-  pEdge += signedEdge(deepseek)*deepseekWeight;
-  pEdge += signedEdge(hist)*histWeight;
-  pEdge += signedEdge(road)*roadWeight;
-  pEdge += comp*cardWeight;
-
-  // Convert the comparative edge into a restrained P/B display.
-  // This is intentionally capped so it is not presented as certainty.
-  pEdge=Math.max(-18,Math.min(18,pEdge));
-  let pPct=Math.round(50+pEdge);
-  let bPct=100-pPct;
-  const side=pPct>=bPct?'P':'B';
-  const top=Math.max(pPct,bPct);
-
-  let quality='Low';
-  if(matchInfo.matches>=15 && savedShoes>=20) quality='Strong library';
-  else if(matchInfo.matches>=5 && savedShoes>=8) quality='Growing library';
-  else if(state.hands.filter(h=>h.r!=='T').length>=12) quality='Mixed signals';
+  // Qualified signal must survive all gates. WAIT is a feature, not an error.
+  const qualified=nonTieCount>=10 && families.length>=2 && independentAgreement>=.67 && top>=55 && !contradiction && (seqAI.similarityScore>=52 || roadAI.side);
+  let gateReason='';
+  if(nonTieCount<10) gateReason=`Need more current-shoe data (${nonTieCount}/10 non-tie hands).`;
+  else if(families.length<2) gateReason='Need at least 2 independent evidence families.';
+  else if(contradiction) gateReason='Strong independent signals contradict each other.';
+  else if(independentAgreement<.67) gateReason='Independent evidence does not agree strongly enough.';
+  else if(top<55) gateReason='Combined edge is too small.';
+  else if(!(seqAI.similarityScore>=52 || roadAI.side)) gateReason='Neither Sequence AI similarity nor Road Preview has qualified evidence.';
 
   return {
-    side,top,pPct,bPct,hist,road,lib,h2o,deepseek,seqAI,comp,quality,
-    libraryWeight:Math.round(libraryWeight*100),
-    h2oWeight:Math.round(h2oWeight*100),
-    deepseekWeight:Math.round(deepseekWeight*100),
-    seqWeight:Math.round(seqWeight*100),
-    matches:matchInfo.matches,
-    matchLength:matchInfo.len,
-    librarySource:matchInfo.source||'local',
-    kaggle
+    side,top,pPct,bPct,hist,road,roadAI,lib,h2o,deepseek,seqAI,comp,quality,qualified,gateReason,
+    coverage,independentAgreement,familyAgree,familyTotal:families.length,contradiction,families,
+    historicalFamily:historical,roadFamily,externalFamily:external,
+    libraryWeight:Math.round(histQuality*100),h2oWeight:0,deepseekWeight:Math.round(externalQuality*100),seqWeight:Math.round(histQuality*100),
+    matches:matchInfo.matches,matchLength:matchInfo.len,librarySource:matchInfo.source||'local',kaggle,savedShoes
   };
+}
+
+function renderDecisionGate(){
+  const a=computeCombinedAnalyzer();
+  const d=document.getElementById('gateDecision'), ag=document.getElementById('gateAgree'), q=document.getElementById('gateQuality'), n=document.getElementById('gateNote');
+  if(d) d.textContent=a.qualified?(a.side==='P'?'PLAYER':'BANKER'):'WAIT';
+  if(ag) ag.textContent=`${a.familyAgree}/${a.familyTotal}`;
+  if(q) q.textContent=a.quality;
+  if(n) n.textContent=a.qualified
+    ? `QUALIFIED: ${a.familyAgree}/${a.familyTotal} independent families agree • evidence coverage ${a.coverage}% • combined score ${a.top}%. Related historical signals are de-duplicated before this decision.`
+    : `WAIT: ${a.gateReason||'Evidence gate not satisfied.'} Coverage ${a.coverage}% • independent agreement ${Math.round(a.independentAgreement*100)}%.`;
 }
 
 function setSignalBar(id,val){
@@ -2092,8 +2434,8 @@ function renderAnalyzer(){
   renderSequenceAI();
   renderConsensus();
   const a=computeCombinedAnalyzer();
-  document.getElementById('bestSide').textContent=a.side==='P'?'Player':'Banker';
-  document.getElementById('bestScore').textContent=a.top+'%';
+  document.getElementById('bestSide').textContent=a.qualified?(a.side==='P'?'Player':'Banker'):'WAIT';
+  document.getElementById('bestScore').textContent=a.qualified?a.top+'%':'WAIT';
   document.getElementById('libraryInfluence').textContent=a.libraryWeight+'%';
 
   const roadVal=a.road.strength||0;
@@ -2117,17 +2459,11 @@ function renderAnalyzer(){
   renderDerivedRoadPredictions(a.road);
 
   const driver=document.getElementById('resultDriver');
-  if(a.h2oWeight>0 || a.deepseekWeight>0){
-    driver.textContent=`Hybrid result: H2O.ai ${a.h2oWeight||0}% • DeepSeek ${a.deepseekWeight||0}% • pattern library ${a.libraryWeight}%; road/history/card signals fill the remaining weight.`;
-  }else if(a.libraryWeight>=70){
-    driver.textContent=`${a.librarySource==='kaggle'?'Kaggle 200k':'Saved'} library: ${a.matches} matches (latest ${a.matchLength} hands) • P ${a.lib.p??'—'}% / B ${a.lib.b??'—'}% / T ${a.lib.t??'—'}% • ${a.libraryWeight}% analyzer influence.`;
-  }else if(a.libraryWeight>=40){
-    driver.textContent=`${a.librarySource==='kaggle'?'Kaggle 200k':'Saved'} library: ${a.matches} matches (latest ${a.matchLength} hands) • P ${a.lib.p??'—'}% / B ${a.lib.b??'—'}% / T ${a.lib.t??'—'}% • ${a.libraryWeight}% influence.`;
-  }else if(a.matches){
-    driver.textContent=`${a.librarySource==='kaggle'?'Kaggle 200k':'Saved'} library: ${a.matches} matches (latest ${a.matchLength} hands) • P ${a.lib.p??'—'}% / B ${a.lib.b??'—'}% / T ${a.lib.t??'—'}%. Blended with other signals.`;
-  }else{
-    driver.textContent='No useful library match yet; the result is currently based on road/recent-shoe signals.';
-  }
+  const famText=(a.families||[]).map(f=>`${f.name}: ${f.side==='P'?'P':'B'} ${f.strength}%`).join(' • ');
+  driver.textContent=a.qualified
+    ? `Qualified by independent evidence families • ${famText} • coverage ${a.coverage}%. Historical sources are de-duplicated before combining.`
+    : `Decision gate is WAIT • ${a.gateReason||'evidence not strong enough'} ${famText?('• '+famText):''}`;
+
 
   const counts={};
   state.cards.forEach(r=>counts[r]=(counts[r]||0)+1);
@@ -2141,6 +2477,7 @@ function renderAnalyzer(){
   document.getElementById('btWins').textContent=bt.wins||0;
   document.getElementById('btRate').textContent=bt.predictions?Math.round(bt.wins*100/bt.predictions)+'%':'—';
   document.getElementById('btRun').textContent=bt.currentRun||0;
+  renderDecisionGate();
 }
 
 function settlePendingPrediction(actual){
