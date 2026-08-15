@@ -381,7 +381,7 @@
 
       <div class="analyzer" id="roadPreviewAiPanel">
         <div class="analyzer-title">Road Preview AI</div>
-        <div class="analyzer-sub">Scores the hypothetical Player and Banker next-hand previews across Big Eye Boy, Small Road, and Cockroach Road, then compares their road agreement.</div>
+        <div class="analyzer-sub">Current-shoe only. Uses baccarat Big Eye Boy, Small Road, and Cockroach Road rules, simulates Player vs Banker, and returns WAIT when road evidence is weak or conflicted. Saved libraries do not influence this Road Preview AI.</div>
         <div class="analyzer-grid">
           <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
           <div class="analyzer-card"><span>Road confidence</span><strong id="roadAiStrength">—</strong></div>
@@ -649,7 +649,7 @@
 </div>
 
 <script>
-// ROAD ENGINE BUILD: 2026-08-15-final-consensus-lock
+// ROAD ENGINE BUILD: 2026-08-15-road-preview-ai-independent-wait-fix
 const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
@@ -1765,46 +1765,105 @@ function renderDeepSeek(){
 
 
 function roadPreviewAISignal(){
-  // Use the app's existing derived-road preview machinery. For each hypothetical
-  // next result, compare how many of the three derived roads support that side.
-  const road=roadStructureSignal();
-  const parts=[road?.eye,road?.small,road?.roach].filter(Boolean);
-  if(!parts.length) return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0};
+  // ROAD-PREVIEW AI IS INDEPENDENT OF ALL SAVED-SHOE LIBRARIES.
+  // It uses only the CURRENT shoe and the baccarat derived-road rules.
+  //
+  // 1) Build the current Big Eye Boy / Small / Cockroach roads.
+  // 2) Simulate PLAYER as the next non-tie result.
+  // 3) Simulate BANKER as the next non-tie result.
+  // 4) For each derived road, evaluate which hypothetical result produces the
+  //    mark expected from that road's CURRENT structural regime.
+  // Red/blue are regularity/irregularity marks — NEVER Player/Banker colors.
+  const nonTie=state.hands.filter(h=>h.r!=='T');
+  if(nonTie.length<8)
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,waitReason:`Need more current-shoe road structure (${nonTie.length}/8 non-tie hands).`};
 
-  let pSupport=0,bSupport=0,active=0;
-  parts.forEach((sig,i)=>{
-    if(!sig || !sig.side) return;
-    const w=[1.0,.85,.70][i] || .7;
-    const mag=Math.max(1,(sig.strength||50)-50);
-    if(sig.side==='P') pSupport+=w*mag;
-    if(sig.side==='B') bSupport+=w*mag;
-    active++;
-  });
-  if(!active) return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0};
+  const configs=[
+    {offset:1,weight:1.00,name:'Big Eye Boy'},
+    {offset:2,weight:.88,name:'Small Road'},
+    {offset:3,weight:.76,name:'Cockroach Road'}
+  ];
 
-  const sum=pSupport+bSupport;
-  let pPct=sum ? Math.round(100*pSupport/sum) : 50;
-  let bPct=100-pPct;
-  // Keep display restrained when road evidence is sparse.
-  pPct=Math.round(50+(pPct-50)*Math.min(1,active/3));
-  bPct=100-pPct;
-  const side=pPct>=bPct?'P':'B';
-  const agree=parts.filter(x=>x?.side===side).length;
-  const strength=Math.round(50+Math.abs(pPct-bPct)/2);
-  return {side,strength,pPct,bPct,agree,total:active,edge:Math.abs(pPct-bPct)};
+  let pScore=0,bScore=0,weightUsed=0;
+  const votes=[];
+
+  for(const cfg of configs){
+    const marks=deriveRoad(state.hands,cfg.offset);
+    const pMark=getLastDerivedMark(state.hands.concat([{r:'P',pp:false,bp:false,special:false,ts:Date.now()}]),cfg.offset);
+    const bMark=getLastDerivedMark(state.hands.concat([{r:'B',pp:false,bp:false,special:false,ts:Date.now()}]),cfg.offset);
+    if(marks.length<3 || !pMark || !bMark || pMark===bMark) continue;
+
+    const recent=marks.slice(-12);
+    const last=recent.at(-1);
+    let run=1;
+    for(let i=recent.length-2;i>=0 && recent[i]===last;i--) run++;
+    let changes=0;
+    for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) changes++;
+    const red=recent.filter(x=>x==='R').length;
+    const blue=recent.length-red;
+
+    // Structural regime confidence. This is NOT a win probability.
+    // Strong same-color runs = regularity/irregularity persistence evidence.
+    // Strong alternation = alternating structural regime.
+    // Otherwise use only a small majority preference and allow WAIT.
+    let expected=null, quality=0;
+    if(run>=3){
+      expected=last;
+      quality=Math.min(.34,.18+(run-3)*.04);
+    }else if(recent.length>=6 && changes>=recent.length-2){
+      expected=last==='R'?'B':'R';
+      quality=.25;
+    }else if(Math.abs(red-blue)>=4){
+      expected=red>blue?'R':'B';
+      quality=.17;
+    }else{
+      // Ambiguous road: do not force a vote.
+      continue;
+    }
+
+    const pFit=pMark===expected ? 1 : -1;
+    const bFit=bMark===expected ? 1 : -1;
+    pScore += cfg.weight*quality*pFit;
+    bScore += cfg.weight*quality*bFit;
+    weightUsed += cfg.weight*quality;
+    votes.push({name:cfg.name,side:pFit>bFit?'P':'B'});
+  }
+
+  if(!votes.length || weightUsed<=0)
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,waitReason:'WAIT: the current derived roads do not have a clear structural regime.'};
+
+  const raw=(pScore-bScore)/(2*weightUsed); // -1..+1
+  const pPct=Math.round(50+Math.max(-1,Math.min(1,raw))*18);
+  const bPct=100-pPct;
+  const candidate=pPct>bPct?'P':'B';
+  const agree=votes.filter(v=>v.side===candidate).length;
+  const total=votes.length;
+  const edge=Math.abs(pPct-bPct);
+
+  // Real WAIT gate for Road Preview AI: never force a side from weak/conflicted roads.
+  const enoughRoads=total>=2;
+  const agreement=agree/total;
+  const qualified=enoughRoads && agreement>=0.67 && edge>=10;
+  if(!qualified){
+    return {side:null,strength:0,pPct,bPct,agree,total,edge,
+      waitReason:`WAIT: road evidence is not qualified (${agree}/${total} agreement, ${edge}-point preview edge).`};
+  }
+
+  const strength=Math.min(78,Math.round(50+edge*.7+agreement*8));
+  return {side:candidate,strength,pPct,bPct,agree,total,edge,waitReason:''};
 }
 
 function renderRoadPreviewAI(){
   const r=roadPreviewAISignal();
-  document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'—';
-  document.getElementById('roadAiStrength').textContent=r.side?r.strength+'%':'—';
+  document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT';
+  document.getElementById('roadAiStrength').textContent=r.side?r.strength+'%':'WAIT';
   document.getElementById('roadAiAgree').textContent=r.total?`${r.agree}/${r.total}`:'0/3';
-  document.getElementById('roadAiP').textContent=r.side?r.pPct+'%':'—';
-  document.getElementById('roadAiB').textContent=r.side?r.bPct+'%':'—';
-  document.getElementById('roadAiEdge').textContent=r.side?r.edge+' pts':'—';
+  document.getElementById('roadAiP').textContent=r.pPct+'%';
+  document.getElementById('roadAiB').textContent=r.bPct+'%';
+  document.getElementById('roadAiEdge').textContent=r.edge+' pts';
   document.getElementById('roadAiNote').textContent=r.side
-    ? `${r.agree} of ${r.total} active derived-road signals currently favor ${r.side==='P'?'Player':'Banker'}.`
-    : 'Waiting for enough Big Eye, Small Road, and Cockroach Road structure.';
+    ? `${r.agree} of ${r.total} qualified derived-road structures favor ${r.side==='P'?'Player':'Banker'}. Current shoe only; saved libraries are not used by Road Preview AI.`
+    : (r.waitReason||'WAIT: not enough qualified current-shoe road evidence.');
 }
 
 function sequenceAISignal(){
