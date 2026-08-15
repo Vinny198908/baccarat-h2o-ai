@@ -381,15 +381,15 @@
 
       <div class="analyzer" id="roadPreviewAiPanel">
         <div class="analyzer-title">Road Preview AI</div>
-        <div class="analyzer-sub">Current-shoe only. Uses baccarat Big Eye Boy, Small Road, and Cockroach Road rules, simulates Player vs Banker, and returns WAIT when road evidence is weak or conflicted. Saved libraries do not influence this Road Preview AI.</div>
+        <div class="analyzer-sub">PROBE ENGINE V2. Current-shoe only. Uses casino-style Player/Banker probing: each hypothetical result must create a genuine new Big Eye Boy, Small Road, or Cockroach Road mark before that road can vote. Saved libraries, Kaggle, H2O, DeepSeek, Sequence AI, and card composition are excluded. Weak or conflicting structure returns WAIT.</div>
         <div class="analyzer-grid">
           <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
           <div class="analyzer-card"><span>Road confidence</span><strong id="roadAiStrength">—</strong></div>
           <div class="analyzer-card"><span>Roads agreeing</span><strong id="roadAiAgree">0/3</strong></div>
         </div>
         <div class="match-pcts">
-          <div class="match-pct"><strong id="roadAiP">—</strong><span>Player preview</span></div>
-          <div class="match-pct"><strong id="roadAiB">—</strong><span>Banker preview</span></div>
+          <div class="match-pct"><strong id="roadAiP">—</strong><span>Player road-fit</span></div>
+          <div class="match-pct"><strong id="roadAiB">—</strong><span>Banker road-fit</span></div>
           <div class="match-pct"><strong id="roadAiEdge">—</strong><span>Preview edge</span></div>
         </div>
         <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Waiting for enough road structure.</div>
@@ -649,7 +649,7 @@
 </div>
 
 <script>
-// ROAD ENGINE BUILD: 2026-08-15-road-preview-ai-independent-wait-fix
+// ROAD ENGINE BUILD: 2026-08-15-road-preview-hard-isolated-v2
 const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
@@ -879,12 +879,21 @@ function getLastDerivedMark(hands, offset){
   const marks=deriveRoad(hands,offset);
   return marks.length ? marks[marks.length-1] : null;
 }
+
+// Casino-style road probe: return ONLY the new derived mark that would be
+// created by the hypothetical Player/Banker result. If that result does not
+// create a new mark yet, return null instead of repeating the previous mark.
+function previewDerivedMark(hands, result, offset){
+  const before=deriveRoad(hands,offset);
+  const hypothetical=hands.concat([{r:result,pp:false,bp:false,special:false,ts:0}]);
+  const after=deriveRoad(hypothetical,offset);
+  return after.length>before.length ? after[after.length-1] : null;
+}
 function previewFor(result){
-  const hypothetical=state.hands.concat([{r:result,pp:false,bp:false,special:false,ts:Date.now()}]);
   return {
-    eye:getLastDerivedMark(hypothetical,1),
-    small:getLastDerivedMark(hypothetical,2),
-    roach:getLastDerivedMark(hypothetical,3)
+    eye:previewDerivedMark(state.hands,result,1),
+    small:previewDerivedMark(state.hands,result,2),
+    roach:previewDerivedMark(state.hands,result,3)
   };
 }
 function setPreviewSymbol(id, mark, kind){
@@ -1764,95 +1773,117 @@ function renderDeepSeek(){
 
 
 
-function roadPreviewAISignal(){
-  // ROAD-PREVIEW AI IS INDEPENDENT OF ALL SAVED-SHOE LIBRARIES.
-  // It uses only the CURRENT shoe and the baccarat derived-road rules.
-  //
-  // 1) Build the current Big Eye Boy / Small / Cockroach roads.
-  // 2) Simulate PLAYER as the next non-tie result.
-  // 3) Simulate BANKER as the next non-tie result.
-  // 4) For each derived road, evaluate which hypothetical result produces the
-  //    mark expected from that road's CURRENT structural regime.
-  // Red/blue are regularity/irregularity marks — NEVER Player/Banker colors.
-  const nonTie=state.hands.filter(h=>h.r!=='T');
-  if(nonTie.length<8)
-    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,waitReason:`Need more current-shoe road structure (${nonTie.length}/8 non-tie hands).`};
+function analyzeRoadRegime(marks){
+  // Interpret CURRENT derived-road behavior only. Red/blue are structural marks,
+  // never Player/Banker labels.
+  const recent=marks.slice(-12);
+  if(recent.length<4) return {type:'INSUFFICIENT',preferred:null,clarity:0,sample:recent.length};
+  const last=recent[recent.length-1];
+  let run=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) run++;
+  let alts=0;
+  for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) alts++;
+  const altRate=recent.length>1 ? alts/(recent.length-1) : 0;
+  const redRate=recent.filter(x=>x==='R').length/recent.length;
 
+  if(run>=3){
+    return {type:'RUN',preferred:last,clarity:Math.min(1,.58+(run-3)*.10),sample:recent.length,run,altRate,redRate};
+  }
+  if(recent.length>=6 && altRate>=.72){
+    return {type:'CHOP',preferred:last==='R'?'B':'R',clarity:Math.min(1,.58+(altRate-.72)*1.15),sample:recent.length,run,altRate,redRate};
+  }
+  if(run===2 && recent.length>=6){
+    return {type:'LEAN-RUN',preferred:last,clarity:.38,sample:recent.length,run,altRate,redRate};
+  }
+  return {type:'MIXED',preferred:null,clarity:.18,sample:recent.length,run,altRate,redRate};
+}
+
+function roadPreviewAISignal(){
+  // PROBE ENGINE V2 — HARD ISOLATED.
+  // INPUT: current-shoe P/B/T hands ONLY.
+  // EXCLUDED: saved libraries, Kaggle, H2O, DeepSeek, Sequence AI,
+  // card composition, color libraries, and Best-Estimate outputs.
+  //
+  // For each hypothetical P and B, use casino-style probing to calculate the
+  // NEW Big Eye / Small / Cockroach mark that would be created. Then compare
+  // each candidate with the road's current structural regime. This is a
+  // road-fit heuristic, NOT a claim that derived roads determine the next hand.
+  const currentHands=state.hands.map(h=>({r:h.r,pp:false,bp:false,special:false,ts:0}));
+  const nonTie=currentHands.filter(h=>h.r!=='T');
   const configs=[
     {offset:1,weight:1.00,name:'Big Eye Boy'},
-    {offset:2,weight:.88,name:'Small Road'},
-    {offset:3,weight:.76,name:'Cockroach Road'}
+    {offset:2,weight:.90,name:'Small Road'},
+    {offset:3,weight:.80,name:'Cockroach Road'}
   ];
 
-  let pScore=0,bScore=0,weightUsed=0;
-  const votes=[];
-
-  for(const cfg of configs){
-    const marks=deriveRoad(state.hands,cfg.offset);
-    const pMark=getLastDerivedMark(state.hands.concat([{r:'P',pp:false,bp:false,special:false,ts:Date.now()}]),cfg.offset);
-    const bMark=getLastDerivedMark(state.hands.concat([{r:'B',pp:false,bp:false,special:false,ts:Date.now()}]),cfg.offset);
-    if(marks.length<3 || !pMark || !bMark || pMark===bMark) continue;
-
-    const recent=marks.slice(-12);
-    const last=recent.at(-1);
-    let run=1;
-    for(let i=recent.length-2;i>=0 && recent[i]===last;i--) run++;
-    let changes=0;
-    for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) changes++;
-    const red=recent.filter(x=>x==='R').length;
-    const blue=recent.length-red;
-
-    // Structural regime confidence. This is NOT a win probability.
-    // Strong same-color runs = regularity/irregularity persistence evidence.
-    // Strong alternation = alternating structural regime.
-    // Otherwise use only a small majority preference and allow WAIT.
-    let expected=null, quality=0;
-    if(run>=3){
-      expected=last;
-      quality=Math.min(.34,.18+(run-3)*.04);
-    }else if(recent.length>=6 && changes>=recent.length-2){
-      expected=last==='R'?'B':'R';
-      quality=.25;
-    }else if(Math.abs(red-blue)>=4){
-      expected=red>blue?'R':'B';
-      quality=.17;
-    }else{
-      // Ambiguous road: do not force a vote.
-      continue;
-    }
-
-    const pFit=pMark===expected ? 1 : -1;
-    const bFit=bMark===expected ? 1 : -1;
-    pScore += cfg.weight*quality*pFit;
-    bScore += cfg.weight*quality*bFit;
-    weightUsed += cfg.weight*quality;
-    votes.push({name:cfg.name,side:pFit>bFit?'P':'B'});
+  if(nonTie.length<8){
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,quality:0,pattern:'INSUFFICIENT',
+      waitReason:`WAIT: need more current-shoe structure (${nonTie.length}/8 non-tie hands).`};
   }
 
-  if(!votes.length || weightUsed<=0)
-    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,waitReason:'WAIT: the current derived roads do not have a clear structural regime.'};
+  let pFit=0,bFit=0,fitWeight=0,activeRoads=0,discriminating=0;
+  const votes=[], regimes=[];
+  for(const cfg of configs){
+    const marks=deriveRoad(currentHands,cfg.offset);
+    const regime=analyzeRoadRegime(marks);
+    const pMark=previewDerivedMark(currentHands,'P',cfg.offset);
+    const bMark=previewDerivedMark(currentHands,'B',cfg.offset);
+    if(marks.length>=4) activeRoads++;
+    regimes.push({name:cfg.name,marks:marks.length,regime,pMark,bMark});
 
-  const raw=(pScore-bScore)/(2*weightUsed); // -1..+1
-  const pPct=Math.round(50+Math.max(-1,Math.min(1,raw))*18);
+    // A road cannot vote until BOTH candidates create a genuine new mark and
+    // the road has a defined current behavior. This prevents stale-mark reuse.
+    if(!pMark || !bMark || pMark===bMark || !regime.preferred) continue;
+    discriminating++;
+    const sampleFactor=Math.min(1,marks.length/10);
+    const w=cfg.weight*(.45+.55*sampleFactor)*regime.clarity;
+    if(w<=0) continue;
+    const ps=pMark===regime.preferred ? 1 : -1;
+    const bs=bMark===regime.preferred ? 1 : -1;
+    pFit += w*ps;
+    bFit += w*bs;
+    fitWeight += w;
+    votes.push({name:cfg.name,side:ps>bs?'P':'B',regime:regime.type,pMark,bMark,weight:w});
+  }
+
+  const usable=votes.length;
+  if(!usable || fitWeight<=0){
+    const quality=Math.round(Math.min(45,activeRoads*10+discriminating*5));
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:usable,edge:0,quality,pattern:'MIXED',regimes,
+      waitReason:'WAIT: the current derived roads do not produce a qualified P/B probe difference.'};
+  }
+
+  const raw=Math.max(-1,Math.min(1,(pFit-bFit)/(2*fitWeight)));
+  // These are ROAD-FIT scores centered at 50, not true baccarat probabilities.
+  const pPct=Math.round(50+raw*20);
   const bPct=100-pPct;
   const candidate=pPct>bPct?'P':'B';
   const agree=votes.filter(v=>v.side===candidate).length;
-  const total=votes.length;
+  const agreement=agree/usable;
   const edge=Math.abs(pPct-bPct);
 
-  // Real WAIT gate for Road Preview AI: never force a side from weak/conflicted roads.
-  const enoughRoads=total>=2;
-  const agreement=agree/total;
-  const qualified=enoughRoads && agreement>=0.67 && edge>=10;
-  if(!qualified){
-    return {side:null,strength:0,pPct,bPct,agree,total,edge,
-      waitReason:`WAIT: road evidence is not qualified (${agree}/${total} agreement, ${edge}-point preview edge).`};
+  const clearRegimes=regimes.filter(x=>x.regime.preferred).length;
+  const dataDepth=Math.min(1,nonTie.length/24);
+  const roadCoverage=activeRoads/3;
+  const discrimination=discriminating/3;
+  const meanClarity=clearRegimes ? regimes.filter(x=>x.regime.preferred).reduce((a,x)=>a+x.regime.clarity,0)/clearRegimes : 0;
+  const quality=Math.round(100*(.22*dataDepth+.22*roadCoverage+.24*discrimination+.18*meanClarity+.14*agreement));
+
+  const types=regimes.filter(x=>x.regime.type!=='INSUFFICIENT').map(x=>x.regime.type);
+  const counts=types.reduce((a,t)=>(a[t]=(a[t]||0)+1,a),{});
+  const pattern=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || 'MIXED';
+
+  // WAIT is intentional: no forced bet when coverage, quality, agreement, or
+  // edge is weak. With two usable roads, both must agree; with three, 2/3 is OK.
+  const minAgree=usable===2 ? 1 : .67;
+  if(usable<2 || agreement<minAgree || edge<12 || quality<55){
+    return {side:null,strength:0,pPct,bPct,agree,total:usable,edge,quality,pattern,regimes,
+      waitReason:`WAIT: Road Quality ${quality}/100 • ${agree}/${usable} agreement • ${edge}-point road-fit edge.`};
   }
 
-  const strength=Math.min(78,Math.round(50+edge*.7+agreement*8));
-  return {side:candidate,strength,pPct,bPct,agree,total,edge,waitReason:''};
+  const strength=Math.min(82,Math.round(42+quality*.28+edge*.45));
+  return {side:candidate,strength,pPct,bPct,agree,total:usable,edge,quality,pattern,regimes,waitReason:''};
 }
-
 function renderRoadPreviewAI(){
   const r=roadPreviewAISignal();
   document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT';
@@ -1861,9 +1892,12 @@ function renderRoadPreviewAI(){
   document.getElementById('roadAiP').textContent=r.pPct+'%';
   document.getElementById('roadAiB').textContent=r.bPct+'%';
   document.getElementById('roadAiEdge').textContent=r.edge+' pts';
-  document.getElementById('roadAiNote').textContent=r.side
-    ? `${r.agree} of ${r.total} qualified derived-road structures favor ${r.side==='P'?'Player':'Banker'}. Current shoe only; saved libraries are not used by Road Preview AI.`
-    : (r.waitReason||'WAIT: not enough qualified current-shoe road evidence.');
+  const note=document.getElementById('roadAiNote');
+  if(r.side){
+    note.textContent=`${r.pattern} • Road Quality ${r.quality}/100 • ${r.agree}/${r.total} qualified probes favor ${r.side==='P'?'Player':'Banker'}. Road-fit only; current shoe only; saved libraries are excluded.`;
+  }else{
+    note.textContent=(r.waitReason||'WAIT: not enough qualified current-shoe road evidence.')+` Pattern: ${r.pattern}.`;
+  }
 }
 
 function sequenceAISignal(){
