@@ -22,7 +22,6 @@ import h2o
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
 from h2o.automl import H2OAutoML
 
 APP_DIR = Path(os.environ.get("BACCARAT_MODEL_DIR", "./baccarat_h2o_models")).resolve()
@@ -41,7 +40,7 @@ LIBRARY_MAX_SUFFIX = int(os.environ.get("BACCARAT_LIBRARY_MAX_SUFFIX", "12"))
 LIBRARY_MIN_MATCHES = int(os.environ.get("BACCARAT_LIBRARY_MIN_MATCHES", "30"))
 LIBRARY_CACHE_SIZE = int(os.environ.get("BACCARAT_LIBRARY_CACHE_SIZE", "128"))
 
-app = FastAPI(title="Baccarat H2O + DeepSeek Road Intelligence", version="4.1")
+app = FastAPI(title="Baccarat H2O + DeepSeek True Road Intelligence", version="5.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[x.strip() for x in os.environ.get("BACCARAT_CORS_ORIGINS", "*").split(",") if x.strip()],
@@ -113,41 +112,192 @@ def clean_sequence(seq: str) -> str:
     return "".join(c for c in (seq or "").upper() if c in "PBT")
 
 
-def big_road_columns(seq: str) -> list[list[str]]:
-    cols: list[list[str]] = []
-    for c in clean_sequence(seq):
-        if c == "T":
-            continue
-        if not cols or cols[-1][0] != c:
-            cols.append([c])
+def _place_streak_grid(symbols: list[str], rows: int = 6) -> dict[str, Any]:
+    """Place a two-color streak sequence on a casino-style 6-row road grid.
+
+    Same-symbol runs move downward while space is open. Once the bottom or an
+    occupied cell blocks the run, that run turns right and continues right.
+    A new symbol starts at row 0 in the next available top-row column.
+    """
+    cells: list[dict[str, Any]] = []
+    occupied: dict[tuple[int, int], int] = {}
+    logical_columns: list[list[str]] = []
+    current_symbol: str | None = None
+    logical_col = -1
+    start_col = -1
+    row = 0
+    col = -1
+    turned_right = False
+    collisions = 0
+    right_turns = 0
+
+    for hand_index, symbol in enumerate(symbols):
+        if symbol != current_symbol:
+            current_symbol = symbol
+            logical_col += 1
+            logical_columns.append([symbol])
+            candidate = start_col + 1
+            while (0, candidate) in occupied:
+                candidate += 1
+            start_col = candidate
+            row, col = 0, start_col
+            turned_right = False
         else:
-            cols[-1].append(c)
-    return cols
+            logical_columns[-1].append(symbol)
+            if not turned_right and row + 1 < rows and (row + 1, col) not in occupied:
+                row += 1
+            else:
+                if not turned_right:
+                    if row + 1 < rows and (row + 1, col) in occupied:
+                        collisions += 1
+                    right_turns += 1
+                    turned_right = True
+                col += 1
+                while (row, col) in occupied:
+                    collisions += 1
+                    col += 1
+
+        occupied[(row, col)] = len(cells)
+        cells.append({
+            "symbol": symbol,
+            "row": row,
+            "col": col,
+            "logical_col": logical_col,
+            "logical_row": len(logical_columns[-1]) - 1,
+            "hand_index": hand_index,
+            "turned_right": turned_right,
+        })
+
+    return {
+        "cells": cells,
+        "logical_columns": logical_columns,
+        "width": (max((c["col"] for c in cells), default=-1) + 1),
+        "collisions": collisions,
+        "right_turns": right_turns,
+    }
+
+
+def build_big_road(seq: str) -> dict[str, Any]:
+    """Build the true Big Road layout from P/B outcomes while attaching ties.
+
+    Ties do not create a new Big Road cell and do not break a P/B streak. They
+    are counted on the most recent P/B cell. Leading ties are retained in
+    ``leading_ties`` because there is not yet a P/B cell to attach them to.
+    """
+    cleaned = clean_sequence(seq)
+    non_ties: list[str] = []
+    tie_counts: list[int] = []
+    leading_ties = 0
+    for result in cleaned:
+        if result == "T":
+            if tie_counts:
+                tie_counts[-1] += 1
+            else:
+                leading_ties += 1
+            continue
+        non_ties.append(result)
+        tie_counts.append(0)
+
+    road = _place_streak_grid(non_ties)
+    for i, cell in enumerate(road["cells"]):
+        cell["ties"] = tie_counts[i]
+    road["leading_ties"] = leading_ties
+    road["non_tie_count"] = len(non_ties)
+    return road
+
+
+def big_road_columns(seq: str) -> list[list[str]]:
+    """Return logical P/B streak columns used by the derived-road formulas."""
+    return build_big_road(seq)["logical_columns"]
+
+
+def _derived_mark_for_position(cols: list[list[str]], col_index: int, row_index: int, cycle: int) -> str | None:
+    """Return the standard derived-road mark for one newly added Big Road icon.
+
+    ``cycle`` is 1 for Big Eye Boy, 2 for Small Road and 3 for Cockroach Road.
+    Row/column indexes are zero-based here; the published roadmap rules use
+    one-based m/n coordinates.
+    """
+    if cycle < 1:
+        raise ValueError("cycle must be >= 1")
+
+    # Streak starter (m == 1): compare the lengths of the previous streak and
+    # the streak cycle+1 columns back. Equal structure is red; unequal is blue.
+    if row_index == 0:
+        near = col_index - 1
+        far = col_index - cycle - 1
+        if near < 0 or far < 0:
+            return None
+        return "R" if len(cols[near]) == len(cols[far]) else "B"
+
+    # Streak continuer (m >= 2): compare row m to column n-cycle. The only
+    # blue case is when m lands exactly one row below the reference column;
+    # otherwise the structural relation is red.
+    ref = col_index - cycle
+    if ref < 0:
+        return None
+    m = row_index + 1
+    p = len(cols[ref])
+    return "B" if m == p + 1 else "R"
 
 
 def derive_road(seq: str, offset: int) -> list[str]:
+    """Build Big Eye/Small/Cockroach marks from logical Big Road structure."""
     cols = big_road_columns(seq)
     marks: list[str] = []
-    if len(cols) <= offset:
-        return marks
-    for c in range(offset, len(cols)):
-        current_len = len(cols[c])
-        start_row = 1 if c == offset else 0
-        for r in range(start_row, current_len):
-            if r == 0:
-                near_len = len(cols[c - 1]) if c - 1 >= 0 else 0
-                far_idx = c - 1 - offset
-                far_len = len(cols[far_idx]) if far_idx >= 0 else 0
-                red = near_len == far_len
-            else:
-                ref_idx = c - offset
-                ref_len = len(cols[ref_idx]) if ref_idx >= 0 else 0
-                same_row_exists = ref_len >= r + 1
-                above_row_exists = ref_len >= r
-                red = same_row_exists == above_row_exists
-            marks.append("R" if red else "B")
+    for c, column in enumerate(cols):
+        for r in range(len(column)):
+            mark = _derived_mark_for_position(cols, c, r, offset)
+            if mark is not None:
+                marks.append(mark)
     return marks
 
+
+def build_derived_road(seq: str, offset: int) -> dict[str, Any]:
+    """Return both derived marks and their own casino-style 6-row layout."""
+    marks = derive_road(seq, offset)
+    road = _place_streak_grid(marks)
+    road["marks"] = marks
+    road["cycle"] = offset
+    return road
+
+
+def road_intelligence_snapshot(seq: str) -> dict[str, Any]:
+    """Compact, coordinate-aware road state for API responses and DeepSeek."""
+    big = build_big_road(seq)
+    eye = build_derived_road(seq, 1)
+    small = build_derived_road(seq, 2)
+    roach = build_derived_road(seq, 3)
+
+    def compact_road(road: dict[str, Any], tail: int = 18) -> dict[str, Any]:
+        cells = road["cells"][-tail:]
+        return {
+            "count": len(road["cells"]),
+            "width": road["width"],
+            "right_turns": road["right_turns"],
+            "collisions": road["collisions"],
+            "last_cells": [
+                {"s": c["symbol"], "r": c["row"], "c": c["col"], "lr": c["logical_row"], "lc": c["logical_col"]}
+                for c in cells
+            ],
+        }
+
+    return {
+        "big": {
+            **compact_road(big),
+            "leading_ties": big["leading_ties"],
+            "logical_depths": [len(c) for c in big["logical_columns"]],
+        },
+        "eye": compact_road(eye),
+        "small": compact_road(small),
+        "roach": compact_road(roach),
+    }
+
+
+def preview_mark(seq: str, result: str, offset: int) -> str:
+    before = derive_road(seq, offset)
+    after = derive_road(seq + result, offset)
+    return after[-1] if len(after) > len(before) else "N"
 
 def run_lengths(seq: str) -> list[int]:
     s = [c for c in clean_sequence(seq) if c in "PB"]
@@ -191,11 +341,6 @@ def derived_stats(marks: list[str], prefix: str) -> dict[str, Any]:
         f"{prefix}_last": marks[-1],
     }
 
-
-def preview_mark(seq: str, result: str, offset: int) -> str:
-    before = derive_road(seq, offset)
-    after = derive_road(seq + result, offset)
-    return after[-1] if len(after) > len(before) else "N"
 
 
 def pattern_type(non_tie_recent: list[str], streak: int, alternations: int) -> str:
@@ -532,6 +677,7 @@ def call_deepseek_analysis(features: dict[str, Any], shoes: list[dict[str, Any]]
         "saved_shoe_count": len(shoes),
         "historical_suffix_followups": historical,
         "current_shoe_color": features.get("current_shoe_color", ""),
+        "true_road_layout": road_intelligence_snapshot(seq),
     }
 
     system_msg = (
@@ -583,7 +729,10 @@ def call_deepseek_analysis(features: dict[str, Any], shoes: list[dict[str, Any]]
         "rationale": str(out.get("rationale", ""))[:500],
         "model": DEEPSEEK_MODEL,
         "sequence": seq,
-        "road_snapshot": compact["derived_roads"],
+        "road_snapshot": {
+            **compact["derived_roads"],
+            "layout": compact["true_road_layout"],
+        },
     }
 
 
@@ -592,44 +741,11 @@ def startup() -> None:
     load_latest()
 
 
-@app.get("/", include_in_schema=False)
-def home():
-    """Serve the baccarat web app from the same Render service as the API."""
-    index_path = Path("index.html").resolve()
-    if index_path.exists():
-        return FileResponse(index_path, media_type="text/html")
-    return JSONResponse({"ok": True, "message": "Baccarat API is running, but index.html was not found."}, status_code=200)
-
-
-@app.get("/index.html", include_in_schema=False)
-def index_html():
-    index_path = Path("index.html").resolve()
-    if index_path.exists():
-        return FileResponse(index_path, media_type="text/html")
-    raise HTTPException(404, "index.html not found")
-
-
-@app.get("/manifest.json", include_in_schema=False)
-def manifest_json():
-    path = Path("manifest.json").resolve()
-    if path.exists():
-        return FileResponse(path, media_type="application/manifest+json")
-    raise HTTPException(404, "manifest.json not found")
-
-
-@app.get("/training.html", include_in_schema=False)
-def training_html():
-    path = Path("training.html").resolve()
-    if path.exists():
-        return FileResponse(path, media_type="text/html")
-    raise HTTPException(404, "training.html not found")
-
-
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {
         "ok": True,
-        "version": "4.1-compact-200k-stream",
+        "version": "5.0-true-road-engine",
         "deepseek_configured": bool(DEEPSEEK_API_KEY),
         "deepseek_model": DEEPSEEK_MODEL,
         "model_id": _model_id,
@@ -695,7 +811,7 @@ def train(payload: dict[str, Any], request: Request) -> dict[str, Any]:
             "model_id": leader.model_id,
             "model_path": model_path,
             "classes": domain,
-            "feature_version": "3.0-all-roads",
+            "feature_version": "5.0-true-roads",
             "feature_count": len(FEATURE_COLUMNS),
             "training_rows": int(len(train_df)),
             "validation_rows": int(len(valid_df)),
@@ -761,7 +877,7 @@ def score(payload: dict[str, Any], request: Request) -> dict[str, Any]:
         "p": final_probs["P"], "b": final_probs["B"], "t": final_probs["T"],
         "model_id": _model_id,
         "classes": _model_classes,
-        "feature_version": "4.1-compact-200k-stream",
+        "feature_version": "5.0-true-road-engine",
         "pattern_type": row["pattern_type"],
         "library": library,
         "kaggle_library_enabled": use_kaggle,
@@ -770,6 +886,7 @@ def score(payload: dict[str, Any], request: Request) -> dict[str, Any]:
             "eye": row["eye_last"], "small": row["small_last"], "roach": row["roach_last"],
             "preview_p": [row["preview_p_eye"], row["preview_p_small"], row["preview_p_roach"]],
             "preview_b": [row["preview_b_eye"], row["preview_b_small"], row["preview_b_roach"]],
+            "layout": road_intelligence_snapshot(seq),
         },
     }
 
