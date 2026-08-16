@@ -1,0 +1,3110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#101114" />
+<link rel="manifest" href="manifest.json" />
+<title>All-In Style Baccarat Roadmap</title>
+<style>
+  :root{
+    --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
+    --text:#f4f6f8; --muted:#9ca5b1; --p:#265cff; --b:#e63b35; --t:#1cab59;
+    --gold:#f1b827; --purple:#a34ce8; --chip:#2b3139;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+  body{min-height:100vh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  button{font:inherit}
+  .app{max-width:1200px;margin:0 auto;padding:8px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 4px 10px}
+  .title{font-weight:800;letter-spacing:.2px}
+  .shoe{font-size:12px;color:var(--muted)}
+  .scoreboard{background:#f8f9fb;border-radius:14px;overflow:hidden;border:1px solid #313740}
+  .road-wrap{overflow-x:auto;overscroll-behavior-inline:contain}
+  .road{display:grid;grid-template-rows:repeat(6,28px);grid-auto-flow:column;grid-auto-columns:28px;min-width:100%;width:max-content;padding:8px;background:
+    linear-gradient(#dfe3e8 1px,transparent 1px),
+    linear-gradient(90deg,#dfe3e8 1px,transparent 1px);
+    background-size:28px 28px;background-position:8px 8px}
+  .cell{width:28px;height:28px;display:flex;align-items:center;justify-content:center;position:relative}
+  .mark{width:23px;height:23px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:#fff}
+  .mark.p{border:3px solid var(--p);color:var(--p)}
+  .mark.b{border:3px solid var(--b);color:var(--b)}
+  .mark.t{border:3px solid var(--t);color:var(--t)}
+  .pair-dot{position:absolute;width:6px;height:6px;border-radius:50%;top:1px}
+  .pair-dot.pp{left:2px;background:var(--p)}
+  .pair-dot.bp{right:2px;background:var(--b)}
+  .subroads{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:8px}
+  .derived-roads{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+  .mini,.history,.predict,.stats,.controls{background:var(--panel);border:1px solid #262c34;border-radius:14px}
+  .mini{padding:8px;min-width:0}
+  .mini-title,.section-title{font-size:12px;font-weight:700;color:#c9d0d8;margin-bottom:6px}
+  .derived-grid{display:grid;grid-template-rows:repeat(6,12px);grid-auto-flow:column;grid-auto-columns:12px;gap:1px;min-height:77px;overflow-x:auto;overflow-y:hidden;padding-bottom:2px}
+  .derived-cell{width:12px;height:12px;display:flex;align-items:center;justify-content:center}
+  .derived-mark{width:9px;height:9px;border-radius:50%}
+  .derived-mark.red-ring{border:2px solid var(--b);background:transparent}
+  .derived-mark.blue-ring{border:2px solid var(--p);background:transparent}
+  .derived-mark.red-dot{background:var(--b)}
+  .derived-mark.blue-dot{background:var(--p)}
+  .derived-mark.red-slash,.derived-mark.blue-slash{width:11px;height:2px;border-radius:2px;transform:rotate(-45deg)}
+  .derived-mark.red-slash{background:var(--b)}
+  .derived-mark.blue-slash{background:var(--p)}
+  .mini-grid{display:grid;grid-template-columns:repeat(18,13px);grid-auto-rows:13px;gap:2px;min-height:58px;overflow:hidden}
+  .mini-dot{width:11px;height:11px;border-radius:50%;border:2px solid}
+  .mini-dot.p{border-color:var(--p)}
+  .mini-dot.b{border-color:var(--b)}
+  .mini-dot.t{border-color:var(--t)}
+  .history{padding:8px}
+  .history-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+  .hist{aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800}
+  .hist.p{background:var(--p)} .hist.b{background:var(--b)} .hist.t{background:var(--t)}
+  .predict{margin-top:8px;padding:10px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}
+  .predict-label{font-weight:800;font-size:20px}
+  .signal{display:flex;align-items:center;gap:9px}
+  .signal-ball{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;background:#2d333b}
+  .signal-ball.p{background:var(--p)} .signal-ball.b{background:var(--b)} .signal-ball.none{background:#3b4149}
+  .reason{font-size:12px;color:var(--muted);line-height:1.25}
+  .confidence{text-align:right}
+  .confidence strong{font-size:18px}
+  .confidence span{display:block;font-size:10px;color:var(--muted)}
+  .next-percentages{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-top:7px}
+  .next-pct{background:var(--panel);border:1px solid #262c34;border-radius:12px;padding:9px 7px;text-align:center}
+  .next-pct span{display:block;font-size:10px;font-weight:800;color:var(--muted);margin-bottom:2px}
+  .next-pct strong{font-size:20px}
+  .next-pct.player strong{color:#5d83ff}
+  .next-pct.banker strong{color:#ff625c}
+  .next-pct.tie strong{color:#3bd47a}
+  .stats{margin-top:8px;padding:10px}
+  .statrow{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .stat{background:var(--panel2);border-radius:10px;padding:8px;text-align:center}
+  .stat b{display:block;font-size:16px}.stat span{font-size:10px;color:var(--muted)}
+  .controls{margin-top:8px;padding:10px}
+  .pair-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:9px}
+  .toggle{border:1px solid #454d58;background:#20252c;color:#e6e9ed;border-radius:999px;padding:9px 6px;font-weight:700}
+  .toggle.active.pp{border-color:var(--p);box-shadow:0 0 0 1px var(--p) inset}
+  .toggle.active.bp{border-color:var(--b);box-shadow:0 0 0 1px var(--b) inset}
+  .toggle.active.tiepair{border-color:var(--t)}
+  .main-buttons{display:grid;grid-template-columns:1fr 1fr 1fr .75fr;gap:9px}
+  .big{border:0;color:#fff;border-radius:18px;min-height:72px;font-weight:900;font-size:28px;box-shadow:inset 0 1px rgba(255,255,255,.25),0 5px 15px rgba(0,0,0,.2)}
+  .big.p{background:linear-gradient(#3e6fff,#173fd0)}
+  .big.b{background:linear-gradient(#ff5b55,#bf2320)}
+  .big.t{background:linear-gradient(#33c86c,#117c3a)}
+  .big.undo{background:linear-gradient(#f5c74c,#d99412);font-size:25px}
+  .utility{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:9px}
+  .util{border:1px solid #3b434d;background:#242a31;color:#fff;border-radius:12px;padding:12px 8px;font-weight:700}
+
+  .scanner{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .scanner-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .scanner-title{font-size:14px;font-weight:800}
+  .scanner-note{font-size:11px;color:var(--muted);line-height:1.3;margin-top:4px}
+  .scan-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+  .scan-file{display:none}
+  .scan-btn{border:1px solid #3b434d;background:#242a31;color:#fff;border-radius:12px;padding:11px 8px;font-weight:800;text-align:center}
+  .scan-btn.primary{background:#2f64ff;border-color:#2f64ff}
+  .scan-btn.success{background:#168847;border-color:#168847}
+  .scan-btn:disabled{opacity:.45}
+  .scan-stage{margin-top:9px;display:none}
+  .scan-stage.show{display:block}
+  #scanCanvas{width:100%;max-height:360px;object-fit:contain;background:#0a0b0d;border-radius:10px;border:1px solid #323943}
+  .scan-status{font-size:11px;color:var(--muted);margin-top:6px}
+  .detected{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+  .det-chip{width:28px;height:28px;border-radius:50%;border:0;color:#fff;font-weight:900}
+  .det-chip.p{background:var(--p)} .det-chip.b{background:var(--b)} .det-chip.t{background:var(--t)}
+  .scan-summary{margin-top:8px;font-size:12px;font-weight:700}
+
+
+  .analyzer{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .analyzer-title{font-size:14px;font-weight:800}
+  .analyzer-sub{font-size:11px;color:var(--muted);line-height:1.3;margin-top:3px}
+  .analyzer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+  .analyzer-card{background:var(--panel2);border-radius:11px;padding:9px;text-align:center}
+  .analyzer-card span{display:block;font-size:10px;color:var(--muted);margin-bottom:2px}
+  .bot-live-strip{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 10px;padding:9px 10px;border:1px solid #2e7d4f;border-radius:10px;background:#0c1912;font-size:11px;font-weight:900;letter-spacing:.2px}
+  .bot-live-left{display:flex;align-items:center;gap:7px}
+  .bot-live-dot{width:10px;height:10px;border-radius:50%;background:#35d06f;box-shadow:0 0 0 0 rgba(53,208,111,.55);animation:botPulse 1.4s infinite}
+  .bot-live-strip.offline{border-color:#8b3434;background:#1d0d0d}
+  .bot-live-strip.offline .bot-live-dot{background:#ff5a5a;animation:none;box-shadow:none}
+  .bot-live-meta{font-size:10px;color:var(--muted);font-weight:700;text-align:right}
+  @keyframes botPulse{0%{box-shadow:0 0 0 0 rgba(53,208,111,.55)}70%{box-shadow:0 0 0 7px rgba(53,208,111,0)}100%{box-shadow:0 0 0 0 rgba(53,208,111,0)}}
+  .analyzer-card strong{font-size:18px}
+  .signal-list{display:grid;gap:6px;margin-top:9px}
+  .signal-line{display:grid;grid-template-columns:90px 1fr 48px;gap:7px;align-items:center;font-size:11px}
+  .signal-bar{height:8px;background:#2b3139;border-radius:999px;overflow:hidden}
+  .signal-fill{height:100%;background:#737d8b;border-radius:999px}
+  .backtest{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .backtest-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:8px}
+  .bt-card{background:var(--panel2);border-radius:10px;padding:8px;text-align:center}
+  .bt-card span{display:block;font-size:9px;color:var(--muted)}
+  .bt-card strong{font-size:16px}
+  .card-entry{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .rank-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+  .rank-btn{border:1px solid #3d4650;background:#20252c;color:#fff;border-radius:10px;padding:9px 4px;font-weight:800;font-size:12px}
+  .rank-btn:active{transform:scale(.98)}
+  .rank-summary{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.35}
+  .rank-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .dual-shoes{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .shoe-columns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:9px}
+  .shoe-column{background:var(--panel2);border:1px solid #343b45;border-radius:12px;padding:9px;min-width:0}
+  .shoe-column.red-shoe{border-top:3px solid #e44848}
+  .shoe-column.black-shoe{border-top:3px solid #8c96a3}
+  .shoe-col-title{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:900;font-size:13px}
+  .shoe-count{font-size:10px;color:var(--muted);font-weight:700}
+  .shoe-rank-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}
+  .shoe-rank-grid .rank-btn{padding:8px 2px;font-size:11px}
+  .shoe-history{margin-top:7px;font-size:10px;color:var(--muted);line-height:1.35;min-height:28px;word-break:break-word}
+  .shoe-actions{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}
+  @media (max-width:430px){.shoe-columns{grid-template-columns:1fr}.shoe-rank-grid{grid-template-columns:repeat(7,1fr)}}
+  .tiny-btn{border:1px solid #3b434d;background:#242a31;color:#fff;border-radius:10px;padding:9px 6px;font-weight:700;font-size:12px}
+
+  .shoe-library{margin-top:8px;background:#171b21;border:1px solid #343b45;border-radius:10px;padding:8px}
+  .shoe-library-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;font-weight:800}
+  .shoe-library-count{color:var(--muted);font-size:10px}
+  .shoe-library-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:7px}
+  .shoe-active{margin-top:7px;width:100%;border:1px solid #4a5563;background:#20262e;color:#fff;border-radius:10px;padding:8px 6px;font-weight:800;font-size:11px}
+  .shoe-active.active{border-color:#f1b827;box-shadow:0 0 0 1px #f1b827 inset}
+  .shoe-comp{margin-top:6px;font-size:10px;color:var(--muted);line-height:1.35}
+  .current-shoe-color{margin-bottom:9px;background:#111419;border:1px solid #343b45;border-radius:12px;padding:9px}
+  .current-shoe-color-title{font-size:12px;font-weight:900;margin-bottom:7px}
+  .current-shoe-color-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .shoe-color-btn{border:1px solid #46505c;background:#242a31;color:#fff;border-radius:11px;padding:11px 7px;font-weight:900}
+  .shoe-color-btn.red.active{border-color:#e44848;box-shadow:0 0 0 1px #e44848 inset;background:#33191b}
+  .shoe-color-btn.black.active{border-color:#aab2bd;box-shadow:0 0 0 1px #aab2bd inset;background:#22262d}
+  .current-shoe-color-status{margin-top:7px;font-size:11px;color:var(--muted);font-weight:700}
+
+
+  .library{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
+  .library-title{font-size:14px;font-weight:800}
+  .library-sub{font-size:11px;color:var(--muted);line-height:1.35;margin-top:3px}
+  .library-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:8px}
+  .lib-card{background:var(--panel2);border-radius:10px;padding:8px;text-align:center}
+  .lib-card strong{display:block;font-size:16px}
+  .lib-card span{font-size:9px;color:var(--muted)}
+  .match-box{margin-top:8px;background:#20252c;border-radius:11px;padding:9px}
+  .match-head{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .match-head b{font-size:12px}
+  .match-line{font-size:11px;color:var(--muted);line-height:1.35;margin-top:5px}
+  .match-pcts{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+  .match-pct{border-radius:9px;background:#181c21;padding:7px;text-align:center}
+  .match-pct strong{display:block;font-size:16px}
+  .match-pct span{font-size:9px;color:var(--muted)}
+  .library-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .library-actions .tiny-btn{width:100%}
+  .import-file{display:none}
+
+  .h2o-panel{background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px;margin-top:8px}
+  .h2o-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .h2o-title{font-size:13px;font-weight:800}
+  .h2o-status{font-size:10px;padding:5px 8px;border-radius:999px;background:#333942;color:#c9d0d8}
+  .h2o-status.on{background:#173c29;color:#8ff0b3}
+  .h2o-status.err{background:#4a2020;color:#ffaaaa}
+  .h2o-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
+  .h2o-input{width:100%;background:#101318;color:var(--text);border:1px solid #343a43;border-radius:9px;padding:9px;font-size:12px}
+  .h2o-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:7px}
+  .h2o-result{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+  .h2o-card{background:#101318;border-radius:9px;padding:8px;text-align:center}
+  .h2o-card strong{display:block;font-size:17px}.h2o-card span{font-size:9px;color:var(--muted)}
+  .h2o-note{font-size:10px;color:var(--muted);line-height:1.35;margin-top:7px}
+  .road-predict-panel{margin-top:9px;background:#111419;border:1px solid #2a3038;border-radius:11px;padding:8px}
+  .road-predict-title{font-size:11px;font-weight:800;color:#d5dbe2;margin-bottom:6px}
+  .road-predict-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .road-predict-card{background:#181c21;border-radius:9px;padding:7px;text-align:center;min-width:0}
+  .road-predict-card span{display:block;font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .road-predict-card strong{display:block;font-size:15px;margin-top:2px}
+  .road-predict-card small{display:block;font-size:9px;color:#9ca5b1;margin-top:2px}
+  .dragon-alert{margin-top:8px;border-radius:14px;padding:10px;border:1px solid #3a414b;background:#171a1f}
+  .dragon-alert.watch{border-color:#8a6a16;background:#2a2413}
+  .dragon-alert.hot{border-color:#d08c19;background:#342511;box-shadow:0 0 0 1px rgba(241,184,39,.15) inset}
+  .dragon-alert.live{border-color:#d34a44;background:#351817;box-shadow:0 0 18px rgba(211,74,68,.14)}
+  .dragon-alert-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .dragon-alert-title{font-size:13px;font-weight:900}
+  .dragon-badge{font-size:10px;font-weight:900;border-radius:999px;padding:5px 8px;background:#2e343c;color:#cbd2da}
+  .dragon-alert.watch .dragon-badge{background:#6a5316;color:#ffe293}
+  .dragon-alert.hot .dragon-badge{background:#8a5914;color:#ffe0a0}
+  .dragon-alert.live .dragon-badge{background:#7c2421;color:#ffd0cd}
+  .dragon-alert-main{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-top:8px}
+  .dragon-side{font-size:20px;font-weight:900}
+  .dragon-detail{font-size:11px;color:var(--muted);line-height:1.35;margin-top:2px}
+  .dragon-meter{font-size:22px;font-weight:900}
+  .dragon-actions{display:flex;gap:7px;margin-top:8px}
+  .dragon-actions button{flex:1}
+  .warning{font-size:10px;line-height:1.3;color:#7f8996;text-align:center;padding:10px 4px 4px}
+  @media (min-width:700px){
+    .app{padding:12px}
+    .road{grid-template-rows:repeat(6,34px);grid-auto-columns:34px;background-size:34px 34px}
+    .cell{width:34px;height:34px}.mark{width:28px;height:28px}
+    .layout{display:grid;grid-template-columns:1.5fr .8fr;gap:10px}
+    .right{margin-top:0}
+    .derived-roads{grid-template-columns:repeat(3,1fr)}
+    .controls{position:sticky;bottom:8px}
+  }
+  @media (max-width:430px){
+    .derived-roads{grid-template-columns:1fr}
+    .mini-grid{grid-template-columns:repeat(22,11px);grid-auto-rows:11px}
+    .mini-dot{width:9px;height:9px}
+    .main-buttons{gap:6px}
+    .big{min-height:66px;border-radius:16px;font-size:26px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div>
+      <div class="title">All-In Style Baccarat Roadmap</div>
+      <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
+    </div>
+    <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
+  </div>
+
+  <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
+        <div class="analyzer-title">🤖 Master Bot AI — Continuous Learning</div>
+        <div class="bot-live-strip" id="botLiveStrip">
+          <div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
+          <div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
+        </div>
+        <div class="analyzer-sub">Studies the selected RED/BLACK shoe library, raw P/B/T sequences, Big Road and all three derived roads. It changes thresholds by shoe phase and becomes stricter from hand 40 onward. Every qualified prediction is recorded before the next result so the Bot can measure its own real performance.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Bot decision</span><strong id="botDecision">WAIT</strong></div>
+          <div class="analyzer-card"><span>Bot confidence</span><strong id="botConfidence">—</strong></div>
+          <div class="analyzer-card"><span>Shoe phase</span><strong id="botPhase">EARLY</strong></div>
+        </div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Same-color phase samples</span><strong id="botPhaseSamples">0</strong></div>
+          <div class="analyzer-card"><span>Road-memory samples</span><strong id="botRoadSamples">0</strong></div>
+          <div class="analyzer-card"><span>Bot verified accuracy</span><strong id="botAccuracy">—</strong></div>
+        </div>
+        <div class="analyzer-sub" id="botNote" style="margin-top:8px">Choose RED or BLACK and enter hands to start Bot learning.</div>
+        <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
+          <button class="tiny-btn" id="botLearningToggle">Learning: ON</button>
+          <button class="tiny-btn" id="botResetStats">Reset Bot Stats</button>
+        </div>
+  </div>
+
+  <div class="scoreboard">
+    <div class="road-wrap"><div class="road" id="bigRoad"></div></div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="road-preview">
+        <div class="preview-title">Road Preview</div>
+        <button class="preview-btn pprev" id="previewP">P?</button>
+        <div class="preview-symbols">
+          <span id="pEye" class="preview-symbol">—</span>
+          <span id="pSmall" class="preview-symbol">—</span>
+          <span id="pRoach" class="preview-symbol">—</span>
+        </div>
+        <button class="preview-btn bprev" id="previewB">B?</button>
+        <div class="preview-symbols">
+          <span id="bEye" class="preview-symbol">—</span>
+          <span id="bSmall" class="preview-symbol">—</span>
+          <span id="bRoach" class="preview-symbol">—</span>
+        </div>
+      </div>
+
+      <div class="derived-roads">
+        <div class="mini">
+          <div class="mini-title">Big Eye Boy</div>
+          <div class="derived-grid" id="bigEyeRoad"></div>
+        </div>
+        <div class="mini">
+          <div class="mini-title">Small Road</div>
+          <div class="derived-grid" id="smallRoad"></div>
+        </div>
+        <div class="mini">
+          <div class="mini-title">Cockroach Road</div>
+          <div class="derived-grid" id="roachRoad"></div>
+        </div>
+      </div>
+
+      <div class="road-legend" style="font-size:10px;color:var(--muted);padding:6px 4px 0">
+        Preview order: Big Eye Boy • Small Road • Cockroach Road
+      </div>
+      <div class="history" style="margin-top:8px">
+        <div class="section-title">Recent results</div>
+        <div class="history-grid" id="historyGrid"></div>
+      </div>
+
+      <div class="predict">
+        <div class="predict-label">Next</div>
+        <div class="signal">
+          <div class="signal-ball none" id="signalBall">—</div>
+          <div>
+            <div id="signalText" style="font-weight:800">Waiting for results</div>
+            <div class="reason" id="signalReason">Enter several hands to see a pattern-based estimate.</div>
+          </div>
+        </div>
+        <div class="confidence">
+          <strong id="confidence">0%</strong>
+          <span>qualified signal strength</span>
+        </div>
+      </div>
+      <div class="next-percentages">
+        <div class="next-pct player"><span>PLAYER</span><strong id="nextPlayerPct">—</strong></div>
+        <div class="next-pct banker"><span>BANKER</span><strong id="nextBankerPct">—</strong></div>
+        <div class="next-pct tie"><span>TIE</span><strong id="nextTiePct">—</strong></div>
+      </div>
+      <div class="dragon-alert" id="dragonAlert">
+        <div class="dragon-alert-head">
+          <div class="dragon-alert-title">🐉 Dragon Tail Watch</div>
+          <div class="dragon-badge" id="dragonBadge">Waiting</div>
+        </div>
+        <div class="dragon-alert-main">
+          <div>
+            <div class="dragon-side" id="dragonSide">No active tail</div>
+            <div class="dragon-detail" id="dragonDetail">A watch starts after 3 consecutive Player or Banker results and becomes stronger as the streak continues.</div>
+          </div>
+          <div class="dragon-meter" id="dragonMeter">0%</div>
+        </div>
+        <div class="dragon-actions">
+          <button class="tiny-btn" id="dragonSoundBtn">Sound: ON</button>
+          <button class="tiny-btn" id="dragonPopupBtn">Popup: ON</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="statrow">
+          <div class="stat"><b id="pPct">0%</b><span>Player</span></div>
+          <div class="stat"><b id="bPct">0%</b><span>Banker</span></div>
+          <div class="stat"><b id="tPct">0%</b><span>Tie</span></div>
+          <div class="stat"><b id="streak">0</b><span>Current streak</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="analyzer">
+        <div class="current-shoe-color">
+          <div class="current-shoe-color-title">Current Shoe Color — choose before playing</div>
+          <div class="current-shoe-color-actions">
+            <button class="shoe-color-btn red" id="currentRedShoeBtn">🔴 RED SHOE</button>
+            <button class="shoe-color-btn black" id="currentBlackShoeBtn">⚫ BLACK SHOE</button>
+          </div>
+          <div class="current-shoe-color-status" id="currentShoeColorStatus">No color selected — color library analysis is paused.</div>
+        </div>
+        <div class="analyzer-title">Best-Estimate Analyzer</div>
+        <div class="analyzer-sub">As your saved library grows, the main result increasingly follows historical pattern matches. Big Eye Boy, Small Road, Cockroach Road, recent-shoe, and optional card-rank signals are used mainly when library evidence is limited.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Top side</span><strong id="bestSide">—</strong></div>
+          <div class="analyzer-card"><span>Combined score</span><strong id="bestScore">0%</strong></div>
+          <div class="analyzer-card"><span>Library influence</span><strong id="libraryInfluence">0%</strong></div>
+        </div>
+        <div class="signal-list">
+          <div class="signal-line"><span>Road signal</span><div class="signal-bar"><div id="roadBar" class="signal-fill" style="width:0%"></div></div><b id="roadScore">0</b></div>
+          <div class="signal-line"><span>Shoe signal</span><div class="signal-bar"><div id="shoeBar" class="signal-fill" style="width:0%"></div></div><b id="shoeScore">0</b></div>
+          <div class="signal-line"><span>History signal</span><div class="signal-bar"><div id="histBar" class="signal-fill" style="width:0%"></div></div><b id="histScore">0</b></div>
+          <div class="signal-line"><span>Library match</span><div class="signal-bar"><div id="libBar" class="signal-fill" style="width:0%"></div></div><b id="libScore">0</b></div>
+          <div class="signal-line"><span>H2O.ai model</span><div class="signal-bar"><div id="h2oBar" class="signal-fill" style="width:0%"></div></div><b id="h2oScore">0</b></div>
+          <div class="signal-line"><span>DeepSeek AI</span><div class="signal-bar"><div id="deepseekBar" class="signal-fill" style="width:0%"></div></div><b id="deepseekScore">0</b></div>
+        </div>
+        <div class="road-predict-panel">
+          <div class="road-predict-title">Derived-Road Next Result Signals</div>
+          <div class="road-predict-grid">
+            <div class="road-predict-card"><span>Big Eye Boy</span><strong id="eyeNext">—</strong><small id="eyeNextPct">P 50% • B 50%</small></div>
+            <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
+            <div class="road-predict-card"><span>Roach Road</span><strong id="roachNext">—</strong><small id="roachNextPct">P 50% • B 50%</small></div>
+          </div>
+        </div>
+        <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
+      </div>
+
+      <div class="analyzer" id="roadPreviewAiPanel">
+        <div class="analyzer-title">Road Preview AI</div>
+        <div class="analyzer-sub">PROBE ENGINE V2. Current-shoe only. Uses casino-style Player/Banker probing: each hypothetical result must create a genuine new Big Eye Boy, Small Road, or Cockroach Road mark before that road can vote. Saved libraries, Kaggle, H2O, DeepSeek, Sequence AI, and card composition are excluded. Weak or conflicting structure returns WAIT.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
+          <div class="analyzer-card"><span>Road confidence</span><strong id="roadAiStrength">—</strong></div>
+          <div class="analyzer-card"><span>Roads agreeing</span><strong id="roadAiAgree">0/3</strong></div>
+        </div>
+        <div class="match-pcts">
+          <div class="match-pct"><strong id="roadAiP">—</strong><span>Player road-fit</span></div>
+          <div class="match-pct"><strong id="roadAiB">—</strong><span>Banker road-fit</span></div>
+          <div class="match-pct"><strong id="roadAiEdge">—</strong><span>Preview edge</span></div>
+        </div>
+        <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Waiting for enough road structure.</div>
+      </div>
+
+      <div class="analyzer" id="sequenceAiPanel">
+        <div class="analyzer-title">Sequence AI Analyzer</div>
+        <div class="analyzer-sub">Live shoe-similarity engine. It scans multiple rolling endings of the current shoe against historical shoes. Strong, persistent matches increase Sequence AI influence; weak or conflicting matches return WAIT.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">WAIT</strong></div>
+          <div class="analyzer-card"><span>Sequence confidence</span><strong id="seqAiStrength">—</strong></div>
+          <div class="analyzer-card"><span>Historical matches</span><strong id="seqAiMatches">0</strong></div>
+        </div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Shoe similarity</span><strong id="seqAiSimilarity">0%</strong></div>
+          <div class="analyzer-card"><span>Match grade</span><strong id="seqAiGrade">LOW</strong></div>
+          <div class="analyzer-card"><span>Windows agreeing</span><strong id="seqAiWindows">0/0</strong></div>
+        </div>
+        <div class="match-pcts">
+          <div class="match-pct"><strong id="seqAiP">—</strong><span>Player</span></div>
+          <div class="match-pct"><strong id="seqAiB">—</strong><span>Banker</span></div>
+          <div class="match-pct"><strong id="seqAiT">—</strong><span>Tie</span></div>
+        </div>
+        <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
+      </div>
+
+      <div class="analyzer" id="consensusPanel">
+        <div class="analyzer-title">AI Consensus Engine</div>
+        <div class="analyzer-sub">Combines Sequence AI, H2O.ai, DeepSeek, historical-library, road structure, and card-composition signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Consensus</span><strong id="consensusSide">—</strong></div>
+          <div class="analyzer-card"><span>Confidence</span><strong id="consensusStrength">—</strong></div>
+          <div class="analyzer-card"><span>Models agreeing</span><strong id="consensusAgree">0/0</strong></div>
+        </div>
+        <div class="analyzer-sub" id="consensusNote" style="margin-top:8px">Waiting for enough independent signals.</div>
+      </div>
+
+      <div class="analyzer" id="decisionGatePanel">
+        <div class="analyzer-title">Top-Tier Decision Gate</div>
+        <div class="analyzer-sub">De-duplicates related evidence, checks independent agreement, blocks contradictory signals, and qualifies a pick only when coverage and edge are strong enough.</div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>Decision</span><strong id="gateDecision">WAIT</strong></div>
+          <div class="analyzer-card"><span>Independent agreement</span><strong id="gateAgree">0/0</strong></div>
+          <div class="analyzer-card"><span>Evidence quality</span><strong id="gateQuality">LOW</strong></div>
+        </div>
+        <div class="analyzer-sub" id="gateNote" style="margin-top:8px">Waiting for enough independent evidence.</div>
+      </div>
+
+
+
+      <div class="h2o-panel">
+        <div class="h2o-head">
+          <div>
+            <div class="h2o-title">H2O.ai Model Connector</div>
+            <div class="analyzer-sub">Shared connector mode: when hosted with the H2O API, iPhone and iPad automatically use the same /score endpoint.</div>
+          </div>
+          <span class="h2o-status err" id="h2oStatus">🔴 AI OFFLINE</span>
+        </div>
+        <div class="h2o-grid">
+          <input class="h2o-input" id="h2oUrl" type="url" placeholder="Auto: same server /score" autocomplete="off">
+          <input class="h2o-input" id="h2oKey" type="password" placeholder="API key (optional)" autocomplete="off">
+        </div>
+        <div class="h2o-actions">
+          <button class="tiny-btn" id="h2oSaveBtn">Save Connection</button>
+          <button class="tiny-btn" id="h2oTestBtn">Test / Score Now</button>
+        </div>
+        <div class="h2o-actions" style="grid-template-columns:1fr;margin-top:7px">
+          <button class="tiny-btn" id="h2oTrainBtn">Train / Retrain H2O from Saved Shoes</button>
+        </div>
+        <div class="h2o-note" style="margin-top:9px;padding:9px;border:1px solid #2a3850;border-radius:10px">
+          <label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer">
+            <input id="kaggleLibraryToggle" type="checkbox" style="width:20px;height:20px">
+            <span>Kaggle 200,000-Shoe Library</span>
+          </label>
+          <div id="kaggleLibraryNote" style="margin-top:5px">ON: use Kaggle history with your trained model. OFF: ignore Kaggle and use your All In Baccarat saved-shoe H2O model.</div>
+        </div>
+        <div class="h2o-result">
+          <div class="h2o-card"><strong id="h2oP">—</strong><span>H2O Player</span></div>
+          <div class="h2o-card"><strong id="h2oB">—</strong><span>H2O Banker</span></div>
+          <div class="h2o-card"><strong id="h2oT">—</strong><span>H2O Tie</span></div>
+        </div>
+        <div class="h2o-note" id="h2oNote">The AI analyzes the full current shoe plus Big Road, Big Eye Boy, Small Road, Cockroach Road, streak/chop structure, recent outcomes, and saved-shoe patterns. Your endpoint should return JSON such as {"p":0.46,"b":0.49,"t":0.05}. H2O stays optional; the app continues using local analysis when disconnected.</div>
+      </div>
+
+      <div class="h2o-panel" id="deepseekPanel">
+        <div class="h2o-head">
+          <div>
+            <div class="h2o-title">DeepSeek Road Intelligence</div>
+            <div class="analyzer-sub">Server-side AI analysis of the current sequence, Big Road, Big Eye Boy, Small Road, Cockroach Road, and same-color saved shoe summaries. Your DeepSeek key stays on Render, not in this HTML file.</div>
+          </div>
+          <span class="h2o-status err" id="deepseekStatus">🔴 DEEPSEEK OFFLINE</span>
+        </div>
+        <div class="h2o-actions" style="grid-template-columns:1fr">
+          <button class="tiny-btn" id="deepseekScoreBtn">Analyze Current Shoe with DeepSeek</button>
+        </div>
+        <div class="h2o-result">
+          <div class="h2o-card"><strong id="deepseekP">—</strong><span>DeepSeek Player</span></div>
+          <div class="h2o-card"><strong id="deepseekB">—</strong><span>DeepSeek Banker</span></div>
+          <div class="h2o-card"><strong id="deepseekT">—</strong><span>DeepSeek Tie</span></div>
+        </div>
+        <div class="analyzer-grid" style="margin-top:8px">
+          <div class="analyzer-card"><span>Pattern</span><strong id="deepseekPattern" style="font-size:12px">—</strong></div>
+          <div class="analyzer-card"><span>AI confidence</span><strong id="deepseekConfidence">—</strong></div>
+          <div class="analyzer-card"><span>Model</span><strong id="deepseekModel" style="font-size:10px">—</strong></div>
+        </div>
+        <div class="h2o-note" id="deepseekNote">DeepSeek is an additional opinion, not a guarantee. Strong disagreement between engines lowers the final consensus.</div>
+      </div>
+
+      <div class="card-entry">
+        <div class="analyzer-title">Optional Card-Rank Tracker</div>
+        <div class="analyzer-sub">Tap ranks as cards are exposed. This does not identify exact future cards; it only estimates whether the remaining shoe is slightly richer in low or high baccarat values.</div>
+        <div class="rank-grid" id="rankGrid"></div>
+        <div class="rank-actions">
+          <button class="tiny-btn" id="undoCardBtn">Undo Card</button>
+          <button class="tiny-btn" id="clearCardsBtn">Clear Cards</button>
+        </div>
+        <div class="rank-summary" id="rankSummary">No card ranks entered.</div>
+      </div>
+
+      <div class="dual-shoes">
+        <div class="analyzer-title">Separate Red & Black Card Shoes</div>
+        <div class="analyzer-sub">These are two completely independent 8-deck shoes. Cards entered in one shoe never change the other shoe.</div>
+        <div class="shoe-columns">
+          <div class="shoe-column red-shoe">
+            <div class="shoe-col-title"><span>🔴 Red Shoe</span><span class="shoe-count" id="redShoeCount">416 remaining</span></div>
+            <div class="shoe-rank-grid" id="redShoeRanks"></div>
+            <div class="shoe-history" id="redShoeHistory">No cards entered.</div>
+            <div class="shoe-actions">
+              <button class="tiny-btn" id="redShoeUndo">Undo</button>
+              <button class="tiny-btn" id="redShoeReset">New Red Shoe</button>
+            </div>
+            <button class="shoe-active" id="redShoeActive">Use RED shoe for analyzer</button>
+            <div class="shoe-comp" id="redShoeComp">Composition: full 8-deck shoe.</div>
+            <div class="shoe-library">
+              <div class="shoe-library-head"><span>Red Shoe Library</span><span class="shoe-library-count" id="redLibraryCount">0 saved</span></div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="redShoeSave">Save Shoe</button>
+                <button class="tiny-btn" id="redLibraryView">View</button>
+                <button class="tiny-btn" id="redLibraryExport">Export</button>
+              </div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="redLibraryClear" style="grid-column:1/-1">Clear Red Library</button>
+              </div>
+            </div>
+          </div>
+          <div class="shoe-column black-shoe">
+            <div class="shoe-col-title"><span>⚫ Black Shoe</span><span class="shoe-count" id="blackShoeCount">416 remaining</span></div>
+            <div class="shoe-rank-grid" id="blackShoeRanks"></div>
+            <div class="shoe-history" id="blackShoeHistory">No cards entered.</div>
+            <div class="shoe-actions">
+              <button class="tiny-btn" id="blackShoeUndo">Undo</button>
+              <button class="tiny-btn" id="blackShoeReset">New Black Shoe</button>
+            </div>
+            <button class="shoe-active" id="blackShoeActive">Use BLACK shoe for analyzer</button>
+            <div class="shoe-comp" id="blackShoeComp">Composition: full 8-deck shoe.</div>
+            <div class="shoe-library">
+              <div class="shoe-library-head"><span>Black Shoe Library</span><span class="shoe-library-count" id="blackLibraryCount">0 saved</span></div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="blackShoeSave">Save Shoe</button>
+                <button class="tiny-btn" id="blackLibraryView">View</button>
+                <button class="tiny-btn" id="blackLibraryExport">Export</button>
+              </div>
+              <div class="shoe-library-actions">
+                <button class="tiny-btn" id="blackLibraryClear" style="grid-column:1/-1">Clear Black Library</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="library">
+        <div class="library-title" id="patternLibraryTitle">Color Pattern Library</div>
+        <div class="library-sub" id="patternLibrarySub">Choose the current shoe color. Completed P/B/T shoes are saved only to that color, and historical prediction matching uses only that color library.</div>
+
+        <div class="library-stats">
+          <div class="lib-card"><strong id="libShoes">0</strong><span>Saved shoes</span></div>
+          <div class="lib-card"><strong id="libHands">0</strong><span>Saved hands</span></div>
+          <div class="lib-card"><strong id="libPatterns">0</strong><span>Pattern windows</span></div>
+          <div class="lib-card"><strong id="libMatches">0</strong><span>Current matches</span></div>
+        </div>
+
+        <div class="match-box" id="savedRoadHistoryBox">
+          <div class="match-head"><b>Saved Derived-Road History</b><span id="savedRoadHistoryCount" style="font-size:10px;color:var(--muted)">0 road sets</span></div>
+          <div class="match-line" id="savedRoadHistoryText">Each saved shoe keeps its Big Eye Boy, Small Road, and Cockroach Road history separately for road-pattern comparison.</div>
+        </div>
+
+        <div class="match-box">
+          <div class="match-head">
+            <b>Historical pattern match</b>
+            <span id="matchLength" style="font-size:10px;color:var(--muted)">—</span>
+          </div>
+          <div class="match-line" id="matchText">Save completed shoes to build your library.</div>
+          <div class="match-pcts">
+            <div class="match-pct"><strong id="matchP">—</strong><span>Player followed</span></div>
+            <div class="match-pct"><strong id="matchB">—</strong><span>Banker followed</span></div>
+            <div class="match-pct"><strong id="matchT">—</strong><span>Tie followed</span></div>
+          </div>
+        </div>
+
+
+
+        <div class="match-box" id="reuseScannerBox">
+          <div class="match-head">
+            <b>Same-Color Shoe Reuse Scanner</b>
+            <span id="reuseScannerStatus" style="font-size:10px;color:var(--muted)">READY</span>
+          </div>
+          <div class="match-line" id="reuseScannerText">During live play, scan the current RED or BLACK shoe against the two most recent saved shoes of that same color. It looks for partial patterns and shifted similarities, not exact copies.</div>
+          <div class="match-pcts">
+            <div class="match-pct"><strong id="reusePrev1">—</strong><span>Previous same-color</span></div>
+            <div class="match-pct"><strong id="reusePrev2">—</strong><span>2 shoes back</span></div>
+            <div class="match-pct"><strong id="reuseNext">—</strong><span>Matched next result</span></div>
+          </div>
+          <div class="library-actions" style="margin-top:10px">
+            <button class="tiny-btn" id="scanReuseBtn" style="grid-column:1/-1">Scan Previous RED / BLACK Shoes</button>
+          </div>
+        </div>
+
+        <div class="match-box" id="roadReuseScannerBox">
+          <div class="match-head">
+            <b>Previous Roads Scanner</b>
+            <span id="roadReuseStatus" style="font-size:10px;color:var(--muted)">READY</span>
+          </div>
+          <div class="match-line" id="roadReuseText">Compare the current Big Eye Boy, Small Road, and Cockroach Road against the two most recent saved shoes of the same color. This checks whether road structure is repeating after a possible reshuffle.</div>
+          <div class="match-pcts">
+            <div class="match-pct"><strong id="roadReuseEye">—</strong><span>Big Eye similarity</span></div>
+            <div class="match-pct"><strong id="roadReuseSmall">—</strong><span>Small Road similarity</span></div>
+            <div class="match-pct"><strong id="roadReuseRoach">—</strong><span>Cockroach similarity</span></div>
+          </div>
+          <div class="match-pcts" style="margin-top:8px">
+            <div class="match-pct"><strong id="roadReusePrev1">—</strong><span>Previous same-color</span></div>
+            <div class="match-pct"><strong id="roadReusePrev2">—</strong><span>2 shoes back</span></div>
+            <div class="match-pct"><strong id="roadReuseNext">—</strong><span>Historical next road</span></div>
+          </div>
+          <div class="library-actions" style="margin-top:10px">
+            <button class="tiny-btn" id="scanRoadReuseBtn" style="grid-column:1/-1">Scan Previous Same-Color Roads</button>
+          </div>
+        </div>
+
+        <div class="library-actions">
+          <button class="tiny-btn" id="saveShoeBtn">Save Current Shoe</button>
+          <button class="tiny-btn" id="libraryInfoBtn">Library Details</button>
+          <button class="tiny-btn" id="exportLibraryBtn">Export Library</button>
+          <label class="tiny-btn" for="importLibraryInput" style="text-align:center">Import Library</label>
+          <input class="import-file" id="importLibraryInput" type="file" accept=".json,application/json">
+          <button class="tiny-btn" id="clearLibraryBtn">Clear Library</button>
+          <button class="tiny-btn" id="autoSaveBtn">Auto-save: ON</button>
+        </div>
+      </div>
+
+      <div class="backtest">
+        <div class="analyzer-title">Prediction Backtest</div>
+        <div class="analyzer-sub">Tracks how the app’s last prediction performed after you enter the next completed hand.</div>
+        <div class="backtest-grid">
+          <div class="bt-card"><strong id="btPred">0</strong><span>Predictions</span></div>
+          <div class="bt-card"><strong id="btWins">0</strong><span>Correct</span></div>
+          <div class="bt-card"><strong id="btRate">—</strong><span>Hit rate</span></div>
+          <div class="bt-card"><strong id="btRun">0</strong><span>Current run</span></div>
+        </div>
+        <div class="rank-actions">
+          <button class="tiny-btn" id="resetBacktestBtn">Reset Backtest</button>
+          <button class="tiny-btn" id="exportBacktestBtn">Export CSV</button>
+        </div>
+      </div>
+
+      <div class="scanner">
+        <div class="scanner-head">
+          <div>
+            <div class="scanner-title">Full Board Screenshot Sync</div>
+            <div class="scanner-note">Choose a screenshot of the large 6-row P/B/T results grid. The scanner reads Player, Banker, and Tie results first, then rebuilds Big Road, Big Eye Boy, Small Road, and Cockroach Road from that history using baccarat road rules. Review the detected chips before applying.</div>
+          </div>
+        </div>
+        <div class="scan-actions">
+          <label class="scan-btn primary" for="scanInput">Choose Screenshot</label>
+          <input class="scan-file" id="scanInput" type="file" accept="image/*">
+          <button class="scan-btn" id="scanNowBtn" disabled>Scan P/B/T Grid</button>
+        </div>
+        <div class="scan-stage" id="scanStage">
+          <canvas id="scanCanvas"></canvas>
+          <div class="scan-status" id="scanStatus">Screenshot loaded.</div>
+          <div class="scan-summary" id="scanSummary"></div>
+          <div class="scan-status" id="scanRoadSummary"></div>
+          <div class="detected" id="detectedResults"></div>
+          <div class="scan-actions">
+            <button class="scan-btn success" id="applyScanBtn" disabled>Rebuild Roads</button>
+            <button class="scan-btn" id="clearScanBtn">Clear Scan</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="pair-row">
+          <button class="toggle pp" id="ppBtn">P. Pair</button>
+          <button class="toggle bp" id="bpBtn">B. Pair</button>
+          <button class="toggle tiepair" id="specialBtn">Special</button>
+        </div>
+        <div class="main-buttons">
+          <button class="big p" data-result="P">P</button>
+          <button class="big b" data-result="B">B</button>
+          <button class="big t" data-result="T">T</button>
+          <button class="big undo" id="undoBtn">↶</button>
+        </div>
+        <div class="utility">
+          <button class="util" id="clearBtn">New Shoe</button>
+          <button class="util" id="sampleBtn">Demo</button>
+          <button class="util" id="saveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="warning">
+    Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. H2O and DeepSeek outputs are additional analysis signals only; disagreement lowers the consensus, and none of the displayed percentages guarantees a future result.
+  </div>
+</div>
+
+<script>
+// ROAD ENGINE BUILD: 2026-08-15-road-preview-hard-isolated-v2
+const KEY='baccarat-roadmap-v1';
+// Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
+// both iPhone and iPad automatically use https://that-server/score with no re-entry.
+const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
+const DEFAULT_DEEPSEEK_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/deepseek-score') : '';
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:true,kaggle:{last:null,error:''}, bot:{learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}}};
+
+function load(){
+  try{
+    const s=JSON.parse(localStorage.getItem(KEY));
+    if(s && Array.isArray(s.hands)) {
+      state=s;
+      if(!Array.isArray(state.cards)) state.cards=[];
+      if(!Array.isArray(state.redShoeCards)) state.redShoeCards=[];
+      if(!Array.isArray(state.blackShoeCards)) state.blackShoeCards=[];
+      if(!Array.isArray(state.redShoeLibrary)) state.redShoeLibrary=[];
+      if(!Array.isArray(state.blackShoeLibrary)) state.blackShoeLibrary=[];
+      if(!Array.isArray(state.redPatternLibrary)) state.redPatternLibrary=[];
+      if(!Array.isArray(state.blackPatternLibrary)) state.blackPatternLibrary=[];
+      if(!['red','black'].includes(state.currentShoeColor)) state.currentShoeColor=null;
+      if(!['red','black'].includes(state.activeCardShoe)) state.activeCardShoe='red';
+      if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
+      if(!Array.isArray(state.backtest.rows)) state.backtest.rows=[];
+      if(!Array.isArray(state.patternLibrary)) state.patternLibrary=[];
+      if(typeof state.autoSaveLibrary!=='boolean') state.autoSaveLibrary=true;
+      if(!state.h2o || typeof state.h2o!=='object') state.h2o={url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''};
+      if(!state.h2o.url && DEFAULT_H2O_SCORE_URL) state.h2o.url=DEFAULT_H2O_SCORE_URL;
+      if(!state.deepseek || typeof state.deepseek!=='object') state.deepseek={url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''};
+      if(typeof state.kaggleLibraryEnabled!=='boolean') state.kaggleLibraryEnabled=true;
+      if(!state.kaggle || typeof state.kaggle!=='object') state.kaggle={last:null,error:''};
+      if(!state.bot || typeof state.bot!=='object') state.bot={learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}};
+      if(typeof state.bot.learning!=='boolean') state.bot.learning=true;
+      if(!Array.isArray(state.bot.rows)) state.bot.rows=[];
+      if(!state.bot.phaseStats || typeof state.bot.phaseStats!=='object') state.bot.phaseStats={};
+      if(!Number.isFinite(state.bot.predictions)) state.bot.predictions=0;
+      if(!Number.isFinite(state.bot.wins)) state.bot.wins=0;
+      if(!state.deepseek.url && DEFAULT_DEEPSEEK_SCORE_URL) state.deepseek.url=DEFAULT_DEEPSEEK_SCORE_URL;
+      if(!state.dragon || typeof state.dragon!=='object') state.dragon={sound:true,popup:true,lastAlertKey:''};
+      if(state.scanSnapshot && typeof state.scanSnapshot!=='object') state.scanSnapshot=null;
+    }
+  }catch(e){}
+}
+function persist(){ localStorage.setItem(KEY,JSON.stringify(state)); }
+function toggle(id,key){
+  const el=document.getElementById(id);
+  el.addEventListener('click',()=>{state[key]=!state[key];el.classList.toggle('active',state[key]);});
+}
+toggle('ppBtn','pp'); toggle('bpBtn','bp'); toggle('specialBtn','special');
+
+document.querySelectorAll('[data-result]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const actual=btn.dataset.result;
+    settlePendingPrediction(actual);
+    settleBotPrediction(actual);
+    state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
+    state.scanSnapshot=null;
+    state.pp=state.bp=state.special=false;
+    document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
+    armNextPrediction();
+    armBotPrediction();
+    persist(); render();
+    if(state.h2o?.url) scoreWithH2O(false);
+    if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
+    if(state.deepseek?.url) scoreWithDeepSeek(false);
+  });
+});
+document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');settleBotPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
+document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');settleBotPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.h2o?.url)scoreWithH2O(false);if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);if(state.deepseek?.url)scoreWithDeepSeek(false);};
+document.getElementById('undoBtn').onclick=()=>{state.hands.pop();state.scanSnapshot=null;persist();render();};
+document.getElementById('clearBtn').onclick=()=>{
+  if(confirm('Start a new shoe and clear all results?')){
+    const seq=currentSequence();
+    if(state.autoSaveLibrary && seq.length>=4 && state.currentShoeColor) saveSequenceToLibrary(seq,'auto',true);
+    state.hands=[];state.cards=[];state.scanSnapshot=null;
+    state.currentShoeColor=null;
+    if(state.backtest) state.backtest.pending=null;
+    if(state.bot) state.bot.pending=null;
+    if(state.h2o) state.h2o.last=null;
+    if(state.dragon) state.dragon.lastAlertKey='';
+    persist();render();
+  }
+};
+document.getElementById('saveBtn').onclick=()=>{persist();alert('Saved on this device.');};
+document.getElementById('sampleBtn').onclick=()=>{
+  const demo='BPBPPPPBPPBBPPPBPPBPPBBBPB'.split('');
+  state.hands=demo.map((r,i)=>({r,pp:i%13===0,bp:i%17===0,special:false,ts:Date.now()+i}));
+  persist();render();
+};
+document.getElementById('fullscreenBtn').onclick=()=>{
+  const e=document.documentElement;
+  if(document.fullscreenElement) document.exitFullscreen?.(); else e.requestFullscreen?.();
+};
+
+// Place a road using standard 6-row baccarat "dragon tail" behavior.
+// A continuing streak goes down when possible; otherwise it moves right.
+// A new streak starts at the top of the next available logical column.
+function placeRoadSequence(items, valueOf){
+  const pos=[];
+  const occupied=new Set();
+  let col=-1,row=0,last=null,streakStartCol=-1;
+  let turnedRight=false;
+
+  items.forEach((item)=>{
+    const value=valueOf(item);
+
+    if(value!==last){
+      // New streak: begin at the next free top-row column.
+      let candidate=streakStartCol+1;
+      while(occupied.has(`${candidate},0`)) candidate++;
+      streakStartCol=candidate;
+      col=streakStartCol;
+      row=0;
+      turnedRight=false;
+    }else{
+      // Same streak: move down until the bottom or a collision is reached.
+      // IMPORTANT: after a streak turns right (dragon tail), it must remain
+      // horizontal for the rest of that streak; it must never drop down again.
+      const canGoDown=!turnedRight && row<5 && !occupied.has(`${col},${row+1}`);
+      if(canGoDown){
+        row++;
+      }else{
+        turnedRight=true;
+        col++;
+        while(occupied.has(`${col},${row}`)) col++;
+      }
+    }
+
+    occupied.add(`${col},${row}`);
+    pos.push({...item,col,row});
+    last=value;
+  });
+
+  return pos;
+}
+
+function bigRoadPositions(hands){
+  // Player/Banker create Big Road cells. Ties overlay the previous non-tie cell.
+  const base=hands.filter(h=>h.r!=='T');
+  const tiesByIndex=[];
+  let nonTieIndex=-1;
+  hands.forEach(h=>{
+    if(h.r==='T'){
+      if(nonTieIndex>=0) tiesByIndex[nonTieIndex]=(tiesByIndex[nonTieIndex]||0)+1;
+    }else nonTieIndex++;
+  });
+  return placeRoadSequence(base,h=>h.r).map((x,i)=>({...x,ties:tiesByIndex[i]||0}));
+}
+
+function renderRoad(){
+  const road=document.getElementById('bigRoad'); road.innerHTML='';
+  const pos=bigRoadPositions(state.hands);
+  const maxCol=Math.max(19,...pos.map(x=>x.col));
+  road.style.gridTemplateColumns=`repeat(${maxCol+2}, 28px)`;
+  pos.forEach(x=>{
+    const cell=document.createElement('div'); cell.className='cell';
+    cell.style.gridColumn=(x.col+1); cell.style.gridRow=(x.row+1);
+    const m=document.createElement('div'); m.className='mark '+x.r.toLowerCase(); m.textContent=x.r;
+    if(x.ties){ const t=document.createElement('span'); t.textContent=x.ties; t.style.cssText='position:absolute;font-size:8px;color:#159447;font-weight:900'; m.appendChild(t); }
+    if(x.pp){const d=document.createElement('i');d.className='pair-dot pp';cell.appendChild(d)}
+    if(x.bp){const d=document.createElement('i');d.className='pair-dot bp';cell.appendChild(d)}
+    cell.appendChild(m); road.appendChild(cell);
+  });
+  const tiesOnly=state.hands.filter(h=>h.r==='T').length;
+  if(!pos.length && tiesOnly){
+    const cell=document.createElement('div'); cell.className='cell'; cell.style.gridColumn=1;cell.style.gridRow=1;
+    const m=document.createElement('div');m.className='mark t';m.textContent='T';cell.appendChild(m);road.appendChild(cell);
+  }
+}
+
+function buildBigRoadColumns(hands){
+  const base=hands.filter(h=>h.r!=='T');
+  const cols=[];
+  base.forEach(h=>{
+    if(!cols.length || cols[cols.length-1][0]!==h.r) cols.push([h.r]);
+    else cols[cols.length-1].push(h.r);
+  });
+  return cols;
+}
+
+// Standard baccarat derived-road comparison.
+// offset 1 = Big Eye Boy, 2 = Small Road, 3 = Cockroach Road.
+// Red/blue describe structural regularity; they do NOT mean Banker/Player.
+function deriveRoad(hands, offset){
+  const cols=buildBigRoadColumns(hands);
+  const marks=[];
+  if(cols.length<=offset) return marks;
+
+  // A derived road starts on the hand AFTER the first hand in its starting
+  // Big Road column: column 2 for Big Eye, 3 for Small, 4 for Cockroach.
+  for(let c=offset;c<cols.length;c++){
+    const currentLen=cols[c].length;
+    const startRow=(c===offset)?1:0;
+    for(let r=startRow;r<currentLen;r++){
+      let red;
+      if(r===0){
+        // New Big Road column: compare the depths of the two reference columns.
+        const nearLen=cols[c-1]?.length || 0;
+        const farLen=cols[c-1-offset]?.length || 0;
+        red=nearLen===farLen;
+      }else{
+        // Continuing in the same Big Road column: look offset columns left.
+        // Compare occupancy at this row with occupancy one row above.
+        // Both occupied OR both empty = red; a change in occupancy = blue.
+        const refLen=cols[c-offset]?.length || 0;
+        const sameRowExists=refLen>=r+1;
+        const aboveRowExists=refLen>=r;
+        red=sameRowExists===aboveRowExists;
+      }
+      marks.push(red?'R':'B');
+    }
+  }
+  return marks;
+}
+
+function roadPositionsFromMarks(marks){
+  return placeRoadSequence(marks.map(m=>({m})),x=>x.m);
+}
+
+function renderDerivedRoad(id, marks, style){
+  const e=document.getElementById(id); e.innerHTML='';
+  const pos=roadPositionsFromMarks(marks);
+  const maxCol=Math.max(9,...pos.map(x=>x.col));
+  e.style.gridTemplateColumns=`repeat(${maxCol+2},12px)`;
+  pos.forEach(x=>{
+    const cell=document.createElement('div'); cell.className='derived-cell';
+    cell.style.gridColumn=x.col+1; cell.style.gridRow=x.row+1;
+    const mark=document.createElement('div');
+    const color=x.m==='R'?'red':'blue';
+    mark.className=`derived-mark ${color}-${style}`;
+    cell.appendChild(mark); e.appendChild(cell);
+  });
+}
+
+
+function getLastDerivedMark(hands, offset){
+  const marks=deriveRoad(hands,offset);
+  return marks.length ? marks[marks.length-1] : null;
+}
+
+// Casino-style road probe: return ONLY the new derived mark that would be
+// created by the hypothetical Player/Banker result. If that result does not
+// create a new mark yet, return null instead of repeating the previous mark.
+function previewDerivedMark(hands, result, offset){
+  const before=deriveRoad(hands,offset);
+  const hypothetical=hands.concat([{r:result,pp:false,bp:false,special:false,ts:0}]);
+  const after=deriveRoad(hypothetical,offset);
+  return after.length>before.length ? after[after.length-1] : null;
+}
+function previewFor(result){
+  return {
+    eye:previewDerivedMark(state.hands,result,1),
+    small:previewDerivedMark(state.hands,result,2),
+    roach:previewDerivedMark(state.hands,result,3)
+  };
+}
+function setPreviewSymbol(id, mark, kind){
+  const el=document.getElementById(id);
+  el.className='preview-symbol';
+  if(!mark){ el.textContent='—'; return; }
+  el.textContent='';
+  const color=mark==='R'?'red':'blue';
+  if(kind==='ring') el.classList.add('ring-'+color);
+  if(kind==='dot') el.classList.add('dot-'+color);
+  if(kind==='slash') el.classList.add('slash-'+color);
+}
+function renderPreview(){
+  const p=previewFor('P'), b=previewFor('B');
+  setPreviewSymbol('pEye',p.eye,'ring');
+  setPreviewSymbol('pSmall',p.small,'dot');
+  setPreviewSymbol('pRoach',p.roach,'slash');
+  setPreviewSymbol('bEye',b.eye,'ring');
+  setPreviewSymbol('bSmall',b.small,'dot');
+  setPreviewSymbol('bRoach',b.roach,'slash');
+}
+
+function renderDerived(){
+  // Always rebuild the three derived roads from the imported/entered P/B/T history.
+  // This avoids copying noisy red/blue pixels from a screenshot into the roads.
+  renderDerivedRoad('bigEyeRoad', deriveRoad(state.hands,1), 'ring');
+  renderDerivedRoad('smallRoad', deriveRoad(state.hands,2), 'dot');
+  renderDerivedRoad('roachRoad', deriveRoad(state.hands,3), 'slash');
+}
+function renderHistory(){
+  const e=document.getElementById('historyGrid');e.innerHTML='';
+  state.hands.slice(-24).reverse().forEach(h=>{
+    const d=document.createElement('div');d.className='hist '+h.r.toLowerCase();d.textContent=h.r;e.appendChild(d);
+  });
+}
+function pct(n,d){return d?Math.round(n*100/d):0}
+function computeSignal(){
+  const all=state.hands.map(h=>h.r);
+  const seq=all.filter(r=>r!=='T');
+  if(seq.length<6) return {pick:null,score:0,pPct:null,bPct:null,tPct:null,reason:'Enter at least 6 Player/Banker results.'};
+
+  const recent=seq.slice(-16);
+  const last=recent.at(-1);
+  let streak=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) streak++;
+
+  let alternations=0;
+  for(let i=Math.max(1,recent.length-7);i<recent.length;i++){
+    if(recent[i]!==recent[i-1]) alternations++;
+  }
+
+  const rp=recent.filter(x=>x==='P').length;
+  const rb=recent.filter(x=>x==='B').length;
+  const ties=all.slice(-30).filter(x=>x==='T').length;
+
+  // Start near ordinary baccarat proportions, then apply small roadmap-pattern
+  // adjustments. These are heuristic display scores, not calibrated win odds.
+  let p=44.6, b=45.9, t=9.5;
+
+  const imbalance=(rp-rb)/Math.max(1,recent.length);
+  p += imbalance*5;
+  b -= imbalance*5;
+
+  if(streak>=3){
+    if(last==='P'){p+=Math.min(5,streak); b-=Math.min(5,streak);}
+    else {b+=Math.min(5,streak); p-=Math.min(5,streak);}
+  } else if(alternations>=5){
+    if(last==='P'){b+=3;p-=3;} else {p+=3;b-=3;}
+  }
+
+  const observedTie=ties/Math.max(1,Math.min(30,all.length));
+  t += Math.max(-2,Math.min(2,(observedTie-.095)*10));
+
+  p=Math.max(25,p); b=Math.max(25,b); t=Math.max(3,t);
+  const total=p+b+t;
+  p=p/total*100; b=b/total*100; t=t/total*100;
+
+  // Round while keeping total at exactly 100.
+  let pr=Math.round(p), br=Math.round(b), tr=100-Math.round(p)-Math.round(b);
+  if(tr<0){tr=0;br=100-pr;}
+  const pick=pr>=br && pr>=tr?'P':br>=pr && br>=tr?'B':'T';
+  const score=Math.max(pr,br,tr);
+
+  let reason=`Recent ${recent.length}: P ${rp} / B ${rb}. `;
+  if(streak>=3) reason+=`${streak}-hand ${last==='P'?'Player':'Banker'} streak.`;
+  else if(alternations>=5) reason+='Recent alternating/chop pattern.';
+  else reason+='No strong streak or chop pattern.';
+
+  return {pick,score,pPct:pr,bPct:br,tPct:tr,reason};
+}
+
+
+function dragonTailStatus(){
+  const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r);
+  if(!seq.length) return {side:null,streak:0,level:'none',score:0,label:'Waiting',detail:'Enter results to start Dragon Tail Watch.'};
+  const side=seq.at(-1);
+  let streak=1;
+  for(let i=seq.length-2;i>=0&&seq[i]===side;i--) streak++;
+
+  // This is a pattern-watch score, not a calibrated probability that the next hand repeats.
+  // It rises with a longer current same-side run and is intentionally capped below certainty.
+  let level='none', score=0, label='No active tail';
+  if(streak===2){level='none';score=25;label='Early streak';}
+  if(streak===3){level='watch';score=45;label='Dragon Watch';}
+  if(streak===4){level='watch';score=58;label='Dragon Building';}
+  if(streak===5){level='hot';score=70;label='Dragon Tail Near';}
+  if(streak>=6){level='live';score=Math.min(88,76+(streak-6)*3);label='Dragon Tail Active';}
+
+  const who=side==='P'?'Player':'Banker';
+  let detail=`${who} has ${streak} consecutive non-tie result${streak===1?'':'s'}. `;
+  if(streak<3) detail+='Watch begins at 3 in a row.';
+  else if(streak===3) detail+='The streak has reached the watch threshold.';
+  else if(streak===4) detail+='One more same-side result would make the alert stronger.';
+  else if(streak===5) detail+='A 6th same-side result would create a full six-row dragon-tail run on this simplified Big Road.';
+  else detail+=`The same-side run is continuing beyond ${streak} hands.`;
+
+  return {side,streak,level,score,label,detail};
+}
+
+function playDragonTone(){
+  if(!state.dragon?.sound) return;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC)return;
+    const ctx=new AC(), osc=ctx.createOscillator(), gain=ctx.createGain();
+    osc.type='sine'; osc.frequency.value=levelToFreq(dragonTailStatus().level);
+    gain.gain.setValueAtTime(.0001,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.12,ctx.currentTime+.02);
+    gain.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.28);
+    osc.connect(gain);gain.connect(ctx.destination);osc.start();osc.stop(ctx.currentTime+.3);
+    osc.onended=()=>ctx.close();
+  }catch(e){}
+}
+function levelToFreq(level){return level==='live'?880:level==='hot'?720:560;}
+
+function maybeDragonAlert(status){
+  if(status.streak<3) return;
+  const key=`${status.side}-${status.streak}`;
+  if(state.dragon?.lastAlertKey===key) return;
+  state.dragon.lastAlertKey=key;
+  persist();
+  playDragonTone();
+  if(state.dragon?.popup){
+    const who=status.side==='P'?'PLAYER':'BANKER';
+    let msg=`🐉 ${status.label}\n\n${who} streak: ${status.streak}\nPattern-watch strength: ${status.score}%\n\n${status.detail}\n\nThis is a streak alert, not a guarantee of the next result.`;
+    setTimeout(()=>alert(msg),40);
+  }
+}
+
+function renderDragonAlert(){
+  const s=dragonTailStatus();
+  const box=document.getElementById('dragonAlert');
+  if(!box)return;
+  box.className='dragon-alert'+(s.level!=='none'?' '+s.level:'');
+  document.getElementById('dragonBadge').textContent=s.label;
+  document.getElementById('dragonSide').textContent=s.side ? `${s.side==='P'?'Player':'Banker'} • ${s.streak} in a row` : 'No active tail';
+  document.getElementById('dragonDetail').textContent=s.detail;
+  document.getElementById('dragonMeter').textContent=s.score+'%';
+  document.getElementById('dragonSoundBtn').textContent='Sound: '+(state.dragon?.sound?'ON':'OFF');
+  document.getElementById('dragonPopupBtn').textContent='Popup: '+(state.dragon?.popup?'ON':'OFF');
+  maybeDragonAlert(s);
+}
+
+function renderStats(){
+  const n=state.hands.length;
+  const p=state.hands.filter(h=>h.r==='P').length,b=state.hands.filter(h=>h.r==='B').length,t=state.hands.filter(h=>h.r==='T').length;
+  document.getElementById('pPct').textContent=pct(p,n)+'%';
+  document.getElementById('bPct').textContent=pct(b,n)+'%';
+  document.getElementById('tPct').textContent=pct(t,n)+'%';
+  let s=0; const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r); if(seq.length){s=1;for(let i=seq.length-2;i>=0&&seq[i]===seq.at(-1);i--)s++;}
+  document.getElementById('streak').textContent=s;
+  document.getElementById('shoeLabel').textContent=`Current shoe • ${n} hands`;
+  // FINAL DECISION: use the same combined analyzer everywhere on screen.
+  // Older builds showed computeSignal() here while Best-Estimate used a different
+  // engine, which could display Banker in one place and Player in another.
+  const local=computeSignal();
+  const a=computeCombinedAnalyzer();
+  const c=consensusSignal();
+  const nonTieCount=state.hands.filter(h=>h.r!=='T').length;
+  const agreement=c.total ? c.agree/c.total : 0;
+  const actionable=!!a.qualified && c.total>=2 && agreement>=0.67 && c.side===a.side && !c.contradiction;
+  const pick=actionable?a.side:null;
+  const ball=document.getElementById('signalBall');
+  ball.className='signal-ball '+(pick?pick.toLowerCase():'none'); ball.textContent=pick||'WAIT';
+  document.getElementById('signalText').textContent=pick?(pick==='P'?'Player — qualified signal':'Banker — qualified signal'):'WAIT / NO BET';
+  document.getElementById('signalReason').textContent=pick
+    ? `Combined analyzer and consensus agree (${c.agree}/${c.total}); signal strength ${a.top}%.`
+    : nonTieCount<10
+      ? `Need at least 10 non-tie hands before a qualified signal (${nonTieCount}/10).`
+      : `No qualified signal: combined=${a.side==='P'?'Player':'Banker'} ${a.top}%, consensus=${c.side==='P'?'Player':c.side==='B'?'Banker':'none'} ${c.strength||0}% (${c.agree}/${c.total}).`;
+  document.getElementById('confidence').textContent=pick?a.top+'%':'WAIT';
+  document.getElementById('nextPlayerPct').textContent=a.pPct+'%';
+  document.getElementById('nextBankerPct').textContent=a.bPct+'%';
+  document.getElementById('nextTiePct').textContent=local.tPct==null?'—':local.tPct+'%';
+}
+function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderDeepSeek();renderSeparateShoes();renderCurrentShoeColor();}
+
+
+
+// --- Persistent color-separated All In pattern libraries ---
+function currentSequence(){
+  return state.hands.map(h=>h.r).filter(r=>['P','B','T'].includes(r));
+}
+function activePatternLibraryKey(){
+  return state.currentShoeColor==='red'?'redPatternLibrary':state.currentShoeColor==='black'?'blackPatternLibrary':null;
+}
+function activePatternLibrary(){
+  const key=activePatternLibraryKey();
+  return key && Array.isArray(state[key]) ? state[key] : [];
+}
+function activeColorName(){ return state.currentShoeColor==='red'?'RED':state.currentShoeColor==='black'?'BLACK':''; }
+function makeShoeRecord(seq, source='manual'){
+  return {
+    id:'shoe_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
+    savedAt:new Date().toISOString(),
+    source,
+    shoeColor:state.currentShoeColor||null,
+    sequence:seq.join(''),
+    derivedRoadHistory:{
+      bigEye:deriveRoad(seq.map(r=>({r})),1),
+      small:deriveRoad(seq.map(r=>({r})),2),
+      roach:deriveRoad(seq.map(r=>({r})),3)
+    }
+  };
+}
+function saveSequenceToLibrary(seq, source='manual', quiet=false){
+  if(!Array.isArray(seq) || seq.length<4){
+    if(!quiet) alert('Enter at least 4 results before saving a shoe.');
+    return false;
+  }
+  const key=activePatternLibraryKey();
+  if(!key){ if(!quiet) alert('Choose 🔴 RED SHOE or ⚫ BLACK SHOE first.'); return false; }
+  if(!Array.isArray(state[key])) state[key]=[];
+  const s=seq.join('');
+  const duplicate=state[key].some(x=>x.sequence===s);
+  if(duplicate){
+    if(!quiet) alert('This exact shoe is already saved in the pattern library.');
+    return false;
+  }
+  state[key].push(makeShoeRecord(seq,source));
+  persist();
+  if(!quiet) alert(`Saved ${seq.length} hands to the ${activeColorName()} pattern library.`);
+  return true;
+}
+function patternWindowsCount(){
+  let n=0;
+  activePatternLibrary().forEach(shoe=>{
+    const len=(shoe.sequence||'').length;
+    for(let k=3;k<=Math.min(12,len-1);k++) n+=Math.max(0,len-k);
+  });
+  return n;
+}
+function findHistoricalMatches(){
+  const cur=currentSequence();
+  if(cur.length<3 || !activePatternLibrary().length) return {matches:0,len:0,p:0,b:0,t:0};
+
+  // Try longest suffix first, then back off until enough examples exist.
+  for(let k=Math.min(12,cur.length);k>=3;k--){
+    const pattern=cur.slice(-k).join('');
+    let p=0,b=0,t=0,total=0;
+    activePatternLibrary().forEach(shoe=>{
+      const s=shoe.sequence||'';
+      for(let i=0;i+k<s.length;i++){
+        if(s.slice(i,i+k)===pattern){
+          const nxt=s[i+k];
+          if(nxt==='P')p++;
+          else if(nxt==='B')b++;
+          else if(nxt==='T')t++;
+          total++;
+        }
+      }
+    });
+    if(total>=2 || (k===3 && total>0)) return {matches:total,len:k,p,b,t,pattern};
+  }
+  return {matches:0,len:0,p:0,b:0,t:0};
+}
+function renderSavedRoadHistorySummary(){
+  const lib=activePatternLibrary();
+  let sets=0,eye=0,small=0,roach=0;
+  lib.forEach(s=>{
+    let d=s?.derivedRoadHistory;
+    if(!d && typeof s?.sequence==='string'){const hs=s.sequence.split('').map(r=>({r}));d={bigEye:deriveRoad(hs,1),small:deriveRoad(hs,2),roach:deriveRoad(hs,3)};}
+    if(d){sets++;eye+=(d.bigEye||[]).length;small+=(d.small||[]).length;roach+=(d.roach||[]).length;}
+  });
+  const c=document.getElementById('savedRoadHistoryCount'),t=document.getElementById('savedRoadHistoryText');
+  if(c)c.textContent=`${sets} road set${sets===1?'':'s'}`;
+  if(t)t.textContent=sets?`${activeColorName()} saved roads: Big Eye ${eye} marks • Small ${small} marks • Roach ${roach} marks. These remain separate from the live shoe.`:'Each newly saved shoe will keep its Big Eye Boy, Small Road, and Cockroach Road history separately.';
+}
+function renderPatternLibrary(){
+  renderSavedRoadHistorySummary();
+  const lib=activePatternLibrary();
+  const hands=lib.reduce((n,s)=>n+(s.sequence||'').length,0);
+  const m=findHistoricalMatches();
+  document.getElementById('libShoes').textContent=lib.length;
+  document.getElementById('libHands').textContent=hands;
+  document.getElementById('libPatterns').textContent=patternWindowsCount();
+  document.getElementById('libMatches').textContent=m.matches;
+  document.getElementById('autoSaveBtn').textContent='Auto-save: '+(state.autoSaveLibrary?'ON':'OFF');
+  const title=document.getElementById('patternLibraryTitle');
+  const sub=document.getElementById('patternLibrarySub');
+  if(title) title.textContent=state.currentShoeColor ? `${activeColorName()} Shoe Pattern Library` : 'Color Pattern Library — choose RED or BLACK';
+  if(sub) sub.textContent=state.currentShoeColor
+    ? `Only ${activeColorName()}-shoe history is being used for pattern matching and Sequence AI for this current shoe.`
+    : 'Choose the current shoe color before playing. Red and Black P/B/T history stay completely separate.';
+
+  if(!m.matches){
+    document.getElementById('matchLength').textContent='No match';
+    document.getElementById('matchText').textContent=lib.length
+      ? 'No saved historical sequence currently matches the recent shoe closely enough.'
+      : 'Save completed shoes to build your library.';
+    ['matchP','matchB','matchT'].forEach(id=>document.getElementById(id).textContent='—');
+    return;
+  }
+
+  // Laplace-style smoothing prevents 1–2 examples from displaying as 100% certainty.
+  const denom=m.matches+3;
+  const pct=n=>Math.round((n+1)*100/denom)+'%';
+  document.getElementById('matchLength').textContent=`${m.len}-hand match`;
+  document.getElementById('matchText').textContent=
+    `${m.matches} historical occurrence${m.matches===1?'':'s'} matched the latest ${m.len} results (${m.pattern}). As the sample grows, this match has more influence on the main result.`;
+  document.getElementById('matchP').textContent=pct(m.p);
+  document.getElementById('matchB').textContent=pct(m.b);
+  document.getElementById('matchT').textContent=pct(m.t);
+}
+
+function librarySignal(){
+  const m=findHistoricalMatches();
+  if(m.matches<2) return {side:null,strength:0,matches:m.matches};
+  const nonTie=m.p+m.b;
+  if(!nonTie) return {side:null,strength:0,matches:m.matches};
+  const p=m.p/nonTie, b=m.b/nonTie;
+  const side=p>=b?'P':'B';
+  const strength=Math.round(50+Math.abs(p-b)*35);
+  return {side,strength:Math.min(85,strength),matches:m.matches};
+}
+
+
+
+// --- Same-color recent-shoe reuse scanner ---
+// This is a pattern-comparison tool, not proof that a physical deck was reused.
+function sameColorReuseCandidates(){
+  const cur=currentSequence().join('');
+  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=4);
+  // Newest saved same-color shoe first. If an identical copy of the live shoe was
+  // accidentally saved mid-shoe, ignore that exact current snapshot.
+  const usable=lib.filter(x=>x.sequence!==cur);
+  return usable.slice(-2).reverse();
+}
+function bestShiftSimilarity(cur, hist){
+  if(!cur || !hist) return {score:0,offset:0,compared:0};
+  let best={score:0,offset:0,compared:0};
+  const maxShift=Math.min(30, Math.max(cur.length,hist.length));
+  for(let offset=-maxShift;offset<=maxShift;offset++){
+    let same=0, compared=0;
+    for(let i=0;i<cur.length;i++){
+      const j=i+offset;
+      if(j<0 || j>=hist.length) continue;
+      compared++;
+      if(cur[i]===hist[j]) same++;
+    }
+    if(compared<4) continue;
+    const raw=same/compared;
+    // Penalize tiny overlaps so four lucky hands do not look like a strong match.
+    const coverage=Math.min(1,compared/Math.max(10,Math.min(cur.length,20)));
+    const score=raw*(0.55+0.45*coverage);
+    if(score>best.score) best={score,offset,compared};
+  }
+  return best;
+}
+function blockPatternSimilarity(cur,hist){
+  if(cur.length<3 || hist.length<4) return {score:0,hits:0,total:0,next:{P:0,B:0,T:0}};
+  let weightedHits=0, weightedTotal=0, hits=0, total=0;
+  const next={P:0,B:0,T:0};
+  const maxK=Math.min(8,cur.length,hist.length-1);
+  for(let k=3;k<=maxK;k++){
+    const weight=k*k;
+    const seen=new Set();
+    for(let i=0;i+k<=cur.length;i++){
+      const pat=cur.slice(i,i+k);
+      if(seen.has(k+':'+pat)) continue;
+      seen.add(k+':'+pat); total++; weightedTotal+=weight;
+      let pos=hist.indexOf(pat), found=false;
+      while(pos!==-1){
+        found=true;
+        const n=hist[pos+k];
+        if(n && next[n]!=null) next[n]+=weight;
+        pos=hist.indexOf(pat,pos+1);
+      }
+      if(found){hits++; weightedHits+=weight;}
+    }
+  }
+  return {score:weightedTotal?weightedHits/weightedTotal:0,hits,total,next};
+}
+function analyzeReuseCandidate(cur,hist){
+  const shift=bestShiftSimilarity(cur,hist);
+  const blocks=blockPatternSimilarity(cur,hist);
+  // Partial repeated blocks matter more than position because a shuffle can move blocks.
+  let score=(blocks.score*0.68)+(shift.score*0.32);
+  // Require more live evidence before allowing high displayed scores.
+  const evidence=Math.min(1,cur.length/18);
+  score*=0.55+0.45*evidence;
+  return {score:Math.round(score*100),shift,blocks};
+}
+function scanSameColorReuse(){
+  const status=document.getElementById('reuseScannerStatus');
+  const text=document.getElementById('reuseScannerText');
+  const p1=document.getElementById('reusePrev1'),p2=document.getElementById('reusePrev2'),nextEl=document.getElementById('reuseNext');
+  if(!state.currentShoeColor){
+    status.textContent='CHOOSE COLOR'; text.textContent='Choose RED SHOE or BLACK SHOE first so I know which recent history to scan.';
+    p1.textContent=p2.textContent=nextEl.textContent='—'; return;
+  }
+  const cur=currentSequence().join('');
+  if(cur.length<6){
+    status.textContent='NEED MORE HANDS'; text.textContent=`Enter at least 6 live results before scanning (${cur.length}/6). More hands make the comparison more meaningful.`;
+    p1.textContent=p2.textContent=nextEl.textContent='—'; return;
+  }
+  const cand=sameColorReuseCandidates();
+  if(!cand.length){
+    status.textContent='NO HISTORY'; text.textContent=`No earlier ${activeColorName()} shoes are saved yet. Finish and save ${activeColorName()} shoes first.`;
+    p1.textContent=p2.textContent=nextEl.textContent='—'; return;
+  }
+  const results=cand.map((shoe,idx)=>({shoe,idx,...analyzeReuseCandidate(cur,shoe.sequence)}));
+  p1.textContent=results[0]?results[0].score+'%':'—';
+  p2.textContent=results[1]?results[1].score+'%':'—';
+  const best=results.slice().sort((a,b)=>b.score-a.score)[0];
+  const nextCounts=best.blocks.next;
+  const nextTotal=nextCounts.P+nextCounts.B+nextCounts.T;
+  let next='—';
+  if(nextTotal){
+    const side=['P','B','T'].sort((a,b)=>nextCounts[b]-nextCounts[a])[0];
+    const pct=Math.round(nextCounts[side]*100/nextTotal);
+    next=`${side} ${pct}%`;
+  }
+  nextEl.textContent=next;
+  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
+  const offset=best.shift.offset===0?'near the same positions':`best aligned about ${Math.abs(best.shift.offset)} hand${Math.abs(best.shift.offset)===1?'':'s'} ${best.shift.offset>0?'later':'earlier'}`;
+  const level=best.score>=75?'STRONG':best.score>=60?'MODERATE':best.score>=45?'WEAK':'LOW';
+  status.textContent=level+' MATCH';
+  text.textContent=`Best current match: ${label} at ${best.score}%. Found ${best.blocks.hits}/${best.blocks.total} partial pattern windows; ${offset}. ${nextTotal?`Among matched blocks with a following result, the strongest continuation is ${next}.`:'Not enough matched continuations yet for a next-result read.'} This is similarity evidence only, not proof the same physical cards were reused.`;
+}
+
+
+
+// --- Previous same-color derived-road scanner ---
+// Derived-road R/B marks represent structural regularity, not Banker/Player.
+function roadHistoryForShoe(shoe){
+  if(shoe?.derivedRoadHistory) return shoe.derivedRoadHistory;
+  const seq=(shoe?.sequence||'').split('').filter(r=>'PBT'.includes(r));
+  const hs=seq.map(r=>({r}));
+  return {bigEye:deriveRoad(hs,1),small:deriveRoad(hs,2),roach:deriveRoad(hs,3)};
+}
+function currentDerivedRoadSet(){
+  const hs=currentSequence().map(r=>({r}));
+  return {bigEye:deriveRoad(hs,1),small:deriveRoad(hs,2),roach:deriveRoad(hs,3)};
+}
+function roadBlockSimilarity(curMarks,histMarks){
+  const cur=(curMarks||[]).join(''), hist=(histMarks||[]).join('');
+  if(cur.length<3 || hist.length<4) return {score:0,hits:0,total:0,next:{R:0,B:0}};
+  let weightedHits=0,weightedTotal=0,hits=0,total=0;
+  const next={R:0,B:0};
+  const maxK=Math.min(10,cur.length,hist.length-1);
+  for(let k=3;k<=maxK;k++){
+    const weight=k*k;
+    const seen=new Set();
+    for(let i=0;i+k<=cur.length;i++){
+      const pat=cur.slice(i,i+k), key=k+':'+pat;
+      if(seen.has(key)) continue;
+      seen.add(key); total++; weightedTotal+=weight;
+      let pos=hist.indexOf(pat),found=false;
+      while(pos!==-1){
+        found=true;
+        const n=hist[pos+k];
+        if(n==='R'||n==='B') next[n]+=weight;
+        pos=hist.indexOf(pat,pos+1);
+      }
+      if(found){hits++;weightedHits+=weight;}
+    }
+  }
+  const block=weightedTotal?weightedHits/weightedTotal:0;
+  const shift=bestShiftSimilarity(cur,hist);
+  const evidence=Math.min(1,cur.length/16);
+  const score=((block*.72)+(shift.score*.28))*(.55+.45*evidence);
+  return {score:Math.round(score*100),hits,total,next,shift};
+}
+function analyzeRoadCandidate(curRoads,shoe){
+  const hist=roadHistoryForShoe(shoe);
+  const eye=roadBlockSimilarity(curRoads.bigEye,hist.bigEye);
+  const small=roadBlockSimilarity(curRoads.small,hist.small);
+  const roach=roadBlockSimilarity(curRoads.roach,hist.roach);
+  const available=[eye,small,roach].filter(x=>x.total>0);
+  const weights=[1,.9,.8];
+  const arr=[eye,small,roach];
+  let num=0,den=0;
+  arr.forEach((x,i)=>{if(x.total>0){num+=x.score*weights[i];den+=weights[i];}});
+  const overall=den?Math.round(num/den):0;
+  const next={R:0,B:0};
+  arr.forEach((x,i)=>{const w=weights[i];next.R+=x.next.R*w;next.B+=x.next.B*w;});
+  return {overall,eye,small,roach,next,available:available.length};
+}
+function scanPreviousRoads(){
+  const status=document.getElementById('roadReuseStatus');
+  const text=document.getElementById('roadReuseText');
+  const eyeEl=document.getElementById('roadReuseEye'),smallEl=document.getElementById('roadReuseSmall'),roachEl=document.getElementById('roadReuseRoach');
+  const p1=document.getElementById('roadReusePrev1'),p2=document.getElementById('roadReusePrev2'),nextEl=document.getElementById('roadReuseNext');
+  const clear=()=>{eyeEl.textContent=smallEl.textContent=roachEl.textContent=p1.textContent=p2.textContent=nextEl.textContent='—';};
+  if(!state.currentShoeColor){status.textContent='CHOOSE COLOR';text.textContent='Choose RED SHOE or BLACK SHOE first.';clear();return;}
+  const roads=currentDerivedRoadSet();
+  const roadMarks=roads.bigEye.length+roads.small.length+roads.roach.length;
+  if(roadMarks<9){status.textContent='NEED MORE ROAD';text.textContent=`Not enough derived-road history yet (${roadMarks} marks). Keep entering live hands, then scan again.`;clear();return;}
+  const cand=sameColorReuseCandidates();
+  if(!cand.length){status.textContent='NO HISTORY';text.textContent=`No earlier ${activeColorName()} shoes are saved yet.`;clear();return;}
+  const results=cand.map((shoe,idx)=>({shoe,idx,...analyzeRoadCandidate(roads,shoe)}));
+  p1.textContent=results[0]?results[0].overall+'%':'—';
+  p2.textContent=results[1]?results[1].overall+'%':'—';
+  const best=results.slice().sort((a,b)=>b.overall-a.overall)[0];
+  eyeEl.textContent=best.eye.total?best.eye.score+'%':'N/A';
+  smallEl.textContent=best.small.total?best.small.score+'%':'N/A';
+  roachEl.textContent=best.roach.total?best.roach.score+'%':'N/A';
+  const total=best.next.R+best.next.B;
+  let next='—';
+  if(total>0){
+    const side=best.next.R>=best.next.B?'R':'B';
+    const pct=Math.round((side==='R'?best.next.R:best.next.B)*100/total);
+    next=`${side==='R'?'RED':'BLUE'} ${pct}%`;
+  }
+  nextEl.textContent=next;
+  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
+  const level=best.overall>=75?'STRONG':best.overall>=60?'MODERATE':best.overall>=45?'WEAK':'LOW';
+  status.textContent=level+' ROAD MATCH';
+  text.textContent=`Best road-structure match: ${label} at ${best.overall}%. Big Eye ${best.eye.total?best.eye.score+'%':'N/A'}, Small ${best.small.total?best.small.score+'%':'N/A'}, Cockroach ${best.roach.total?best.roach.score+'%':'N/A'}. ${total?`Matched historical road blocks most often continued with ${next}.`:'There are not enough historical continuations yet.'} RED/BLUE here are derived-road colors, not Banker/Player bets.`;
+}
+
+document.getElementById('scanReuseBtn').onclick=scanSameColorReuse;
+document.getElementById('scanRoadReuseBtn').onclick=scanPreviousRoads;
+
+document.getElementById('saveShoeBtn').onclick=()=>{
+  saveSequenceToLibrary(currentSequence(),'manual');
+  renderPatternLibrary(); renderAnalyzer();
+};
+document.getElementById('autoSaveBtn').onclick=()=>{
+  state.autoSaveLibrary=!state.autoSaveLibrary;persist();renderPatternLibrary();
+};
+document.getElementById('libraryInfoBtn').onclick=()=>{
+  const lib=activePatternLibrary();
+  const hands=lib.reduce((n,s)=>n+(s.sequence||'').length,0);
+  alert(`${activeColorName()||'NO COLOR'} Pattern Library\n\nSaved shoes: ${lib.length}\nSaved hands: ${hands}\nPattern windows: ${patternWindowsCount()}\n\nThe library stays on this device unless you export it.`);
+};
+document.getElementById('exportLibraryBtn').onclick=()=>{
+  const payload={
+    version:1,
+    exportedAt:new Date().toISOString(),
+    color:state.currentShoeColor,
+    shoes:activePatternLibrary()
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=(state.currentShoeColor||'unselected')+'_baccarat_pattern_library.json';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+};
+document.getElementById('importLibraryInput').addEventListener('change',async e=>{
+  const f=e.target.files?.[0]; if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    const incoming=Array.isArray(data)?data:(data.shoes||[]);
+    if(!Array.isArray(incoming)) throw new Error('Invalid library');
+    const key=activePatternLibraryKey();
+    if(!key) throw new Error('Choose RED or BLACK before importing');
+    if(!Array.isArray(state[key]))state[key]=[];
+    const existing=new Set(state[key].map(x=>x.sequence));
+    let added=0;
+    incoming.forEach(x=>{
+      if(x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence) && x.sequence.length>=4 && !existing.has(x.sequence)){
+        state[key].push({
+          id:x.id||('import_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)),
+          savedAt:x.savedAt||new Date().toISOString(),
+          source:x.source||'import',
+          shoeColor:state.currentShoeColor,
+          sequence:x.sequence
+        });
+        existing.add(x.sequence);added++;
+      }
+    });
+    persist();render();
+    alert(`Imported ${added} new shoe${added===1?'':'s'}.`);
+  }catch(err){alert(err.message==='Choose RED or BLACK before importing'?'Choose 🔴 RED SHOE or ⚫ BLACK SHOE before importing a library.':'Could not import that library file.');}
+  e.target.value='';
+});
+document.getElementById('clearLibraryBtn').onclick=()=>{
+  const key=activePatternLibraryKey();
+  if(!key){alert('Choose 🔴 RED SHOE or ⚫ BLACK SHOE first.');return;}
+  if(confirm(`Delete every saved ${activeColorName()} shoe from its pattern library on this device?`)){
+    state[key]=[];persist();render();
+  }
+};
+
+// --- Multi-signal analyzer, optional card-rank tracker, and backtesting ---
+const rankNames=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+function baccaratValue(rank){
+  if(rank==='A') return 1;
+  if(['10','J','Q','K'].includes(rank)) return 0;
+  return Number(rank);
+}
+
+function initRankGrid(){
+  const grid=document.getElementById('rankGrid');
+  if(!grid || grid.childElementCount) return;
+  rankNames.forEach(rank=>{
+    const b=document.createElement('button');
+    b.className='rank-btn'; b.textContent=rank;
+    b.onclick=()=>{state.cards.push(rank);persist();renderAnalyzer();};
+    grid.appendChild(b);
+  });
+}
+
+function initSeparateShoeGrid(gridId, stateKey){
+  const grid=document.getElementById(gridId);
+  if(!grid || grid.childElementCount) return;
+  rankNames.forEach(rank=>{
+    const b=document.createElement('button');
+    b.className='rank-btn'; b.textContent=rank;
+    b.onclick=()=>{
+      if(!Array.isArray(state[stateKey])) state[stateKey]=[];
+      if(state[stateKey].length>=416){alert('This 8-deck shoe is empty. Start a new shoe.');return;}
+      const used=state[stateKey].filter(x=>x===rank).length;
+      if(used>=32){alert(`All ${rank} cards have already been used in this 8-deck shoe.`);return;}
+      state[stateKey].push(rank);persist();renderSeparateShoes();
+    };
+    grid.appendChild(b);
+  });
+}
+
+function shoeCompositionSummary(cards){
+  const initial={}; rankNames.forEach(r=>initial[r]=32);
+  (cards||[]).forEach(r=>{if(initial[r]>0)initial[r]--;});
+  const remaining=Math.max(0,416-(cards||[]).length);
+  let low=0,high=0,zero=0;
+  Object.entries(initial).forEach(([r,n])=>{const v=baccaratValue(r);if(v===0)zero+=n;else if(v<=4)low+=n;else high+=n;});
+  if(!remaining)return 'Shoe empty.';
+  return `Remaining composition • low-value ${low} • high-value ${high} • zero-value ${zero}`;
+}
+
+function saveSeparateShoe(color, quiet=false){
+  const cardsKey=color+'ShoeCards', libKey=color+'ShoeLibrary';
+  const cards=Array.isArray(state[cardsKey])?state[cardsKey]:[];
+  if(!cards.length){if(!quiet)alert(`No cards entered in the ${color.toUpperCase()} shoe.`);return false;}
+  if(!Array.isArray(state[libKey]))state[libKey]=[];
+  const signature=cards.join(',');
+  if(state[libKey].some(x=>x.cards.join(',')===signature)){if(!quiet)alert('This exact shoe is already saved.');return false;}
+  state[libKey].push({id:`${color}_shoe_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,savedAt:new Date().toISOString(),cards:[...cards],used:cards.length});
+  persist(); if(!quiet)alert(`${color==='red'?'Red':'Black'} shoe saved to its own library (${cards.length} cards).`); return true;
+}
+
+function exportSeparateLibrary(color){
+  const lib=state[color+'ShoeLibrary']||[];
+  if(!lib.length){alert(`No ${color} shoes saved yet.`);return;}
+  const blob=new Blob([JSON.stringify({type:'baccarat-card-shoe-library',color,exportedAt:new Date().toISOString(),shoes:lib},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${color}_shoe_library.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function viewSeparateLibrary(color){
+  const lib=state[color+'ShoeLibrary']||[];
+  if(!lib.length){alert(`No ${color} shoes saved yet.`);return;}
+  const lines=lib.slice(-20).reverse().map((x,i)=>`${lib.length-i}. ${x.used} cards • ${new Date(x.savedAt).toLocaleString()}\n   ${x.cards.slice(-24).join(' ')}`);
+  alert(`${color.toUpperCase()} SHOE LIBRARY — ${lib.length} saved\n\n${lines.join('\n\n')}`);
+}
+
+function renderSeparateShoes(){
+  initSeparateShoeGrid('redShoeRanks','redShoeCards');
+  initSeparateShoeGrid('blackShoeRanks','blackShoeCards');
+  [['red','redShoeCards'],['black','blackShoeCards']].forEach(([prefix,key])=>{
+    const cards=Array.isArray(state[key])?state[key]:[];
+    const remaining=Math.max(0,416-cards.length);
+    const count=document.getElementById(prefix+'ShoeCount');
+    const history=document.getElementById(prefix+'ShoeHistory');
+    const comp=document.getElementById(prefix+'ShoeComp');
+    const active=document.getElementById(prefix+'ShoeActive');
+    const libCount=document.getElementById(prefix+'LibraryCount');
+    if(count) count.textContent=`${remaining} remaining • ${cards.length} used`;
+    if(history) history.textContent=cards.length ? `Recent: ${cards.slice(-18).join(' • ')}` : 'No cards entered.';
+    if(comp) comp.textContent=shoeCompositionSummary(cards);
+    if(active){active.classList.toggle('active',state.activeCardShoe===prefix);active.textContent=(state.activeCardShoe===prefix?'✓ ACTIVE for analyzer':'Use '+prefix.toUpperCase()+' shoe for analyzer');}
+    if(libCount) libCount.textContent=`${(state[prefix+'ShoeLibrary']||[]).length} saved`;
+  });
+}
+
+function bindSeparateShoeControls(){
+  const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};
+  bind('redShoeUndo',()=>{if(state.redShoeCards.length)state.redShoeCards.pop();persist();render();});
+  bind('blackShoeUndo',()=>{if(state.blackShoeCards.length)state.blackShoeCards.pop();persist();render();});
+  bind('redShoeReset',()=>{if(confirm('Start a new RED 8-deck shoe? The current red shoe will be saved first if it contains cards.')){if(state.redShoeCards.length)saveSeparateShoe('red',true);state.redShoeCards=[];persist();render();}});
+  bind('blackShoeReset',()=>{if(confirm('Start a new BLACK 8-deck shoe? The current black shoe will be saved first if it contains cards.')){if(state.blackShoeCards.length)saveSeparateShoe('black',true);state.blackShoeCards=[];persist();render();}});
+  bind('redShoeSave',()=>{saveSeparateShoe('red');renderSeparateShoes();});
+  bind('blackShoeSave',()=>{saveSeparateShoe('black');renderSeparateShoes();});
+  bind('redLibraryView',()=>viewSeparateLibrary('red')); bind('blackLibraryView',()=>viewSeparateLibrary('black'));
+  bind('redLibraryExport',()=>exportSeparateLibrary('red')); bind('blackLibraryExport',()=>exportSeparateLibrary('black'));
+  bind('redLibraryClear',()=>{if(confirm('Delete every saved RED card shoe?')){state.redShoeLibrary=[];persist();renderSeparateShoes();}});
+  bind('blackLibraryClear',()=>{if(confirm('Delete every saved BLACK card shoe?')){state.blackShoeLibrary=[];persist();renderSeparateShoes();}});
+  bind('redShoeActive',()=>{state.activeCardShoe='red';persist();render();});
+  bind('blackShoeActive',()=>{state.activeCardShoe='black';persist();render();});
+}
+
+function renderCurrentShoeColor(){
+  const red=document.getElementById('currentRedShoeBtn');
+  const black=document.getElementById('currentBlackShoeBtn');
+  const status=document.getElementById('currentShoeColorStatus');
+  if(red) red.classList.toggle('active',state.currentShoeColor==='red');
+  if(black) black.classList.toggle('active',state.currentShoeColor==='black');
+  if(status){
+    if(state.currentShoeColor){
+      const n=activePatternLibrary().length;
+      status.textContent=`ACTIVE: ${activeColorName()} SHOE • predictions use only the ${activeColorName()} pattern library (${n} saved shoe${n===1?'':'s'}).`;
+    }else status.textContent='No color selected — color library analysis is paused.';
+  }
+}
+function setCurrentShoeColor(color){
+  if(!['red','black'].includes(color)) return;
+  state.currentShoeColor=color;
+  if(state.h2o) state.h2o.last=null;
+  if(state.deepseek) state.deepseek.last=null;
+  if(state.kaggle) state.kaggle.last=null;
+  if(state.backtest) state.backtest.pending=null;
+  persist();render();
+  if(state.h2o?.url) scoreWithH2O(false);
+  if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
+  if(state.deepseek?.url) scoreWithDeepSeek(false);
+}
+const deepseekScoreBtn=document.getElementById('deepseekScoreBtn');
+if(deepseekScoreBtn) deepseekScoreBtn.onclick=()=>scoreWithDeepSeek(true);
+
+const currentRedBtn=document.getElementById('currentRedShoeBtn');
+const currentBlackBtn=document.getElementById('currentBlackShoeBtn');
+if(currentRedBtn) currentRedBtn.onclick=()=>setCurrentShoeColor('red');
+if(currentBlackBtn) currentBlackBtn.onclick=()=>setCurrentShoeColor('black');
+
+function remainingCompositionScore(){
+  // Use the selected physical red/black shoe when it has entries; otherwise fall back to the optional generic tracker.
+  const decks=8;
+  const initial={};
+  rankNames.forEach(r=>initial[r]=4*decks);
+  const activeKey=state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards';
+  const sourceCards=(Array.isArray(state[activeKey]) && state[activeKey].length) ? state[activeKey] : (state.cards||[]);
+  sourceCards.forEach(r=>{ if(initial[r]>0) initial[r]--; });
+  const remaining=Object.values(initial).reduce((a,b)=>a+b,0);
+  if(!remaining) return 0;
+
+  let low=0, high=0, zero=0;
+  for(const [r,n] of Object.entries(initial)){
+    const v=baccaratValue(r);
+    if(v===0) zero+=n;
+    else if(v<=4) low+=n;
+    else high+=n;
+  }
+  // Heuristic centered around an 8-deck baseline. Small effect only.
+  const lowShare=low/remaining, highShare=high/remaining, zeroShare=zero/remaining;
+  return Math.max(-8,Math.min(8,(lowShare-highShare)*20 + (zeroShare-.3077)*12));
+}
+
+function historyPatternSignal(){
+  const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r);
+  if(seq.length<6) return {side:null, strength:0};
+  const recent=seq.slice(-16);
+  const last=recent.at(-1);
+  let streak=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) streak++;
+  let alt=0;
+  for(let i=Math.max(1,recent.length-7);i<recent.length;i++) if(recent[i]!==recent[i-1]) alt++;
+
+  if(streak>=3) return {side:last,strength:Math.min(78,55+streak*4)};
+  if(alt>=5) return {side:last==='P'?'B':'P',strength:62};
+  const p=recent.filter(x=>x==='P').length,b=recent.length-p;
+  if(p===b) return {side:null,strength:50};
+  return {side:p>b?'P':'B',strength:52+Math.min(10,Math.abs(p-b)*2)};
+}
+
+function derivedRoadNextSignal(offset){
+  const marks=deriveRoad(state.hands,offset);
+  if(marks.length<3) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark:null,bMark:null};
+
+  const recent=marks.slice(-10);
+  const last=recent.at(-1);
+  let run=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) run++;
+  let alternations=0;
+  for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) alternations++;
+  const red=recent.filter(x=>x==='R').length;
+  const blue=recent.length-red;
+
+  // Estimate the next derived-road COLOR from that road's own recent behavior.
+  // This is structural only: red/blue never map directly to Banker/Player.
+  let expected=last;
+  let evidence=0.10;
+  if(run>=3){ expected=last; evidence=Math.min(.34,.16+run*.035); }
+  else if(alternations>=Math.max(4,recent.length-2)){ expected=last==='R'?'B':'R'; evidence=.24; }
+  else if(Math.abs(red-blue)>=3){ expected=red>blue?'R':'B'; evidence=.18; }
+  else { evidence=.10; }
+
+  const pMark=getLastDerivedMark(state.hands.concat([{r:'P',pp:false,bp:false,special:false,ts:Date.now()}]),offset);
+  const bMark=getLastDerivedMark(state.hands.concat([{r:'B',pp:false,bp:false,special:false,ts:Date.now()}]),offset);
+  if(!pMark || !bMark || pMark===bMark) return {side:null,strength:50,pPct:50,bPct:50,expected,pMark,bMark};
+
+  let pScore=.5, bScore=.5;
+  if(pMark===expected) pScore+=evidence; else pScore-=evidence;
+  if(bMark===expected) bScore+=evidence; else bScore-=evidence;
+  const total=Math.max(.01,pScore+bScore);
+  let pPct=Math.round(100*pScore/total);
+  pPct=Math.max(35,Math.min(65,pPct));
+  const bPct=100-pPct;
+  const side=pPct===bPct?null:(pPct>bPct?'P':'B');
+  const strength=Math.max(pPct,bPct);
+  return {side,strength,pPct,bPct,expected,pMark,bMark};
+}
+
+function roadStructureSignal(){
+  const eye=derivedRoadNextSignal(1);
+  const small=derivedRoadNextSignal(2);
+  const roach=derivedRoadNextSignal(3);
+  const signals=[eye,small,roach];
+  const weights=[.40,.33,.27];
+  let edge=0, used=0;
+  signals.forEach((sig,i)=>{
+    if(!sig.side || sig.strength<=50) return;
+    const e=(sig.strength-50)*(sig.side==='P'?1:-1);
+    edge+=e*weights[i]; used+=weights[i];
+  });
+  if(!used) return {side:null,strength:0,eye,small,roach};
+  edge/=used;
+  const side=edge>=0?'P':'B';
+  const strength=Math.round(50+Math.min(15,Math.abs(edge)));
+  return {side,strength,eye,small,roach};
+}
+
+function h2oFeatures(){
+  const all=currentSequence();
+  const nonTie=all.filter(x=>x!=='T');
+  const recent=nonTie.slice(-20);
+  const last=recent.at(-1)||'';
+  let streak=0;
+  if(last){streak=1;for(let i=recent.length-2;i>=0&&recent[i]===last;i--)streak++;}
+  let alternations=0;for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) alternations++;
+  const road=roadStructureSignal(), hist=historyPatternSignal(), lib=librarySignal(), match=findHistoricalMatches();
+  return {
+    sequence:all.join(''),
+    hand_count:all.length,
+    player_count:all.filter(x=>x==='P').length,
+    banker_count:all.filter(x=>x==='B').length,
+    tie_count:all.filter(x=>x==='T').length,
+    recent_player:recent.filter(x=>x==='P').length,
+    recent_banker:recent.filter(x=>x==='B').length,
+    streak_length:streak,
+    streak_side:last,
+    alternations_20:alternations,
+    road_side:road.side||'', road_strength:road.strength||0,
+    history_side:hist.side||'', history_strength:hist.strength||0,
+    library_side:lib.side||'', library_strength:lib.strength||0,
+    library_matches:match.matches||0, library_match_length:match.len||0,
+    saved_shoes:activePatternLibrary().length,
+    current_shoe_color:state.currentShoeColor||'',
+    active_card_shoe:state.activeCardShoe||'red',
+    active_card_used:((state[(state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards')]||[]).length),
+    red_card_shoes_saved:(state.redShoeLibrary||[]).length,
+    black_card_shoes_saved:(state.blackShoeLibrary||[]).length,
+    use_kaggle_library:state.kaggleLibraryEnabled!==false
+  };
+}
+
+function kaggleScoreUrl(){
+  const u=(state.h2o?.url||'').trim();
+  if(!u) return '';
+  if(/\/score\/?(?:\?.*)?$/i.test(u)) return u.replace(/\/score\/?(?:\?.*)?$/i,'/library-score');
+  return u.replace(/\/$/,'')+'/library-score';
+}
+function normalizeKaggleLibrary(data){
+  if(!data || typeof data!=='object') throw new Error('Kaggle library response was empty.');
+  let p=Number(data.p), b=Number(data.b), t=Number(data.t ?? 0);
+  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('Kaggle response did not include P/B probabilities.');
+  if(p<=1.0001 && b<=1.0001 && t<=1.0001){p*=100;b*=100;t*=100;}
+  const total=p+b+t||1; p=p/total*100;b=b/total*100;t=t/total*100;
+  const pr=Math.round(p), br=Math.round(b), tr=Math.max(0,100-pr-br);
+  const side=pr===br?null:(pr>br?'P':'B');
+  const strength=Math.max(pr,br);
+  return {
+    p:pr,b:br,t:tr,side,strength,
+    matches:Number(data.matches||0),
+    matchedShoes:Number(data.matched_shoes||0),
+    scannedShoes:Number(data.scanned_shoes||0),
+    suffixLength:Number(data.suffix_length||0),
+    suffix:String(data.suffix||''),
+    confidence:Number(data.confidence||0),
+    similarityScore:Number(data.similarity_score||0),
+    windowAgreement:Number(data.window_agreement||0),
+    usableWindows:Number(data.usable_windows||0),
+    multiP:Number(data.multi_p ?? data.p ?? 0),
+    multiB:Number(data.multi_b ?? data.b ?? 0),
+    multiT:Number(data.multi_t ?? data.t ?? 0),
+    multiLeader:String(data.multi_leader||''),
+    multiWindow:Array.isArray(data.multi_window)?data.multi_window:[],
+    elapsedMs:Number(data.elapsed_ms||0),
+    sequence:currentSequence().join(''),
+    at:new Date().toISOString()
+  };
+}
+async function scoreWithKaggle(showAlert=false){
+  if(state.kaggleLibraryEnabled===false){
+    if(state.kaggle) state.kaggle.last=null;
+    persist(); renderAnalyzer(); return null;
+  }
+  const seq=currentSequence().join('');
+  if(seq.length<4) return null;
+  const url=kaggleScoreUrl();
+  if(!url){if(showAlert)alert('Enter your deployed scoring URL first.');return null;}
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
+    const data=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq}})});
+    const out=normalizeKaggleLibrary(data);
+    state.kaggle.last=out; state.kaggle.error=''; persist(); renderAnalyzer();
+    return out;
+  }catch(err){
+    state.kaggle.error=String(err.message||err); state.kaggle.last=null; persist(); renderAnalyzer();
+    if(showAlert) alert('Kaggle library scan failed: '+state.kaggle.error);
+    return null;
+  }
+}
+function currentKaggleSignal(){
+  const x=state.kaggle?.last;
+  if(state.kaggleLibraryEnabled===false || !x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null,matches:0,suffixLength:0,scannedShoes:0};
+  return x;
+}
+
+function normalizeH2OResponse(data){
+  let p=Number(data?.p ?? data?.player ?? data?.prob_player ?? data?.probabilities?.player);
+  let b=Number(data?.b ?? data?.banker ?? data?.prob_banker ?? data?.probabilities?.banker);
+  let t=Number(data?.t ?? data?.tie ?? data?.prob_tie ?? data?.probabilities?.tie ?? 0);
+  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('Response must include Player and Banker probabilities.');
+  if(p<=1.0001 && b<=1.0001 && t<=1.0001){p*=100;b*=100;t*=100;}
+  p=Math.max(0,p);b=Math.max(0,b);t=Math.max(0,t);
+  const total=p+b+t;if(total<=0) throw new Error('Probabilities total zero.');
+  p=p/total*100;b=b/total*100;t=t/total*100;
+  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
+  const side=pr>=br?'P':'B';
+  return {p:pr,b:br,t:tr,side,strength:Math.max(pr,br),at:new Date().toISOString(),sequence:currentSequence().join('')};
+}
+async function h2oRequestJson(url, options){
+  const res=await fetch(url,options);
+  let data=null;
+  try{ data=await res.json(); }catch(e){ data=null; }
+  if(!res.ok){
+    const detail=data?.detail || data?.message || ('HTTP '+res.status);
+    const err=new Error(detail);
+    err.status=res.status;
+    throw err;
+  }
+  return data;
+}
+function h2oTrainUrl(){
+  const u=(state.h2o?.url||'').trim();
+  if(!u) return '';
+  return /\/score\/?(?:\?.*)?$/i.test(u) ? u.replace(/\/score\/?(?:\?.*)?$/i,'/train') : u.replace(/\/$/,'')+'/train';
+}
+async function trainH2O(showAlert=true){
+  if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
+  const shoes=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  if(shoes.length<5){
+    const msg=`H2O training for the ${activeColorName()||'selected'} color needs at least 5 saved shoes. You currently have ${shoes.length}. Save or import ${5-shoes.length} more complete shoe${5-shoes.length===1?'':'s'}, then tap Train / Retrain H2O again.`;
+    state.h2o.connected=false; state.h2o.error=msg; persist(); renderH2O(); if(showAlert)alert(msg); return null;
+  }
+  const st=document.getElementById('h2oStatus');
+  if(st){st.textContent='🟡 AI TRAINING…';st.className='h2o-status';}
+  const headers={'Content-Type':'application/json'};
+  if(state.h2o.key) headers['Authorization']='Bearer '+state.h2o.key;
+  try{
+    const out=await h2oRequestJson(h2oTrainUrl(),{method:'POST',headers,body:JSON.stringify({shoes})});
+    state.h2o.connected=true; state.h2o.error=''; persist(); renderH2O();
+    if(showAlert) alert('H2O training finished. The model is ready. I will score the current shoe now.');
+    await scoreWithH2O(false);
+    return out;
+  }catch(err){
+    const msg=String(err.message||err);
+    state.h2o.connected=false; state.h2o.error='Training failed: '+msg; persist(); renderH2O();
+    if(showAlert) alert('H2O training failed: '+msg);
+    return null;
+  }
+}
+async function scoreWithH2O(showAlert=false){
+  if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
+  const st=document.getElementById('h2oStatus');
+  if(st){st.textContent='🟡 AI CONNECTING…';st.className='h2o-status';}
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(state.h2o.key) headers['Authorization']='Bearer '+state.h2o.key;
+    const data=await h2oRequestJson(state.h2o.url,{method:'POST',headers,body:JSON.stringify({features:h2oFeatures()})});
+    const out=normalizeH2OResponse(data);
+    state.h2o.last=out;state.h2o.connected=true;state.h2o.error='';persist();renderAnalyzer();renderH2O();
+    return out;
+  }catch(err){
+    let msg=String(err.message||err);
+    if(err.status===409 && /no trained model/i.test(msg)) msg='No trained H2O model yet. Tap “Train / Retrain H2O from Saved Shoes” first.';
+    state.h2o.connected=false;state.h2o.error=msg;persist();renderH2O();
+    if(showAlert) alert('H2O connection failed: '+msg+'\n\nIf this file is opened directly on iPhone/iPad, the H2O server must allow HTTPS and CORS requests from the browser.');
+    return null;
+  }
+}
+function currentH2OSignal(){
+  const x=state.h2o?.last;
+  if(!x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null};
+  return {side:x.side,strength:x.strength,p:x.p,b:x.b,t:x.t};
+}
+function renderH2O(){
+  const h=state.h2o||{}; const x=currentH2OSignal();
+  const url=document.getElementById('h2oUrl'),key=document.getElementById('h2oKey');
+  if(url && document.activeElement!==url) url.value=h.url||'';
+  if(key && document.activeElement!==key) key.value=h.key||'';
+  const st=document.getElementById('h2oStatus');
+  if(st){
+    if(h.error){st.textContent='🔴 AI OFFLINE';st.className='h2o-status err';}
+    else if(h.connected){st.textContent='🟢 AI CONNECTED';st.className='h2o-status on';}
+    else {st.textContent='🔴 AI OFFLINE';st.className='h2o-status err';}
+  }
+  document.getElementById('h2oP').textContent=x.p==null?'—':x.p+'%';
+  document.getElementById('h2oB').textContent=x.b==null?'—':x.b+'%';
+  document.getElementById('h2oT').textContent=x.t==null?'—':x.t+'%';
+  const note=document.getElementById('h2oNote');
+  if(note && h.error) note.textContent='Last error: '+h.error;
+  else if(note && x.side) note.textContent=`Live H2O score for this shoe: ${x.side==='P'?'Player':'Banker'} ${x.strength}%. The combined analyzer blends this with your local library and road signals.`;
+}
+
+
+function normalizeDeepSeekResponse(data){
+  let p=Number(data?.p), b=Number(data?.b), t=Number(data?.t ?? 0);
+  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('DeepSeek response did not include P/B scores.');
+  if(p<=1.0001&&b<=1.0001&&t<=1.0001){p*=100;b*=100;t*=100;}
+  p=Math.max(0,p);b=Math.max(0,b);t=Math.max(0,t); const sum=p+b+t||1;
+  p=p/sum*100;b=b/sum*100;t=t/sum*100;
+  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
+  const side=pr>=br?'P':'B';
+  const rawConfidence=Number(data?.confidence);
+  const conf=Number.isFinite(rawConfidence)?Math.max(0,Math.min(100,Math.round(rawConfidence))):50;
+  // Restrain LLM influence: confidence is not treated as a calibrated probability.
+  const strength=Math.round(50+Math.min(20,Math.abs(pr-br)/2)*Math.min(1,conf/70));
+  return {p:pr,b:br,t:tr,side,strength,confidence:conf,pattern:String(data?.pattern||''),rationale:String(data?.rationale||''),model:String(data?.model||''),sequence:currentSequence().join(''),at:new Date().toISOString()};
+}
+async function scoreWithDeepSeek(showAlert=false){
+  if(!state.deepseek?.url){if(showAlert)alert('DeepSeek endpoint is not available. Host this HTML with the upgraded Python server.');return null;}
+  const st=document.getElementById('deepseekStatus');
+  if(st){st.textContent='🟡 DEEPSEEK ANALYZING…';st.className='h2o-status';}
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
+    const payload={features:h2oFeatures(),shoes:activePatternLibrary().slice(-120)};
+    const data=await h2oRequestJson(state.deepseek.url,{method:'POST',headers,body:JSON.stringify(payload)});
+    const out=normalizeDeepSeekResponse(data);
+    state.deepseek.last=out;state.deepseek.connected=true;state.deepseek.error='';persist();renderAnalyzer();renderDeepSeek();
+    return out;
+  }catch(err){
+    const msg=String(err.message||err);
+    state.deepseek.connected=false;state.deepseek.error=msg;persist();renderDeepSeek();
+    if(showAlert) alert('DeepSeek analysis failed: '+msg+'\n\nMake sure DEEPSEEK_API_KEY is set in Render.');
+    return null;
+  }
+}
+function currentDeepSeekSignal(){
+  const x=state.deepseek?.last;
+  if(!x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null,confidence:0};
+  return x;
+}
+function renderDeepSeek(){
+  const d=state.deepseek||{}, x=currentDeepSeekSignal();
+  const st=document.getElementById('deepseekStatus');
+  if(st){
+    if(d.error){st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
+    else if(d.connected){st.textContent='🟢 DEEPSEEK CONNECTED';st.className='h2o-status on';}
+    else {st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
+  }
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('deepseekP',x.p==null?'—':x.p+'%');set('deepseekB',x.b==null?'—':x.b+'%');set('deepseekT',x.t==null?'—':x.t+'%');
+  set('deepseekPattern',x.pattern||'—');set('deepseekConfidence',x.side?x.confidence+'%':'—');set('deepseekModel',x.model||'—');
+  const note=document.getElementById('deepseekNote');
+  if(note){
+    if(d.error) note.textContent='Last error: '+d.error;
+    else if(x.side) note.textContent=(x.rationale||'DeepSeek analysis ready.')+' This is an analysis signal, not a guaranteed probability.';
+  }
+}
+
+
+
+function analyzeRoadRegime(marks){
+  // Interpret CURRENT derived-road behavior only. Red/blue are structural marks,
+  // never Player/Banker labels.
+  const recent=marks.slice(-12);
+  if(recent.length<4) return {type:'INSUFFICIENT',preferred:null,clarity:0,sample:recent.length};
+  const last=recent[recent.length-1];
+  let run=1;
+  for(let i=recent.length-2;i>=0 && recent[i]===last;i--) run++;
+  let alts=0;
+  for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) alts++;
+  const altRate=recent.length>1 ? alts/(recent.length-1) : 0;
+  const redRate=recent.filter(x=>x==='R').length/recent.length;
+
+  if(run>=3){
+    return {type:'RUN',preferred:last,clarity:Math.min(1,.58+(run-3)*.10),sample:recent.length,run,altRate,redRate};
+  }
+  if(recent.length>=6 && altRate>=.72){
+    return {type:'CHOP',preferred:last==='R'?'B':'R',clarity:Math.min(1,.58+(altRate-.72)*1.15),sample:recent.length,run,altRate,redRate};
+  }
+  if(run===2 && recent.length>=6){
+    return {type:'LEAN-RUN',preferred:last,clarity:.38,sample:recent.length,run,altRate,redRate};
+  }
+  return {type:'MIXED',preferred:null,clarity:.18,sample:recent.length,run,altRate,redRate};
+}
+
+function roadPreviewAISignal(){
+  // PROBE ENGINE V2 — HARD ISOLATED.
+  // INPUT: current-shoe P/B/T hands ONLY.
+  // EXCLUDED: saved libraries, Kaggle, H2O, DeepSeek, Sequence AI,
+  // card composition, color libraries, and Best-Estimate outputs.
+  //
+  // For each hypothetical P and B, use casino-style probing to calculate the
+  // NEW Big Eye / Small / Cockroach mark that would be created. Then compare
+  // each candidate with the road's current structural regime. This is a
+  // road-fit heuristic, NOT a claim that derived roads determine the next hand.
+  const currentHands=state.hands.map(h=>({r:h.r,pp:false,bp:false,special:false,ts:0}));
+  const nonTie=currentHands.filter(h=>h.r!=='T');
+  const configs=[
+    {offset:1,weight:1.00,name:'Big Eye Boy'},
+    {offset:2,weight:.90,name:'Small Road'},
+    {offset:3,weight:.80,name:'Cockroach Road'}
+  ];
+
+  if(nonTie.length<8){
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,quality:0,pattern:'INSUFFICIENT',
+      waitReason:`WAIT: need more current-shoe structure (${nonTie.length}/8 non-tie hands).`};
+  }
+
+  let pFit=0,bFit=0,fitWeight=0,activeRoads=0,discriminating=0;
+  const votes=[], regimes=[];
+  for(const cfg of configs){
+    const marks=deriveRoad(currentHands,cfg.offset);
+    const regime=analyzeRoadRegime(marks);
+    const pMark=previewDerivedMark(currentHands,'P',cfg.offset);
+    const bMark=previewDerivedMark(currentHands,'B',cfg.offset);
+    if(marks.length>=4) activeRoads++;
+    regimes.push({name:cfg.name,marks:marks.length,regime,pMark,bMark});
+
+    // A road cannot vote until BOTH candidates create a genuine new mark and
+    // the road has a defined current behavior. This prevents stale-mark reuse.
+    if(!pMark || !bMark || pMark===bMark || !regime.preferred) continue;
+    discriminating++;
+    const sampleFactor=Math.min(1,marks.length/10);
+    const w=cfg.weight*(.45+.55*sampleFactor)*regime.clarity;
+    if(w<=0) continue;
+    const ps=pMark===regime.preferred ? 1 : -1;
+    const bs=bMark===regime.preferred ? 1 : -1;
+    pFit += w*ps;
+    bFit += w*bs;
+    fitWeight += w;
+    votes.push({name:cfg.name,side:ps>bs?'P':'B',regime:regime.type,pMark,bMark,weight:w});
+  }
+
+  const usable=votes.length;
+  if(!usable || fitWeight<=0){
+    const quality=Math.round(Math.min(45,activeRoads*10+discriminating*5));
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:usable,edge:0,quality,pattern:'MIXED',regimes,
+      waitReason:'WAIT: the current derived roads do not produce a qualified P/B probe difference.'};
+  }
+
+  const raw=Math.max(-1,Math.min(1,(pFit-bFit)/(2*fitWeight)));
+  // These are ROAD-FIT scores centered at 50, not true baccarat probabilities.
+  const pPct=Math.round(50+raw*20);
+  const bPct=100-pPct;
+  const candidate=pPct>bPct?'P':'B';
+  const agree=votes.filter(v=>v.side===candidate).length;
+  const agreement=agree/usable;
+  const edge=Math.abs(pPct-bPct);
+
+  const clearRegimes=regimes.filter(x=>x.regime.preferred).length;
+  const dataDepth=Math.min(1,nonTie.length/24);
+  const roadCoverage=activeRoads/3;
+  const discrimination=discriminating/3;
+  const meanClarity=clearRegimes ? regimes.filter(x=>x.regime.preferred).reduce((a,x)=>a+x.regime.clarity,0)/clearRegimes : 0;
+  const quality=Math.round(100*(.22*dataDepth+.22*roadCoverage+.24*discrimination+.18*meanClarity+.14*agreement));
+
+  const types=regimes.filter(x=>x.regime.type!=='INSUFFICIENT').map(x=>x.regime.type);
+  const counts=types.reduce((a,t)=>(a[t]=(a[t]||0)+1,a),{});
+  const pattern=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || 'MIXED';
+
+  // WAIT is intentional: no forced bet when coverage, quality, agreement, or
+  // edge is weak. With two usable roads, both must agree; with three, 2/3 is OK.
+  const minAgree=usable===2 ? 1 : .67;
+  if(usable<2 || agreement<minAgree || edge<12 || quality<55){
+    return {side:null,strength:0,pPct,bPct,agree,total:usable,edge,quality,pattern,regimes,
+      waitReason:`WAIT: Road Quality ${quality}/100 • ${agree}/${usable} agreement • ${edge}-point road-fit edge.`};
+  }
+
+  const strength=Math.min(82,Math.round(42+quality*.28+edge*.45));
+  return {side:candidate,strength,pPct,bPct,agree,total:usable,edge,quality,pattern,regimes,waitReason:''};
+}
+function renderRoadPreviewAI(){
+  const r=roadPreviewAISignal();
+  document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT';
+  document.getElementById('roadAiStrength').textContent=r.side?r.strength+'%':'WAIT';
+  document.getElementById('roadAiAgree').textContent=r.total?`${r.agree}/${r.total}`:'0/3';
+  document.getElementById('roadAiP').textContent=r.pPct+'%';
+  document.getElementById('roadAiB').textContent=r.bPct+'%';
+  document.getElementById('roadAiEdge').textContent=r.edge+' pts';
+  const note=document.getElementById('roadAiNote');
+  if(r.side){
+    note.textContent=`${r.pattern} • Road Quality ${r.quality}/100 • ${r.agree}/${r.total} qualified probes favor ${r.side==='P'?'Player':'Banker'}. Road-fit only; current shoe only; saved libraries are excluded.`;
+  }else{
+    note.textContent=(r.waitReason||'WAIT: not enough qualified current-shoe road evidence.')+` Pattern: ${r.pattern}.`;
+  }
+}
+
+function sequenceAISignal(){
+  const cur=currentSequence();
+  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string');
+  const kag=currentKaggleSignal();
+  if(cur.length<4 || (!lib.length && !kag.side)) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus historical library evidence.'};
+
+  // LOCAL SAVED-SHOE MULTI-WINDOW SCAN
+  let wp=0,wb=0,wt=0,weightTotal=0,rawMatches=0,bestLen=0;
+  let localWindows=[];
+  for(let k=Math.min(20,cur.length);k>=3;k--){
+    const pattern=cur.slice(-k).join('');
+    let p=0,b=0,t=0,total=0,matchedShoes=0;
+    lib.forEach(shoe=>{
+      const ss=shoe.sequence||''; let shoeHit=false;
+      for(let i=0;i+k<ss.length;i++){
+        if(ss.slice(i,i+k)===pattern){
+          const nxt=ss[i+k];
+          if(nxt==='P')p++; else if(nxt==='B')b++; else if(nxt==='T')t++;
+          total++; shoeHit=true;
+        }
+      }
+      if(shoeHit) matchedShoes++;
+    });
+    if(!total) continue;
+    if(!bestLen) bestLen=k;
+    rawMatches+=total;
+    const reliability=Math.min(1,total/12);
+    const lengthWeight=Math.pow(k/3,1.45);
+    const w=lengthWeight*(0.30+0.70*reliability);
+    wp+=(p/total)*w; wb+=(b/total)*w; wt+=(t/total)*w; weightTotal+=w;
+    const leader=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
+    localWindows.push({length:k,matches:total,matchedShoes,p,b,t,leader,weight:w});
+  }
+
+  let sources=[];
+  if(weightTotal){
+    const lp=wp/weightTotal, lb=wb/weightTotal, lt=wt/weightTotal;
+    const leader=lp>=lb&&lp>=lt?'P':lb>=lp&&lb>=lt?'B':'T';
+    const agree=localWindows.filter(x=>x.leader===leader).length;
+    const agreement=agree/Math.max(1,localWindows.length);
+    const avgSample=localWindows.reduce((a,x)=>a+Math.min(1,x.matches/12),0)/Math.max(1,localWindows.length);
+    const lengthQuality=Math.min(1,(bestLen||0)/12);
+    const sim=Math.round(100*(.42*agreement+.33*avgSample+.25*lengthQuality));
+    sources.push({name:'saved',p:lp,b:lb,t:lt,similarity:sim,agreement,windows:localWindows.length,agree,matches:rawMatches,weight:Math.max(.15,sim/100)});
+  }
+
+  // KAGGLE 200K MULTI-WINDOW SCAN (returned by the server in one streaming pass).
+  if(state.kaggleLibraryEnabled!==false && kag && kag.sequence===cur.join('') && kag.usableWindows){
+    let kp=Number(kag.multiP),kb=Number(kag.multiB),kt=Number(kag.multiT);
+    if(kp<=1.0001&&kb<=1.0001&&kt<=1.0001){/* already fractions */}else{const z=kp+kb+kt||1;kp/=z;kb/=z;kt/=z;}
+    const kagLeader=kp>=kb&&kp>=kt?'P':kb>=kp&&kb>=kt?'B':'T';
+    const agree=Math.round((kag.windowAgreement||0)*kag.usableWindows);
+    sources.push({name:'kaggle',p:kp,b:kb,t:kt,similarity:Math.round(kag.similarityScore||0),agreement:kag.windowAgreement||0,windows:kag.usableWindows||0,agree,matches:kag.matches||0,weight:Math.max(.20,(kag.similarityScore||0)/100),leader:kagLeader});
+  }
+
+  if(!sources.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable historical sequences yet.'};
+
+  // Similarity itself controls how much a source can influence Sequence AI.
+  // Very strong persistent matches get heavy weight; weak matches stay muted.
+  let ap=0,ab=0,at=0,aw=0,totalWindows=0,agreeWindows=0,totalMatches=0;
+  sources.forEach(x=>{
+    const simGate=x.similarity>=80?1.50:x.similarity>=65?1.10:x.similarity>=50?.70:.30;
+    const w=x.weight*simGate;
+    ap+=x.p*w;ab+=x.b*w;at+=x.t*w;aw+=w;
+    totalWindows+=x.windows;agreeWindows+=x.agree;totalMatches+=x.matches;
+  });
+  let p=ap/aw,b=ab/aw,t=at/aw; const z=p+b+t||1;p=p/z*100;b=b/z*100;t=t/z*100;
+  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
+  const nonTieTotal=pr+br||1;
+  const nonTieEdge=Math.abs(pr-br)/nonTieTotal*100;
+  const similarityScore=Math.round(sources.reduce((a,x)=>a+x.similarity*x.weight,0)/Math.max(.001,sources.reduce((a,x)=>a+x.weight,0)));
+  const agreement=agreeWindows/Math.max(1,totalWindows);
+  const grade=similarityScore>=82&&agreement>=.70?'VERY STRONG':similarityScore>=68&&agreement>=.60?'STRONG':similarityScore>=52?'MODERATE':'LOW';
+
+  const candidate=pr>=br?'P':'B';
+  // WAIT protects against forcing a bet from weak resemblance or conflicting windows.
+  if(similarityScore<52 || agreement<.55 || nonTieEdge<5){
+    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:totalMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:`WAIT: ${similarityScore}% shoe similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge.`};
+  }
+
+  const sampleFactor=Math.min(1,totalMatches/30);
+  const strength=Math.min(88,Math.round(50 + nonTieEdge*.22 + Math.max(0,similarityScore-50)*.42 + sampleFactor*5));
+  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:totalMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources};
+}
+
+function renderSequenceAI(){
+  const s=sequenceAISignal();
+  const name=s.side==='P'?'Player':s.side==='B'?'Banker':'WAIT';
+  document.getElementById('seqAiSide').textContent=name;
+  document.getElementById('seqAiStrength').textContent=s.side ? s.strength+'%' : 'WAIT';
+  document.getElementById('seqAiMatches').textContent=s.matches||0;
+  document.getElementById('seqAiP').textContent=(s.pPct||0)+'%';
+  document.getElementById('seqAiB').textContent=(s.bPct||0)+'%';
+  document.getElementById('seqAiT').textContent=(s.tPct||0)+'%';
+  const sim=document.getElementById('seqAiSimilarity'); if(sim) sim.textContent=(s.similarityScore||0)+'%';
+  const grade=document.getElementById('seqAiGrade'); if(grade) grade.textContent=s.grade||'LOW';
+  const wins=document.getElementById('seqAiWindows'); if(wins) wins.textContent=`${s.agreeWindows||0}/${s.totalWindows||0}`;
+  document.getElementById('seqAiNote').textContent=s.side
+    ? `${s.grade} historical resemblance: ${s.similarityScore}% similarity. ${s.agreeWindows}/${s.totalWindows} rolling windows agree on ${name}. Strong persistent similarity now increases Sequence AI influence; Road Preview AI remains library-free.`
+    : (s.waitReason||'WAIT: historical resemblance is not strong or consistent enough yet.');
+}
+
+function combineEvidenceFamily(name, members){
+  const live=members.filter(x=>x.sig?.side && x.sig.side!=='T' && Number(x.sig.strength)>50 && Number(x.weight)>0);
+  if(!live.length) return {name,side:null,strength:0,members:0,agreement:0};
+  let edge=0,wSum=0;
+  live.forEach(x=>{
+    const mag=Math.max(0,Math.min(38,Number(x.sig.strength)-50));
+    edge+=(x.sig.side==='P'?1:-1)*mag*x.weight;
+    wSum+=x.weight;
+  });
+  edge=wSum?edge/wSum:0;
+  const side=edge>=0?'P':'B';
+  const agree=live.filter(x=>x.sig.side===side).length;
+  const agreement=agree/live.length;
+  // Family confidence is deliberately restrained when members conflict.
+  const strength=Math.round(Math.min(82,50+Math.abs(edge)*(0.62+0.38*agreement)));
+  return {name,side,strength,members:live.length,agree,agreement};
+}
+
+function independentEvidenceFamilies(){
+  const seq=sequenceAISignal(), h2o=currentH2OSignal(), deepseek=currentDeepSeekSignal();
+  const lib=(state.kaggleLibraryEnabled!==false && currentKaggleSignal()?.side)?currentKaggleSignal():librarySignal();
+  const roadAI=roadPreviewAISignal(), road=roadStructureSignal(), hist=historyPatternSignal();
+  const historical=combineEvidenceFamily('Historical Intelligence',[
+    {sig:seq,weight:seq.similarityScore>=82?.42:seq.similarityScore>=68?.34:.24},
+    {sig:h2o,weight:.24},{sig:lib,weight:.22},{sig:hist,weight:.12}
+  ]);
+  const roads=combineEvidenceFamily('Road Intelligence',[
+    {sig:roadAI,weight:.72},{sig:road,weight:.28}
+  ]);
+  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
+  return [historical,roads,external].filter(x=>x.side && x.strength>50);
+}
+
+function consensusSignal(){
+  const families=independentEvidenceFamilies();
+  if(!families.length) return {side:null,strength:0,agree:0,total:0,names:[],families:[],contradiction:false};
+  let edge=0,wSum=0;
+  families.forEach(f=>{
+    // Higher-quality families matter more, but no one family can monopolize consensus.
+    const w=Math.min(1.25,.65+(f.strength-50)/30);
+    edge+=(f.side==='P'?1:-1)*(f.strength-50)*w;
+    wSum+=w;
+  });
+  edge=wSum?edge/wSum:0;
+  const side=edge>=0?'P':'B';
+  const agree=families.filter(x=>x.side===side).length;
+  const agreement=agree/families.length;
+  const strongOpposition=families.filter(x=>x.side!==side && x.strength>=64);
+  const strongSupport=families.filter(x=>x.side===side && x.strength>=64);
+  const contradiction=strongOpposition.length>0 && strongSupport.length>0;
+  const strength=Math.round(Math.min(78,50+Math.abs(edge)*(0.58+0.42*agreement)));
+  return {side,strength,agree,total:families.length,names:families.filter(x=>x.side===side).map(x=>x.name),families,contradiction,agreement};
+}
+
+function renderConsensus(){
+  const c=consensusSignal();
+  document.getElementById('consensusSide').textContent=c.side==='P'?'Player':c.side==='B'?'Banker':'—';
+  document.getElementById('consensusStrength').textContent=c.side?c.strength+'%':'—';
+  document.getElementById('consensusAgree').textContent=c.total?`${c.agree}/${c.total}`:'0/0';
+  document.getElementById('consensusNote').textContent=c.side
+    ? `${c.agree} of ${c.total} active analyzers agree on ${c.side==='P'?'Player':'Banker'}${c.names.length?': '+c.names.join(', '):''}.`
+    : 'Waiting for enough independent signals.';
+}
+
+function computeCombinedAnalyzer(){
+  const hist=historyPatternSignal();
+  const road=roadStructureSignal();
+  const localLib=librarySignal();
+  const localMatchInfo=findHistoricalMatches();
+  const kaggle=currentKaggleSignal();
+  const lib=(state.kaggleLibraryEnabled!==false && kaggle.side) ? kaggle : localLib;
+  const matchInfo=(state.kaggleLibraryEnabled!==false && kaggle.matches) ? {matches:kaggle.matches,len:kaggle.suffixLength,source:'kaggle'} : localMatchInfo;
+  const comp=remainingCompositionScore();
+  const h2o=currentH2OSignal();
+  const deepseek=currentDeepSeekSignal();
+  const seqAI=sequenceAISignal();
+  const roadAI=roadPreviewAISignal();
+  const savedShoes=activePatternLibrary().length;
+
+  // TOP-TIER V1: combine correlated analyzers into evidence families first.
+  // This prevents Sequence AI + Library + H2O from triple-counting similar historical evidence.
+  const historical=combineEvidenceFamily('Historical Intelligence',[
+    {sig:seqAI,weight:seqAI.similarityScore>=82?.46:seqAI.similarityScore>=68?.38:.27},
+    {sig:h2o,weight:.23},{sig:lib,weight:.20},{sig:hist,weight:.11}
+  ]);
+  const roadFamily=combineEvidenceFamily('Road Intelligence',[
+    {sig:roadAI,weight:.74},{sig:road,weight:.26}
+  ]);
+  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
+
+  const histQuality=historical.side ? Math.min(.52,.28+Math.max(0,historical.strength-50)/90) : 0;
+  const roadQuality=roadFamily.side ? Math.min(.34,.18+Math.max(0,roadFamily.strength-50)/95) : 0;
+  const externalQuality=external.side ? Math.min(.18,.08+Math.max(0,external.strength-50)/120) : 0;
+  const compQuality=Math.min(.10,Math.abs(comp)/120);
+  let qsum=histQuality+roadQuality+externalQuality+compQuality;
+  if(qsum>1){const sc=1/qsum; qsum=1;}
+
+  function signedFamily(f){
+    if(!f?.side || !f.strength) return 0;
+    return (f.side==='P'?1:-1)*Math.max(0,f.strength-50);
+  }
+  let pEdge=signedFamily(historical)*histQuality + signedFamily(roadFamily)*roadQuality + signedFamily(external)*externalQuality + comp*compQuality;
+  pEdge=Math.max(-16,Math.min(16,pEdge));
+  let pPct=Math.round(50+pEdge), bPct=100-pPct;
+  const side=pPct>=bPct?'P':'B', top=Math.max(pPct,bPct);
+
+  const families=[historical,roadFamily,external].filter(x=>x.side && x.strength>50);
+  const familyAgree=families.filter(x=>x.side===side).length;
+  const strongFor=families.filter(x=>x.side===side && x.strength>=64).length;
+  const strongAgainst=families.filter(x=>x.side!==side && x.strength>=64).length;
+  const contradiction=strongFor>0 && strongAgainst>0;
+  const nonTieCount=state.hands.filter(h=>h.r!=='T').length;
+  const independentAgreement=families.length?familyAgree/families.length:0;
+  const coverage=Math.min(100,Math.round((Math.min(1,nonTieCount/16)*.30 + Math.min(1,(seqAI.matches||0)/50)*.30 + Math.min(1,families.length/3)*.40)*100));
+
+  let quality='LOW';
+  if(coverage>=78 && independentAgreement>=.67 && !contradiction) quality='HIGH';
+  else if(coverage>=55 && independentAgreement>=.50) quality='MEDIUM';
+
+  // Qualified signal must survive all gates. WAIT is a feature, not an error.
+  const qualified=nonTieCount>=10 && families.length>=2 && independentAgreement>=.67 && top>=55 && !contradiction && (seqAI.similarityScore>=52 || roadAI.side);
+  let gateReason='';
+  if(nonTieCount<10) gateReason=`Need more current-shoe data (${nonTieCount}/10 non-tie hands).`;
+  else if(families.length<2) gateReason='Need at least 2 independent evidence families.';
+  else if(contradiction) gateReason='Strong independent signals contradict each other.';
+  else if(independentAgreement<.67) gateReason='Independent evidence does not agree strongly enough.';
+  else if(top<55) gateReason='Combined edge is too small.';
+  else if(!(seqAI.similarityScore>=52 || roadAI.side)) gateReason='Neither Sequence AI similarity nor Road Preview has qualified evidence.';
+
+  return {
+    side,top,pPct,bPct,hist,road,roadAI,lib,h2o,deepseek,seqAI,comp,quality,qualified,gateReason,
+    coverage,independentAgreement,familyAgree,familyTotal:families.length,contradiction,families,
+    historicalFamily:historical,roadFamily,externalFamily:external,
+    libraryWeight:Math.round(histQuality*100),h2oWeight:0,deepseekWeight:Math.round(externalQuality*100),seqWeight:Math.round(histQuality*100),
+    matches:matchInfo.matches,matchLength:matchInfo.len,librarySource:matchInfo.source||'local',kaggle,savedShoes
+  };
+}
+
+function renderDecisionGate(){
+  const a=computeCombinedAnalyzer();
+  const d=document.getElementById('gateDecision'), ag=document.getElementById('gateAgree'), q=document.getElementById('gateQuality'), n=document.getElementById('gateNote');
+  if(d) d.textContent=a.qualified?(a.side==='P'?'PLAYER':'BANKER'):'WAIT';
+  if(ag) ag.textContent=`${a.familyAgree}/${a.familyTotal}`;
+  if(q) q.textContent=a.quality;
+  if(n) n.textContent=a.qualified
+    ? `QUALIFIED: ${a.familyAgree}/${a.familyTotal} independent families agree • evidence coverage ${a.coverage}% • combined score ${a.top}%. Related historical signals are de-duplicated before this decision.`
+    : `WAIT: ${a.gateReason||'Evidence gate not satisfied.'} Coverage ${a.coverage}% • independent agreement ${Math.round(a.independentAgreement*100)}%.`;
+}
+
+function setSignalBar(id,val){
+  const e=document.getElementById(id);
+  if(e)e.style.width=Math.max(0,Math.min(100,val))+'%';
+}
+
+function renderDerivedRoadPredictions(road){
+  const defs=[['eye','eyeNext','eyeNextPct'],['small','smallNext','smallNextPct'],['roach','roachNext','roachNextPct']];
+  defs.forEach(([key,sideId,pctId])=>{
+    const sig=road?.[key]||{side:null,pPct:50,bPct:50};
+    const sideEl=document.getElementById(sideId), pctEl=document.getElementById(pctId);
+    if(sideEl) sideEl.textContent=sig.side==='P'?'Player':sig.side==='B'?'Banker':'Even';
+    if(pctEl) pctEl.textContent=`P ${sig.pPct??50}% • B ${sig.bPct??50}%`;
+  });
+}
+
+
+
+// --- MASTER BOT AI V1: color-aware, road-aware, phase-aware continuous learning ---
+function ensureBotState(){
+  if(!state.bot || typeof state.bot!=='object') state.bot={learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}};
+  // Master Bot is intentionally always live and always learning.
+  state.bot.learning=true;
+  if(!Array.isArray(state.bot.rows)) state.bot.rows=[];
+  if(!state.bot.phaseStats || typeof state.bot.phaseStats!=='object') state.bot.phaseStats={};
+  return state.bot;
+}
+function botPhaseInfo(handCount=currentSequence().length){
+  if(handCount>=55) return {key:'55+',label:'55+ LATE',minConf:62,minSamples:10};
+  if(handCount>=40) return {key:'40-54',label:'40+ CAUTION',minConf:60,minSamples:8};
+  if(handCount>=16) return {key:'16-39',label:'MID',minConf:58,minSamples:6};
+  return {key:'1-15',label:'EARLY',minConf:60,minSamples:5};
+}
+function nonTieCharAt(s,i){
+  const x=s[i]; return x==='P'||x==='B'?x:null;
+}
+function phaseHistoricalSignal(){
+  const cur=currentSequence().join('');
+  const pos=cur.length;
+  const lib=activePatternLibrary();
+  if(!state.currentShoeColor || cur.length<4 || !lib.length) return {side:null,strength:0,samples:0,p:0,b:0};
+  let p=0,b=0,samples=0,weighted=0;
+  const maxK=Math.min(8,cur.length);
+  for(const shoe of lib){
+    const hist=shoe.sequence||'';
+    if(hist.length<=pos) continue;
+    // Compare around the SAME part of the shoe, not an arbitrary location.
+    for(let delta=-3;delta<=3;delta++){
+      const idx=pos+delta;
+      if(idx<4 || idx>=hist.length) continue;
+      let bestK=0;
+      for(let k=maxK;k>=4;k--){
+        if(idx-k>=0 && hist.slice(idx-k,idx)===cur.slice(-k)){bestK=k;break;}
+      }
+      if(!bestK) continue;
+      const nxt=nonTieCharAt(hist,idx); if(!nxt) continue;
+      const w=bestK*bestK*(delta===0?1.25:1/(1+Math.abs(delta)*.25));
+      if(nxt==='P')p+=w; else b+=w;
+      weighted+=w; samples++;
+    }
+  }
+  if(samples<2 || !weighted) return {side:null,strength:0,samples,p,b};
+  const side=p>=b?'P':'B';
+  const edge=Math.abs(p-b)/(p+b);
+  const sampleFactor=Math.min(1,samples/18);
+  const strength=Math.round(Math.min(82,50+edge*22+sampleFactor*8));
+  return {side,strength,samples,p,b,edge};
+}
+function roadTailAt(seq, handIndex, offset, tail=8){
+  const hs=seq.slice(0,handIndex).split('').map(r=>({r}));
+  return deriveRoad(hs,offset).slice(-tail).join('');
+}
+function roadMemorySignal(){
+  const cur=currentSequence().join('');
+  const pos=cur.length;
+  const lib=activePatternLibrary();
+  if(!state.currentShoeColor || pos<10 || !lib.length) return {side:null,strength:0,samples:0,p:0,b:0,agreement:0};
+  const tails=[1,2,3].map(o=>roadTailAt(cur,pos,o,8));
+  let p=0,b=0,samples=0,totalRoadMatches=0;
+  for(const shoe of lib){
+    const hist=shoe.sequence||'';
+    if(hist.length<=pos) continue;
+    for(let delta=-3;delta<=3;delta++){
+      const idx=pos+delta; if(idx<10 || idx>=hist.length) continue;
+      let matches=0, active=0;
+      [1,2,3].forEach((o,j)=>{
+        const ct=tails[j]; if(ct.length<3) return;
+        active++;
+        const ht=roadTailAt(hist,idx,o,ct.length);
+        if(ht===ct) matches++;
+        else if(ct.length>=5 && ht.slice(-5)===ct.slice(-5)) matches+=0.55;
+      });
+      if(active<2 || matches<1.5) continue;
+      const nxt=nonTieCharAt(hist,idx); if(!nxt) continue;
+      const w=matches*(delta===0?1.2:1/(1+Math.abs(delta)*.2));
+      if(nxt==='P')p+=w; else b+=w;
+      totalRoadMatches+=matches; samples++;
+    }
+  }
+  if(samples<2 || p+b===0) return {side:null,strength:0,samples,p,b,agreement:0};
+  const side=p>=b?'P':'B', edge=Math.abs(p-b)/(p+b);
+  const strength=Math.round(Math.min(82,50+edge*20+Math.min(9,samples*.55)));
+  return {side,strength,samples,p,b,agreement:edge,totalRoadMatches};
+}
+function botHistoricalReliability(phaseKey){
+  ensureBotState();
+  const st=state.bot.phaseStats[phaseKey];
+  if(!st || st.predictions<12) return 1;
+  const rate=st.wins/st.predictions;
+  // modest adaptive scaling only; never let short-term results dominate.
+  return Math.max(.72,Math.min(1.18,.82+rate*.36));
+}
+function masterBotSignal(){
+  ensureBotState();
+  const phase=botPhaseInfo();
+  const base=computeCombinedAnalyzer();
+  const phaseHist=phaseHistoricalSignal();
+  const roadMem=roadMemorySignal();
+  const roadAI=roadPreviewAISignal();
+  const seq=sequenceAISignal();
+  const candidates=[];
+  const add=(name,sig,w)=>{if(sig?.side && sig.side!=='T' && Number(sig.strength)>50)candidates.push({name,side:sig.side,strength:Number(sig.strength),weight:w});};
+  add('Top-Tier', base.qualified?{side:base.side,strength:base.top}:null, 1.00);
+  add('Phase History',phaseHist, phase.key==='40-54'||phase.key==='55+'?1.08:.82);
+  add('Road Memory',roadMem, phase.key==='40-54'||phase.key==='55+'?1.05:.88);
+  add('Road Preview',roadAI,.92);
+  add('Sequence AI',seq,.82);
+  if(!candidates.length) return {side:null,confidence:0,phase,phaseHist,roadMem,agreement:0,total:0,reason:'No qualified evidence yet.'};
+  let edge=0,den=0;
+  const reliability=botHistoricalReliability(phase.key);
+  for(const c of candidates){
+    let w=c.weight;
+    if(c.name==='Phase History'||c.name==='Road Memory')w*=reliability;
+    edge+=(c.side==='P'?1:-1)*(c.strength-50)*w; den+=w;
+  }
+  edge=den?edge/den:0;
+  const side=edge>=0?'P':'B';
+  const agree=candidates.filter(c=>c.side===side).length;
+  const agreement=agree/candidates.length;
+  const confidence=Math.round(Math.min(79,50+Math.abs(edge)*(.58+.42*agreement)));
+  const historicalSamples=(phaseHist.samples||0)+(roadMem.samples||0);
+  const strictLate=phase.key==='40-54'||phase.key==='55+';
+  const enoughSamples=!strictLate || historicalSamples>=phase.minSamples;
+  const qualified=candidates.length>=2 && agreement>=.66 && confidence>=phase.minConf && enoughSamples;
+  let reason='';
+  if(candidates.length<2) reason='Need at least 2 active evidence sources.';
+  else if(agreement<.66) reason='Bot evidence is conflicting.';
+  else if(confidence<phase.minConf) reason=`Phase threshold is ${phase.minConf}%.`;
+  else if(!enoughSamples) reason=`40+ mode needs at least ${phase.minSamples} same-color phase/road samples (${historicalSamples} found).`;
+  return {side:qualified?side:null,candidate:side,confidence,phase,phaseHist,roadMem,agreement,total:candidates.length,agree,qualified,reason,candidates,historicalSamples};
+}
+function settleBotPrediction(actual){
+  ensureBotState();
+  if(actual==='T') return;
+  const p=state.bot.pending; if(!p) return;
+  const win=p.side===actual;
+  state.bot.predictions++;
+  if(win)state.bot.wins++;
+  const st=state.bot.phaseStats[p.phase]||(state.bot.phaseStats[p.phase]={predictions:0,wins:0});
+  st.predictions++; if(win)st.wins++;
+  state.bot.rows.push({time:new Date().toISOString(),hand:p.hand,predicted:p.side,confidence:p.confidence,phase:p.phase,color:p.color,actual,correct:win?'YES':'NO'});
+  if(state.bot.rows.length>2000)state.bot.rows=state.bot.rows.slice(-2000);
+  state.bot.pending=null;
+}
+function armBotPrediction(){
+  ensureBotState();
+  state.bot.learning=true;
+  const b=masterBotSignal();
+  state.bot.pending=b.qualified?{side:b.side,confidence:b.confidence,phase:b.phase.key,hand:currentSequence().length+1,color:state.currentShoeColor||'none'}:null;
+}
+let botHeartbeatAt=Date.now();
+function botHeartbeat(){
+  botHeartbeatAt=Date.now();
+  const strip=document.getElementById('botLiveStrip');
+  const txt=document.getElementById('botLiveText');
+  const meta=document.getElementById('botLiveMeta');
+  if(!strip||!txt||!meta)return;
+  strip.classList.remove('offline');
+  txt.textContent='🟢 BOT AI LIVE — ALWAYS ON';
+  const h=currentSequence().length;
+  const phase=botPhaseInfo(h).label;
+  meta.textContent=`Heartbeat ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit',second:'2-digit'})} • Hand ${h} • ${phase}`;
+}
+function verifyBotHeartbeat(){
+  const strip=document.getElementById('botLiveStrip');
+  const txt=document.getElementById('botLiveText');
+  const meta=document.getElementById('botLiveMeta');
+  if(!strip||!txt||!meta)return;
+  const age=Date.now()-botHeartbeatAt;
+  if(age>6500){
+    strip.classList.add('offline');
+    txt.textContent='🔴 BOT AI NOT RESPONDING';
+    meta.textContent='Heartbeat stopped';
+  }
+}
+setInterval(botHeartbeat,2000);
+setInterval(verifyBotHeartbeat,2500);
+
+function renderMasterBot(){
+  botHeartbeat();
+  ensureBotState();
+  const b=masterBotSignal();
+  const decision=document.getElementById('botDecision'); if(!decision)return;
+  decision.textContent=b.qualified?(b.side==='P'?'PLAYER':'BANKER'):'WAIT';
+  document.getElementById('botConfidence').textContent=b.confidence?b.confidence+'%':'—';
+  document.getElementById('botPhase').textContent=b.phase.label;
+  document.getElementById('botPhaseSamples').textContent=b.phaseHist.samples||0;
+  document.getElementById('botRoadSamples').textContent=b.roadMem.samples||0;
+  document.getElementById('botAccuracy').textContent=state.bot.predictions?`${Math.round(state.bot.wins*100/state.bot.predictions)}% (${state.bot.wins}/${state.bot.predictions})`:'—';
+  const color=activeColorName()||'NO COLOR';
+  const sources=(b.candidates||[]).map(x=>`${x.name} ${x.side} ${Math.round(x.strength)}%`).join(' • ');
+  document.getElementById('botNote').textContent=b.qualified
+    ? `${color} • ${b.phase.label}: ${b.agree}/${b.total} sources agree. ${sources}. The Bot records this decision before the next non-tie result.`
+    : `${color} • WAIT: ${b.reason} ${sources?('Active: '+sources):''}`;
+  document.getElementById('botLearningToggle').textContent='Learning: ALWAYS ON';
+  document.getElementById('botLearningToggle').disabled=true;
+}
+
+function renderAnalyzer(){
+  initRankGrid();
+  renderRoadPreviewAI();
+  renderSequenceAI();
+  renderConsensus();
+  const a=computeCombinedAnalyzer();
+  document.getElementById('bestSide').textContent=a.qualified?(a.side==='P'?'Player':'Banker'):'WAIT';
+  document.getElementById('bestScore').textContent=a.qualified?a.top+'%':'WAIT';
+  document.getElementById('libraryInfluence').textContent=a.libraryWeight+'%';
+
+  const roadVal=a.road.strength||0;
+  const histVal=a.hist.strength||0;
+  const shoeVal=Math.round(50+a.comp*3);
+  document.getElementById('roadScore').textContent=Math.round(roadVal);
+  document.getElementById('shoeScore').textContent=Math.round(shoeVal);
+  const libVal=a.lib?.strength||0;
+  const h2oVal=a.h2o?.strength||0;
+  const deepseekVal=a.deepseek?.strength||0;
+  document.getElementById('histScore').textContent=Math.round(histVal);
+  document.getElementById('libScore').textContent=Math.round(libVal);
+  document.getElementById('h2oScore').textContent=Math.round(h2oVal);
+  const dsScore=document.getElementById('deepseekScore'); if(dsScore) dsScore.textContent=Math.round(deepseekVal);
+  setSignalBar('roadBar',roadVal);
+  setSignalBar('shoeBar',shoeVal);
+  setSignalBar('histBar',histVal);
+  setSignalBar('libBar',libVal);
+  setSignalBar('h2oBar',h2oVal);
+  setSignalBar('deepseekBar',deepseekVal);
+  renderDerivedRoadPredictions(a.road);
+
+  const driver=document.getElementById('resultDriver');
+  const famText=(a.families||[]).map(f=>`${f.name}: ${f.side==='P'?'P':'B'} ${f.strength}%`).join(' • ');
+  driver.textContent=a.qualified
+    ? `Qualified by independent evidence families • ${famText} • coverage ${a.coverage}%. Historical sources are de-duplicated before combining.`
+    : `Decision gate is WAIT • ${a.gateReason||'evidence not strong enough'} ${famText?('• '+famText):''}`;
+
+
+  const counts={};
+  state.cards.forEach(r=>counts[r]=(counts[r]||0)+1);
+  const txt=state.cards.length
+    ? `Entered ${state.cards.length} cards • `+rankNames.filter(r=>counts[r]).map(r=>`${r}:${counts[r]}`).join('  ')
+    : 'No card ranks entered.';
+  document.getElementById('rankSummary').textContent=txt;
+
+  const bt=state.backtest||{predictions:0,wins:0,currentRun:0,rows:[]};
+  document.getElementById('btPred').textContent=bt.predictions||0;
+  document.getElementById('btWins').textContent=bt.wins||0;
+  document.getElementById('btRate').textContent=bt.predictions?Math.round(bt.wins*100/bt.predictions)+'%':'—';
+  document.getElementById('btRun').textContent=bt.currentRun||0;
+  renderDecisionGate();
+  renderMasterBot();
+}
+
+function settlePendingPrediction(actual){
+  if(actual==='T') return; // ignore ties for P/B backtest
+  if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
+  const p=state.backtest.pending;
+  if(!p) return;
+  const win=p.side===actual;
+  state.backtest.predictions++;
+  if(win){state.backtest.wins++;state.backtest.currentRun++;}
+  else state.backtest.currentRun=0;
+  state.backtest.rows.push({
+    time:new Date().toISOString(),
+    predicted:p.side,
+    score:p.score,
+    actual,
+    correct:win?'YES':'NO'
+  });
+  state.backtest.pending=null;
+}
+
+function armNextPrediction(){
+  const a=computeCombinedAnalyzer();
+  const c=consensusSignal();
+  const nonTieCount=state.hands.filter(h=>h.r!=='T').length;
+  const agreement=c.total ? c.agree/c.total : 0;
+  const actionable=nonTieCount>=12 && a.top>=56 && c.total>=2 && agreement>=0.67 && c.side===a.side;
+  if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
+  // Backtest only signals the UI would actually qualify; WAIT is not counted as a prediction.
+  state.backtest.pending=actionable?{side:a.side,score:a.top}:null;
+}
+
+document.getElementById('undoCardBtn').onclick=()=>{state.cards.pop();persist();renderAnalyzer();};
+document.getElementById('clearCardsBtn').onclick=()=>{
+  if(confirm('Clear all entered card ranks?')){state.cards=[];persist();renderAnalyzer();}
+};
+document.getElementById('resetBacktestBtn').onclick=()=>{
+  if(confirm('Reset prediction backtest?')){
+    state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};persist();renderAnalyzer();
+  }
+};
+document.getElementById('exportBacktestBtn').onclick=()=>{
+  const rows=state.backtest?.rows||[];
+  if(!rows.length){alert('No backtest results yet.');return;}
+  const csv=['time,predicted,score,actual,correct',
+    ...rows.map(r=>[r.time,r.predicted,r.score,r.actual,r.correct].join(','))].join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='baccarat_backtest.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+
+const botLearningToggle=document.getElementById('botLearningToggle');
+if(botLearningToggle){botLearningToggle.disabled=true;botLearningToggle.title='Master Bot AI is always live and cannot be turned off.';}
+const botResetStats=document.getElementById('botResetStats');
+if(botResetStats) botResetStats.onclick=()=>{if(confirm('Reset all verified Master Bot learning statistics?')){ensureBotState();state.bot.pending=null;state.bot.predictions=0;state.bot.wins=0;state.bot.rows=[];state.bot.phaseStats={};persist();renderMasterBot();}};
+
+
+function renderKaggleLibraryToggle(){
+  const box=document.getElementById('kaggleLibraryToggle');
+  const note=document.getElementById('kaggleLibraryNote');
+  if(box) box.checked=state.kaggleLibraryEnabled!==false;
+  if(note) note.textContent=(state.kaggleLibraryEnabled!==false)
+    ? 'ON: predictions can use the streamed 200,000-shoe Kaggle library plus your trained All In Baccarat model.'
+    : 'OFF: Kaggle shoes are ignored. Predictions use your H2O model trained from saved All In Baccarat shoes.';
+}
+const kaggleLibraryToggle=document.getElementById('kaggleLibraryToggle');
+if(kaggleLibraryToggle) kaggleLibraryToggle.onchange=()=>{
+  state.kaggleLibraryEnabled=!!kaggleLibraryToggle.checked;
+  state.h2o.last=null;
+  if(!state.kaggleLibraryEnabled && state.kaggle) state.kaggle.last=null;
+  persist();
+  renderKaggleLibraryToggle();
+  renderAnalyzer();
+  if(state.kaggleLibraryEnabled) scoreWithKaggle(false);
+  if(state.h2o?.url) scoreWithH2O(false);
+};
+renderKaggleLibraryToggle();
+
+document.getElementById('h2oSaveBtn').onclick=()=>{
+  state.h2o.url=document.getElementById('h2oUrl').value.trim();
+  state.h2o.key=document.getElementById('h2oKey').value.trim();
+  state.h2o.connected=false;state.h2o.error='';state.h2o.last=null;persist();renderH2O();
+  alert(state.h2o.url?'H2O connection settings saved. Tap Test / Score Now to connect.':'H2O connection cleared. Local predictor remains active.');
+};
+document.getElementById('h2oTestBtn').onclick=async()=>{
+  state.h2o.url=document.getElementById('h2oUrl').value.trim();
+  state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
+  if(state.kaggleLibraryEnabled!==false) await scoreWithKaggle(true);
+  await scoreWithH2O(true);
+};
+document.getElementById('h2oTrainBtn').onclick=async()=>{
+  state.h2o.url=document.getElementById('h2oUrl').value.trim();
+  state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
+  await trainH2O(true);
+};
+
+document.getElementById('dragonSoundBtn').onclick=()=>{state.dragon.sound=!state.dragon.sound;persist();renderDragonAlert();};
+document.getElementById('dragonPopupBtn').onclick=()=>{state.dragon.popup=!state.dragon.popup;persist();renderDragonAlert();};
+
+// --- Screenshot scanner for the large 6-row P/B/T result grid ---
+// It uses local color sampling; the image never leaves the device.
+// Derived roads are calculated from the detected history, not copied as pixels.
+let scanImage=null, scanDetected=[], scanDerivedDetected={eye:[],small:[],roach:[]};
+
+function rgbClass(r,g,b){
+  // High-saturation baccarat red/blue ring classifier.
+  if(r>150 && r>g*1.25 && r>b*1.15) return 'B';
+  if(b>125 && b>r*1.15 && b>g*1.05) return 'P';
+  if(g>105 && g>r*1.15 && g>b*1.05) return 'T';
+  return null;
+}
+function cellVote(ctx,cx,cy,rad){
+  let counts={P:0,B:0,T:0}, total=0;
+  const step=Math.max(1,Math.floor(rad/3));
+  for(let y=Math.floor(cy-rad);y<=cy+rad;y+=step){
+    for(let x=Math.floor(cx-rad);x<=cx+rad;x+=step){
+      const dx=x-cx,dy=y-cy,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<rad*.45 || d>rad*1.1) continue; // ring band
+      const px=ctx.getImageData(Math.max(0,x),Math.max(0,y),1,1).data;
+      const c=rgbClass(px[0],px[1],px[2]);
+      if(c){counts[c]++;total++;}
+    }
+  }
+  let best=Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+  if(!best || best[1]<2) return null;
+  return best[0];
+}
+
+function derivedPixelClass(r,g,b){
+  // Derived roads use red/blue symbols regardless of Player/Banker meaning.
+  const sat=Math.max(r,g,b)-Math.min(r,g,b);
+  if(sat<35) return null;
+  if(r>135 && r>g*1.20 && r>b*1.10) return 'R';
+  if(b>115 && b>r*1.12 && b>g*1.03) return 'B';
+  return null;
+}
+function derivedCellVote(ctx,cx,cy,rad){
+  let counts={R:0,B:0};
+  const step=Math.max(1,Math.floor(rad/2.5));
+  for(let y=Math.floor(cy-rad);y<=cy+rad;y+=step){
+    for(let x=Math.floor(cx-rad);x<=cx+rad;x+=step){
+      const dx=x-cx,dy=y-cy,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>rad*1.08) continue;
+      const px=ctx.getImageData(Math.max(0,x),Math.max(0,y),1,1).data;
+      const c=derivedPixelClass(px[0],px[1],px[2]);
+      if(c) counts[c]++;
+    }
+  }
+  const best=counts.R>=counts.B?['R',counts.R]:['B',counts.B];
+  return best[1]>=2?best[0]:null;
+}
+function scanDerivedRegion(ctx,canvas,region){
+  const x=canvas.width*region.x, y=canvas.height*region.y;
+  const w=canvas.width*region.w, h=canvas.height*region.h;
+  const rows=6, cell=h/rows, cols=Math.max(1,Math.floor(w/cell));
+  const grid=[];
+  for(let c=0;c<cols;c++){
+    grid[c]=[];
+    for(let r=0;r<rows;r++){
+      grid[c][r]=derivedCellVote(ctx,x+(c+.5)*cell,y+(r+.5)*cell,cell*.40);
+    }
+  }
+  const out=[];
+  for(let c=0;c<cols;c++){
+    let seen=false;
+    for(let r=0;r<rows;r++){
+      const v=grid[c][r];
+      if(v){out.push(v);seen=true;}
+      else if(seen) break;
+    }
+  }
+  return {out,x,y,w,h};
+}
+
+function drawScanOverlay(img){
+  const canvas=document.getElementById('scanCanvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
+  const maxW=1000,scale=Math.min(1,maxW/img.naturalWidth);
+  canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+  canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  return {canvas,ctx};
+}
+
+function smoothProjection(a,radius){
+  const out=new Float32Array(a.length), pre=new Float64Array(a.length+1);
+  for(let i=0;i<a.length;i++) pre[i+1]=pre[i]+a[i];
+  for(let i=0;i<a.length;i++){
+    const lo=Math.max(0,i-radius), hi=Math.min(a.length-1,i+radius);
+    out[i]=(pre[hi+1]-pre[lo])/(hi-lo+1);
+  }
+  return out;
+}
+function localPeaks(a,minGap,minValue){
+  const cand=[];
+  for(let i=1;i<a.length-1;i++) if(a[i]>=a[i-1]&&a[i]>=a[i+1]&&a[i]>=minValue) cand.push(i);
+  cand.sort((x,y)=>a[y]-a[x]);
+  const keep=[];
+  for(const p of cand){
+    if(keep.every(k=>Math.abs(k-p)>=minGap)) keep.push(p);
+  }
+  return keep.sort((x,y)=>x-y);
+}
+function median(vals){
+  if(!vals.length)return 0;
+  const a=[...vals].sort((x,y)=>x-y),m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2;
+}
+function classifyCellFromData(data,w,h,cx,cy,rx,ry){
+  const counts={P:0,B:0,T:0};
+  const x0=Math.max(0,Math.floor(cx-rx)),x1=Math.min(w-1,Math.ceil(cx+rx));
+  const y0=Math.max(0,Math.floor(cy-ry)),y1=Math.min(h-1,Math.ceil(cy+ry));
+  for(let y=y0;y<=y1;y+=2) for(let x=x0;x<=x1;x+=2){
+    const dx=(x-cx)/Math.max(1,rx),dy=(y-cy)/Math.max(1,ry);
+    if(dx*dx+dy*dy>1)continue;
+    const k=(y*w+x)*4,c=rgbClass(data[k],data[k+1],data[k+2]);
+    if(c)counts[c]++;
+  }
+  const ranked=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const best=ranked[0], second=ranked[1];
+  if(!best||best[1]<4)return null;
+  if(second && best[1]<second[1]*1.18)return null;
+  return best[0];
+}
+function scanBigRoad(){
+  if(!scanImage)return;
+  const {canvas,ctx}=drawScanOverlay(scanImage);
+  const W=canvas.width,H=canvas.height;
+  const image=ctx.getImageData(0,0,W,H),data=image.data;
+
+  // Build color-density projections. A bead plate has six dense horizontal
+  // chip rows and a regular set of vertical chip columns. This avoids relying
+  // on one hard-coded crop or on connected components that split letters/rings.
+  const yProj=new Uint32Array(H),xProj=new Uint32Array(W);
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const k=(y*W+x)*4,c=rgbClass(data[k],data[k+1],data[k+2]);
+      if(c){yProj[y]++;xProj[x]++;}
+    }
+  }
+  const ys=smoothProjection(yProj,Math.max(2,Math.round(H*.004)));
+  const xs=smoothProjection(xProj,Math.max(2,Math.round(W*.004)));
+
+  // Find the best six-row arithmetic lattice among strong horizontal peaks.
+  const yMax=Math.max(...ys), yCandidates=localPeaks(ys,Math.max(5,Math.round(H*.025)),yMax*.16);
+  let bestRows=null;
+  for(let i=0;i<yCandidates.length;i++) for(let j=i+1;j<yCandidates.length;j++){
+    const step=(yCandidates[j]-yCandidates[i])/5;
+    if(step<8||step>H*.22)continue;
+    const rows=[];let score=0,ok=true;
+    for(let r=0;r<6;r++){
+      const target=yCandidates[i]+r*step;
+      let p=-1,dist=Infinity;
+      for(const q of yCandidates){const d=Math.abs(q-target);if(d<dist){dist=d;p=q;}}
+      if(p<0||dist>step*.28){ok=false;break;}
+      rows.push(p);score+=ys[p];
+    }
+    if(ok && (!bestRows||score>bestRows.score)) bestRows={rows,score,step};
+  }
+  if(!bestRows){
+    document.getElementById('scanStatus').textContent='Could not lock onto all 6 result rows. Crop the screenshot so the large P/B/T grid fills most of the image, then scan again.';
+    document.getElementById('scanRoadSummary').textContent='';scanDetected=[];renderDetected();document.getElementById('applyScanBtn').disabled=true;return;
+  }
+  const rowCenters=bestRows.rows,rowStep=median(rowCenters.slice(1).map((v,i)=>v-rowCenters[i]));
+
+  // Restrict the X projection to narrow bands around the six confirmed rows.
+  const rowBand=Math.max(3,rowStep*.34), xBand=new Uint32Array(W);
+  for(let r=0;r<6;r++){
+    const y0=Math.max(0,Math.floor(rowCenters[r]-rowBand)),y1=Math.min(H-1,Math.ceil(rowCenters[r]+rowBand));
+    for(let y=y0;y<=y1;y+=2) for(let x=0;x<W;x++){
+      const k=(y*W+x)*4,c=rgbClass(data[k],data[k+1],data[k+2]);if(c)xBand[x]++;
+    }
+  }
+  const xb=smoothProjection(xBand,Math.max(2,Math.round(W*.004))),xMax=Math.max(...xb);
+  let xPeaks=localPeaks(xb,Math.max(5,Math.round(rowStep*.55)),xMax*.14);
+  if(xPeaks.length<2){
+    document.getElementById('scanStatus').textContent='The 6 rows were found, but the result columns could not be read. Use a clearer/cropped board screenshot.';
+    document.getElementById('scanRoadSummary').textContent='';scanDetected=[];renderDetected();document.getElementById('applyScanBtn').disabled=true;return;
+  }
+
+  // Keep a regular column lattice. Determine typical spacing from neighbor gaps,
+  // then fill any missing peak positions so a faint chip cannot collapse the sequence.
+  const rawDiff=xPeaks.slice(1).map((v,i)=>v-xPeaks[i]).filter(d=>d>rowStep*.45&&d<rowStep*1.65);
+  const colStep=median(rawDiff)||rowStep;
+  const left=xPeaks[0], right=xPeaks[xPeaks.length-1];
+  const colCount=Math.max(1,Math.round((right-left)/colStep)+1);
+  const colCenters=Array.from({length:colCount},(_,c)=>left+c*colStep);
+
+  const cells=[];
+  for(let c=0;c<colCenters.length;c++){
+    for(let r=0;r<6;r++){
+      const type=classifyCellFromData(data,W,H,colCenters[c],rowCenters[r],colStep*.34,rowStep*.34);
+      if(type)cells.push({c,r,type,cx:colCenters[c],cy:rowCenters[r]});
+    }
+  }
+
+  // Chronological order for this 6-row bead-plate: down each column, then right.
+  const out=[];let lastUsedCol=-1;
+  for(let c=0;c<colCenters.length;c++){
+    const col=cells.filter(z=>z.c===c);
+    if(!col.length)continue;
+    lastUsedCol=c;
+    for(let r=0;r<6;r++){
+      const z=col.find(v=>v.r===r);
+      if(z)out.push(z.type);
+      // Only the final live column may be partially filled. Do not stop earlier
+      // columns because one faint cell was missed; classification can still recover
+      // the rows below it independently.
+    }
+  }
+  scanDetected=out;scanDerivedDetected={eye:[],small:[],roach:[]};renderDetected();
+  document.getElementById('scanStatus').textContent=out.length?`6-row grid scan complete (${out.length} chips). Review the sequence, then tap Rebuild Roads.`:'No P/B/T chips were detected.';
+  document.getElementById('scanRoadSummary').textContent=out.length?'Scanner locked onto the six actual result rows and their regular columns. Results are read top-to-bottom in each column, left-to-right.':'';
+  document.getElementById('applyScanBtn').disabled=!out.length;
+
+  // Visual guide: outline the detected grid and mark every accepted cell center.
+  ctx.strokeStyle='#f1b827';ctx.lineWidth=2;
+  const gx=Math.max(0,left-colStep*.5), gy=Math.max(0,rowCenters[0]-rowStep*.5);
+  const gw=Math.min(W-gx,(colCenters.length)*colStep), gh=Math.min(H-gy,6*rowStep);
+  ctx.strokeRect(gx,gy,gw,gh);
+  ctx.fillStyle='#f1b827';
+  for(const z of cells){ctx.beginPath();ctx.arc(z.cx,z.cy,2.5,0,Math.PI*2);ctx.fill();}
+}
+function renderDetected(){
+  const box=document.getElementById('detectedResults'); box.innerHTML='';
+  scanDetected.forEach((v,i)=>{
+    const b=document.createElement('button');
+    b.className='det-chip '+v.toLowerCase(); b.textContent=v; b.title='Tap to switch; long-press to delete';
+    b.onclick=()=>{scanDetected[i]=scanDetected[i]==='P'?'B':scanDetected[i]==='B'?'T':'P';renderDetected();};
+    let timer;
+    b.onpointerdown=()=>{timer=setTimeout(()=>{scanDetected.splice(i,1);renderDetected();},650);};
+    b.onpointerup=b.onpointerleave=()=>clearTimeout(timer);
+    box.appendChild(b);
+  });
+  const p=scanDetected.filter(x=>x==='P').length,bn=scanDetected.filter(x=>x==='B').length,t=scanDetected.filter(x=>x==='T').length;
+  document.getElementById('scanSummary').textContent=scanDetected.length?`Main results detected: ${scanDetected.length} hands • P ${p} • B ${bn} • T ${t}`:'';
+}
+document.getElementById('scanInput').addEventListener('change',e=>{
+  const file=e.target.files?.[0]; if(!file) return;
+  const img=new Image();
+  img.onload=()=>{
+    scanImage=img;scanDetected=[];scanDerivedDetected={eye:[],small:[],roach:[]};
+    document.getElementById('scanStage').classList.add('show');
+    document.getElementById('scanNowBtn').disabled=false;
+    drawScanOverlay(img);
+    document.getElementById('scanStatus').textContent='Screenshot loaded. Yellow box shows the area the scanner will inspect.';
+  };
+  img.src=URL.createObjectURL(file);
+});
+document.getElementById('scanNowBtn').onclick=scanBigRoad;
+document.getElementById('applyScanBtn').onclick=()=>{
+  if(!scanDetected.length)return;
+  if(state.hands.length && !confirm('Replace the current shoe with the screenshot and synchronize the whole board?')) return;
+  state.hands=scanDetected.map((r,i)=>({r,pp:false,bp:false,special:false,ts:Date.now()+i}));
+  const seq=scanDetected.join('');
+  state.scanSnapshot={
+    sequence:seq,
+    locked:false,
+    importedAt:new Date().toISOString(),
+    source:'pbt-grid'
+  };
+  if(state.backtest) state.backtest.pending=null;
+  if(state.h2o) state.h2o.last=null;
+  if(state.dragon) state.dragon.lastAlertKey='';
+  if(state.autoSaveLibrary && scanDetected.length>=4) saveSequenceToLibrary(scanDetected,'screenshot',true);
+  armNextPrediction();
+  persist();render();
+  document.getElementById('scanStatus').textContent='Roads rebuilt from the detected P/B/T history: Big Road, Big Eye Boy, Small Road, and Cockroach Road updated.';
+};
+document.getElementById('clearScanBtn').onclick=()=>{
+  scanImage=null;scanDetected=[];scanDerivedDetected={eye:[],small:[],roach:[]};
+  document.getElementById('scanInput').value='';
+  document.getElementById('scanStage').classList.remove('show');
+  document.getElementById('scanRoadSummary').textContent='';
+  document.getElementById('scanNowBtn').disabled=true;
+  document.getElementById('applyScanBtn').disabled=true;
+};
+
+
+bindSeparateShoeControls();
+load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
+</script>
+</body>
+</html>
