@@ -259,7 +259,7 @@
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
 </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
-<div class="analyzer-title">🤖 Master Bot AI — Continuous Learning</div>
+<div class="analyzer-title">🤖 High-Powered Bot AI — Library + Derived Roads + Baccarat Rules</div>
 <div class="bot-live-strip" id="botLiveStrip">
 <div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
 <div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
@@ -482,14 +482,14 @@
 <input id="kaggleLibraryToggle" style="width:20px;height:20px" type="checkbox"/>
 <span>Kaggle 200,000-Shoe Library</span>
 </label>
-<div id="kaggleLibraryNote" style="margin-top:5px">ON: use Kaggle history with your trained model. OFF: ignore Kaggle and use your All In Baccarat saved-shoe H2O model.</div>
+<div id="kaggleLibraryNote" style="margin-top:5px">Kaggle is a separate historical-library signal. It does NOT feed Road Preview AI or H2O. Toggle it only for the separate Kaggle/Sequence features.</div>
 </div>
 <div class="h2o-result">
 <div class="h2o-card"><strong id="h2oP">—</strong><span>H2O Player</span></div>
 <div class="h2o-card"><strong id="h2oB">—</strong><span>H2O Banker</span></div>
 <div class="h2o-card"><strong id="h2oT">—</strong><span>H2O Tie</span></div>
 </div>
-<div class="h2o-note" id="h2oNote">The AI analyzes the full current shoe plus Big Road, Big Eye Boy, Small Road, Cockroach Road, streak/chop structure, recent outcomes, and saved-shoe patterns. Your endpoint should return JSON such as {"p":0.46,"b":0.49,"t":0.05}. H2O stays optional; the app continues using local analysis when disconnected.</div>
+<div class="h2o-note" id="h2oNote">H2O is now isolated. It scores only the H2O model trained from your saved shoes; Kaggle is never blended into H2O. Road Preview AI is also isolated and uses current-shoe road structure only. Your /score endpoint returns H2O P/B/T probabilities.</div>
 </div>
 
 <div class="card-entry">
@@ -1943,7 +1943,7 @@ async function scoreWithH2O(showAlert=false){
   try{
     const headers={'Content-Type':'application/json'};
     if(state.h2o.key) headers['Authorization']='Bearer '+state.h2o.key;
-    const data=await h2oRequestJson(state.h2o.url,{method:'POST',headers,body:JSON.stringify({features:h2oFeatures()})});
+    const hf=h2oFeatures(); hf.use_kaggle_library=false; const data=await h2oRequestJson(state.h2o.url,{method:'POST',headers,body:JSON.stringify({features:hf,use_kaggle_library:false})});
     const out=normalizeH2OResponse(data);
     state.h2o.last=out;state.h2o.connected=true;state.h2o.error='';persist();renderAnalyzer();renderH2O();
     return out;
@@ -2064,7 +2064,7 @@ function analyzeRoadRegime(marks){
 }
 
 function roadPreviewAISignal(){
-  // PROBE ENGINE V2 — HARD ISOLATED.
+  // PROBE ENGINE V3 — HARD ISOLATED / CURRENT ROADS ONLY.
   // INPUT: current-shoe P/B/T hands ONLY.
   // EXCLUDED: saved libraries, Kaggle, H2O, Sequence AI,
   // card composition, color libraries, and Best-Estimate outputs.
@@ -2159,7 +2159,7 @@ function renderRoadPreviewAI(){
   document.getElementById('roadAiEdge').textContent=r.edge+' pts';
   const note=document.getElementById('roadAiNote');
   if(r.side){
-    note.textContent=`${r.pattern} • Road Quality ${r.quality}/100 • ${r.agree}/${r.total} qualified probes favor ${r.side==='P'?'Player':'Banker'}. Road-fit only; current shoe only; saved libraries are excluded.`;
+    note.textContent=`${r.pattern} • Road Quality ${r.quality}/100 • ${r.agree}/${r.total} qualified probes favor ${r.side==='P'?'Player':'Banker'}. Road-fit only; CURRENT SHOE ROADS ONLY; Kaggle, H2O, Sequence AI, and saved libraries are excluded.`;
   }else{
     note.textContent=(r.waitReason||'WAIT: not enough qualified current-shoe road evidence.')+` Pattern: ${r.pattern}.`;
   }
@@ -2519,52 +2519,82 @@ function roadMemorySignal(){
   const strength=Math.round(Math.min(82,50+edge*20+Math.min(9,samples*.55)));
   return {side,strength,samples,p,b,agreement:edge,totalRoadMatches};
 }
-function botHistoricalReliability(phaseKey){
+function botSpecialistReliability(name,phaseKey){
   ensureBotState();
-  const st=state.bot.phaseStats[phaseKey];
-  if(!st || st.predictions<12) return 1;
-  const rate=st.wins/st.predictions;
-  // modest adaptive scaling only; never let short-term results dominate.
-  return Math.max(.72,Math.min(1.18,.82+rate*.36));
+  state.bot.specialistStats=state.bot.specialistStats||{};
+  const all=state.bot.specialistStats[name]||{};
+  const st=(all.byPhase||{})[phaseKey]||all;
+  const n=Number(st.predictions||0), w=Number(st.wins||0);
+  // Bayesian shrinkage: each specialist must earn extra influence from verified results.
+  return (w+6)/(n+12);
+}
+function botLiveRoadSignal(){
+  const cur=currentSequence().join('');
+  if(cur.length<6) return {side:null,strength:0,evidence:'need 6 hands'};
+  const probe=(side)=>{
+    const hs=(cur+side).split('').map(r=>({r}));
+    const roads=[deriveRoad(hs,1),deriveRoad(hs,2),deriveRoad(hs,3)];
+    let score=0,active=0;
+    for(const marks of roads){
+      if(!marks.length)continue; active++;
+      const tail=marks.slice(-8), last=tail.at(-1);
+      let streak=1;for(let i=tail.length-2;i>=0&&tail[i]===last;i--)streak++;
+      let flips=0;for(let i=1;i<tail.length;i++)if(tail[i]!==tail[i-1])flips++;
+      // Reward internally coherent hypothetical road continuation, not a fixed red/blue preference.
+      score += Math.min(4,streak)*0.8 + Math.abs(3.5-flips)*0.35;
+    }
+    return active?score/active:0;
+  };
+  const ps=probe('P'), bs=probe('B'), diff=ps-bs;
+  if(Math.abs(diff)<0.18)return {side:null,strength:0,evidence:`road probes nearly even P=${ps.toFixed(2)} B=${bs.toFixed(2)}`};
+  return {side:diff>0?'P':'B',strength:Math.round(Math.min(72,52+Math.abs(diff)*7)),evidence:`derived-road probe P=${ps.toFixed(2)} B=${bs.toFixed(2)}`};
+}
+function botLibraryMatchSignal(){
+  const m=findHistoricalMatches();
+  if(!m || m.matches<2)return {side:null,strength:0,samples:m?.matches||0};
+  const p=m.p||0,b=m.b||0,n=p+b;if(!n)return {side:null,strength:0,samples:m.matches};
+  const edge=Math.abs(p-b)/n;
+  return {side:p>=b?'P':'B',strength:Math.round(Math.min(84,50+edge*27+Math.min(7,m.matches*.3))),samples:m.matches,evidence:`${m.matches} library matches • ${m.len}-hand window`};
 }
 function masterBotSignal(){
   ensureBotState();
   const phase=botPhaseInfo();
-  const base=computeCombinedAnalyzer();
+  const directLib=botLibraryMatchSignal();
   const phaseHist=phaseHistoricalSignal();
   const roadMem=roadMemorySignal();
-  const roadAI=roadPreviewAISignal();
-  const seq=sequenceAISignal();
+  const liveRoad=botLiveRoadSignal();
   const candidates=[];
-  const add=(name,sig,w)=>{if(sig?.side && sig.side!=='T' && Number(sig.strength)>50)candidates.push({name,side:sig.side,strength:Number(sig.strength),weight:w});};
-  add('Top-Tier', base.qualified?{side:base.side,strength:base.top}:null, 1.00);
-  add('Phase History',phaseHist, phase.key==='40-54'||phase.key==='55+'?1.08:.82);
-  add('Road Memory',roadMem, phase.key==='40-54'||phase.key==='55+'?1.05:.88);
-  add('Road Preview',roadAI,.92);
-  add('Sequence AI',seq,.82);
-  if(!candidates.length) return {side:null,confidence:0,phase,phaseHist,roadMem,agreement:0,total:0,reason:'No qualified evidence yet.'};
-  let edge=0,den=0;
-  const reliability=botHistoricalReliability(phase.key);
+  const add=(name,sig,baseWeight)=>{
+    if(!sig?.side || sig.side==='T' || Number(sig.strength)<=50)return;
+    const rel=botSpecialistReliability(name,phase.key);
+    // Reliability is learned from this Bot's own resolved predictions.
+    const weight=baseWeight*(0.65+rel);
+    candidates.push({name,side:sig.side,strength:Number(sig.strength),weight,reliability:rel,evidence:sig.evidence||'',samples:sig.samples||0});
+  };
+  add('Library Match',directLib,1.10);
+  add('Phase Library',phaseHist,(phase.key==='40-54'||phase.key==='55+')?1.12:.92);
+  add('Road Memory',roadMem,(phase.key==='40-54'||phase.key==='55+')?1.08:.96);
+  add('Live Derived Roads',liveRoad,1.00);
+  if(!candidates.length)return {side:null,confidence:0,phase,phaseHist,roadMem,agreement:0,total:0,reason:'No qualified library/road evidence yet.',candidates:[],historicalSamples:0};
+  let pScore=0,bScore=0;
   for(const c of candidates){
-    let w=c.weight;
-    if(c.name==='Phase History'||c.name==='Road Memory')w*=reliability;
-    edge+=(c.side==='P'?1:-1)*(c.strength-50)*w; den+=w;
+    const contribution=Math.max(.01,(c.strength-50)/50)*c.weight;
+    if(c.side==='P')pScore+=contribution; else bScore+=contribution;
   }
-  edge=den?edge/den:0;
-  const side=edge>=0?'P':'B';
-  const agree=candidates.filter(c=>c.side===side).length;
-  const agreement=agree/candidates.length;
-  const confidence=Math.round(Math.min(79,50+Math.abs(edge)*(.58+.42*agreement)));
-  const historicalSamples=(phaseHist.samples||0)+(roadMem.samples||0);
+  const totalScore=pScore+bScore, side=pScore>=bScore?'P':'B';
+  const agree=candidates.filter(c=>c.side===side).length, agreement=agree/candidates.length;
+  const margin=totalScore?Math.abs(pScore-bScore)/totalScore:0;
+  const confidence=Math.round(Math.min(84,50+margin*24+agreement*10));
+  const historicalSamples=(phaseHist.samples||0)+(roadMem.samples||0)+(directLib.samples||0);
   const strictLate=phase.key==='40-54'||phase.key==='55+';
   const enoughSamples=!strictLate || historicalSamples>=phase.minSamples;
-  const qualified=candidates.length>=2 && agreement>=.66 && confidence>=phase.minConf && enoughSamples;
+  const qualified=candidates.length>=2 && agreement>=.60 && confidence>=phase.minConf && enoughSamples;
   let reason='';
-  if(candidates.length<2) reason='Need at least 2 active evidence sources.';
-  else if(agreement<.66) reason='Bot evidence is conflicting.';
-  else if(confidence<phase.minConf) reason=`Phase threshold is ${phase.minConf}%.`;
-  else if(!enoughSamples) reason=`40+ mode needs at least ${phase.minSamples} same-color phase/road samples (${historicalSamples} found).`;
-  return {side:qualified?side:null,candidate:side,confidence,phase,phaseHist,roadMem,agreement,total:candidates.length,agree,qualified,reason,candidates,historicalSamples};
+  if(candidates.length<2)reason='Need at least 2 independent library/road specialists.';
+  else if(agreement<.60)reason='Library and derived-road evidence is conflicting.';
+  else if(confidence<phase.minConf)reason=`Phase threshold is ${phase.minConf}%.`;
+  else if(!enoughSamples)reason=`40+ mode needs at least ${phase.minSamples} library/road samples (${historicalSamples} found).`;
+  return {side:qualified?side:null,candidate:side,confidence,phase,phaseHist,roadMem,directLib,liveRoad,agreement,total:candidates.length,agree,qualified,reason,candidates,historicalSamples,pScore,bScore};
 }
 function settleBotPrediction(actual){
   ensureBotState();
@@ -2575,7 +2605,15 @@ function settleBotPrediction(actual){
   if(win)state.bot.wins++;
   const st=state.bot.phaseStats[p.phase]||(state.bot.phaseStats[p.phase]={predictions:0,wins:0});
   st.predictions++; if(win)st.wins++;
-  state.bot.rows.push({time:new Date().toISOString(),hand:p.hand,predicted:p.side,confidence:p.confidence,phase:p.phase,color:p.color,actual,correct:win?'YES':'NO'});
+  state.bot.rows.push({time:new Date().toISOString(),hand:p.hand,predicted:p.side,confidence:p.confidence,phase:p.phase,color:p.color,actual,correct:win?'YES':'NO',specialists:p.specialists||[]});
+  state.bot.specialistStats=state.bot.specialistStats||{};
+  for(const c of (p.specialists||[])){
+    if(!c?.name || !['P','B'].includes(c.side))continue;
+    const root=state.bot.specialistStats[c.name]||(state.bot.specialistStats[c.name]={predictions:0,wins:0,byPhase:{}});
+    root.predictions++;if(c.side===actual)root.wins++;
+    const ps=root.byPhase[p.phase]||(root.byPhase[p.phase]={predictions:0,wins:0});
+    ps.predictions++;if(c.side===actual)ps.wins++;
+  }
   if(state.bot.rows.length>2000)state.bot.rows=state.bot.rows.slice(-2000);
   state.bot.pending=null;
 }
@@ -2583,7 +2621,7 @@ function armBotPrediction(){
   ensureBotState();
   state.bot.learning=true;
   const b=masterBotSignal();
-  state.bot.pending=b.qualified?{side:b.side,confidence:b.confidence,phase:b.phase.key,hand:currentSequence().length+1,color:state.currentShoeColor||'none'}:null;
+  state.bot.pending=b.qualified?{side:b.side,confidence:b.confidence,phase:b.phase.key,hand:currentSequence().length+1,color:state.currentShoeColor||'none',specialists:(b.candidates||[]).map(c=>({name:c.name,side:c.side,strength:c.strength,reliability:c.reliability}))}:null;
 }
 let botHeartbeatAt=Date.now();
 function botHeartbeat(){
@@ -2740,7 +2778,7 @@ document.getElementById('exportBacktestBtn').onclick=()=>{
 const botLearningToggle=document.getElementById('botLearningToggle');
 if(botLearningToggle){botLearningToggle.disabled=true;botLearningToggle.title='Master Bot AI is always live and cannot be turned off.';}
 const botResetStats=document.getElementById('botResetStats');
-if(botResetStats) botResetStats.onclick=()=>{if(confirm('Reset all verified Master Bot learning statistics?')){ensureBotState();state.bot.pending=null;state.bot.predictions=0;state.bot.wins=0;state.bot.rows=[];state.bot.phaseStats={};persist();renderMasterBot();}};
+if(botResetStats) botResetStats.onclick=()=>{if(confirm('Reset all verified Master Bot learning statistics?')){ensureBotState();state.bot.pending=null;state.bot.predictions=0;state.bot.wins=0;state.bot.rows=[];state.bot.phaseStats={};state.bot.specialistStats={};persist();renderMasterBot();}};
 
 
 function renderKaggleLibraryToggle(){
@@ -3067,11 +3105,11 @@ document.getElementById('clearScanBtn').onclick=()=>{
 bindSeparateShoeControls();
 load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
 </script>
-<div class="h2o-panel" id="ultimateBotPanel" style="margin:14px"><div class="h2o-head"><div><div class="h2o-title">ULTIMATE BOT CONTROLLER</div><div class="analyzer-sub">10-second maximum decision budget • persistent learning • model voting • 40+ late-shoe specialist • automatic evaluation</div></div><span class="h2o-status err" id="ultimateStatus">🔴 BOT READY</span></div><div class="h2o-grid"><div class="h2o-card"><strong id="ultimateDecision">WAIT</strong><span>Final Decision</span></div><div class="h2o-card"><strong id="ultimateConfidence">—</strong><span>Confidence</span></div><div class="h2o-card"><strong id="ultimateTime">—</strong><span>Decision Time</span></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>Phase</span><strong id="ultimatePhase">—</strong></div><div class="analyzer-card"><span>Model Votes</span><strong id="ultimateVotes">—</strong></div><div class="analyzer-card"><span>Budget</span><strong id="ultimateBudget">10.0s MAX</strong></div></div><button class="tiny-btn" id="ultimateScoreBtn">Run Ultimate Bot Now</button><div class="h2o-note">Returns immediately when ready. WAIT is used when the evidence gate is weak.</div></div><script>
+<div class="h2o-panel" id="ultimateBotPanel" style="margin:14px"><div class="h2o-head"><div><div class="h2o-title">ULTIMATE BOT CONTROLLER</div><div class="analyzer-sub">10-second maximum decision budget • saved-library + derived-road specialists only • persistent learning • complete Punto Banco rules knowledge • 40+ late-shoe specialist</div></div><span class="h2o-status err" id="ultimateStatus">🔴 BOT READY</span></div><div class="h2o-grid"><div class="h2o-card"><strong id="ultimateDecision">WAIT</strong><span>Final Decision</span></div><div class="h2o-card"><strong id="ultimateConfidence">—</strong><span>Confidence</span></div><div class="h2o-card"><strong id="ultimateTime">—</strong><span>Decision Time</span></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>Phase</span><strong id="ultimatePhase">—</strong></div><div class="analyzer-card"><span>Model Votes</span><strong id="ultimateVotes">—</strong></div><div class="analyzer-card"><span>Budget</span><strong id="ultimateBudget">10.0s MAX</strong></div><div class="analyzer-card"><span>Rules Knowledge</span><strong>🟢 LIVE</strong></div></div><button class="tiny-btn" id="ultimateScoreBtn">Run Ultimate Bot Now</button><div class="h2o-note">Returns immediately when ready. WAIT is used when the evidence gate is weak. Baccarat rules knowledge validates how the game is played but is not used as an extra prediction vote.</div></div><script>
 function ultimateUrl(path){const u=(state.h2o?.url||DEFAULT_H2O_SCORE_URL||'').trim();if(!u)return '';return /\/score\/?(?:\?.*)?$/i.test(u)?u.replace(/\/score\/?(?:\?.*)?$/i,path):u.replace(/\/$/,'')+path;}
-async function scoreUltimateBot(showAlert=false){const seq=currentSequence().join('');if(seq.length<6)return null;const url=ultimateUrl('/ultimate-score');if(!url)return null;const st=document.getElementById('ultimateStatus');if(st){st.textContent='🟡 BOT ANALYZING…';st.className='h2o-status';}const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{const out=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq,use_kaggle_library:state.kaggleLibraryEnabled!==false,library_mode:state.predictionLibraryMode||'selected',shoe_color:state.currentShoeColor||null}})});state.ultimate=state.ultimate||{};state.ultimate.last=out;state.ultimate.pendingId=out.prediction_id;state.ultimate.connected=true;state.ultimate.error='';persist();renderUltimateBot();return out;}catch(e){state.ultimate=state.ultimate||{};state.ultimate.error=String(e.message||e);state.ultimate.connected=false;persist();renderUltimateBot();if(showAlert)alert('Ultimate Bot failed: '+state.ultimate.error);return null;}}
+async function scoreUltimateBot(showAlert=false){const seq=currentSequence().join('');if(seq.length<6)return null;const url=ultimateUrl('/bot/decide');if(!url)return null;const st=document.getElementById('ultimateStatus');if(st){st.textContent='🟡 BOT ANALYZING…';st.className='h2o-status';}const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{const out=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq,library_mode:state.predictionLibraryMode||'selected',shoe_color:state.currentShoeColor||null,saved_shoes:activePatternLibrary().map(x=>x?.sequence||'').filter(Boolean)}})});state.ultimate=state.ultimate||{};state.ultimate.last=out;state.ultimate.pendingId=out.prediction_id||null;state.ultimate.connected=true;state.ultimate.error='';persist();renderUltimateBot();return out;}catch(e){state.ultimate=state.ultimate||{};state.ultimate.error=String(e.message||e);state.ultimate.connected=false;persist();renderUltimateBot();if(showAlert)alert('Ultimate Bot failed: '+state.ultimate.error);return null;}}
 async function settleUltimatePrediction(actual){const id=state.ultimate?.pendingId;if(!id)return;state.ultimate.pendingId=null;persist();const url=ultimateUrl('/feedback');if(!url)return;const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({prediction_id:id,actual})});}catch(e){}}
-function renderUltimateBot(){const x=state.ultimate?.last||{};const st=document.getElementById('ultimateStatus');if(st){st.textContent=state.ultimate?.error?'🔴 BOT ERROR':state.ultimate?.connected?'🟢 BOT AI LIVE':'🔴 BOT READY';st.className='h2o-status '+(state.ultimate?.connected?'on':'err');}const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ultimateDecision',x.decision||'WAIT');set('ultimateConfidence',x.confidence==null?'—':Math.round(x.confidence*100)+'%');set('ultimateTime',x.decision_time_secs==null?'—':x.decision_time_secs+'s');set('ultimatePhase',x.phase||'—');set('ultimateVotes',x.models_participating==null?'—':x.models_agreeing+'/'+x.models_participating);}
+function renderUltimateBot(){const x=state.ultimate?.last||{};const st=document.getElementById('ultimateStatus');if(st){st.textContent=state.ultimate?.error?'🔴 BOT ERROR':state.ultimate?.connected?'🟢 BOT AI LIVE':'🔴 BOT READY';st.className='h2o-status '+(state.ultimate?.connected?'on':'err');}const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ultimateDecision',x.decision||'WAIT');set('ultimateConfidence',x.confidence==null?'—':Math.round(x.confidence*100)+'%');set('ultimateTime',x.decision_seconds==null?'—':x.decision_seconds+'s');set('ultimatePhase',x.phase||'—');const vv=(x.votes||[]).filter(v=>v.side==='P'||v.side==='B');const aa=vv.length&&x.decision!=='WAIT'?vv.filter(v=>v.side===x.decision).length:0;set('ultimateVotes',vv.length?aa+'/'+vv.length:'—');}
 document.getElementById('ultimateScoreBtn')?.addEventListener('click',()=>scoreUltimateBot(true));setTimeout(()=>{renderUltimateBot();if(currentSequence().length>=6)scoreUltimateBot(false);},400);
 </script></body>
 </html>
