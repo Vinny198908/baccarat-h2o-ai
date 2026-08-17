@@ -387,6 +387,7 @@
 </div>
 <div class="signal-list">
 <div class="signal-line"><span>Road signal</span><div class="signal-bar"><div class="signal-fill" id="roadBar" style="width:0%"></div></div><b id="roadScore">0</b></div>
+<div class="signal-line"><span>Shoe signal</span><div class="signal-bar"><div class="signal-fill" id="shoeBar" style="width:0%"></div></div><b id="shoeScore">0</b></div>
 <div class="signal-line"><span>History signal</span><div class="signal-bar"><div class="signal-fill" id="histBar" style="width:0%"></div></div><b id="histScore">0</b></div>
 <div class="signal-line"><span>Library match</span><div class="signal-bar"><div class="signal-fill" id="libBar" style="width:0%"></div></div><b id="libScore">0</b></div>
 <div class="signal-line"><span>H2O.ai model</span><div class="signal-bar"><div class="signal-fill" id="h2oBar" style="width:0%"></div></div><b id="h2oScore">0</b></div>
@@ -439,7 +440,7 @@
 </div>
 <div class="analyzer" id="consensusPanel">
 <div class="analyzer-title">AI Consensus Engine</div>
-<div class="analyzer-sub">Combines Sequence AI, H2O.ai, historical-library, and road-structure signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
+<div class="analyzer-sub">Combines Sequence AI, H2O.ai, historical-library, road structure, and card-composition signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Consensus</span><strong id="consensusSide">—</strong></div>
 <div class="analyzer-card"><span>Confidence</span><strong id="consensusStrength">—</strong></div>
@@ -491,6 +492,66 @@
 <div class="h2o-note" id="h2oNote">H2O is now isolated. It scores only the H2O model trained from your saved shoes; Kaggle is never blended into H2O. Road Preview AI is also isolated and uses current-shoe road structure only. Your /score endpoint returns H2O P/B/T probabilities.</div>
 </div>
 
+<div class="card-entry">
+<div class="analyzer-title">Optional Card-Rank Tracker</div>
+<div class="analyzer-sub">Tap ranks as cards are exposed. This does not identify exact future cards; it only estimates whether the remaining shoe is slightly richer in low or high baccarat values.</div>
+<div class="rank-grid" id="rankGrid"></div>
+<div class="rank-actions">
+<button class="tiny-btn" id="undoCardBtn">Undo Card</button>
+<button class="tiny-btn" id="clearCardsBtn">Clear Cards</button>
+</div>
+<div class="rank-summary" id="rankSummary">No card ranks entered.</div>
+</div>
+<div class="dual-shoes">
+<div class="analyzer-title">Separate Red &amp; Black Card Shoes</div>
+<div class="analyzer-sub">These are two completely independent 8-deck shoes. Cards entered in one shoe never change the other shoe.</div>
+<div class="shoe-columns">
+<div class="shoe-column red-shoe">
+<div class="shoe-col-title"><span>🔴 Red Shoe</span><span class="shoe-count" id="redShoeCount">416 remaining</span></div>
+<div class="shoe-rank-grid" id="redShoeRanks"></div>
+<div class="shoe-history" id="redShoeHistory">No cards entered.</div>
+<div class="shoe-actions">
+<button class="tiny-btn" id="redShoeUndo">Undo</button>
+<button class="tiny-btn" id="redShoeReset">New Red Shoe</button>
+</div>
+<button class="shoe-active" id="redShoeActive">Use RED shoe for analyzer</button>
+<div class="shoe-comp" id="redShoeComp">Composition: full 8-deck shoe.</div>
+<div class="shoe-library">
+<div class="shoe-library-head"><span>Red Shoe Library</span><span class="shoe-library-count" id="redLibraryCount">0 saved</span></div>
+<div class="shoe-library-actions">
+<button class="tiny-btn" id="redShoeSave">Save Shoe</button>
+<button class="tiny-btn" id="redLibraryView">View</button>
+<button class="tiny-btn" id="redLibraryExport">Export</button>
+</div>
+<div class="shoe-library-actions">
+<button class="tiny-btn" id="redLibraryClear" style="grid-column:1/-1">Clear Red Library</button>
+</div>
+</div>
+</div>
+<div class="shoe-column black-shoe">
+<div class="shoe-col-title"><span>⚫ Black Shoe</span><span class="shoe-count" id="blackShoeCount">416 remaining</span></div>
+<div class="shoe-rank-grid" id="blackShoeRanks"></div>
+<div class="shoe-history" id="blackShoeHistory">No cards entered.</div>
+<div class="shoe-actions">
+<button class="tiny-btn" id="blackShoeUndo">Undo</button>
+<button class="tiny-btn" id="blackShoeReset">New Black Shoe</button>
+</div>
+<button class="shoe-active" id="blackShoeActive">Use BLACK shoe for analyzer</button>
+<div class="shoe-comp" id="blackShoeComp">Composition: full 8-deck shoe.</div>
+<div class="shoe-library">
+<div class="shoe-library-head"><span>Black Shoe Library</span><span class="shoe-library-count" id="blackLibraryCount">0 saved</span></div>
+<div class="shoe-library-actions">
+<button class="tiny-btn" id="blackShoeSave">Save Shoe</button>
+<button class="tiny-btn" id="blackLibraryView">View</button>
+<button class="tiny-btn" id="blackLibraryExport">Export</button>
+</div>
+<div class="shoe-library-actions">
+<button class="tiny-btn" id="blackLibraryClear" style="grid-column:1/-1">Clear Black Library</button>
+</div>
+</div>
+</div>
+</div>
+</div>
 <div class="library">
 <div class="library-title" id="patternLibraryTitle">Color Pattern Library</div>
 <div class="library-sub" id="patternLibrarySub">Choose the current shoe color. Completed P/B/T shoes are saved only to that color, and historical prediction matching uses only that color library.</div>
@@ -624,7 +685,7 @@
   </div>
 </div>
 <script>
-// ROAD ENGINE BUILD: 2026-08-15-road-preview-hard-isolated-v2
+// ROAD ENGINE BUILD: 2026-08-17-road-preview-v3 + ultimate-bot-v8-smart-controller
 const KEY='baccarat-roadmap-v1';
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
@@ -1074,7 +1135,7 @@ function renderStats(){
   document.getElementById('nextBankerPct').textContent=a.bPct+'%';
   document.getElementById('nextTiePct').textContent=local.tPct==null?'—':local.tPct+'%';
 }
-function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderCurrentShoeColor();}
+function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();renderCurrentShoeColor();}
 
 
 
@@ -1478,7 +1539,113 @@ document.getElementById('clearLibraryBtn').onclick=()=>{
   }
 };
 
-// --- Multi-signal analyzer and backtesting ---
+// --- Multi-signal analyzer, optional card-rank tracker, and backtesting ---
+const rankNames=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+
+function baccaratValue(rank){
+  if(rank==='A') return 1;
+  if(['10','J','Q','K'].includes(rank)) return 0;
+  return Number(rank);
+}
+
+function initRankGrid(){
+  const grid=document.getElementById('rankGrid');
+  if(!grid || grid.childElementCount) return;
+  rankNames.forEach(rank=>{
+    const b=document.createElement('button');
+    b.className='rank-btn'; b.textContent=rank;
+    b.onclick=()=>{state.cards.push(rank);persist();renderAnalyzer();};
+    grid.appendChild(b);
+  });
+}
+
+function initSeparateShoeGrid(gridId, stateKey){
+  const grid=document.getElementById(gridId);
+  if(!grid || grid.childElementCount) return;
+  rankNames.forEach(rank=>{
+    const b=document.createElement('button');
+    b.className='rank-btn'; b.textContent=rank;
+    b.onclick=()=>{
+      if(!Array.isArray(state[stateKey])) state[stateKey]=[];
+      if(state[stateKey].length>=416){alert('This 8-deck shoe is empty. Start a new shoe.');return;}
+      const used=state[stateKey].filter(x=>x===rank).length;
+      if(used>=32){alert(`All ${rank} cards have already been used in this 8-deck shoe.`);return;}
+      state[stateKey].push(rank);persist();renderSeparateShoes();
+    };
+    grid.appendChild(b);
+  });
+}
+
+function shoeCompositionSummary(cards){
+  const initial={}; rankNames.forEach(r=>initial[r]=32);
+  (cards||[]).forEach(r=>{if(initial[r]>0)initial[r]--;});
+  const remaining=Math.max(0,416-(cards||[]).length);
+  let low=0,high=0,zero=0;
+  Object.entries(initial).forEach(([r,n])=>{const v=baccaratValue(r);if(v===0)zero+=n;else if(v<=4)low+=n;else high+=n;});
+  if(!remaining)return 'Shoe empty.';
+  return `Remaining composition • low-value ${low} • high-value ${high} • zero-value ${zero}`;
+}
+
+function saveSeparateShoe(color, quiet=false){
+  const cardsKey=color+'ShoeCards', libKey=color+'ShoeLibrary';
+  const cards=Array.isArray(state[cardsKey])?state[cardsKey]:[];
+  if(!cards.length){if(!quiet)alert(`No cards entered in the ${color.toUpperCase()} shoe.`);return false;}
+  if(!Array.isArray(state[libKey]))state[libKey]=[];
+  const signature=cards.join(',');
+  if(state[libKey].some(x=>x.cards.join(',')===signature)){if(!quiet)alert('This exact shoe is already saved.');return false;}
+  state[libKey].push({id:`${color}_shoe_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,savedAt:new Date().toISOString(),cards:[...cards],used:cards.length});
+  persist(); if(!quiet)alert(`${color==='red'?'Red':'Black'} shoe saved to its own library (${cards.length} cards).`); return true;
+}
+
+function exportSeparateLibrary(color){
+  const lib=state[color+'ShoeLibrary']||[];
+  if(!lib.length){alert(`No ${color} shoes saved yet.`);return;}
+  const blob=new Blob([JSON.stringify({type:'baccarat-card-shoe-library',color,exportedAt:new Date().toISOString(),shoes:lib},null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`${color}_shoe_library.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function viewSeparateLibrary(color){
+  const lib=state[color+'ShoeLibrary']||[];
+  if(!lib.length){alert(`No ${color} shoes saved yet.`);return;}
+  const lines=lib.slice(-20).reverse().map((x,i)=>`${lib.length-i}. ${x.used} cards • ${new Date(x.savedAt).toLocaleString()}\n   ${x.cards.slice(-24).join(' ')}`);
+  alert(`${color.toUpperCase()} SHOE LIBRARY — ${lib.length} saved\n\n${lines.join('\n\n')}`);
+}
+
+function renderSeparateShoes(){
+  initSeparateShoeGrid('redShoeRanks','redShoeCards');
+  initSeparateShoeGrid('blackShoeRanks','blackShoeCards');
+  [['red','redShoeCards'],['black','blackShoeCards']].forEach(([prefix,key])=>{
+    const cards=Array.isArray(state[key])?state[key]:[];
+    const remaining=Math.max(0,416-cards.length);
+    const count=document.getElementById(prefix+'ShoeCount');
+    const history=document.getElementById(prefix+'ShoeHistory');
+    const comp=document.getElementById(prefix+'ShoeComp');
+    const active=document.getElementById(prefix+'ShoeActive');
+    const libCount=document.getElementById(prefix+'LibraryCount');
+    if(count) count.textContent=`${remaining} remaining • ${cards.length} used`;
+    if(history) history.textContent=cards.length ? `Recent: ${cards.slice(-18).join(' • ')}` : 'No cards entered.';
+    if(comp) comp.textContent=shoeCompositionSummary(cards);
+    if(active){active.classList.toggle('active',state.activeCardShoe===prefix);active.textContent=(state.activeCardShoe===prefix?'✓ ACTIVE for analyzer':'Use '+prefix.toUpperCase()+' shoe for analyzer');}
+    if(libCount) libCount.textContent=`${(state[prefix+'ShoeLibrary']||[]).length} saved`;
+  });
+}
+
+function bindSeparateShoeControls(){
+  const bind=(id,fn)=>{const el=document.getElementById(id);if(el)el.onclick=fn;};
+  bind('redShoeUndo',()=>{if(state.redShoeCards.length)state.redShoeCards.pop();persist();render();});
+  bind('blackShoeUndo',()=>{if(state.blackShoeCards.length)state.blackShoeCards.pop();persist();render();});
+  bind('redShoeReset',()=>{if(confirm('Start a new RED 8-deck shoe? The current red shoe will be saved first if it contains cards.')){if(state.redShoeCards.length)saveSeparateShoe('red',true);state.redShoeCards=[];persist();render();}});
+  bind('blackShoeReset',()=>{if(confirm('Start a new BLACK 8-deck shoe? The current black shoe will be saved first if it contains cards.')){if(state.blackShoeCards.length)saveSeparateShoe('black',true);state.blackShoeCards=[];persist();render();}});
+  bind('redShoeSave',()=>{saveSeparateShoe('red');renderSeparateShoes();});
+  bind('blackShoeSave',()=>{saveSeparateShoe('black');renderSeparateShoes();});
+  bind('redLibraryView',()=>viewSeparateLibrary('red')); bind('blackLibraryView',()=>viewSeparateLibrary('black'));
+  bind('redLibraryExport',()=>exportSeparateLibrary('red')); bind('blackLibraryExport',()=>exportSeparateLibrary('black'));
+  bind('redLibraryClear',()=>{if(confirm('Delete every saved RED card shoe?')){state.redShoeLibrary=[];persist();renderSeparateShoes();}});
+  bind('blackLibraryClear',()=>{if(confirm('Delete every saved BLACK card shoe?')){state.blackShoeLibrary=[];persist();renderSeparateShoes();}});
+  bind('redShoeActive',()=>{state.activeCardShoe='red';persist();render();});
+  bind('blackShoeActive',()=>{state.activeCardShoe='black';persist();render();});
+}
+
 function renderCurrentShoeColor(){
   const red=document.getElementById('currentRedShoeBtn');
   const black=document.getElementById('currentBlackShoeBtn');
@@ -1519,6 +1686,29 @@ const combinedShoeBtn=document.getElementById('combinedShoeBtn');
 if(currentRedBtn) currentRedBtn.onclick=()=>setCurrentShoeColor('red');
 if(currentBlackBtn) currentBlackBtn.onclick=()=>setCurrentShoeColor('black');
 if(combinedShoeBtn) combinedShoeBtn.onclick=()=>{state.predictionLibraryMode='combined'; if(state.h2o)state.h2o.last=null; if(state.kaggle)state.kaggle.last=null; persist();render(); scoreUltimateBot(false); if(state.h2o?.url)scoreWithH2O(false); if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
+
+function remainingCompositionScore(){
+  // Use the selected physical red/black shoe when it has entries; otherwise fall back to the optional generic tracker.
+  const decks=8;
+  const initial={};
+  rankNames.forEach(r=>initial[r]=4*decks);
+  const activeKey=state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards';
+  const sourceCards=(Array.isArray(state[activeKey]) && state[activeKey].length) ? state[activeKey] : (state.cards||[]);
+  sourceCards.forEach(r=>{ if(initial[r]>0) initial[r]--; });
+  const remaining=Object.values(initial).reduce((a,b)=>a+b,0);
+  if(!remaining) return 0;
+
+  let low=0, high=0, zero=0;
+  for(const [r,n] of Object.entries(initial)){
+    const v=baccaratValue(r);
+    if(v===0) zero+=n;
+    else if(v<=4) low+=n;
+    else high+=n;
+  }
+  // Heuristic centered around an 8-deck baseline. Small effect only.
+  const lowShare=low/remaining, highShare=high/remaining, zeroShare=zero/remaining;
+  return Math.max(-8,Math.min(8,(lowShare-highShare)*20 + (zeroShare-.3077)*12));
+}
 
 function historyPatternSignal(){
   const seq=state.hands.filter(h=>h.r!=='T').map(h=>h.r);
@@ -1620,6 +1810,10 @@ function h2oFeatures(){
     library_matches:match.matches||0, library_match_length:match.len||0,
     saved_shoes:activePatternLibrary().length,
     current_shoe_color:state.currentShoeColor||'',
+    active_card_shoe:state.activeCardShoe||'red',
+    active_card_used:((state[(state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards')]||[]).length),
+    red_card_shoes_saved:(state.redShoeLibrary||[]).length,
+    black_card_shoes_saved:(state.blackShoeLibrary||[]).length,
     use_kaggle_library:state.kaggleLibraryEnabled!==false,library_mode:state.predictionLibraryMode||'selected',shoe_color:state.currentShoeColor||null
   };
 }
@@ -1702,14 +1896,25 @@ function normalizeH2OResponse(data){
   return {p:pr,b:br,t:tr,side,strength:Math.max(pr,br),at:new Date().toISOString(),sequence:currentSequence().join('')};
 }
 async function h2oRequestJson(url, options){
-  const res=await fetch(url,options);
+  let res;
+  try{
+    res=await fetch(url,options);
+  }catch(firstErr){
+    // If an old saved server URL is unreachable but this page is being served
+    // by the API itself, retry the same endpoint on the current origin once.
+    try{
+      const parsed=new URL(url,location.href);
+      const sameOrigin=(location.protocol==='https:'||location.protocol==='http:') ? location.origin+parsed.pathname+parsed.search : '';
+      if(!sameOrigin || sameOrigin===url) throw firstErr;
+      res=await fetch(sameOrigin,options);
+      if(state.h2o && /\/score\/?$/i.test(parsed.pathname)) state.h2o.url=location.origin+'/score';
+    }catch(secondErr){ throw firstErr; }
+  }
   let data=null;
   try{ data=await res.json(); }catch(e){ data=null; }
   if(!res.ok){
     const detail=data?.detail || data?.message || ('HTTP '+res.status);
-    const err=new Error(detail);
-    err.status=res.status;
-    throw err;
+    const err=new Error(detail); err.status=res.status; throw err;
   }
   return data;
 }
@@ -2145,7 +2350,7 @@ function computeCombinedAnalyzer(){
   const kaggle=currentKaggleSignal();
   const lib=(state.kaggleLibraryEnabled!==false && kaggle.side) ? kaggle : localLib;
   const matchInfo=(state.kaggleLibraryEnabled!==false && kaggle.matches) ? {matches:kaggle.matches,len:kaggle.suffixLength,source:'kaggle'} : localMatchInfo;
-  const comp=0; // physical card-rank tracking removed
+  const comp=remainingCompositionScore();
   const h2o=currentH2OSignal();
   const deepseek=currentDeepSeekSignal();
   const seqAI=sequenceAISignal();
@@ -2166,7 +2371,7 @@ function computeCombinedAnalyzer(){
   const histQuality=historical.side ? Math.min(.52,.28+Math.max(0,historical.strength-50)/90) : 0;
   const roadQuality=roadFamily.side ? Math.min(.34,.18+Math.max(0,roadFamily.strength-50)/95) : 0;
   const externalQuality=external.side ? Math.min(.18,.08+Math.max(0,external.strength-50)/120) : 0;
-  const compQuality=0;
+  const compQuality=Math.min(.10,Math.abs(comp)/120);
   let qsum=histQuality+roadQuality+externalQuality+compQuality;
   if(qsum>1){const sc=1/qsum; qsum=1;}
 
@@ -2174,7 +2379,7 @@ function computeCombinedAnalyzer(){
     if(!f?.side || !f.strength) return 0;
     return (f.side==='P'?1:-1)*Math.max(0,f.strength-50);
   }
-  let pEdge=signedFamily(historical)*histQuality + signedFamily(roadFamily)*roadQuality + signedFamily(external)*externalQuality;
+  let pEdge=signedFamily(historical)*histQuality + signedFamily(roadFamily)*roadQuality + signedFamily(external)*externalQuality + comp*compQuality;
   pEdge=Math.max(-16,Math.min(16,pEdge));
   let pPct=Math.round(50+pEdge), bPct=100-pPct;
   const side=pPct>=bPct?'P':'B', top=Math.max(pPct,bPct);
@@ -2478,6 +2683,7 @@ function renderMasterBot(){
 }
 
 function renderAnalyzer(){
+  initRankGrid();
   renderRoadPreviewAI();
   renderSequenceAI();
   renderConsensus();
@@ -2488,7 +2694,9 @@ function renderAnalyzer(){
 
   const roadVal=a.road.strength||0;
   const histVal=a.hist.strength||0;
+  const shoeVal=Math.round(50+a.comp*3);
   document.getElementById('roadScore').textContent=Math.round(roadVal);
+  document.getElementById('shoeScore').textContent=Math.round(shoeVal);
   const libVal=a.lib?.strength||0;
   const h2oVal=a.h2o?.strength||0;
   const deepseekVal=a.deepseek?.strength||0;
@@ -2497,6 +2705,7 @@ function renderAnalyzer(){
   document.getElementById('h2oScore').textContent=Math.round(h2oVal);
   const dsScore=document.getElementById('deepseekScore'); if(dsScore) dsScore.textContent=Math.round(deepseekVal);
   setSignalBar('roadBar',roadVal);
+  setSignalBar('shoeBar',shoeVal);
   setSignalBar('histBar',histVal);
   setSignalBar('libBar',libVal);
   setSignalBar('h2oBar',h2oVal);
@@ -2509,6 +2718,13 @@ function renderAnalyzer(){
     ? `Qualified by independent evidence families • ${famText} • coverage ${a.coverage}%. Historical sources are de-duplicated before combining.`
     : `Decision gate is WAIT • ${a.gateReason||'evidence not strong enough'} ${famText?('• '+famText):''}`;
 
+
+  const counts={};
+  state.cards.forEach(r=>counts[r]=(counts[r]||0)+1);
+  const txt=state.cards.length
+    ? `Entered ${state.cards.length} cards • `+rankNames.filter(r=>counts[r]).map(r=>`${r}:${counts[r]}`).join('  ')
+    : 'No card ranks entered.';
+  document.getElementById('rankSummary').textContent=txt;
 
   const bt=state.backtest||{predictions:0,wins:0,currentRun:0,rows:[]};
   document.getElementById('btPred').textContent=bt.predictions||0;
@@ -2549,6 +2765,10 @@ function armNextPrediction(){
   state.backtest.pending=actionable?{side:a.side,score:a.top}:null;
 }
 
+document.getElementById('undoCardBtn').onclick=()=>{state.cards.pop();persist();renderAnalyzer();};
+document.getElementById('clearCardsBtn').onclick=()=>{
+  if(confirm('Clear all entered card ranks?')){state.cards=[];persist();renderAnalyzer();}
+};
 document.getElementById('resetBacktestBtn').onclick=()=>{
   if(confirm('Reset prediction backtest?')){
     state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};persist();renderAnalyzer();
@@ -2893,12 +3113,13 @@ document.getElementById('clearScanBtn').onclick=()=>{
 };
 
 
+bindSeparateShoeControls();
 load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
 </script>
-<div class="h2o-panel" id="ultimateBotPanel" style="margin:14px"><div class="h2o-head"><div><div class="h2o-title">ULTIMATE BOT CONTROLLER</div><div class="analyzer-sub">10-second maximum decision budget • saved-library + derived-road specialists only • persistent learning • complete Punto Banco rules knowledge • 40+ late-shoe specialist</div></div><span class="h2o-status err" id="ultimateStatus">🔴 BOT READY</span></div><div class="h2o-grid"><div class="h2o-card"><strong id="ultimateDecision">WAIT</strong><span>Final Decision</span></div><div class="h2o-card"><strong id="ultimateConfidence">—</strong><span>Confidence</span></div><div class="h2o-card"><strong id="ultimateTime">—</strong><span>Decision Time</span></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>Phase</span><strong id="ultimatePhase">—</strong></div><div class="analyzer-card"><span>Model Votes</span><strong id="ultimateVotes">—</strong></div><div class="analyzer-card"><span>Budget</span><strong id="ultimateBudget">10.0s MAX</strong></div><div class="analyzer-card"><span>Rules Knowledge</span><strong>🟢 LIVE</strong></div></div><button class="tiny-btn" id="ultimateScoreBtn">Run Ultimate Bot Now</button><div class="h2o-note">Returns immediately when ready. WAIT is used when the evidence gate is weak. Baccarat rules knowledge validates how the game is played but is not used as an extra prediction vote.</div></div><script>
+<div class="h2o-panel" id="ultimateBotPanel" style="margin:14px"><div class="h2o-head"><div><div class="h2o-title">ULTIMATE BOT CONTROLLER</div><div class="analyzer-sub">10-second maximum decision budget • adaptive specialist voting • persistent performance learning • current-road + saved-library + shoe-regime + 40+ late-shoe specialists • complete Punto Banco rules knowledge</div></div><span class="h2o-status err" id="ultimateStatus">🔴 BOT READY</span></div><div class="h2o-grid"><div class="h2o-card"><strong id="ultimateDecision">WAIT</strong><span>Final Decision</span></div><div class="h2o-card"><strong id="ultimateConfidence">—</strong><span>Confidence</span></div><div class="h2o-card"><strong id="ultimateTime">—</strong><span>Decision Time</span></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>Phase</span><strong id="ultimatePhase">—</strong></div><div class="analyzer-card"><span>Model Votes</span><strong id="ultimateVotes">—</strong></div><div class="analyzer-card"><span>Budget</span><strong id="ultimateBudget">10.0s MAX</strong></div><div class="analyzer-card"><span>Rules Knowledge</span><strong>🟢 LIVE</strong></div></div><button class="tiny-btn" id="ultimateScoreBtn">Run Ultimate Bot Now</button><div class="h2o-note">Returns immediately when evidence is ready. Specialists are weighted by their recorded performance for the current shoe phase; weak or conflicting evidence returns WAIT. Confidence is controller agreement, not a guaranteed win probability. Baccarat rules knowledge validates game play but is not an extra vote.</div></div><script>
 function ultimateUrl(path){const u=(state.h2o?.url||DEFAULT_H2O_SCORE_URL||'').trim();if(!u)return '';return /\/score\/?(?:\?.*)?$/i.test(u)?u.replace(/\/score\/?(?:\?.*)?$/i,path):u.replace(/\/$/,'')+path;}
 async function scoreUltimateBot(showAlert=false){const seq=currentSequence().join('');if(seq.length<6)return null;const url=ultimateUrl('/bot/decide');if(!url)return null;const st=document.getElementById('ultimateStatus');if(st){st.textContent='🟡 BOT ANALYZING…';st.className='h2o-status';}const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{const out=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq,library_mode:state.predictionLibraryMode||'selected',shoe_color:state.currentShoeColor||null,saved_shoes:activePatternLibrary().map(x=>x?.sequence||'').filter(Boolean)}})});state.ultimate=state.ultimate||{};state.ultimate.last=out;state.ultimate.pendingId=out.prediction_id||null;state.ultimate.connected=true;state.ultimate.error='';persist();renderUltimateBot();return out;}catch(e){state.ultimate=state.ultimate||{};state.ultimate.error=String(e.message||e);state.ultimate.connected=false;persist();renderUltimateBot();if(showAlert)alert('Ultimate Bot failed: '+state.ultimate.error);return null;}}
-async function settleUltimatePrediction(actual){const id=state.ultimate?.pendingId;if(!id)return;state.ultimate.pendingId=null;persist();const url=ultimateUrl('/feedback');if(!url)return;const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({prediction_id:id,actual})});}catch(e){}}
+async function settleUltimatePrediction(actual){const id=state.ultimate?.pendingId;if(!id)return;state.ultimate.pendingId=null;persist();const url=ultimateUrl('/bot/feedback');if(!url)return;const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({prediction_id:id,actual})});}catch(e){}}
 function renderUltimateBot(){const x=state.ultimate?.last||{};const st=document.getElementById('ultimateStatus');if(st){st.textContent=state.ultimate?.error?'🔴 BOT ERROR':state.ultimate?.connected?'🟢 BOT AI LIVE':'🔴 BOT READY';st.className='h2o-status '+(state.ultimate?.connected?'on':'err');}const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ultimateDecision',x.decision||'WAIT');set('ultimateConfidence',x.confidence==null?'—':Math.round(x.confidence*100)+'%');set('ultimateTime',x.decision_seconds==null?'—':x.decision_seconds+'s');set('ultimatePhase',x.phase||'—');const vv=(x.votes||[]).filter(v=>v.side==='P'||v.side==='B');const aa=vv.length&&x.decision!=='WAIT'?vv.filter(v=>v.side===x.decision).length:0;set('ultimateVotes',vv.length?aa+'/'+vv.length:'—');}
 document.getElementById('ultimateScoreBtn')?.addEventListener('click',()=>scoreUltimateBot(true));setTimeout(()=>{renderUltimateBot();if(currentSequence().length>=6)scoreUltimateBot(false);},400);
 </script></body>
