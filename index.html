@@ -465,8 +465,8 @@
 <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Choose a shoe library and enter hands to begin historical matching.</div>
 </div>
 <div class="analyzer" id="sequenceAiPanel">
-<div class="analyzer-title">Sequence AI Analyzer</div>
-<div class="analyzer-sub">Live shoe-similarity engine. It scans multiple rolling endings of the current shoe against historical shoes. Strong, persistent matches increase Sequence AI influence; weak or conflicting matches return WAIT.</div>
+<div class="analyzer-title">Sequence AI V2 Analyzer</div>
+<div class="analyzer-sub">Adaptive saved-shoe P/B/T similarity engine. It compares short, medium, and long rolling endings against the front, middle, and end of historical shoes, limits duplicate influence from any one shoe, rewards persistent matches as the current shoe grows, and uses a stronger WAIT gate when continuations conflict. Sequence AI V2 uses saved P/B/T shoe history only.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">WAIT</strong></div>
 <div class="analyzer-card"><span>Sequence confidence</span><strong id="seqAiStrength">—</strong></div>
@@ -2324,89 +2324,92 @@ function renderRoadPreviewAI(){
 
 function sequenceAISignal(){
   const cur=currentSequence();
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string');
-  const kag=currentKaggleSignal();
-  if(cur.length<4 || (!lib.length && !kag.side)) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus historical library evidence.'};
+  // Sequence AI V2 stays isolated: selected/combined saved P/B/T shoe history only.
+  // No Kaggle, H2O, derived roads, Screenshot Match AI, Bot AI, or card composition.
+  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  if(cur.length<4 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus saved historical shoe evidence.'};
 
-  // LOCAL SAVED-SHOE MULTI-WINDOW SCAN
-  let wp=0,wb=0,wt=0,weightTotal=0,rawMatches=0,bestLen=0;
-  let localWindows=[];
-  for(let k=Math.min(20,cur.length);k>=3;k--){
+  // Adaptive windows: short, medium and long endings become available as the shoe grows.
+  const maxK=Math.min(24,cur.length);
+  const lengths=[];
+  for(let k=maxK;k>=3;k--){
+    if(k<=8 || k%2===0 || k===maxK) lengths.push(k);
+  }
+
+  let windows=[], rawMatches=0, bestLen=0;
+  lengths.forEach(k=>{
     const pattern=cur.slice(-k).join('');
-    let p=0,b=0,t=0,total=0,matchedShoes=0;
-    lib.forEach(shoe=>{
-      const ss=shoe.sequence||''; let shoeHit=false;
+    let p=0,b=0,t=0,total=0;
+    const shoeVotes=[];
+    lib.forEach((shoe,shoeIndex)=>{
+      const ss=shoe.sequence||'';
+      let sp=0,sb=0,st=0,hits=0,bestPosition='';
       for(let i=0;i+k<ss.length;i++){
-        if(ss.slice(i,i+k)===pattern){
-          const nxt=ss[i+k];
-          if(nxt==='P')p++; else if(nxt==='B')b++; else if(nxt==='T')t++;
-          total++; shoeHit=true;
-        }
+        if(ss.slice(i,i+k)!==pattern) continue;
+        const nxt=ss[i+k];
+        if(nxt==='P')sp++; else if(nxt==='B')sb++; else if(nxt==='T')st++;
+        hits++;
+        const frac=i/Math.max(1,ss.length-k);
+        bestPosition=frac<.33?'front':frac<.67?'middle':'end';
       }
-      if(shoeHit) matchedShoes++;
+      if(hits){
+        // Duplicate-match control: each historical shoe contributes one normalized vote per window.
+        const z=sp+sb+st||1;
+        shoeVotes.push({shoeIndex,p:sp/z,b:sb/z,t:st/z,hits,position:bestPosition});
+      }
     });
-    if(!total) continue;
-    if(!bestLen) bestLen=k;
-    rawMatches+=total;
-    const reliability=Math.min(1,total/12);
-    const lengthWeight=Math.pow(k/3,1.45);
-    const w=lengthWeight*(0.30+0.70*reliability);
-    wp+=(p/total)*w; wb+=(b/total)*w; wt+=(t/total)*w; weightTotal+=w;
-    const leader=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
-    localWindows.push({length:k,matches:total,matchedShoes,p,b,t,leader,weight:w});
-  }
-
-  let sources=[];
-  if(weightTotal){
-    const lp=wp/weightTotal, lb=wb/weightTotal, lt=wt/weightTotal;
-    const leader=lp>=lb&&lp>=lt?'P':lb>=lp&&lb>=lt?'B':'T';
-    const agree=localWindows.filter(x=>x.leader===leader).length;
-    const agreement=agree/Math.max(1,localWindows.length);
-    const avgSample=localWindows.reduce((a,x)=>a+Math.min(1,x.matches/12),0)/Math.max(1,localWindows.length);
-    const lengthQuality=Math.min(1,(bestLen||0)/12);
-    const sim=Math.round(100*(.42*agreement+.33*avgSample+.25*lengthQuality));
-    sources.push({name:'saved',p:lp,b:lb,t:lt,similarity:sim,agreement,windows:localWindows.length,agree,matches:rawMatches,weight:Math.max(.15,sim/100)});
-  }
-
-  // KAGGLE 200K MULTI-WINDOW SCAN (returned by the server in one streaming pass).
-  if(state.kaggleLibraryEnabled!==false && kag && kag.sequence===cur.join('') && kag.usableWindows){
-    let kp=Number(kag.multiP),kb=Number(kag.multiB),kt=Number(kag.multiT);
-    if(kp<=1.0001&&kb<=1.0001&&kt<=1.0001){/* already fractions */}else{const z=kp+kb+kt||1;kp/=z;kb/=z;kt/=z;}
-    const kagLeader=kp>=kb&&kp>=kt?'P':kb>=kp&&kb>=kt?'B':'T';
-    const agree=Math.round((kag.windowAgreement||0)*kag.usableWindows);
-    sources.push({name:'kaggle',p:kp,b:kb,t:kt,similarity:Math.round(kag.similarityScore||0),agreement:kag.windowAgreement||0,windows:kag.usableWindows||0,agree,matches:kag.matches||0,weight:Math.max(.20,(kag.similarityScore||0)/100),leader:kagLeader});
-  }
-
-  if(!sources.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable historical sequences yet.'};
-
-  // Similarity itself controls how much a source can influence Sequence AI.
-  // Very strong persistent matches get heavy weight; weak matches stay muted.
-  let ap=0,ab=0,at=0,aw=0,totalWindows=0,agreeWindows=0,totalMatches=0;
-  sources.forEach(x=>{
-    const simGate=x.similarity>=80?1.50:x.similarity>=65?1.10:x.similarity>=50?.70:.30;
-    const w=x.weight*simGate;
-    ap+=x.p*w;ab+=x.b*w;at+=x.t*w;aw+=w;
-    totalWindows+=x.windows;agreeWindows+=x.agree;totalMatches+=x.matches;
+    if(!shoeVotes.length) return;
+    const pAvg=shoeVotes.reduce((a,x)=>a+x.p,0)/shoeVotes.length;
+    const bAvg=shoeVotes.reduce((a,x)=>a+x.b,0)/shoeVotes.length;
+    const tAvg=shoeVotes.reduce((a,x)=>a+x.t,0)/shoeVotes.length;
+    const leader=pAvg>=bAvg&&pAvg>=tAvg?'P':bAvg>=pAvg&&bAvg>=tAvg?'B':'T';
+    const edge=Math.max(pAvg,bAvg,tAvg)-[pAvg,bAvg,tAvg].sort((a,b)=>b-a)[1];
+    const sampleQuality=Math.min(1,shoeVotes.length/8);
+    const lengthQuality=Math.min(1,k/16);
+    const persistence=Math.min(1,k/Math.max(6,cur.length));
+    const weight=(.45+.55*sampleQuality)*(1+.9*lengthQuality)*(1+.35*persistence);
+    rawMatches+=shoeVotes.length;
+    bestLen=Math.max(bestLen,k);
+    windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,edge,samples:shoeVotes.length,weight});
   });
-  let p=ap/aw,b=ab/aw,t=at/aw; const z=p+b+t||1;p=p/z*100;b=b/z*100;t=t/z*100;
+
+  if(!windows.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable saved-shoe sequence found yet.'};
+
+  // Determine persistent leader first; conflicting windows are deliberately penalized.
+  const leaderWeights={P:0,B:0,T:0};
+  windows.forEach(w=>leaderWeights[w.leader]+=w.weight);
+  const leader=Object.entries(leaderWeights).sort((a,b)=>b[1]-a[1])[0][0];
+  const agreeWindows=windows.filter(w=>w.leader===leader).length;
+  const totalWindows=windows.length;
+  const agreement=agreeWindows/totalWindows;
+
+  let ap=0,ab=0,at=0,aw=0;
+  windows.forEach(w=>{
+    // Persistent longer matches get more influence; disagreeing windows are muted.
+    const persistenceBoost=w.leader===leader ? (1+.35*agreement) : .55;
+    const ww=w.weight*persistenceBoost;
+    ap+=w.p*ww; ab+=w.b*ww; at+=w.t*ww; aw+=ww;
+  });
+  let p=ap/aw,b=ab/aw,t=at/aw; const z=p+b+t||1; p=p/z*100;b=b/z*100;t=t/z*100;
   const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
   const nonTieTotal=pr+br||1;
   const nonTieEdge=Math.abs(pr-br)/nonTieTotal*100;
-  const similarityScore=Math.round(sources.reduce((a,x)=>a+x.similarity*x.weight,0)/Math.max(.001,sources.reduce((a,x)=>a+x.weight,0)));
-  const agreement=agreeWindows/Math.max(1,totalWindows);
-  const grade=similarityScore>=82&&agreement>=.70?'VERY STRONG':similarityScore>=68&&agreement>=.60?'STRONG':similarityScore>=52?'MODERATE':'LOW';
-
+  const avgSamples=windows.reduce((a,w)=>a+Math.min(1,w.samples/8),0)/totalWindows;
+  const lengthQuality=Math.min(1,bestLen/16);
+  const similarityScore=Math.round(100*(.48*agreement+.30*avgSamples+.22*lengthQuality));
+  const grade=similarityScore>=84&&agreement>=.72?'VERY STRONG':similarityScore>=70&&agreement>=.62?'STRONG':similarityScore>=55?'MODERATE':'LOW';
   const candidate=pr>=br?'P':'B';
-  // WAIT protects against forcing a bet from weak resemblance or conflicting windows.
-  if(similarityScore<52 || agreement<.55 || nonTieEdge<5){
-    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:totalMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:`WAIT: ${similarityScore}% shoe similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge.`};
+
+  // Stronger WAIT gate: do not manufacture confidence from weak/conflicting history.
+  if(similarityScore<55 || agreement<.58 || nonTieEdge<6 || (rawMatches<3 && bestLen<8)){
+    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:`WAIT: ${similarityScore}% similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge.`};
   }
 
-  const sampleFactor=Math.min(1,totalMatches/30);
-  const strength=Math.min(88,Math.round(50 + nonTieEdge*.22 + Math.max(0,similarityScore-50)*.42 + sampleFactor*5));
-  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:totalMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources};
+  const sampleFactor=Math.min(1,rawMatches/24);
+  const persistenceFactor=Math.min(1,bestLen/16);
+  const strength=Math.min(88,Math.round(48 + nonTieEdge*.20 + Math.max(0,similarityScore-50)*.38 + sampleFactor*5 + persistenceFactor*4));
+  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources:[{name:'saved-shoes-v2'}]};
 }
-
 function renderSequenceAI(){
   const s=sequenceAISignal();
   const name=s.side==='P'?'Player':s.side==='B'?'Banker':'WAIT';
