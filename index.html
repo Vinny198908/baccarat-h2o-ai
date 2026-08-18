@@ -116,6 +116,10 @@
   .scan-summary{margin-top:8px;font-size:12px;font-weight:700}
 
 
+
+  .road-memory-ai{margin:8px 0;background:var(--panel);border:1px solid #6a5420;border-radius:14px;padding:10px}
+  .road-memory-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .road-memory-badge{font-size:10px;font-weight:900;padding:5px 8px;border-radius:999px;background:#3a321b;color:#f1c75b}
   .analyzer{margin-top:8px;background:var(--panel);border:1px solid #262c34;border-radius:14px;padding:10px}
   .analyzer-title{font-size:14px;font-weight:800}
   .analyzer-sub{font-size:11px;color:var(--muted);line-height:1.3;margin-top:3px}
@@ -257,6 +261,29 @@
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
+</div>
+<div class="road-memory-ai" id="roadMemoryAiPanel" style="border-color:#f1b827;box-shadow:0 0 0 1px rgba(241,184,39,.15) inset">
+<div class="road-memory-head"><div class="analyzer-title">🧠 PREVIOUS ROADS → MAIN ROAD AI</div><span class="road-memory-badge" id="roadMemoryStatus">WAIT</span></div>
+<div class="analyzer-sub"><b>SEPARATE AI — ALWAYS CHECKING.</b> This AI uses ONLY saved Big Eye Boy, Small Road, and Cockroach Road histories. It matches those previous derived-road patterns to the current shoe, studies what main-road Player/Banker result came next, and converts the three road votes into one next main-road prediction. It does not use H2O, Kaggle, Sequence AI, card ranks, or the normal Road Preview AI.</div>
+<div class="analyzer-grid">
+<div class="analyzer-card"><span>MAIN ROAD PREDICTION</span><strong id="roadMemoryPick">WAIT</strong></div>
+<div class="analyzer-card"><span>AI confidence</span><strong id="roadMemoryConfidence">—</strong></div>
+<div class="analyzer-card"><span>Historical road matches</span><strong id="roadMemoryMatches">0</strong></div>
+</div>
+<div class="road-predict-panel" style="margin-top:8px">
+<div class="road-predict-title">Previous-road votes mapped to next main-road result</div>
+<div class="road-predict-grid">
+<div class="road-predict-card"><span>Big Eye Boy vote</span><strong id="roadMemoryEyeVote">WAIT</strong><small id="roadMemoryEyePct">—</small></div>
+<div class="road-predict-card"><span>Small Road vote</span><strong id="roadMemorySmallVote">WAIT</strong><small id="roadMemorySmallPct">—</small></div>
+<div class="road-predict-card"><span>Cockroach vote</span><strong id="roadMemoryRoachVote">WAIT</strong><small id="roadMemoryRoachPct">—</small></div>
+</div>
+</div>
+<div class="match-pcts">
+<div class="match-pct"><strong id="roadMemoryP">—</strong><span>Player main-road fit</span></div>
+<div class="match-pct"><strong id="roadMemoryB">—</strong><span>Banker main-road fit</span></div>
+<div class="match-pct"><strong id="roadMemoryAgree">0/3</strong><span>Roads agreeing</span></div>
+</div>
+<div class="analyzer-sub" id="roadMemoryNote" style="margin-top:8px">Enter hands and build/import saved shoe history to start previous-road matching.</div>
 </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
 <div class="analyzer-title">🤖 High-Powered Bot AI — Library + Derived Roads + Baccarat Rules</div>
@@ -447,16 +474,6 @@
 <div class="analyzer-card"><span>Models agreeing</span><strong id="consensusAgree">0/0</strong></div>
 </div>
 <div class="analyzer-sub" id="consensusNote" style="margin-top:8px">Waiting for enough independent signals.</div>
-</div>
-<div class="analyzer" id="decisionGatePanel">
-<div class="analyzer-title">Top-Tier Decision Gate</div>
-<div class="analyzer-sub">De-duplicates related evidence, checks independent agreement, blocks contradictory signals, and qualifies a pick only when coverage and edge are strong enough.</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Decision</span><strong id="gateDecision">WAIT</strong></div>
-<div class="analyzer-card"><span>Independent agreement</span><strong id="gateAgree">0/0</strong></div>
-<div class="analyzer-card"><span>Evidence quality</span><strong id="gateQuality">LOW</strong></div>
-</div>
-<div class="analyzer-sub" id="gateNote" style="margin-top:8px">Waiting for enough independent evidence.</div>
 </div>
 <div class="h2o-panel">
 <div class="h2o-head">
@@ -1135,7 +1152,74 @@ function renderStats(){
   document.getElementById('nextBankerPct').textContent=a.bPct+'%';
   document.getElementById('nextTiePct').textContent=local.tPct==null?'—':local.tPct+'%';
 }
-function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();renderCurrentShoeColor();}
+
+function roadMemoryLibraries(){
+  if(state.predictionLibraryMode==='combined') return [...(state.redPatternLibrary||[]),...(state.blackPatternLibrary||[])];
+  if(state.currentShoeColor==='red') return state.redPatternLibrary||[];
+  if(state.currentShoeColor==='black') return state.blackPatternLibrary||[];
+  return [];
+}
+function roadSuffixVotes(cur,hist){
+  const c=(cur||[]).join(''), h=(hist||[]).join('');
+  const votes={R:0,B:0,matches:0,best:0};
+  if(c.length<4||h.length<5) return votes;
+  const maxK=Math.min(14,c.length,h.length-1);
+  for(let k=4;k<=maxK;k++){
+    const pat=c.slice(-k); let pos=h.indexOf(pat); let found=0;
+    while(pos!==-1){ const n=h[pos+k]; if(n==='R'||n==='B'){const w=k*k;votes[n]+=w;votes.matches++;found++;votes.best=Math.max(votes.best,k);} pos=h.indexOf(pat,pos+1); }
+    if(found && k>=10) break;
+  }
+  return votes;
+}
+function analyzeDerivedRoadMemory(){
+  const lib=roadMemoryLibraries(), cur=currentDerivedRoadSet();
+  const defs=[['bigEye',1,1],['small',2,.9],['roach',3,.8]];
+  const expected={}; let matchedSets=0,totalEvidence=0;
+  defs.forEach(([key,off,w])=>{ let R=0,B=0,m=0,best=0; lib.forEach(shoe=>{const v=roadSuffixVotes(cur[key],roadHistoryForShoe(shoe)[key]);R+=v.R*w;B+=v.B*w;m+=v.matches;best=Math.max(best,v.best);if(v.matches)matchedSets++;}); expected[key]={R,B,m,best,off,w};totalEvidence+=m; });
+  const sideScore={P:0,B:0}, sideRoads={P:0,B:0}, perRoad={};
+  defs.forEach(([key,off,w])=>{
+    const e=expected[key], histDen=e.R+e.B;
+    let pFit=0,bFit=0;
+    const pMark=previewDerivedMark(state.hands,'P',off), bMark=previewDerivedMark(state.hands,'B',off);
+    if(histDen>0){
+      if(pMark) pFit=(pMark==='R'?e.R:e.B)/histDen;
+      if(bMark) bFit=(bMark==='R'?e.R:e.B)/histDen;
+    }
+    const weight=Math.min(1,Math.log2(1+e.m)/3);
+    sideScore.P+=pFit*w*weight; sideScore.B+=bFit*w*weight;
+    if(pFit>=.58) sideRoads.P++; if(bFit>=.58) sideRoads.B++;
+    const rs=pFit+bFit; const pp=rs?Math.round(pFit*100/rs):50, bp=rs?100-pp:50;
+    const vote=(e.m>=1 && Math.abs(pp-bp)>=6)?(pp>bp?'P':'B'):null;
+    perRoad[key]={vote,pPct:pp,bPct:bp,matches:e.m,best:e.best};
+  });
+  const den=defs.reduce((a,x)=>a+x[2],0), p=den?sideScore.P/den:0,b=den?sideScore.B/den:0;
+  const sum=p+b, pPct=sum?Math.round(p*100/sum):50,bPct=sum?100-pPct:50, edge=Math.abs(pPct-bPct);
+  const pick=pPct>bPct?'P':bPct>pPct?'B':null;
+  const agreeing=pick?Object.values(perRoad).filter(x=>x.vote===pick).length:0;
+  const enough=totalEvidence>=3 && edge>=8 && agreeing>=1;
+  return {pick:enough?pick:null,pPct,bPct,edge,totalEvidence,matchedSets,roads:agreeing,available:lib.length,perRoad};
+}
+function renderDerivedRoadMemory(){
+  const a=analyzeDerivedRoadMemory();
+  const pick=document.getElementById('roadMemoryPick'); if(!pick)return;
+  pick.textContent=a.pick?(a.pick==='P'?'PLAYER':'BANKER'):'WAIT';
+  document.getElementById('roadMemoryConfidence').textContent=a.pick?Math.min(95,50+Math.round(a.edge/2))+'%':'—';
+  document.getElementById('roadMemoryMatches').textContent=a.matchedSets;
+  document.getElementById('roadMemoryP').textContent=a.totalEvidence?a.pPct+'%':'—';
+  document.getElementById('roadMemoryB').textContent=a.totalEvidence?a.bPct+'%':'—';
+  document.getElementById('roadMemoryAgree').textContent=(a.pick?a.roads:0)+'/3';
+  const roadVoteEls=[['bigEye','roadMemoryEyeVote','roadMemoryEyePct'],['small','roadMemorySmallVote','roadMemorySmallPct'],['roach','roadMemoryRoachVote','roadMemoryRoachPct']];
+  roadVoteEls.forEach(([key,vId,pId])=>{
+    const r=a.perRoad?.[key]||{};
+    const v=document.getElementById(vId), p=document.getElementById(pId);
+    if(v) v.textContent=r.vote?(r.vote==='P'?'PLAYER':'BANKER'):'WAIT';
+    if(p) p.textContent=r.matches?`P ${r.pPct}% • B ${r.bPct}% • ${r.matches} match${r.matches===1?'':'es'}`:'No historical match';
+  });
+  document.getElementById('roadMemoryStatus').textContent=a.pick?'ACTIVE':'WAIT';
+  document.getElementById('roadMemoryNote').textContent=!state.currentShoeColor&&state.predictionLibraryMode!=='combined'?'Choose RED or BLACK shoe first.':!a.available?'No saved shoes are available for this road-memory AI yet.':a.totalEvidence<3?'No strong previous derived-road ending matches yet. Keep entering hands; the AI checks again after every result.':a.pick?`Historical derived-road continuations favor ${a.pick==='P'?'Player':'Banker'} ${a.pick==='P'?a.pPct:a.bPct}% by road fit. This is a pattern signal, not a guaranteed outcome.`:`Historical road matches are present, but Player/Banker translation is too close or conflicting, so the AI returns WAIT.`;
+}
+
+function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();renderCurrentShoeColor();renderDerivedRoadMemory();}
 
 
 
@@ -2357,7 +2441,7 @@ function computeCombinedAnalyzer(){
   const roadAI=roadPreviewAISignal();
   const savedShoes=activePatternLibrary().length;
 
-  // TOP-TIER V1: combine correlated analyzers into evidence families first.
+  // Combined analyzer: combine correlated analyzers into evidence families first.
   // This prevents Sequence AI + Library + H2O from triple-counting similar historical evidence.
   const historical=combineEvidenceFamily('Historical Intelligence',[
     {sig:seqAI,weight:seqAI.similarityScore>=82?.46:seqAI.similarityScore>=68?.38:.27},
@@ -2414,17 +2498,6 @@ function computeCombinedAnalyzer(){
     libraryWeight:Math.round(histQuality*100),h2oWeight:0,deepseekWeight:Math.round(externalQuality*100),seqWeight:Math.round(histQuality*100),
     matches:matchInfo.matches,matchLength:matchInfo.len,librarySource:matchInfo.source||'local',kaggle,savedShoes
   };
-}
-
-function renderDecisionGate(){
-  const a=computeCombinedAnalyzer();
-  const d=document.getElementById('gateDecision'), ag=document.getElementById('gateAgree'), q=document.getElementById('gateQuality'), n=document.getElementById('gateNote');
-  if(d) d.textContent=a.qualified?(a.side==='P'?'PLAYER':'BANKER'):'WAIT';
-  if(ag) ag.textContent=`${a.familyAgree}/${a.familyTotal}`;
-  if(q) q.textContent=a.quality;
-  if(n) n.textContent=a.qualified
-    ? `QUALIFIED: ${a.familyAgree}/${a.familyTotal} independent families agree • evidence coverage ${a.coverage}% • combined score ${a.top}%. Related historical signals are de-duplicated before this decision.`
-    : `WAIT: ${a.gateReason||'Evidence gate not satisfied.'} Coverage ${a.coverage}% • independent agreement ${Math.round(a.independentAgreement*100)}%.`;
 }
 
 function setSignalBar(id,val){
@@ -2716,7 +2789,7 @@ function renderAnalyzer(){
   const famText=(a.families||[]).map(f=>`${f.name}: ${f.side==='P'?'P':'B'} ${f.strength}%`).join(' • ');
   driver.textContent=a.qualified
     ? `Qualified by independent evidence families • ${famText} • coverage ${a.coverage}%. Historical sources are de-duplicated before combining.`
-    : `Decision gate is WAIT • ${a.gateReason||'evidence not strong enough'} ${famText?('• '+famText):''}`;
+    : `Combined analyzer is WAIT • ${a.gateReason||'evidence not strong enough'} ${famText?('• '+famText):''}`;
 
 
   const counts={};
@@ -2731,7 +2804,6 @@ function renderAnalyzer(){
   document.getElementById('btWins').textContent=bt.wins||0;
   document.getElementById('btRate').textContent=bt.predictions?Math.round(bt.wins*100/bt.predictions)+'%':'—';
   document.getElementById('btRun').textContent=bt.currentRun||0;
-  renderDecisionGate();
   renderMasterBot();
 }
 
