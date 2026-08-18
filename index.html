@@ -264,7 +264,7 @@
 </div>
 <div class="road-memory-ai" id="roadMemoryAiPanel" style="border-color:#f1b827;box-shadow:0 0 0 1px rgba(241,184,39,.15) inset">
 <div class="road-memory-head"><div class="analyzer-title">🧠 PREVIOUS ROADS → MAIN ROAD AI</div><span class="road-memory-badge" id="roadMemoryStatus">WAIT</span></div>
-<div class="analyzer-sub"><b>SEPARATE AI — ALWAYS CHECKING.</b> This AI uses ONLY saved Big Eye Boy, Small Road, and Cockroach Road histories. It scans previous derived roads in multiple alignments — old tail → current front, old middle → current end, old front → current end, plus sliding shifted matches — studies what main-road Player/Banker result came next, and converts the three road votes into one next main-road prediction. It does not use H2O, Kaggle, Sequence AI, card ranks, or the normal Road Preview AI.</div>
+<div class="analyzer-sub"><b>SEPARATE AI — ALWAYS CHECKING.</b> This AI uses ONLY saved Big Eye Boy, Small Road, and Cockroach Road histories. It matches those previous derived-road patterns to the current shoe, studies what main-road Player/Banker result came next, and converts the three road votes into one next main-road prediction. It does not use H2O, Kaggle, Sequence AI, card ranks, or the normal Road Preview AI.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>MAIN ROAD PREDICTION</span><strong id="roadMemoryPick">WAIT</strong></div>
 <div class="analyzer-card"><span>AI confidence</span><strong id="roadMemoryConfidence">—</strong></div>
@@ -431,19 +431,19 @@
 <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
 </div>
 <div class="analyzer" id="roadPreviewAiPanel">
-<div class="analyzer-title">Road Preview AI</div>
-<div class="analyzer-sub">PROBE + PREVIOUS-ROAD ALIGNMENT ENGINE V4. Uses current-shoe road probing plus saved Big Eye Boy, Small Road, and Cockroach Road histories. It scans old-road tail → current front, old-road middle → current end, old-road front → current end, and sliding shifted matches, then studies what main-road result followed those historical matches. Kaggle, H2O, Sequence AI, and card composition remain excluded. Weak or conflicting structure returns WAIT.</div>
+<div class="analyzer-title">Road Preview AI — Historical Shoe Specialist</div>
+<div class="analyzer-sub">HISTORICAL MATCH ENGINE V5. Uses ONLY your saved shoe library + historical P/B/T results + the saved Big Eye Boy, Small Road, and Cockroach Road histories. It searches the latest current-shoe segment against the front, middle, and end of every saved shoe at multiple lengths, then studies what result followed those historical matches. Derived-road agreement confirms or weakens the continuation vote. Kaggle, H2O, Sequence AI, Bot AI, card composition, and external models are excluded. Weak or conflicting evidence returns WAIT.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
-<div class="analyzer-card"><span>Road confidence</span><strong id="roadAiStrength">—</strong></div>
-<div class="analyzer-card"><span>Roads agreeing</span><strong id="roadAiAgree">0/3</strong></div>
+<div class="analyzer-card"><span>Historical strength</span><strong id="roadAiStrength">—</strong></div>
+<div class="analyzer-card"><span>Historical matches</span><strong id="roadAiAgree">0</strong></div>
 </div>
 <div class="match-pcts">
-<div class="match-pct"><strong id="roadAiP">—</strong><span>Player road-fit</span></div>
-<div class="match-pct"><strong id="roadAiB">—</strong><span>Banker road-fit</span></div>
-<div class="match-pct"><strong id="roadAiEdge">—</strong><span>Preview edge</span></div>
+<div class="match-pct"><strong id="roadAiP">—</strong><span>Player continuations</span></div>
+<div class="match-pct"><strong id="roadAiB">—</strong><span>Banker continuations</span></div>
+<div class="match-pct"><strong id="roadAiEdge">—</strong><span>Historical edge</span></div>
 </div>
-<div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Waiting for enough road structure.</div>
+<div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Choose a shoe library and enter hands to begin historical matching.</div>
 </div>
 <div class="analyzer" id="sequenceAiPanel">
 <div class="analyzer-title">Sequence AI Analyzer</div>
@@ -506,7 +506,7 @@
 <div class="h2o-card"><strong id="h2oB">—</strong><span>H2O Banker</span></div>
 <div class="h2o-card"><strong id="h2oT">—</strong><span>H2O Tie</span></div>
 </div>
-<div class="h2o-note" id="h2oNote">H2O is now isolated. It scores only the H2O model trained from your saved shoes; Kaggle is never blended into H2O. Road Preview AI is also isolated and uses current-shoe road structure only. Your /score endpoint returns H2O P/B/T probabilities.</div>
+<div class="h2o-note" id="h2oNote">H2O is now isolated. It scores only the H2O model trained from your saved shoes; Kaggle is never blended into H2O. Road Preview AI is isolated and uses only your saved shoe library, historical P/B/T continuations, and saved derived-road histories. Your /score endpoint returns H2O P/B/T probabilities.</div>
 </div>
 
 <div class="card-entry">
@@ -1160,40 +1160,14 @@ function roadMemoryLibraries(){
   return [];
 }
 function roadSuffixVotes(cur,hist){
-  // V4 multi-alignment scanner. A current derived road can match ANY useful
-  // section of a saved road instead of requiring suffix-to-suffix alignment.
-  // We deliberately give extra weight to the alignments requested for live play:
-  // old tail -> current front, old middle -> current end, old front -> current end,
-  // plus a full sliding scan. The historical mark immediately after the matched
-  // section becomes the continuation vote.
   const c=(cur||[]).join(''), h=(hist||[]).join('');
-  const votes={R:0,B:0,matches:0,best:0,alignments:{tailFront:0,middleEnd:0,frontEnd:0,sliding:0}};
+  const votes={R:0,B:0,matches:0,best:0};
   if(c.length<4||h.length<5) return votes;
-  const seen=new Set();
-  const add=(pos,k,kind,bonus)=>{
-    if(pos<0 || pos+k>=h.length) return;
-    const next=h[pos+k]; if(next!=='R'&&next!=='B') return;
-    const key=pos+'|'+k+'|'+kind; if(seen.has(key)) return; seen.add(key);
-    const w=k*k*bonus; votes[next]+=w; votes.matches++; votes.best=Math.max(votes.best,k); votes.alignments[kind]++;
-  };
-  const maxK=Math.min(18,c.length,h.length-1);
+  const maxK=Math.min(14,c.length,h.length-1);
   for(let k=4;k<=maxK;k++){
-    const cFront=c.slice(0,k), cEnd=c.slice(-k);
-    // LAST part of a previous road appears at the FRONT of the current road.
-    const tailStart=h.length-k-1;
-    if(tailStart>=0 && h.slice(tailStart,tailStart+k)===cFront) add(tailStart,k,'tailFront',1.35);
-    // FRONT of a previous road appears at the END of the current road.
-    if(h.slice(0,k)===cEnd) add(0,k,'frontEnd',1.25);
-    // MIDDLE / shifted section of previous road appears at current END.
-    let pos=h.indexOf(cEnd);
-    while(pos!==-1){
-      const isMiddle=pos>0 && pos+k<h.length-1;
-      add(pos,k,isMiddle?'middleEnd':'sliding',isMiddle?1.30:1.00);
-      pos=h.indexOf(cEnd,pos+1);
-    }
-    // General sliding match against current FRONT as well.
-    pos=h.indexOf(cFront);
-    while(pos!==-1){ add(pos,k,'sliding',.90); pos=h.indexOf(cFront,pos+1); }
+    const pat=c.slice(-k); let pos=h.indexOf(pat); let found=0;
+    while(pos!==-1){ const n=h[pos+k]; if(n==='R'||n==='B'){const w=k*k;votes[n]+=w;votes.matches++;found++;votes.best=Math.max(votes.best,k);} pos=h.indexOf(pat,pos+1); }
+    if(found && k>=10) break;
   }
   return votes;
 }
@@ -2184,138 +2158,145 @@ function analyzeRoadRegime(marks){
   return {type:'MIXED',preferred:null,clarity:.18,sample:recent.length,run,altRate,redRate};
 }
 
-function roadPreviewCurrentProbeSignal(){
-  // PROBE ENGINE V3 — HARD ISOLATED / CURRENT ROADS ONLY.
-  // INPUT: current-shoe P/B/T hands ONLY.
-  // EXCLUDED: saved libraries, Kaggle, H2O, Sequence AI,
-  // card composition, color libraries, and Best-Estimate outputs.
-  //
-  // For each hypothetical P and B, use casino-style probing to calculate the
-  // NEW Big Eye / Small / Cockroach mark that would be created. Then compare
-  // each candidate with the road's current structural regime. This is a
-  // road-fit heuristic, NOT a claim that derived roads determine the next hand.
-  const currentHands=state.hands.map(h=>({r:h.r,pp:false,bp:false,special:false,ts:0}));
-  const nonTie=currentHands.filter(h=>h.r!=='T');
-  const configs=[
-    {offset:1,weight:1.00,name:'Big Eye Boy'},
-    {offset:2,weight:.90,name:'Small Road'},
-    {offset:3,weight:.80,name:'Cockroach Road'}
-  ];
-
-  if(nonTie.length<8){
-    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,quality:0,pattern:'INSUFFICIENT',
-      waitReason:`WAIT: need more current-shoe structure (${nonTie.length}/8 non-tie hands).`};
-  }
-
-  let pFit=0,bFit=0,fitWeight=0,activeRoads=0,discriminating=0;
-  const votes=[], regimes=[];
-  for(const cfg of configs){
-    const marks=deriveRoad(currentHands,cfg.offset);
-    const regime=analyzeRoadRegime(marks);
-    const pMark=previewDerivedMark(currentHands,'P',cfg.offset);
-    const bMark=previewDerivedMark(currentHands,'B',cfg.offset);
-    if(marks.length>=4) activeRoads++;
-    regimes.push({name:cfg.name,marks:marks.length,regime,pMark,bMark});
-
-    // A road cannot vote until BOTH candidates create a genuine new mark and
-    // the road has a defined current behavior. This prevents stale-mark reuse.
-    if(!pMark || !bMark || pMark===bMark || !regime.preferred) continue;
-    discriminating++;
-    const sampleFactor=Math.min(1,marks.length/10);
-    const w=cfg.weight*(.45+.55*sampleFactor)*regime.clarity;
-    if(w<=0) continue;
-    const ps=pMark===regime.preferred ? 1 : -1;
-    const bs=bMark===regime.preferred ? 1 : -1;
-    pFit += w*ps;
-    bFit += w*bs;
-    fitWeight += w;
-    votes.push({name:cfg.name,side:ps>bs?'P':'B',regime:regime.type,pMark,bMark,weight:w});
-  }
-
-  const usable=votes.length;
-  if(!usable || fitWeight<=0){
-    const quality=Math.round(Math.min(45,activeRoads*10+discriminating*5));
-    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:usable,edge:0,quality,pattern:'MIXED',regimes,
-      waitReason:'WAIT: the current derived roads do not produce a qualified P/B probe difference.'};
-  }
-
-  const raw=Math.max(-1,Math.min(1,(pFit-bFit)/(2*fitWeight)));
-  // These are ROAD-FIT scores centered at 50, not true baccarat probabilities.
-  const pPct=Math.round(50+raw*20);
-  const bPct=100-pPct;
-  const candidate=pPct>bPct?'P':'B';
-  const agree=votes.filter(v=>v.side===candidate).length;
-  const agreement=agree/usable;
-  const edge=Math.abs(pPct-bPct);
-
-  const clearRegimes=regimes.filter(x=>x.regime.preferred).length;
-  const dataDepth=Math.min(1,nonTie.length/24);
-  const roadCoverage=activeRoads/3;
-  const discrimination=discriminating/3;
-  const meanClarity=clearRegimes ? regimes.filter(x=>x.regime.preferred).reduce((a,x)=>a+x.regime.clarity,0)/clearRegimes : 0;
-  const quality=Math.round(100*(.22*dataDepth+.22*roadCoverage+.24*discrimination+.18*meanClarity+.14*agreement));
-
-  const types=regimes.filter(x=>x.regime.type!=='INSUFFICIENT').map(x=>x.regime.type);
-  const counts=types.reduce((a,t)=>(a[t]=(a[t]||0)+1,a),{});
-  const pattern=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0] || 'MIXED';
-
-  // WAIT is intentional: no forced bet when coverage, quality, agreement, or
-  // edge is weak. With two usable roads, both must agree; with three, 2/3 is OK.
-  const minAgree=usable===2 ? 1 : .67;
-  if(usable<2 || agreement<minAgree || edge<12 || quality<55){
-    return {side:null,strength:0,pPct,bPct,agree,total:usable,edge,quality,pattern,regimes,
-      waitReason:`WAIT: Road Quality ${quality}/100 • ${agree}/${usable} agreement • ${edge}-point road-fit edge.`};
-  }
-
-  const strength=Math.min(82,Math.round(42+quality*.28+edge*.45));
-  return {side:candidate,strength,pPct,bPct,agree,total:usable,edge,quality,pattern,regimes,waitReason:''};
-}
 function roadPreviewAISignal(){
-  // V4: combine the isolated current-road probe with ONLY the saved derived-road
-  // alignment memory. No Kaggle, H2O, Sequence AI, card ranks, or raw shoe library.
-  const probe=roadPreviewCurrentProbeSignal();
-  const mem=analyzeDerivedRoadMemory();
-  const hasProbe=probe && (probe.total>0 || probe.side);
-  const hasMem=mem && mem.totalEvidence>=2;
-  if(!hasMem) return probe;
+  // HISTORICAL MATCH ENGINE V5 — SAVED SHOE LIBRARY + HISTORICAL RESULTS ONLY.
+  // INCLUDED: selected/combined saved shoe library, saved raw P/B/T sequences,
+  // saved Big Eye Boy / Small Road / Cockroach histories, and current shoe only
+  // as the query being matched against that history.
+  // EXCLUDED: Kaggle, H2O, Sequence AI, Bot AI, DeepSeek/external models,
+  // card composition and Best-Estimate/consensus outputs.
+  const cur=currentSequence();
+  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=6);
+  if(!lib.length){
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,quality:0,matches:0,bestLen:0,roadsAgree:0,roadVotes:0,
+      waitReason:'WAIT: no saved shoes are available in the selected historical library.'};
+  }
+  if(cur.length<5){
+    return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,quality:0,matches:0,bestLen:0,roadsAgree:0,roadVotes:0,
+      waitReason:`WAIT: need at least 5 current results for historical matching (${cur.length}/5).`};
+  }
 
-  // Convert both road-fit engines to centered scores. Historical evidence is
-  // capped so a small number of old matches cannot overpower live road structure.
-  const probeScore=hasProbe ? (probe.pPct-probe.bPct)/100 : 0;
-  const memScore=(mem.pPct-mem.bPct)/100;
-  const memDepth=Math.min(1,Math.log2(1+mem.totalEvidence)/4);
-  const probeW=hasProbe?.58:0, memW=.42*memDepth;
-  const den=probeW+memW || 1;
-  const combined=(probeScore*probeW+memScore*memW)/den;
-  const pPct=Math.round(50+combined*50), bPct=100-pPct, edge=Math.abs(pPct-bPct);
-  const side=pPct>bPct?'P':'B';
-  const memAgree=mem.pick===side?1:0;
-  const liveAgree=probe.side===side?1:0;
-  const qualified=edge>=8 && (memAgree+liveAgree>=1) && mem.totalEvidence>=3;
-  const quality=Math.min(100,Math.round((probe.quality||35)*.58 + Math.min(100,45+mem.totalEvidence*3)*.42));
-  return {
-    ...probe, side:qualified?side:null, pPct,bPct,edge,quality,
-    strength:qualified?Math.min(88,Math.round(50+edge*.55+quality*.18)):0,
-    pattern:(probe.pattern||'MIXED')+' + HIST ALIGN',
-    historicalMatches:mem.totalEvidence,
-    historicalRoads:mem.roads,
-    waitReason:qualified?'':`WAIT: combined live-road + previous-road alignment edge ${edge} pts; ${mem.totalEvidence} historical derived-road matches.`
-  };
+  // Multi-window continuation voting. The current ending can match ANYWHERE in
+  // an old shoe: its front, middle, or tail. Longer and cleaner matches carry
+  // substantially more weight than short/noisy matches.
+  const lengths=[20,16,12,8,5].filter(k=>k<=cur.length);
+  let pW=0,bW=0,tW=0,totalW=0,matches=0,bestLen=0,bestSimilarity=0;
+  const perLength=[];
+  const dedupe=new Set();
+  for(const k of lengths){
+    const target=cur.slice(-k).join('');
+    let kMatches=0,kP=0,kB=0,kT=0,kWeight=0;
+    const threshold=k>=16?.78:k>=12?.80:k>=8?.84:.90;
+    for(let si=0;si<lib.length;si++){
+      const hist=lib[si].sequence.split('').filter(r=>'PBT'.includes(r));
+      if(hist.length<=k) continue;
+      for(let pos=0;pos+k<hist.length;pos++){
+        let same=0;
+        for(let j=0;j<k;j++) if(hist[pos+j]===target[j]) same++;
+        const sim=same/k;
+        if(sim<threshold) continue;
+        const next=hist[pos+k];
+        if(!'PBT'.includes(next)) continue;
+        const key=si+':'+pos+':'+k;
+        if(dedupe.has(key)) continue;
+        dedupe.add(key);
+        // Length matters strongly; similarity suppresses weak near-matches.
+        const w=Math.pow(k,1.55)*Math.pow(sim,4);
+        if(next==='P'){pW+=w;kP+=w;}
+        else if(next==='B'){bW+=w;kB+=w;}
+        else {tW+=w;kT+=w;}
+        totalW+=w;kWeight+=w;kMatches++;matches++;
+        bestLen=Math.max(bestLen,k);bestSimilarity=Math.max(bestSimilarity,sim);
+      }
+    }
+    if(kMatches) perLength.push({k,matches:kMatches,p:kP,b:kB,t:kT,weight:kWeight});
+  }
+
+  // Saved derived-road histories act as confirmation. We ask what R/B road mark
+  // historically followed endings like the current road ending, then test which
+  // hypothetical next P or B would create that mark now.
+  const curRoads=currentDerivedRoadSet();
+  const roadDefs=[['bigEye',1,1.00],['small',2,.90],['roach',3,.80]];
+  let roadP=0,roadB=0,roadWeight=0,roadsAgreeP=0,roadsAgreeB=0,roadVotes=0,roadEvidence=0;
+  const roadDetails=[];
+  for(const [key,offset,baseW] of roadDefs){
+    let red=0,blue=0,roadMatches=0,best=0;
+    for(const shoe of lib){
+      const histRoad=roadHistoryForShoe(shoe)[key]||[];
+      const v=roadSuffixVotes(curRoads[key],histRoad);
+      red+=v.R;blue+=v.B;roadMatches+=v.matches;best=Math.max(best,v.best);
+    }
+    const den=red+blue;
+    const pMark=previewDerivedMark(state.hands,'P',offset);
+    const bMark=previewDerivedMark(state.hands,'B',offset);
+    let pFit=.5,bFit=.5,vote=null;
+    if(den>0 && pMark && bMark){
+      pFit=(pMark==='R'?red:blue)/den;
+      bFit=(bMark==='R'?red:blue)/den;
+      const evidenceFactor=Math.min(1,Math.log2(1+roadMatches)/3);
+      const w=baseW*evidenceFactor;
+      roadP+=pFit*w;roadB+=bFit*w;roadWeight+=w;roadEvidence+=roadMatches;
+      if(Math.abs(pFit-bFit)>=.08){
+        vote=pFit>bFit?'P':'B';roadVotes++;
+        if(vote==='P') roadsAgreeP++; else roadsAgreeB++;
+      }
+    }
+    roadDetails.push({key,vote,matches:roadMatches,best,pMark,bMark,pFit,bFit});
+  }
+
+  const rawNonTie=pW+bW;
+  let pScore=rawNonTie?pW/rawNonTie:.5;
+  let bScore=rawNonTie?bW/rawNonTie:.5;
+  // Road confirmation is deliberately secondary to actual historical next-result
+  // continuations. It can strengthen/weaken, but cannot create a pick by itself.
+  if(rawNonTie>0 && roadWeight>0){
+    const rp=roadP/roadWeight, rb=roadB/roadWeight;
+    pScore=.78*pScore+.22*(rp/(rp+rb||1));
+    bScore=.78*bScore+.22*(rb/(rp+rb||1));
+  }
+  const sb=pScore+bScore||1;
+  const pPct=Math.round(100*pScore/sb), bPct=100-pPct;
+  const candidate=pPct>bPct?'P':bPct>pPct?'B':null;
+  const edge=Math.abs(pPct-bPct);
+  const roadsAgree=candidate==='P'?roadsAgreeP:candidate==='B'?roadsAgreeB:0;
+
+  const sampleQuality=Math.min(1,matches/18);
+  const lengthQuality=Math.min(1,bestLen/16);
+  const similarityQuality=Math.min(1,bestSimilarity);
+  const roadQuality=roadVotes?roadsAgree/roadVotes:0;
+  const quality=Math.round(100*(.34*sampleQuality+.28*lengthQuality+.22*similarityQuality+.16*roadQuality));
+  const continuationCount=matches;
+
+  // Require actual historical continuations. A large percentage from one or two
+  // matches is intentionally rejected.
+  let waitReason='';
+  if(!continuationCount) waitReason='WAIT: no comparable historical continuation was found yet.';
+  else if(continuationCount<3) waitReason=`WAIT: only ${continuationCount} historical continuation${continuationCount===1?'':'s'} found; need at least 3.`;
+  else if(edge<10) waitReason=`WAIT: historical Player/Banker continuations are too close (${pPct}% / ${bPct}%).`;
+  else if(bestLen<8 && continuationCount<7) waitReason=`WAIT: matches are short (${bestLen||5} hands) and the sample is still too small.`;
+  else if(roadVotes>=2 && roadsAgree===0) waitReason='WAIT: historical continuation vote conflicts with the saved derived-road histories.';
+  else if(quality<48) waitReason=`WAIT: historical evidence quality is ${quality}/100; more or stronger matches are needed.`;
+
+  if(waitReason || !candidate){
+    return {side:null,strength:0,pPct,bPct,agree:roadsAgree,total:roadVotes,edge,quality,matches:continuationCount,bestLen,roadsAgree,roadVotes,roadEvidence,perLength,roadDetails,bestSimilarity:Math.round(bestSimilarity*100),waitReason};
+  }
+  const strength=Math.min(88,Math.round(48+edge*.38+quality*.26+Math.min(8,Math.log2(continuationCount+1)*2)));
+  return {side:candidate,strength,pPct,bPct,agree:roadsAgree,total:roadVotes,edge,quality,matches:continuationCount,bestLen,roadsAgree,roadVotes,roadEvidence,perLength,roadDetails,bestSimilarity:Math.round(bestSimilarity*100),waitReason:''};
 }
-
 function renderRoadPreviewAI(){
   const r=roadPreviewAISignal();
   document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT';
   document.getElementById('roadAiStrength').textContent=r.side?r.strength+'%':'WAIT';
-  document.getElementById('roadAiAgree').textContent=r.total?`${r.agree}/${r.total}`:'0/3';
-  document.getElementById('roadAiP').textContent=r.pPct+'%';
-  document.getElementById('roadAiB').textContent=r.bPct+'%';
-  document.getElementById('roadAiEdge').textContent=r.edge+' pts';
+  document.getElementById('roadAiAgree').textContent=String(r.matches||0);
+  document.getElementById('roadAiP').textContent=r.matches?r.pPct+'%':'—';
+  document.getElementById('roadAiB').textContent=r.matches?r.bPct+'%':'—';
+  document.getElementById('roadAiEdge').textContent=r.matches?r.edge+' pts':'—';
   const note=document.getElementById('roadAiNote');
+  const roadText=r.roadVotes?`${r.roadsAgree}/${r.roadVotes} derived roads confirm`:'derived-road confirmation not ready';
   if(r.side){
-    note.textContent=`${r.pattern} • Road Quality ${r.quality}/100 • ${r.agree}/${r.total} qualified probes favor ${r.side==='P'?'Player':'Banker'}. Road-fit + saved derived-road alignment memory only; Kaggle, H2O, Sequence AI, card ranks, and raw shoe-sequence matching are excluded.`;
+    note.textContent=`${r.matches} historical continuation${r.matches===1?'':'s'} • best ${r.bestLen}-hand match • ${r.bestSimilarity}% best similarity • ${roadText}. Historical continuation vote favors ${r.side==='P'?'Player':'Banker'} ${r.side==='P'?r.pPct:r.bPct}%. Library/history only; no Kaggle, H2O, Sequence AI, Bot AI, or card-composition input.`;
   }else{
-    note.textContent=(r.waitReason||'WAIT: not enough qualified current-shoe road evidence.')+` Pattern: ${r.pattern}.`;
+    note.textContent=(r.waitReason||'WAIT: not enough historical evidence.')+` Matches: ${r.matches||0}${r.bestLen?` • best window ${r.bestLen} hands`:''} • ${roadText}.`;
   }
 }
 
@@ -2417,7 +2398,7 @@ function renderSequenceAI(){
   const grade=document.getElementById('seqAiGrade'); if(grade) grade.textContent=s.grade||'LOW';
   const wins=document.getElementById('seqAiWindows'); if(wins) wins.textContent=`${s.agreeWindows||0}/${s.totalWindows||0}`;
   document.getElementById('seqAiNote').textContent=s.side
-    ? `${s.grade} historical resemblance: ${s.similarityScore}% similarity. ${s.agreeWindows}/${s.totalWindows} rolling windows agree on ${name}. Strong persistent similarity now increases Sequence AI influence; Road Preview AI remains library-free.`
+    ? `${s.grade} historical resemblance: ${s.similarityScore}% similarity. ${s.agreeWindows}/${s.totalWindows} rolling windows agree on ${name}. Strong persistent similarity now increases Sequence AI influence; Road Preview AI remains a separate saved-library/historical-road specialist and does not use Sequence AI output.`
     : (s.waitReason||'WAIT: historical resemblance is not strong or consistent enough yet.');
 }
 
