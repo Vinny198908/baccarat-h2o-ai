@@ -264,7 +264,7 @@
 </div>
 <div class="road-memory-ai" id="roadMemoryAiPanel" style="border-color:#f1b827;box-shadow:0 0 0 1px rgba(241,184,39,.15) inset">
 <div class="road-memory-head"><div class="analyzer-title">🧠 PREVIOUS ROADS → MAIN ROAD AI</div><span class="road-memory-badge" id="roadMemoryStatus">WAIT</span></div>
-<div class="analyzer-sub"><b>SEPARATE AI — ALWAYS CHECKING.</b> This AI uses ONLY saved Big Eye Boy, Small Road, and Cockroach Road histories. It matches those previous derived-road patterns to the current shoe, studies what main-road Player/Banker result came next, and converts the three road votes into one next main-road prediction. It does not use H2O, Kaggle, Sequence AI, card ranks, or the normal Road Preview AI.</div>
+<div class="analyzer-sub"><b>SEPARATE AI — ALWAYS CHECKING.</b> This AI uses ONLY saved Big Eye Boy, Small Road, and Cockroach Road histories. It scans previous derived roads in multiple alignments — old tail → current front, old middle → current end, old front → current end, plus sliding shifted matches — studies what main-road Player/Banker result came next, and converts the three road votes into one next main-road prediction. It does not use H2O, Kaggle, Sequence AI, card ranks, or the normal Road Preview AI.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>MAIN ROAD PREDICTION</span><strong id="roadMemoryPick">WAIT</strong></div>
 <div class="analyzer-card"><span>AI confidence</span><strong id="roadMemoryConfidence">—</strong></div>
@@ -432,7 +432,7 @@
 </div>
 <div class="analyzer" id="roadPreviewAiPanel">
 <div class="analyzer-title">Road Preview AI</div>
-<div class="analyzer-sub">PROBE ENGINE V2. Current-shoe only. Uses casino-style Player/Banker probing: each hypothetical result must create a genuine new Big Eye Boy, Small Road, or Cockroach Road mark before that road can vote. Saved libraries, Kaggle, H2O, Sequence AI, and card composition are excluded. Weak or conflicting structure returns WAIT.</div>
+<div class="analyzer-sub">PROBE + PREVIOUS-ROAD ALIGNMENT ENGINE V4. Uses current-shoe road probing plus saved Big Eye Boy, Small Road, and Cockroach Road histories. It scans old-road tail → current front, old-road middle → current end, old-road front → current end, and sliding shifted matches, then studies what main-road result followed those historical matches. Kaggle, H2O, Sequence AI, and card composition remain excluded. Weak or conflicting structure returns WAIT.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
 <div class="analyzer-card"><span>Road confidence</span><strong id="roadAiStrength">—</strong></div>
@@ -1160,14 +1160,40 @@ function roadMemoryLibraries(){
   return [];
 }
 function roadSuffixVotes(cur,hist){
+  // V4 multi-alignment scanner. A current derived road can match ANY useful
+  // section of a saved road instead of requiring suffix-to-suffix alignment.
+  // We deliberately give extra weight to the alignments requested for live play:
+  // old tail -> current front, old middle -> current end, old front -> current end,
+  // plus a full sliding scan. The historical mark immediately after the matched
+  // section becomes the continuation vote.
   const c=(cur||[]).join(''), h=(hist||[]).join('');
-  const votes={R:0,B:0,matches:0,best:0};
+  const votes={R:0,B:0,matches:0,best:0,alignments:{tailFront:0,middleEnd:0,frontEnd:0,sliding:0}};
   if(c.length<4||h.length<5) return votes;
-  const maxK=Math.min(14,c.length,h.length-1);
+  const seen=new Set();
+  const add=(pos,k,kind,bonus)=>{
+    if(pos<0 || pos+k>=h.length) return;
+    const next=h[pos+k]; if(next!=='R'&&next!=='B') return;
+    const key=pos+'|'+k+'|'+kind; if(seen.has(key)) return; seen.add(key);
+    const w=k*k*bonus; votes[next]+=w; votes.matches++; votes.best=Math.max(votes.best,k); votes.alignments[kind]++;
+  };
+  const maxK=Math.min(18,c.length,h.length-1);
   for(let k=4;k<=maxK;k++){
-    const pat=c.slice(-k); let pos=h.indexOf(pat); let found=0;
-    while(pos!==-1){ const n=h[pos+k]; if(n==='R'||n==='B'){const w=k*k;votes[n]+=w;votes.matches++;found++;votes.best=Math.max(votes.best,k);} pos=h.indexOf(pat,pos+1); }
-    if(found && k>=10) break;
+    const cFront=c.slice(0,k), cEnd=c.slice(-k);
+    // LAST part of a previous road appears at the FRONT of the current road.
+    const tailStart=h.length-k-1;
+    if(tailStart>=0 && h.slice(tailStart,tailStart+k)===cFront) add(tailStart,k,'tailFront',1.35);
+    // FRONT of a previous road appears at the END of the current road.
+    if(h.slice(0,k)===cEnd) add(0,k,'frontEnd',1.25);
+    // MIDDLE / shifted section of previous road appears at current END.
+    let pos=h.indexOf(cEnd);
+    while(pos!==-1){
+      const isMiddle=pos>0 && pos+k<h.length-1;
+      add(pos,k,isMiddle?'middleEnd':'sliding',isMiddle?1.30:1.00);
+      pos=h.indexOf(cEnd,pos+1);
+    }
+    // General sliding match against current FRONT as well.
+    pos=h.indexOf(cFront);
+    while(pos!==-1){ add(pos,k,'sliding',.90); pos=h.indexOf(cFront,pos+1); }
   }
   return votes;
 }
@@ -2158,7 +2184,7 @@ function analyzeRoadRegime(marks){
   return {type:'MIXED',preferred:null,clarity:.18,sample:recent.length,run,altRate,redRate};
 }
 
-function roadPreviewAISignal(){
+function roadPreviewCurrentProbeSignal(){
   // PROBE ENGINE V3 — HARD ISOLATED / CURRENT ROADS ONLY.
   // INPUT: current-shoe P/B/T hands ONLY.
   // EXCLUDED: saved libraries, Kaggle, H2O, Sequence AI,
@@ -2244,6 +2270,39 @@ function roadPreviewAISignal(){
   const strength=Math.min(82,Math.round(42+quality*.28+edge*.45));
   return {side:candidate,strength,pPct,bPct,agree,total:usable,edge,quality,pattern,regimes,waitReason:''};
 }
+function roadPreviewAISignal(){
+  // V4: combine the isolated current-road probe with ONLY the saved derived-road
+  // alignment memory. No Kaggle, H2O, Sequence AI, card ranks, or raw shoe library.
+  const probe=roadPreviewCurrentProbeSignal();
+  const mem=analyzeDerivedRoadMemory();
+  const hasProbe=probe && (probe.total>0 || probe.side);
+  const hasMem=mem && mem.totalEvidence>=2;
+  if(!hasMem) return probe;
+
+  // Convert both road-fit engines to centered scores. Historical evidence is
+  // capped so a small number of old matches cannot overpower live road structure.
+  const probeScore=hasProbe ? (probe.pPct-probe.bPct)/100 : 0;
+  const memScore=(mem.pPct-mem.bPct)/100;
+  const memDepth=Math.min(1,Math.log2(1+mem.totalEvidence)/4);
+  const probeW=hasProbe?.58:0, memW=.42*memDepth;
+  const den=probeW+memW || 1;
+  const combined=(probeScore*probeW+memScore*memW)/den;
+  const pPct=Math.round(50+combined*50), bPct=100-pPct, edge=Math.abs(pPct-bPct);
+  const side=pPct>bPct?'P':'B';
+  const memAgree=mem.pick===side?1:0;
+  const liveAgree=probe.side===side?1:0;
+  const qualified=edge>=8 && (memAgree+liveAgree>=1) && mem.totalEvidence>=3;
+  const quality=Math.min(100,Math.round((probe.quality||35)*.58 + Math.min(100,45+mem.totalEvidence*3)*.42));
+  return {
+    ...probe, side:qualified?side:null, pPct,bPct,edge,quality,
+    strength:qualified?Math.min(88,Math.round(50+edge*.55+quality*.18)):0,
+    pattern:(probe.pattern||'MIXED')+' + HIST ALIGN',
+    historicalMatches:mem.totalEvidence,
+    historicalRoads:mem.roads,
+    waitReason:qualified?'':`WAIT: combined live-road + previous-road alignment edge ${edge} pts; ${mem.totalEvidence} historical derived-road matches.`
+  };
+}
+
 function renderRoadPreviewAI(){
   const r=roadPreviewAISignal();
   document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT';
@@ -2254,7 +2313,7 @@ function renderRoadPreviewAI(){
   document.getElementById('roadAiEdge').textContent=r.edge+' pts';
   const note=document.getElementById('roadAiNote');
   if(r.side){
-    note.textContent=`${r.pattern} • Road Quality ${r.quality}/100 • ${r.agree}/${r.total} qualified probes favor ${r.side==='P'?'Player':'Banker'}. Road-fit only; CURRENT SHOE ROADS ONLY; Kaggle, H2O, Sequence AI, and saved libraries are excluded.`;
+    note.textContent=`${r.pattern} • Road Quality ${r.quality}/100 • ${r.agree}/${r.total} qualified probes favor ${r.side==='P'?'Player':'Banker'}. Road-fit + saved derived-road alignment memory only; Kaggle, H2O, Sequence AI, card ranks, and raw shoe-sequence matching are excluded.`;
   }else{
     note.textContent=(r.waitReason||'WAIT: not enough qualified current-shoe road evidence.')+` Pattern: ${r.pattern}.`;
   }
