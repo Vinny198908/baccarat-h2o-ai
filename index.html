@@ -251,6 +251,13 @@
     .main-buttons{gap:6px}
     .big{min-height:66px;border-radius:16px;font-size:26px}
   }
+
+/* Removed from UI: obsolete manual card-rank and separate card-shoe controls */
+.card-entry,.dual-shoes{display:none !important;}
+</style>
+
+<style id="screenshotMatchAiStyles">
+.ssm-ai{margin:8px 0;background:#171a1f;border:1px solid #7b4fb3;border-radius:14px;padding:10px}.ssm-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.ssm-badge{font-size:10px;font-weight:900;padding:5px 8px;border-radius:999px;background:#30213f;color:#ddb7ff}.ssm-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.ssm-file{display:none}.ssm-note{font-size:11px;color:#9ca5b1;line-height:1.35;margin-top:5px}.ssm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.ssm-card{background:#22262d;border-radius:10px;padding:8px;text-align:center}.ssm-card span{display:block;font-size:9px;color:#9ca5b1}.ssm-card strong{font-size:16px}.ssm-color{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.ssm-color button.active{box-shadow:0 0 0 2px #a34ce8 inset}.ssm-list{font-size:10px;color:#9ca5b1;line-height:1.35;margin-top:8px;max-height:80px;overflow:auto}
 </style>
 </head>
 <body>
@@ -284,6 +291,18 @@
 <div class="match-pct"><strong id="roadMemoryAgree">0/3</strong><span>Roads agreeing</span></div>
 </div>
 <div class="analyzer-sub" id="roadMemoryNote" style="margin-top:8px">Enter hands and build/import saved shoe history to start previous-road matching.</div>
+</div>
+
+<div class="ssm-ai" id="screenshotMatchAiPanel">
+ <div class="ssm-head"><div class="analyzer-title">📸 Screenshot Match AI — TEST ONLY</div><span class="ssm-badge" id="ssmStatus">ISOLATED</span></div>
+ <div class="ssm-note"><b>Separate AI.</b> Uses only screenshots saved here plus the current Big Eye Boy, Small Road, and Cockroach Road. Nothing saved here is added to the main shoe library, Road Preview, Sequence AI, H2O, Kaggle, or Bot AI.</div>
+ <div class="ssm-color"><button class="tiny-btn" id="ssmRed">🔴 Save as RED</button><button class="tiny-btn" id="ssmBlack">⚫ Save as BLACK</button></div>
+ <div class="ssm-actions"><label class="tiny-btn" for="ssmInput" style="text-align:center">Choose Previous-Road Screenshot</label><input class="ssm-file" id="ssmInput" type="file" accept="image/*"><button class="tiny-btn" id="ssmScan">Scan + Save Test Screenshot</button></div>
+ <div class="ssm-grid"><div class="ssm-card"><span>BEST MATCH</span><strong id="ssmBest">—</strong></div><div class="ssm-card"><span>SAME-COLOR TESTS</span><strong id="ssmCount">0</strong></div><div class="ssm-card"><span>MATCHED SCREENSHOT</span><strong id="ssmWhich">—</strong></div></div>
+ <div class="ssm-grid"><div class="ssm-card"><span>BIG EYE</span><strong id="ssmEye">—</strong></div><div class="ssm-card"><span>SMALL ROAD</span><strong id="ssmSmall">—</strong></div><div class="ssm-card"><span>COCKROACH</span><strong id="ssmRoach">—</strong></div></div>
+ <div class="ssm-note" id="ssmNote">Choose RED or BLACK, then add a screenshot of previous derived roads. The AI rechecks after every hand.</div>
+ <div class="ssm-actions"><button class="tiny-btn" id="ssmRescan">Scan Current Roads Now</button><button class="tiny-btn" id="ssmClear">Clear TEST Screenshot Library</button></div>
+ <div class="ssm-list" id="ssmList"></div>
 </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
 <div class="analyzer-title">🤖 High-Powered Bot AI — Library + Derived Roads + Baccarat Rules</div>
@@ -758,6 +777,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     const actual=btn.dataset.result;
     settlePendingPrediction(actual);
     settleBotPrediction(actual);
+    settleUltimatePrediction(actual);
     state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
     state.scanSnapshot=null;
     state.pp=state.bp=state.special=false;
@@ -766,6 +786,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     armBotPrediction();
     persist(); render();
     if(state.h2o?.url) scoreWithH2O(false);
+    scoreUltimateBot(false);
     if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
     
   });
@@ -781,6 +802,7 @@ document.getElementById('clearBtn').onclick=()=>{
     state.currentShoeColor=null;
     if(state.backtest) state.backtest.pending=null;
     if(state.bot) state.bot.pending=null;
+    if(state.ultimate){ state.ultimate.pendingId=null; state.ultimate.last=null; state.ultimate.error=''; state.ultimate.connected=false; }
     if(state.h2o) state.h2o.last=null;
     if(state.dragon) state.dragon.lastAlertKey='';
     persist();render();
@@ -3229,10 +3251,69 @@ bindSeparateShoeControls();
 load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
 </script>
 <div class="h2o-panel" id="ultimateBotPanel" style="margin:14px"><div class="h2o-head"><div><div class="h2o-title">ULTIMATE BOT CONTROLLER</div><div class="analyzer-sub">10-second maximum decision budget • adaptive specialist voting • persistent performance learning • current-road + saved-library + shoe-regime + 40+ late-shoe specialists • complete Punto Banco rules knowledge</div></div><span class="h2o-status err" id="ultimateStatus">🔴 BOT READY</span></div><div class="h2o-grid"><div class="h2o-card"><strong id="ultimateDecision">WAIT</strong><span>Final Decision</span></div><div class="h2o-card"><strong id="ultimateConfidence">—</strong><span>Confidence</span></div><div class="h2o-card"><strong id="ultimateTime">—</strong><span>Decision Time</span></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>Phase</span><strong id="ultimatePhase">—</strong></div><div class="analyzer-card"><span>Model Votes</span><strong id="ultimateVotes">—</strong></div><div class="analyzer-card"><span>Budget</span><strong id="ultimateBudget">10.0s MAX</strong></div><div class="analyzer-card"><span>Rules Knowledge</span><strong>🟢 LIVE</strong></div></div><button class="tiny-btn" id="ultimateScoreBtn">Run Ultimate Bot Now</button><div class="h2o-note">Returns immediately when evidence is ready. Specialists are weighted by their recorded performance for the current shoe phase; weak or conflicting evidence returns WAIT. Confidence is controller agreement, not a guaranteed win probability. Baccarat rules knowledge validates game play but is not an extra vote.</div></div><script>
-function ultimateUrl(path){const u=(state.h2o?.url||DEFAULT_H2O_SCORE_URL||'').trim();if(!u)return '';return /\/score\/?(?:\?.*)?$/i.test(u)?u.replace(/\/score\/?(?:\?.*)?$/i,path):u.replace(/\/$/,'')+path;}
-async function scoreUltimateBot(showAlert=false){const seq=currentSequence().join('');if(seq.length<6)return null;const url=ultimateUrl('/bot/decide');if(!url)return null;const st=document.getElementById('ultimateStatus');if(st){st.textContent='🟡 BOT ANALYZING…';st.className='h2o-status';}const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{const out=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq,library_mode:state.predictionLibraryMode||'selected',shoe_color:state.currentShoeColor||null,saved_shoes:activePatternLibrary().map(x=>x?.sequence||'').filter(Boolean)}})});state.ultimate=state.ultimate||{};state.ultimate.last=out;state.ultimate.pendingId=out.prediction_id||null;state.ultimate.connected=true;state.ultimate.error='';persist();renderUltimateBot();return out;}catch(e){state.ultimate=state.ultimate||{};state.ultimate.error=String(e.message||e);state.ultimate.connected=false;persist();renderUltimateBot();if(showAlert)alert('Ultimate Bot failed: '+state.ultimate.error);return null;}}
-async function settleUltimatePrediction(actual){const id=state.ultimate?.pendingId;if(!id)return;state.ultimate.pendingId=null;persist();const url=ultimateUrl('/bot/feedback');if(!url)return;const headers={'Content-Type':'application/json'};if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;try{await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({prediction_id:id,actual})});}catch(e){}}
+function ultimateUrl(path){
+  // Ultimate Controller is a server feature. Prefer the same deployed server even when
+  // the H2O connector has a custom /score URL; when previewing a downloaded file,
+  // fall back to the saved H2O server URL so the controller can still reach Render.
+  if(location.protocol==='http:' || location.protocol==='https:') return location.origin + path;
+  const configured=(state.h2o?.url||'').trim();
+  if(!configured) return '';
+  try{
+    const u=new URL(configured);
+    return u.origin + path;
+  }catch(e){
+    return configured.replace(/\/score\/?(?:\?.*)?$/i,'').replace(/\/$/,'')+path;
+  }
+}
+async function scoreUltimateBot(showAlert=false){
+  const seq=currentSequence().join('');
+  const st=document.getElementById('ultimateStatus');
+  if(seq.length<6){
+    if(st){st.textContent='🟡 NEED '+(6-seq.length)+' MORE HAND'+((6-seq.length)===1?'':'S');st.className='h2o-status';}
+    renderUltimateBot();
+    return null;
+  }
+  const url=ultimateUrl('/bot/decide');
+  if(!url){
+    state.ultimate=state.ultimate||{};
+    state.ultimate.error='No server connection. Open the deployed Render app, or save your Render /score URL in H2O connection settings.';
+    state.ultimate.connected=false;
+    persist();renderUltimateBot();
+    if(showAlert) alert('Ultimate Bot needs the deployed server connection.');
+    return null;
+  }
+  if(st){st.textContent='🟡 BOT ANALYZING…';st.className='h2o-status';}
+  const headers={'Content-Type':'application/json'};
+  if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;
+  try{
+    const out=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq,library_mode:state.predictionLibraryMode||'selected',shoe_color:state.currentShoeColor||null,saved_shoes:activePatternLibrary().map(x=>x?.sequence||'').filter(Boolean)}})});
+    state.ultimate=state.ultimate||{};
+    state.ultimate.last=out;
+    state.ultimate.pendingId=out.prediction_id||null;
+    state.ultimate.connected=true;
+    state.ultimate.error='';
+    persist();renderUltimateBot();
+    return out;
+  }catch(e){
+    state.ultimate=state.ultimate||{};
+    state.ultimate.error=String(e.message||e);
+    state.ultimate.connected=false;
+    persist();renderUltimateBot();
+    if(showAlert)alert('Ultimate Bot failed: '+state.ultimate.error);
+    return null;
+  }
+}
+async function settleUltimatePrediction(actual){
+  const id=state.ultimate?.pendingId;
+  if(!id)return;
+  state.ultimate.pendingId=null;persist();
+  const url=ultimateUrl('/bot/feedback');
+  if(!url)return;
+  const headers={'Content-Type':'application/json'};
+  if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;
+  try{await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({prediction_id:id,actual})});}catch(e){}
+}
 function renderUltimateBot(){const x=state.ultimate?.last||{};const st=document.getElementById('ultimateStatus');if(st){st.textContent=state.ultimate?.error?'🔴 BOT ERROR':state.ultimate?.connected?'🟢 BOT AI LIVE':'🔴 BOT READY';st.className='h2o-status '+(state.ultimate?.connected?'on':'err');}const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ultimateDecision',x.decision||'WAIT');set('ultimateConfidence',x.confidence==null?'—':Math.round(x.confidence*100)+'%');set('ultimateTime',x.decision_seconds==null?'—':x.decision_seconds+'s');set('ultimatePhase',x.phase||'—');const vv=(x.votes||[]).filter(v=>v.side==='P'||v.side==='B');const aa=vv.length&&x.decision!=='WAIT'?vv.filter(v=>v.side===x.decision).length:0;set('ultimateVotes',vv.length?aa+'/'+vv.length:'—');}
 document.getElementById('ultimateScoreBtn')?.addEventListener('click',()=>scoreUltimateBot(true));setTimeout(()=>{renderUltimateBot();if(currentSequence().length>=6)scoreUltimateBot(false);},400);
-</script></body>
+</script>\n<script id="screenshotMatchAiScript">\n(()=>{\nconst K='baccarat-screenshot-match-test-v1'; let color=null,file=null;\nconst $=id=>document.getElementById(id), set=(id,v)=>{const e=$(id);if(e)e.textContent=v};\nfunction lib(){try{return JSON.parse(localStorage.getItem(K)||'[]')}catch(e){return[]}} function put(x){localStorage.setItem(K,JSON.stringify(x))}\nfunction choose(c){color=c;$('ssmRed').classList.toggle('active',c==='red');$('ssmBlack').classList.toggle('active',c==='black');set('ssmStatus',(c||'').toUpperCase()+' TEST'); render()}\nfunction similarity(a,b){if(!a?.length||!b?.length)return 0;let best=0;const min=Math.min(6,a.length,b.length),max=Math.min(a.length,b.length);for(let n=min;n<=max;n++){const cur=a.slice(-n);for(let j=0;j+n<=b.length;j++){let hit=0;for(let i=0;i<n;i++)if(cur[i]===b[j+i])hit++;best=Math.max(best,hit/n)}}return best}\nfunction cluster(vals,tol){vals.sort((a,b)=>a-b);const out=[];for(const v of vals){const g=out[out.length-1];if(!g||v-g[g.length-1]>tol)out.push([v]);else g.push(v)}return out.map(g=>g.reduce((a,b)=>a+b,0)/g.length)}\nasync function extract(f){const img=await createImageBitmap(f), scale=Math.min(1,1000/img.width),w=Math.round(img.width*scale),h=Math.round(img.height*scale);const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h).data, pts=[];for(let y=2;y<h-2;y+=2)for(let xx=2;xx<w-2;xx+=2){let i=(y*w+xx)*4,r=d[i],g=d[i+1],b=d[i+2];let red=r>125&&r>g*1.28&&r>b*1.18,blue=b>115&&b>r*1.18&&b>g*1.05;if(red||blue)pts.push({x:xx,y,c:red?'R':'B'})}if(pts.length<20)throw Error('Not enough red/blue road marks detected. Try a clearer screenshot.');const ys=cluster(pts.map(p=>p.y),Math.max(8,h*.018));let bands=[];for(const cy of ys){const near=pts.filter(p=>Math.abs(p.y-cy)<Math.max(12,h*.04));if(near.length>10)bands.push({cy,pts:near})}bands.sort((a,b)=>a.cy-b.cy);if(bands.length>3){let merged=[];for(const b of bands){let m=merged[merged.length-1];if(m&&b.cy-m.cy<h*.12){m.pts=m.pts.concat(b.pts);m.cy=(m.cy+b.cy)/2}else merged.push(b)}bands=merged}bands=bands.slice(0,3);while(bands.length<3)bands.push({pts:[]});return bands.map(b=>{let xs=cluster(b.pts.map(p=>p.x),Math.max(5,w*.009)),seq=[];for(const cx of xs){let q=b.pts.filter(p=>Math.abs(p.x-cx)<Math.max(5,w*.012));if(q.length){let r=q.filter(p=>p.c==='R').length,bl=q.length-r;seq.push(r>=bl?'R':'B')}}return seq}).filter(Boolean)}\nfunction current(){try{return [deriveRoad(state.hands,1),deriveRoad(state.hands,2),deriveRoad(state.hands,3)]}catch(e){return[[],[],[]]}}\nfunction scan(){const L=lib().filter(x=>!color||x.color===color),cur=current();let best=null;for(const x of L){const scores=[0,1,2].map(i=>similarity(cur[i],x.roads[i]||[])),usable=scores.filter((v,i)=>cur[i].length>=6&&(x.roads[i]||[]).length>=6),avg=usable.length?usable.reduce((a,b)=>a+b,0)/usable.length:0;if(!best||avg>best.avg)best={x,scores,avg}}set('ssmCount',L.length);set('ssmBest',best?Math.round(best.avg*100)+'%':'—');set('ssmWhich',best?('#'+best.x.id):'—');set('ssmEye',best?Math.round(best.scores[0]*100)+'%':'—');set('ssmSmall',best?Math.round(best.scores[1]*100)+'%':'—');set('ssmRoach',best?Math.round(best.scores[2]*100)+'%':'—');set('ssmNote',!color?'Choose RED or BLACK for isolated same-color matching.':!L.length?'No '+color.toUpperCase()+' test screenshots saved yet.':best&&best.avg>=.75?'Strong structural similarity detected. This is a test signal only; it does not affect other AIs.':'Scanning '+color.toUpperCase()+' test screenshots for partial/shifted matches.');renderList()}\nfunction renderList(){const L=lib();set('ssmList',L.length?L.map(x=>'#'+x.id+' '+x.color.toUpperCase()+' • Eye '+(x.roads[0]?.length||0)+' • Small '+(x.roads[1]?.length||0)+' • Roach '+(x.roads[2]?.length||0)).join('   |   '):'TEST library empty.')} function render(){scan()}\n$('ssmRed')?.addEventListener('click',()=>choose('red'));$('ssmBlack')?.addEventListener('click',()=>choose('black'));$('ssmInput')?.addEventListener('change',e=>{file=e.target.files?.[0]||null;set('ssmNote',file?'Screenshot ready. Choose its RED/BLACK color, then Scan + Save.':'No screenshot selected.')});$('ssmScan')?.addEventListener('click',async()=>{if(!file)return alert('Choose a previous-road screenshot first.');if(!color)return alert('Choose RED or BLACK for this screenshot first.');set('ssmStatus','SCANNING');try{const roads=await extract(file);if(roads.every(r=>r.length<6))throw Error('Could not isolate enough road marks. Use a screenshot where Big Eye, Small Road and Cockroach Road are clearly visible.');const L=lib(),id=(L.reduce((m,x)=>Math.max(m,x.id||0),0)+1);L.push({id,color,roads,created:Date.now(),name:file.name||'screenshot'});put(L);set('ssmStatus',color.toUpperCase()+' SAVED');file=null;$('ssmInput').value='';scan()}catch(e){set('ssmStatus','SCAN ERROR');alert(e.message)}});$('ssmRescan')?.addEventListener('click',scan);$('ssmClear')?.addEventListener('click',()=>{if(confirm('Clear only the TEST Screenshot Match AI library? Your main shoe libraries will not be touched.')){put([]);scan()}});\nconst oldRender=window.render;if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);setTimeout(scan,0);return r};\nsetInterval(scan,2500);render();\n})();\n</script>\n</body>
 </html>
