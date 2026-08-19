@@ -256,8 +256,8 @@
 .card-entry,.dual-shoes{display:none !important;}
 </style>
 
-<style id="screenshotMatchAiStyles">
-.ssm-ai{margin:8px 0;background:#171a1f;border:1px solid #7b4fb3;border-radius:14px;padding:10px}.ssm-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.ssm-badge{font-size:10px;font-weight:900;padding:5px 8px;border-radius:999px;background:#30213f;color:#ddb7ff}.ssm-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.ssm-file{display:none}.ssm-note{font-size:11px;color:#9ca5b1;line-height:1.35;margin-top:5px}.ssm-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.ssm-card{background:#22262d;border-radius:10px;padding:8px;text-align:center}.ssm-card span{display:block;font-size:9px;color:#9ca5b1}.ssm-card strong{font-size:16px}.ssm-color{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}.ssm-color button.active{box-shadow:0 0 0 2px #a34ce8 inset}.ssm-list{font-size:10px;color:#9ca5b1;line-height:1.35;margin-top:8px;max-height:80px;overflow:auto}
+<style id="threeRoadAlignmentAiStyles">
+.tra-ai{margin:8px 0;background:#171a1f;border:1px solid #7b4fb3;border-radius:14px;padding:10px}.tra-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.tra-badge{font-size:10px;font-weight:900;padding:5px 8px;border-radius:999px;background:#30213f;color:#ddb7ff}.tra-note{font-size:11px;color:#9ca5b1;line-height:1.4;margin-top:6px}.tra-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.tra-card{background:#22262d;border-radius:10px;padding:8px;text-align:center}.tra-card span{display:block;font-size:9px;color:#9ca5b1}.tra-card strong{font-size:16px}.tra-road-list{display:grid;gap:6px;margin-top:8px}.tra-road{display:grid;grid-template-columns:1.15fr .75fr .8fr .8fr;gap:6px;align-items:center;background:#22262d;border-radius:10px;padding:7px;font-size:10px}.tra-road b{font-size:11px}.tra-road span{color:#9ca5b1}.tra-fixed{font-size:10px;font-weight:900;color:#f1b827;margin-top:7px}.tra-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -293,16 +293,19 @@
 <div class="analyzer-sub" id="roadMemoryNote" style="margin-top:8px">Enter hands and build/import saved shoe history to start previous-road matching.</div>
 </div>
 
-<div class="ssm-ai" id="screenshotMatchAiPanel">
- <div class="ssm-head"><div class="analyzer-title">📸 Screenshot Match AI — TEST ONLY</div><span class="ssm-badge" id="ssmStatus">ISOLATED</span></div>
- <div class="ssm-note"><b>Separate AI.</b> Uses only screenshots saved here plus the current Big Eye Boy, Small Road, and Cockroach Road. Nothing saved here is added to the main shoe library, Road Preview, Sequence AI, H2O, Kaggle, or Bot AI.</div>
- <div class="ssm-color"><button class="tiny-btn" id="ssmRed">🔴 Save as RED</button><button class="tiny-btn" id="ssmBlack">⚫ Save as BLACK</button></div>
- <div class="ssm-actions"><label class="tiny-btn" for="ssmInput" style="text-align:center">Choose Previous-Road Screenshot</label><input class="ssm-file" id="ssmInput" type="file" accept="image/*"><button class="tiny-btn" id="ssmScan">Scan + Save Test Screenshot</button></div>
- <div class="ssm-grid"><div class="ssm-card"><span>BEST MATCH</span><strong id="ssmBest">—</strong></div><div class="ssm-card"><span>SAME-COLOR TESTS</span><strong id="ssmCount">0</strong></div><div class="ssm-card"><span>MATCHED SCREENSHOT</span><strong id="ssmWhich">—</strong></div></div>
- <div class="ssm-grid"><div class="ssm-card"><span>BIG EYE</span><strong id="ssmEye">—</strong></div><div class="ssm-card"><span>SMALL ROAD</span><strong id="ssmSmall">—</strong></div><div class="ssm-card"><span>COCKROACH</span><strong id="ssmRoach">—</strong></div></div>
- <div class="ssm-note" id="ssmNote">Choose RED or BLACK, then add a screenshot of previous derived roads. The AI rechecks after every hand.</div>
- <div class="ssm-actions"><button class="tiny-btn" id="ssmRescan">Scan Current Roads Now</button><button class="tiny-btn" id="ssmClear">Clear TEST Screenshot Library</button></div>
- <div class="ssm-list" id="ssmList"></div>
+<div class="tra-ai" id="threeRoadAlignmentAiPanel">
+ <div class="tra-head"><div class="analyzer-title">🧠 3-ROAD ALIGNMENT AI</div><span class="tra-badge" id="traStatus">LIVE</span></div>
+ <div class="tra-note"><b>Separate AI.</b> This AI continuously places the current Big Eye Boy, Small Road, and Cockroach Road against saved historical road patterns as the shoe grows. It searches the front, middle, and end and can move each road to a better position after every hand.</div>
+ <div class="tra-fixed">🔒 FIXED COLORS: RED stays RED • BLUE stays BLUE • NO color flipping/opposite conversion.</div>
+ <div class="tra-grid"><div class="tra-card"><span>NEXT BEST RESULT</span><strong id="traPick">WAIT</strong></div><div class="tra-card"><span>ALIGNMENT CONFIDENCE</span><strong id="traConfidence">—</strong></div><div class="tra-card"><span>ROADS VOTING</span><strong id="traVotes">0/3</strong></div></div>
+ <div class="tra-road-list">
+  <div class="tra-road"><b>BIG EYE</b><span id="traEyeMatch">Match —</span><span id="traEyePlace">Place —</span><span id="traEyeNext">Next —</span></div>
+  <div class="tra-road"><b>SMALL ROAD</b><span id="traSmallMatch">Match —</span><span id="traSmallPlace">Place —</span><span id="traSmallNext">Next —</span></div>
+  <div class="tra-road"><b>COCKROACH</b><span id="traRoachMatch">Match —</span><span id="traRoachPlace">Place —</span><span id="traRoachNext">Next —</span></div>
+ </div>
+ <div class="tra-grid"><div class="tra-card"><span>BANKER CONTINUATION</span><strong id="traBanker">—</strong></div><div class="tra-card"><span>PLAYER CONTINUATION</span><strong id="traPlayer">—</strong></div><div class="tra-card"><span>HISTORICAL SHOES SCANNED</span><strong id="traScanned">0</strong></div></div>
+ <div class="tra-note" id="traNote">Enter more hands and save/import historical shoes. The AI will re-align automatically after every hand.</div>
+ <div class="tra-actions"><button class="tiny-btn" id="traRescan">Re-align Roads Now</button><button class="tiny-btn" id="traDetails">Show Alignment Details</button></div>
 </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
 <div class="analyzer-title">🤖 High-Powered Bot AI — Library + Derived Roads + Baccarat Rules</div>
@@ -2325,7 +2328,7 @@ function renderRoadPreviewAI(){
 function sequenceAISignal(){
   const cur=currentSequence();
   // Sequence AI V2 stays isolated: selected/combined saved P/B/T shoe history only.
-  // No Kaggle, H2O, derived roads, Screenshot Match AI, Bot AI, or card composition.
+  // No Kaggle, H2O, derived roads, Bot AI, or card composition.
   const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(cur.length<4 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus saved historical shoe evidence.'};
 
@@ -3318,5 +3321,100 @@ async function settleUltimatePrediction(actual){
 }
 function renderUltimateBot(){const x=state.ultimate?.last||{};const st=document.getElementById('ultimateStatus');if(st){st.textContent=state.ultimate?.error?'🔴 BOT ERROR':state.ultimate?.connected?'🟢 BOT AI LIVE':'🔴 BOT READY';st.className='h2o-status '+(state.ultimate?.connected?'on':'err');}const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ultimateDecision',x.decision||'WAIT');set('ultimateConfidence',x.confidence==null?'—':Math.round(x.confidence*100)+'%');set('ultimateTime',x.decision_seconds==null?'—':x.decision_seconds+'s');set('ultimatePhase',x.phase||'—');const vv=(x.votes||[]).filter(v=>v.side==='P'||v.side==='B');const aa=vv.length&&x.decision!=='WAIT'?vv.filter(v=>v.side===x.decision).length:0;set('ultimateVotes',vv.length?aa+'/'+vv.length:'—');}
 document.getElementById('ultimateScoreBtn')?.addEventListener('click',()=>scoreUltimateBot(true));setTimeout(()=>{renderUltimateBot();if(currentSequence().length>=6)scoreUltimateBot(false);},400);
-</script>\n<script id="screenshotMatchAiScript">\n(()=>{\nconst K='baccarat-screenshot-match-test-v1'; let color=null,file=null;\nconst $=id=>document.getElementById(id), set=(id,v)=>{const e=$(id);if(e)e.textContent=v};\nfunction lib(){try{return JSON.parse(localStorage.getItem(K)||'[]')}catch(e){return[]}} function put(x){localStorage.setItem(K,JSON.stringify(x))}\nfunction choose(c){color=c;$('ssmRed').classList.toggle('active',c==='red');$('ssmBlack').classList.toggle('active',c==='black');set('ssmStatus',(c||'').toUpperCase()+' TEST'); render()}\nfunction similarity(a,b){if(!a?.length||!b?.length)return 0;let best=0;const min=Math.min(6,a.length,b.length),max=Math.min(a.length,b.length);for(let n=min;n<=max;n++){const cur=a.slice(-n);for(let j=0;j+n<=b.length;j++){let hit=0;for(let i=0;i<n;i++)if(cur[i]===b[j+i])hit++;best=Math.max(best,hit/n)}}return best}\nfunction cluster(vals,tol){vals.sort((a,b)=>a-b);const out=[];for(const v of vals){const g=out[out.length-1];if(!g||v-g[g.length-1]>tol)out.push([v]);else g.push(v)}return out.map(g=>g.reduce((a,b)=>a+b,0)/g.length)}\nasync function extract(f){const img=await createImageBitmap(f), scale=Math.min(1,1000/img.width),w=Math.round(img.width*scale),h=Math.round(img.height*scale);const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h).data, pts=[];for(let y=2;y<h-2;y+=2)for(let xx=2;xx<w-2;xx+=2){let i=(y*w+xx)*4,r=d[i],g=d[i+1],b=d[i+2];let red=r>125&&r>g*1.28&&r>b*1.18,blue=b>115&&b>r*1.18&&b>g*1.05;if(red||blue)pts.push({x:xx,y,c:red?'R':'B'})}if(pts.length<20)throw Error('Not enough red/blue road marks detected. Try a clearer screenshot.');const ys=cluster(pts.map(p=>p.y),Math.max(8,h*.018));let bands=[];for(const cy of ys){const near=pts.filter(p=>Math.abs(p.y-cy)<Math.max(12,h*.04));if(near.length>10)bands.push({cy,pts:near})}bands.sort((a,b)=>a.cy-b.cy);if(bands.length>3){let merged=[];for(const b of bands){let m=merged[merged.length-1];if(m&&b.cy-m.cy<h*.12){m.pts=m.pts.concat(b.pts);m.cy=(m.cy+b.cy)/2}else merged.push(b)}bands=merged}bands=bands.slice(0,3);while(bands.length<3)bands.push({pts:[]});return bands.map(b=>{let xs=cluster(b.pts.map(p=>p.x),Math.max(5,w*.009)),seq=[];for(const cx of xs){let q=b.pts.filter(p=>Math.abs(p.x-cx)<Math.max(5,w*.012));if(q.length){let r=q.filter(p=>p.c==='R').length,bl=q.length-r;seq.push(r>=bl?'R':'B')}}return seq}).filter(Boolean)}\nfunction current(){try{return [deriveRoad(state.hands,1),deriveRoad(state.hands,2),deriveRoad(state.hands,3)]}catch(e){return[[],[],[]]}}\nfunction scan(){const L=lib().filter(x=>!color||x.color===color),cur=current();let best=null;for(const x of L){const scores=[0,1,2].map(i=>similarity(cur[i],x.roads[i]||[])),usable=scores.filter((v,i)=>cur[i].length>=6&&(x.roads[i]||[]).length>=6),avg=usable.length?usable.reduce((a,b)=>a+b,0)/usable.length:0;if(!best||avg>best.avg)best={x,scores,avg}}set('ssmCount',L.length);set('ssmBest',best?Math.round(best.avg*100)+'%':'—');set('ssmWhich',best?('#'+best.x.id):'—');set('ssmEye',best?Math.round(best.scores[0]*100)+'%':'—');set('ssmSmall',best?Math.round(best.scores[1]*100)+'%':'—');set('ssmRoach',best?Math.round(best.scores[2]*100)+'%':'—');set('ssmNote',!color?'Choose RED or BLACK for isolated same-color matching.':!L.length?'No '+color.toUpperCase()+' test screenshots saved yet.':best&&best.avg>=.75?'Strong structural similarity detected. This is a test signal only; it does not affect other AIs.':'Scanning '+color.toUpperCase()+' test screenshots for partial/shifted matches.');renderList()}\nfunction renderList(){const L=lib();set('ssmList',L.length?L.map(x=>'#'+x.id+' '+x.color.toUpperCase()+' • Eye '+(x.roads[0]?.length||0)+' • Small '+(x.roads[1]?.length||0)+' • Roach '+(x.roads[2]?.length||0)).join('   |   '):'TEST library empty.')} function render(){scan()}\n$('ssmRed')?.addEventListener('click',()=>choose('red'));$('ssmBlack')?.addEventListener('click',()=>choose('black'));$('ssmInput')?.addEventListener('change',e=>{file=e.target.files?.[0]||null;set('ssmNote',file?'Screenshot ready. Choose its RED/BLACK color, then Scan + Save.':'No screenshot selected.')});$('ssmScan')?.addEventListener('click',async()=>{if(!file)return alert('Choose a previous-road screenshot first.');if(!color)return alert('Choose RED or BLACK for this screenshot first.');set('ssmStatus','SCANNING');try{const roads=await extract(file);if(roads.every(r=>r.length<6))throw Error('Could not isolate enough road marks. Use a screenshot where Big Eye, Small Road and Cockroach Road are clearly visible.');const L=lib(),id=(L.reduce((m,x)=>Math.max(m,x.id||0),0)+1);L.push({id,color,roads,created:Date.now(),name:file.name||'screenshot'});put(L);set('ssmStatus',color.toUpperCase()+' SAVED');file=null;$('ssmInput').value='';scan()}catch(e){set('ssmStatus','SCAN ERROR');alert(e.message)}});$('ssmRescan')?.addEventListener('click',scan);$('ssmClear')?.addEventListener('click',()=>{if(confirm('Clear only the TEST Screenshot Match AI library? Your main shoe libraries will not be touched.')){put([]);scan()}});\nconst oldRender=window.render;if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);setTimeout(scan,0);return r};\nsetInterval(scan,2500);render();\n})();\n</script>\n</body>
+</script>\n<script id="threeRoadAlignmentAiScript">
+(()=>{
+const $=id=>document.getElementById(id);
+const set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
+const ROAD_NAMES=['Eye','Small','Roach'];
+let lastDetail=[];
+function allSaved(){
+  let L=[];
+  try{ L=activePatternLibrary(); }catch(e){}
+  if(!Array.isArray(L)||!L.length){
+    const r=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[];
+    const b=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[];
+    L=[...r,...b];
+  }
+  return L.filter(x=>x && (typeof x.sequence==='string' || x.derivedRoadHistory));
+}
+function roadSetFromRecord(x){
+  const d=x?.derivedRoadHistory||{};
+  if(Array.isArray(d.bigEye)&&Array.isArray(d.small)&&Array.isArray(d.roach)) return [d.bigEye,d.small,d.roach];
+  const seq=String(x?.sequence||'').toUpperCase().replace(/[^PBT]/g,'').split('').map(r=>({r}));
+  return [deriveRoad(seq,1),deriveRoad(seq,2),deriveRoad(seq,3)];
+}
+function currentRoads(hands=state.hands){return [deriveRoad(hands,1),deriveRoad(hands,2),deriveRoad(hands,3)];}
+function align(cur,ref){
+  if(!cur?.length||!ref?.length)return null;
+  const maxN=Math.min(20,cur.length,ref.length),minN=Math.min(5,maxN);
+  if(maxN<3)return null;
+  let best=null;
+  for(let n=Math.max(3,minN);n<=maxN;n++){
+    const tail=cur.slice(-n);
+    for(let pos=0;pos+n<=ref.length;pos++){
+      let hit=0; for(let i=0;i<n;i++) if(tail[i]===ref[pos+i]) hit++;
+      const raw=hit/n, lengthBoost=.72+.28*(n/maxN), score=raw*lengthBoost;
+      const next=pos+n<ref.length?ref[pos+n]:null;
+      if(!best||score>best.score||(score===best.score&&n>best.n)) best={score,raw,n,pos,next};
+    }
+  }
+  return best;
+}
+function bestForRoad(cur,idx,lib){
+  let best=null,scanned=0;
+  for(const x of lib){
+    const roads=roadSetFromRecord(x),ref=roads[idx]||[]; if(!ref.length)continue; scanned++;
+    const a=align(cur,ref); if(!a)continue;
+    if(!best||a.score>best.score||(a.score===best.score&&a.n>best.n)) best={...a,record:x,refLen:ref.length};
+  }
+  return {best,scanned};
+}
+function candidateMarks(side,baseRoads){
+  const h=state.hands.concat([{r:side}]), rr=currentRoads(h);
+  return rr.map((road,i)=>road.length>baseRoads[i].length?road[road.length-1]:null);
+}
+function evaluate(side,alignments,baseRoads){
+  const marks=candidateMarks(side,baseRoads); let earned=0,total=0,votes=0,agree=0;
+  alignments.forEach((a,i)=>{
+    if(!a?.next||!marks[i])return;
+    const w=Math.max(.25,a.raw)*(0.65+0.35*Math.min(1,a.n/12)); total+=w; votes++;
+    if(marks[i]===a.next){earned+=w;agree++;}
+  });
+  return {side,score:total?earned/total:0,votes,agree,marks};
+}
+function pct(v){return Math.round((v||0)*100)+'%';}
+function scan(){
+  const lib=allSaved(),cur=currentRoads(),results=cur.map((r,i)=>bestForRoad(r,i,lib)),A=results.map(x=>x.best);
+  set('traScanned',String(lib.length));
+  const ids=[['traEyeMatch','traEyePlace','traEyeNext'],['traSmallMatch','traSmallPlace','traSmallNext'],['traRoachMatch','traRoachPlace','traRoachNext']];
+  A.forEach((a,i)=>{
+    set(ids[i][0],a?('Match '+pct(a.raw)):'Match —');
+    set(ids[i][1],a?('Place '+(a.pos+1)+'-'+(a.pos+a.n)):'Place —');
+    set(ids[i][2],a?.next?('Next '+a.next):'Next —');
+  });
+  const B=evaluate('B',A,cur),P=evaluate('P',A,cur);
+  set('traBanker',B.votes?pct(B.score):'—'); set('traPlayer',P.votes?pct(P.score):'—');
+  const usable=A.filter(a=>a&&a.next&&a.raw>=.55).length;
+  let pick='WAIT',conf=0,winner=null;
+  if(B.votes||P.votes){ winner=B.score>=P.score?B:P; const loser=winner===B?P:B; const margin=winner.score-loser.score; conf=winner.score;
+    if(usable>=2 && winner.votes>=2 && winner.agree>=2 && winner.score>=.62 && margin>=.12) pick=winner.side;
+  }
+  set('traPick',pick==='B'?'BANKER':pick==='P'?'PLAYER':'WAIT'); set('traConfidence',pick==='WAIT'?'—':pct(conf));
+  const w=winner||{agree:0,votes:0}; set('traVotes',(pick==='WAIT'?Math.max(B.agree,P.agree):w.agree)+'/'+Math.max(B.votes,P.votes,3));
+  set('traStatus',lib.length?(pick==='WAIT'?'ALIGNING':'SIGNAL'):'NEED HISTORY');
+  let note='';
+  if(!lib.length) note='No saved historical shoes are available yet. Save/import shoes first.';
+  else if(cur.filter(r=>r.length>=3).length<2) note='The derived roads are still short. Alignment becomes more meaningful as more hands are entered.';
+  else if(pick==='WAIT') note='The AI is repositioning all three fixed-color roads. Current alignments do not agree strongly enough for a Banker/Player signal, so it returns WAIT.';
+  else note=`${pick==='B'?'BANKER':'PLAYER'} best preserves the next fixed-color continuation across the strongest road placements. Red/blue colors were compared exactly as stored; no colors were flipped.`;
+  set('traNote',note);
+  lastDetail=A.map((a,i)=>({road:ROAD_NAMES[i],match:a?Math.round(a.raw*100):0,position:a?`${a.pos+1}-${a.pos+a.n}`:'—',next:a?.next||'—',shoe:a?.record?.id||a?.record?.savedAt||'saved shoe'}));
+}
+$('traRescan')?.addEventListener('click',scan);
+$('traDetails')?.addEventListener('click',()=>alert(lastDetail.length?lastDetail.map(x=>`${x.road}: ${x.match}% • place ${x.position} • next ${x.next}`).join('\n'):'No alignment details yet.'));
+const oldRender=window.render;if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);setTimeout(scan,0);return r};
+setInterval(scan,1800);setTimeout(scan,300);
+})();
+</script>
+</body>
 </html>
