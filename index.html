@@ -409,7 +409,16 @@
 <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Roach Road</span><strong id="roachNext">—</strong><small id="roachNextPct">P 50% • B 50%</small></div>
 </div>
-<div class="analyzer-sub" style="margin-top:8px"><b>RULES ONLY — NO CURRENT-SHOE TREND PREDICTION.</b> This engine does not study streaks, alternations, recent road colors, saved shoes, H2O, Kaggle, Sequence AI, Bot AI, or historical patterns. It only applies the formal Big Eye Boy, Small Road, and Cockroach Road construction rules. The live Big Road position is used only as the geometry required to calculate what a hypothetical Player or Banker result would print on each derived road; it is not treated as predictive evidence.</div>
+<div class="analyzer-sub" style="margin-top:8px">
+<div id="derivedIndependentFinal" style="margin-top:14px;padding:16px;border:2px solid #f0b90b;border-radius:14px;background:rgba(240,185,11,.08)">
+  <div style="font-weight:800;font-size:18px;margin-bottom:8px">INDEPENDENT DERIVED ROAD AI</div>
+  <div id="derivedIndependentPrediction" style="font-size:26px;font-weight:900">Prediction: WAIT</div>
+  <div id="derivedIndependentAgreement" style="margin-top:5px">Agreement: waiting for enough road-rule output</div>
+  <div id="derivedIndependentConfidence" style="margin-top:3px">Rule confidence: —</div>
+  <div style="margin-top:7px;font-size:12px;opacity:.78">Source: Big Eye Boy + Small Road + Cockroach Road rules only. No history, H2O, Kaggle, Sequence AI, Bot AI, or shoe-trend scoring.</div>
+</div>
+
+<b>RULES ONLY — NO CURRENT-SHOE TREND PREDICTION.</b> This engine does not study streaks, alternations, recent road colors, saved shoes, H2O, Kaggle, Sequence AI, Bot AI, or historical patterns. It only applies the formal Big Eye Boy, Small Road, and Cockroach Road construction rules. The live Big Road position is used only as the geometry required to calculate what a hypothetical Player or Banker result would print on each derived road; it is not treated as predictive evidence.</div>
 </div>
 <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
 </div>
@@ -3619,5 +3628,70 @@ setInterval(scan,1800);setTimeout(scan,300);
 document.getElementById('seqH2oScoreBtn')?.addEventListener('click',()=>scoreSequenceDuplicateWithH2O(true));
 document.getElementById('seqH2oTrainBtn')?.addEventListener('click',()=>trainSequenceDuplicateH2O(true));
 </script>
+
+<script>
+(function(){
+  function parseRoadBox(label){
+    const els=[...document.querySelectorAll('div,section,article')];
+    let box=els.find(e=>{
+      const t=(e.innerText||'').trim();
+      return t.includes(label) && /P\s*→\s*(RED|BLUE)/i.test(t) && /B\s*→\s*(RED|BLUE)/i.test(t)
+             && e.children.length < 12;
+    });
+    if(!box) return null;
+    const t=box.innerText||'';
+    const p=(t.match(/P\s*→\s*(RED|BLUE)/i)||[])[1];
+    const b=(t.match(/B\s*→\s*(RED|BLUE)/i)||[])[1];
+    return p&&b ? {p:p.toUpperCase(),b:b.toUpperCase()} : null;
+  }
+
+  function updateIndependentDerivedFinal(){
+    const roads=[
+      parseRoadBox('Big Eye Boy'),
+      parseRoadBox('Small Road'),
+      parseRoadBox('Roach Road') || parseRoadBox('Cockroach Road')
+    ].filter(Boolean);
+
+    const pred=document.getElementById('derivedIndependentPrediction');
+    const agree=document.getElementById('derivedIndependentAgreement');
+    const conf=document.getElementById('derivedIndependentConfidence');
+    if(!pred||!agree||!conf) return;
+
+    if(roads.length < 2){
+      pred.textContent='Prediction: WAIT';
+      agree.textContent='Agreement: waiting for enough road-rule output';
+      conf.textContent='Rule confidence: —';
+      return;
+    }
+
+    // Rule-only consensus: each road votes for the side whose hypothetical result
+    // produces RED (the formal "regular/consistent" derived-road mark). If neither
+    // side is uniquely RED, that road abstains.
+    let pVotes=0,bVotes=0,abstain=0;
+    roads.forEach(r=>{
+      if(r.p==='RED' && r.b!=='RED') pVotes++;
+      else if(r.b==='RED' && r.p!=='RED') bVotes++;
+      else abstain++;
+    });
+
+    let choice='WAIT', wins=Math.max(pVotes,bVotes);
+    if(pVotes>bVotes) choice='PLAYER';
+    if(bVotes>pVotes) choice='BANKER';
+
+    // Require at least 2 agreeing formal-road votes for a bet-side signal.
+    if(wins < 2 || pVotes===bVotes) choice='WAIT';
+
+    const available=roads.length;
+    const pct = choice==='WAIT' ? Math.round((wins/available)*100) : Math.round((wins/available)*100);
+    pred.textContent='Prediction: '+choice;
+    agree.textContent=`Agreement: ${wins} of ${available} roads` + (abstain?` • ${abstain} abstain`:'');
+    conf.textContent='Rule confidence: '+pct+'%';
+  }
+
+  updateIndependentDerivedFinal();
+  setInterval(updateIndependentDerivedFinal, 500);
+})();
+</script>
+
 </body>
 </html>
