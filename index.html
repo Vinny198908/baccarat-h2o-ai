@@ -403,13 +403,13 @@
 
 </div>
 <div class="road-predict-panel">
-<div class="road-predict-title">Derived-Road Next Result Signals</div>
+<div class="road-predict-title">Derived Road AI — Rule-Only Independent Engine</div>
 <div class="road-predict-grid">
 <div class="road-predict-card"><span>Big Eye Boy</span><strong id="eyeNext">—</strong><small id="eyeNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Roach Road</span><strong id="roachNext">—</strong><small id="roachNextPct">P 50% • B 50%</small></div>
 </div>
-<div class="analyzer-sub" style="margin-top:8px">INDEPENDENT CURRENT-SHOE ROADS ONLY. These three signals use only the current Big Eye Boy, Small Road, and Roach Road structure. No historical library, H2O, Kaggle, Sequence AI, Bot AI, or Road Preview input.</div>
+<div class="analyzer-sub" style="margin-top:8px"><b>RULES ONLY — NO CURRENT-SHOE TREND PREDICTION.</b> This engine does not study streaks, alternations, recent road colors, saved shoes, H2O, Kaggle, Sequence AI, Bot AI, or historical patterns. It only applies the formal Big Eye Boy, Small Road, and Cockroach Road construction rules. The live Big Road position is used only as the geometry required to calculate what a hypothetical Player or Banker result would print on each derived road; it is not treated as predictive evidence.</div>
 </div>
 <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
 </div>
@@ -2728,13 +2728,27 @@ function setSignalBar(id,val){
   if(e)e.style.width=Math.max(0,Math.min(100,val))+'%';
 }
 
-function renderDerivedRoadPredictions(road){
-  const defs=[['eye','eyeNext','eyeNextPct'],['small','smallNext','smallNextPct'],['roach','roachNext','roachNextPct']];
-  defs.forEach(([key,sideId,pctId])=>{
-    const sig=road?.[key]||{side:null,pPct:50,bPct:50};
+function derivedRoadRuleProbe(offset){
+  // STRICTLY RULE-ONLY. No trend analysis, no color forecasting, no history.
+  // We calculate the mark that each hypothetical main-road result would create.
+  const pMark=previewDerivedMark(state.hands,'P',offset);
+  const bMark=previewDerivedMark(state.hands,'B',offset);
+  return {pMark,bMark};
+}
+
+function roadMarkLabel(mark){
+  return mark==='R'?'RED':mark==='B'?'BLUE':'—';
+}
+
+function renderDerivedRoadPredictions(){
+  const defs=[[1,'eyeNext','eyeNextPct'],[2,'smallNext','smallNextPct'],[3,'roachNext','roachNextPct']];
+  defs.forEach(([offset,sideId,pctId])=>{
+    const sig=derivedRoadRuleProbe(offset);
     const sideEl=document.getElementById(sideId), pctEl=document.getElementById(pctId);
-    if(sideEl) sideEl.textContent=sig.side==='P'?'Player':sig.side==='B'?'Banker':'Even';
-    if(pctEl) pctEl.textContent=`P ${sig.pPct??50}% • B ${sig.bPct??50}%`;
+    // Road rules by themselves do not assign a probability to Player or Banker.
+    // Showing WAIT prevents current-shoe behavior from being smuggled in as a prediction.
+    if(sideEl) sideEl.textContent='RULE ONLY';
+    if(pctEl) pctEl.textContent=`P→${roadMarkLabel(sig.pMark)} • B→${roadMarkLabel(sig.bMark)}`;
   });
 }
 
@@ -3025,7 +3039,7 @@ function renderAnalyzer(){
   setSignalBar('libBar',libVal);
   setSignalBar('h2oBar',h2oVal);
   setSignalBar('deepseekBar',deepseekVal);
-  renderDerivedRoadPredictions(a.road);
+  renderDerivedRoadPredictions();
 
   const driver=document.getElementById('resultDriver');
   const famText=(a.families||[]).map(f=>`${f.name}: ${f.side==='P'?'P':'B'} ${f.strength}%`).join(' • ');
