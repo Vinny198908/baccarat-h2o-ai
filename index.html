@@ -317,6 +317,9 @@
   <div class="analyzer-sub">A prediction counts only when it was locked before the next P/B result was entered. WAIT is never counted as a win. Ties are recorded separately and do not become a P/B win or loss. This is live verified accuracy, not backtest accuracy.</div>
   <div id="verifiedAccuracyGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px"></div>
   <div class="analyzer-sub" id="verifiedAccuracyNote" style="margin-top:8px">Verified tracking starts from this version forward.</div>
+  <div style="margin-top:10px;display:flex;justify-content:flex-end">
+    <button class="tiny-btn" id="resetVerifiedAccuracyBtn" type="button">Reset Accuracy Verification</button>
+  </div>
 </div>
 <div class="scoreboard">
 <div class="road-wrap"><div class="road" id="bigRoad"></div></div>
@@ -4316,6 +4319,16 @@ setInterval(scan,1800);setTimeout(scan,300);
     });
     persist();renderVerifiedAccuracy();
   }
+  function resetVerifiedAccuracy(){
+    const ok=confirm('Reset ALL verified accuracy records to 0? This clears only the Accuracy Verified ledger. Your saved RED/BLACK shoe libraries, current shoe history, AI logic, and settings will NOT be deleted.');
+    if(!ok)return;
+    state.accuracyVerified={models:{},pending:{},ties:0,version:1};
+    persist();
+    renderVerifiedAccuracy();
+    setTimeout(armVerifiedPredictions,150);
+  }
+  document.getElementById('resetVerifiedAccuracyBtn')?.addEventListener('click',resetVerifiedAccuracy);
+
   function renderVerifiedAccuracy(){
     const a=ensureAccuracy(),g=document.getElementById('verifiedAccuracyGrid');if(!g)return;g.innerHTML='';
     modelDefs.forEach(([key,name])=>{
