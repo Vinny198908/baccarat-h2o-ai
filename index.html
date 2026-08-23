@@ -746,18 +746,18 @@
 <div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
 <div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
 </div>
-<div class="analyzer-sub">Uses ONLY the selected historical shoe library's P/B/T color patterns. It continuously re-matches the live shoe against old shoes after every hand, can jump to better matching sections as the pattern changes, and drops old matches when they stop fitting. Sequence AI, derived roads, Kaggle, card composition, and other AIs do not influence this Bot.</div>
+<div class="analyzer-sub">Combines three independent signals: Sequence AI V2, the live-rhythm Sequence Duplicate, and Road Preview AI. The Bot dynamically weights evidence quality, requires meaningful agreement, and returns WAIT when the sources conflict or the Duplicate detects an unstable rhythm transition.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Bot decision</span><strong id="botDecision">WAIT</strong></div>
 <div class="analyzer-card"><span>Bot confidence</span><strong id="botConfidence">—</strong></div>
 <div class="analyzer-card"><span>Shoe phase</span><strong id="botPhase">EARLY</strong></div>
 </div>
 <div class="analyzer-grid">
-<div class="analyzer-card"><span>Historical color samples</span><strong id="botPhaseSamples">0</strong></div>
-<div class="analyzer-card"><span>Adaptive color windows</span><strong id="botRoadSamples">0</strong></div>
+<div class="analyzer-card"><span>Sequence V2 matches</span><strong id="botPhaseSamples">0</strong></div>
+<div class="analyzer-card"><span>Road Preview matches</span><strong id="botRoadSamples">0</strong></div>
 <div class="analyzer-card"><span>Bot verified accuracy</span><strong id="botAccuracy">—</strong></div>
 </div>
-<div class="analyzer-sub" id="botNote" style="margin-top:8px">Choose RED or BLACK and enter hands. Bot AI will adapt only from historical shoe color patterns.</div>
+<div class="analyzer-sub" id="botNote" style="margin-top:8px">Enter hands to activate Sequence AI V2 + Sequence Duplicate + Road Preview AI fusion.</div>
 <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
 <button class="tiny-btn" id="botLearningToggle">Learning: ON</button>
 <button class="tiny-btn" id="botResetStats">Reset Bot Stats</button>
@@ -3543,7 +3543,7 @@ function armBotPrediction(){
   ensureBotState();
   state.bot.learning=true;
   const b=masterBotSignal();
-  state.bot.pending=b.qualified?{side:b.side,confidence:b.confidence,phase:b.phase.key,hand:currentSequence().length+1,color:state.currentShoeColor||'none',specialists:(b.candidates||[]).map(c=>({name:c.name,side:c.side,strength:c.strength,reliability:c.reliability}))}:null;
+  state.bot.pending=b.qualified?{side:b.side,confidence:b.confidence,phase:b.phase.key,hand:currentSequence().length+1,color:state.currentShoeColor||'none',specialists:(b.candidates||[]).map(c=>({name:c.name,side:c.side,strength:c.strength,reliability:c.weight}))}:null;
 }
 let botHeartbeatAt=Date.now();
 function botHeartbeat(){
@@ -3584,13 +3584,20 @@ function renderMasterBot(){
   document.getElementById('botPhaseSamples').textContent=b.phaseHist.samples||0;
   document.getElementById('botRoadSamples').textContent=b.roadMem.samples||0;
   document.getElementById('botAccuracy').textContent=state.bot.predictions?`${Math.round(state.bot.wins*100/state.bot.predictions)}% (${state.bot.wins}/${state.bot.predictions})`:'—';
-  const color=activeColorName()||'NO COLOR';
-  const ca=b.colorAdaptive||{};
-  const adaptive=`${ca.samples||0} historical continuations • ${ca.windows||0} adaptive windows • best ${ca.bestLen||0}-hand match ${ca.bestSimilarity||0}% • P ${ca.pPct||0}% / B ${ca.bPct||0}%`;
+
+  const seq=b.seqV2||{}, dup=b.sequenceDuplicate||{}, road=b.roadPreview||{};
+  const fmt=x=>x?.side==='P'?'PLAYER':x?.side==='B'?'BANKER':'WAIT';
+  const rhythm=dup.rhythm||{};
+  const rhythmText=rhythm.type
+    ? ` • Duplicate rhythm ${rhythm.type} ${Math.round(Number(rhythm.stability)||0)}% stable / ${Math.round(Number(rhythm.changeRisk)||0)}% change risk`
+    : '';
+  const sources=`Sequence V2 ${fmt(seq)} ${seq.strength||0}% • Duplicate ${fmt(dup)} ${dup.strength||0}% • Road Preview ${fmt(road)} ${road.strength||0}%`;
+
   document.getElementById('botNote').textContent=b.qualified
-    ? `${color} • ${b.phase.label}: ${adaptive}. Bot AI uses historical P/B/T color patterns ONLY and re-aligns after every live hand. The prediction is locked before the next non-tie result.`
-    : `${color} • WAIT: ${b.reason||'Color evidence is not strong enough.'} ${adaptive}. No Sequence AI, derived-road, H2O, Kaggle, card-composition, or other AI input.`;
-  document.getElementById('botLearningToggle').textContent='Learning: ALWAYS ON';
+    ? `${sources}${rhythmText}. Fusion agreement ${b.agree}/${b.total}; final ${b.side==='P'?'PLAYER':'BANKER'} at ${b.confidence}% analysis confidence.`
+    : `${sources}${rhythmText}. ${b.reason||'WAIT: combined evidence is not strong enough.'}`;
+
+  document.getElementById('botLearningToggle').textContent='Fusion: ALWAYS ON';
   document.getElementById('botLearningToggle').disabled=true;
 }
 
