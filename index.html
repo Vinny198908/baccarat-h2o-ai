@@ -467,7 +467,7 @@
 </div>
 <div class="analyzer" id="sequenceDuplicatePanel" style="border-color:#2c7ca8;box-shadow:0 0 0 1px rgba(44,124,168,.14) inset">
 <div class="analyzer-title">Sequence AI V2 Duplicate <span style="font-size:10px;padding:4px 7px;border-radius:999px;background:#173c29;color:#8ff0b3;margin-left:6px">SEQUENCE ONLY</span></div>
-<div class="analyzer-sub">SEPARATE DUPLICATE. Same Sequence AI V2 decision logic as the original. Live P/B/T color-pattern analysis is confirmation only: it can strengthen or weaken confidence, but it cannot override the Sequence V2 side.</div>
+<div class="analyzer-sub">SEPARATE POWER DUPLICATE. Uses its own enhanced multi-window historical continuation ensemble with per-shoe vote caps, long-pattern persistence, regime awareness, conflict detection, and a stronger WAIT gate. Live P/B/T color-pattern analysis remains confirmation only and can never flip the sequence-selected side. Original Sequence AI V2 is unchanged.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Duplicate pick</span><strong id="seqDupSide">WAIT</strong></div>
 <div class="analyzer-card"><span>Duplicate confidence</span><strong id="seqDupStrength">—</strong></div>
@@ -741,7 +741,7 @@
     Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. Displayed percentages are analysis signals only and do not guarantee a future result.
   </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
-<div class="analyzer-title">🤖 Bot AI — Adaptive Historical Color Patterns Only</div>
+<div class="analyzer-title">🤖 High-Powered Bot AI — 3-Signal Fusion</div>
 <div class="bot-live-strip" id="botLiveStrip">
 <div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
 <div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
@@ -2620,17 +2620,160 @@ function renderSequenceAI(){
 
 
 function sequenceAIDuplicateSignal(){
-  const base=sequenceAISignal();
-  if(!base) return base;
+  const cur=currentSequence();
+  const base=sequenceAISignal(); // reference only; original Sequence AI V2 is never modified.
   const color=(typeof window.colorPatternAISignal==='function') ? window.colorPatternAISignal() : null;
-  if(!base.side) return {...base,duplicate:true,colorConfirmation:'WAITING',colorMatch:color?.bestSimilarity||0};
-  let strength=Number(base.strength)||0;
-  let colorConfirmation='WAITING';
-  if(color?.side){
-    if(color.side===base.side){ colorConfirmation='CONFIRMS'; strength=Math.min(92,strength+4); }
-    else { colorConfirmation='CONFLICT'; strength=Math.max(45,strength-6); }
+  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+
+  const empty={side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,duplicate:true,colorConfirmation:'WAITING',colorMatch:color?.bestSimilarity||0,colorSide:color?.side||null,waitReason:'WAIT: Need at least 5 live hands plus saved shoe history.'};
+  if(cur.length<5 || !lib.length) return empty;
+
+  // POWER DUPLICATE: independent ensemble of exact suffix continuations across
+  // short / medium / long windows, capped per shoe so one shoe cannot dominate.
+  const maxK=Math.min(24,cur.length);
+  const lengths=[];
+  for(let k=maxK;k>=3;k--){
+    if(k<=8 || k%2===0 || k===maxK || k===15 || k===21) lengths.push(k);
   }
-  return {...base,duplicate:true,strength,colorConfirmation,colorMatch:color?.bestSimilarity||0,colorSide:color?.side||null};
+
+  let windows=[],rawMatches=0,bestLen=0,weightedMatches=0;
+  lengths.forEach(k=>{
+    const pattern=cur.slice(-k).join('');
+    const shoeVotes=[];
+    lib.forEach((shoe,shoeIndex)=>{
+      const ss=shoe.sequence||'';
+      let p=0,b=0,t=0,hits=0;
+      for(let i=0;i+k<ss.length;i++){
+        if(ss.slice(i,i+k)!==pattern) continue;
+        const nxt=ss[i+k];
+        if(nxt==='P')p++; else if(nxt==='B')b++; else if(nxt==='T')t++;
+        hits++;
+      }
+      if(!hits) return;
+      // One shoe gets one normalized vote regardless of duplicate occurrences.
+      const z=p+b+t||1;
+      shoeVotes.push({shoeIndex,p:p/z,b:b/z,t:t/z,hits});
+    });
+    if(!shoeVotes.length) return;
+
+    const pAvg=shoeVotes.reduce((a,x)=>a+x.p,0)/shoeVotes.length;
+    const bAvg=shoeVotes.reduce((a,x)=>a+x.b,0)/shoeVotes.length;
+    const tAvg=shoeVotes.reduce((a,x)=>a+x.t,0)/shoeVotes.length;
+    const leader=pAvg>=bAvg&&pAvg>=tAvg?'P':bAvg>=pAvg&&bAvg>=tAvg?'B':'T';
+    const second=[pAvg,bAvg,tAvg].sort((a,b)=>b-a)[1]||0;
+    const margin=Math.max(pAvg,bAvg,tAvg)-second;
+    const sampleQuality=Math.min(1,shoeVotes.length/10);
+    const lengthQuality=Math.min(1,k/18);
+    const persistence=Math.min(1,k/Math.max(8,cur.length));
+    const weight=(.42+.58*sampleQuality)*(1+1.10*lengthQuality)*(1+.30*persistence)*(0.65+Math.min(.55,margin));
+    rawMatches+=shoeVotes.length;
+    bestLen=Math.max(bestLen,k);
+    weightedMatches+=weight*shoeVotes.length;
+    windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,samples:shoeVotes.length,margin,weight});
+  });
+
+  if(!windows.length) return {...empty,waitReason:'WAIT: No comparable historical continuation found for the current ending.'};
+
+  // Determine the persistent leader, then discount windows that disagree.
+  const leaderWeights={P:0,B:0,T:0};
+  windows.forEach(w=>leaderWeights[w.leader]+=w.weight);
+  const ranked=Object.entries(leaderWeights).sort((a,b)=>b[1]-a[1]);
+  const candidate=ranked[0][0];
+  const candidateWeight=ranked[0][1];
+  const runnerWeight=ranked[1]?.[1]||0;
+  const totalLeaderWeight=Object.values(leaderWeights).reduce((a,b)=>a+b,0)||1;
+  const voteEdge=(candidateWeight-runnerWeight)/totalLeaderWeight;
+  const agreeWindows=windows.filter(w=>w.leader===candidate).length;
+  const totalWindows=windows.length;
+  const agreement=agreeWindows/totalWindows;
+
+  let ap=0,ab=0,at=0,aw=0;
+  windows.forEach(w=>{
+    const agreeBoost=w.leader===candidate ? (1+.45*agreement) : .42;
+    const ww=w.weight*agreeBoost;
+    ap+=w.p*ww; ab+=w.b*ww; at+=w.t*ww; aw+=ww;
+  });
+  let pr=ap/aw*100, br=ab/aw*100, tr=at/aw*100;
+  const norm=pr+br+tr||1; pr=pr/norm*100; br=br/norm*100; tr=tr/norm*100;
+
+  // LIVE RHYTHM ADAPTATION: rhythm is provisional and may change after ANY hand.
+  // Detect streak/chop/pairs/mixed/transition, then measure stability and change risk.
+  const rhythmSeq=cur.filter(x=>x!=='T').slice(-12);
+  const rhythmPrev=rhythmSeq.slice(0,-1);
+  function rhythmProfile(seq){
+    if(seq.length<3) return {type:'BUILDING',stability:0,changeRisk:100,switchRate:0,pairRate:0,longestRun:1};
+    let switches=0,runs=[],run=1;
+    for(let i=1;i<seq.length;i++){
+      if(seq[i]===seq[i-1]) run++; else {switches++;runs.push(run);run=1;}
+    }
+    runs.push(run);
+    const switchRate=switches/Math.max(1,seq.length-1);
+    const pairRate=runs.filter(x=>x===2).length/Math.max(1,runs.length);
+    const longestRun=Math.max(...runs);
+    let type='MIXED',stability=45;
+    if(switchRate>=.78){type='CHOP';stability=55+Math.round((switchRate-.78)*120);}
+    else if(longestRun>=4 && switchRate<=.38){type='STREAK';stability=58+Math.min(28,(longestRun-4)*7);}
+    else if(pairRate>=.55 && longestRun<=3){type='PAIRS';stability=55+Math.round((pairRate-.55)*70);}
+    else if(switchRate>=.38&&switchRate<=.68){type='MIXED';stability=48+Math.round((.30-Math.abs(switchRate-.53))*55);}
+    stability=Math.max(25,Math.min(92,stability));
+    return {type,stability,changeRisk:Math.max(8,100-stability),switchRate,pairRate,longestRun};
+  }
+  const rhythm=rhythmProfile(rhythmSeq), prevRhythm=rhythmProfile(rhythmPrev);
+  const rhythmChanged=prevRhythm.type!=='BUILDING' && rhythm.type!==prevRhythm.type;
+  if(rhythmChanged){ rhythm.type='TRANSITION'; rhythm.stability=Math.min(rhythm.stability,44); rhythm.changeRisk=Math.max(rhythm.changeRisk,72); }
+
+  // Regime agreement: compare recent streak/chop behavior to candidate-side continuation.
+  const nonTie=cur.filter(x=>x!=='T');
+  let runLen=1;
+  for(let i=nonTie.length-1;i>0 && nonTie[i]===nonTie[i-1];i--) runLen++;
+  const recent=nonTie.slice(-8);
+  let switches=0; for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) switches++;
+  const chopRate=recent.length>1 ? switches/(recent.length-1) : 0;
+  let regimeAdj=0;
+  if(candidate!=='T' && nonTie.length){
+    const last=nonTie[nonTie.length-1];
+    if(runLen>=3 && candidate===last) regimeAdj+=3;
+    if(runLen>=4 && candidate!==last) regimeAdj+=1; // mature streak break gets a small allowance, never a large boost.
+    if(chopRate>=.70 && candidate!==last) regimeAdj+=3;
+    if(chopRate<=.30 && candidate===last) regimeAdj+=2;
+    // Rhythm can break at any hand: boost only when stable; penalize stale-rhythm continuation during transitions.
+    if(rhythm.type==='CHOP' && candidate!==last) regimeAdj+=Math.round(rhythm.stability/30);
+    if(rhythm.type==='STREAK' && candidate===last) regimeAdj+=Math.round(rhythm.stability/30);
+    if(rhythm.type==='TRANSITION') regimeAdj-=6;
+    else if(rhythm.changeRisk>=55) regimeAdj-=3;
+  }
+
+  const avgSamples=windows.reduce((a,w)=>a+Math.min(1,w.samples/10),0)/totalWindows;
+  const lengthQuality=Math.min(1,bestLen/18);
+  const marginQuality=windows.reduce((a,w)=>a+Math.min(1,w.margin/.30),0)/totalWindows;
+  const similarityScore=Math.round(100*(.40*agreement+.25*avgSamples+.22*lengthQuality+.13*marginQuality));
+  const nonTieEdge=Math.abs(pr-br);
+  const grade=similarityScore>=86&&agreement>=.72&&voteEdge>=.18?'VERY STRONG':similarityScore>=72&&agreement>=.62?'STRONG':similarityScore>=58?'MODERATE':'LOW';
+
+  // Color Pattern AI is confirmation only. It may strengthen or force WAIT on
+  // a serious conflict, but it never flips the selected sequence side.
+  let colorConfirmation='WAITING';
+  let colorAdj=0;
+  if(color?.side && candidate!=='T'){
+    if(color.side===candidate){ colorConfirmation='CONFIRMS'; colorAdj=5; }
+    else { colorConfirmation='CONFLICT'; colorAdj=-10; }
+  }
+
+  const candidatePct=candidate==='P'?pr:candidate==='B'?br:tr;
+  const sampleFactor=Math.min(1,rawMatches/28);
+  let strength=Math.round(47 + Math.max(0,candidatePct-50)*.52 + Math.max(0,similarityScore-50)*.34 + sampleFactor*6 + Math.min(6,voteEdge*18) + regimeAdj + colorAdj);
+  strength=Math.max(0,Math.min(94,strength));
+
+  const hardConflict=colorConfirmation==='CONFLICT' && (Number(color?.strength)||Number(color?.confidence)||0)>=72;
+  const rhythmUnstable=rhythm.type==='TRANSITION' || rhythm.changeRisk>=68 || rhythm.stability<38;
+  const weakEvidence=similarityScore<58 || agreement<.56 || voteEdge<.08 || candidatePct<45 || (rawMatches<4 && bestLen<8);
+  const tieDominant=candidate==='T' && tr<52;
+  if(weakEvidence || hardConflict || tieDominant || rhythmUnstable){
+    const why=hardConflict?'strong live color-pattern conflict':rhythmUnstable?`live rhythm is changing (${rhythm.type}, ${rhythm.changeRisk}% change risk)`:`history ${similarityScore}% • ${agreeWindows}/${totalWindows} windows agree • edge ${Math.round(voteEdge*100)}%`;
+    return {side:null,strength:0,pPct:Math.round(pr),bPct:Math.round(br),tPct:Math.round(tr),matches:rawMatches,weightedMatches:Math.round(weightedMatches*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,duplicate:true,colorConfirmation,colorMatch:color?.bestSimilarity||0,colorSide:color?.side||null,regime:{runLen,chopRate},rhythm,waitReason:`WAIT: ${why}.`};
+  }
+
+  return {side:candidate,strength,pPct:Math.round(pr),bPct:Math.round(br),tPct:Math.round(tr),matches:rawMatches,weightedMatches:Math.round(weightedMatches*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,duplicate:true,colorConfirmation,colorMatch:color?.bestSimilarity||0,colorSide:color?.side||null,regime:{runLen,chopRate},rhythm,voteEdge,baseSide:base?.side||null,waitReason:'',sources:[{name:'power-sequence-duplicate-v2'}]};
 }
 function sequenceDuplicateMetaFeatures(){
   const s=sequenceAIDuplicateSignal();
@@ -2652,7 +2795,10 @@ function sequenceDuplicateMetaFeatures(){
     non_tie_edge:Math.abs(p-b)/nonTie*100,
     seq_side:s.side||'WAIT',
     grade:s.grade||'LOW',
-    hand_count:currentSequence().length
+    hand_count:currentSequence().length,
+    rhythm_type:s.rhythm?.type||'BUILDING',
+    rhythm_stability:Number(s.rhythm?.stability)||0,
+    rhythm_change_risk:Number(s.rhythm?.changeRisk)||100
   };
 }
 function sequenceH2OScoreUrl(){
@@ -3250,24 +3396,126 @@ function botHistoricalColorAdaptiveSignal(){
 
 function masterBotSignal(){
   ensureBotState();
-  const x=botHistoricalColorAdaptiveSignal();
-  const phase=x.phase||botPhaseInfo();
-  const minConf=phase.key==='55+'?59:phase.key==='40-54'?58:56;
-  const qualified=!!x.side && x.strength>=minConf && x.samples>=2 && x.agreement>=.50;
-  let reason=x.reason||'';
-  if(x.side && !qualified){
-    if(x.strength<minConf) reason=`Adaptive color confidence is ${x.strength}%; this phase requires ${minConf}%.`;
-    else if(x.samples<2) reason='Need more historical color samples.';
-    else if(x.agreement<.50) reason='Adaptive historical color windows are conflicting.';
+
+  // HIGH-POWERED BOT 3-SIGNAL FUSION:
+  // 1) Original Sequence AI V2 (stable historical sequence baseline)
+  // 2) Sequence AI V2 Duplicate (adaptive live-rhythm sequence specialist)
+  // 3) Road Preview AI (independent road + historical color specialist)
+  // The source AIs stay independent. This function only combines their outputs.
+  const seq = sequenceAISignal();
+  const dup = sequenceAIDuplicateSignal();
+  const road = roadPreviewAISignal();
+  const phase = botPhaseInfo();
+
+  const signals = [
+    {key:'seqv2', name:'Sequence AI V2', sig:seq, baseWeight:1.00},
+    {key:'duplicate', name:'Sequence Duplicate', sig:dup, baseWeight:1.08},
+    {key:'roadpreview', name:'Road Preview AI', sig:road, baseWeight:.94}
+  ];
+
+  let pScore=0,bScore=0,totalWeight=0;
+  const candidates=[];
+  let liveCount=0;
+
+  signals.forEach(item=>{
+    const s=item.sig||{};
+    if(!s.side || (s.side!=='P' && s.side!=='B')) return;
+
+    liveCount++;
+    const strength=Math.max(0,Math.min(100,Number(s.strength)||0));
+    let reliability=.55 + .45*(strength/100);
+
+    // Reward evidence quality when the source exposes it.
+    if(item.key==='seqv2'){
+      const sim=Math.max(0,Math.min(100,Number(s.similarityScore)||0))/100;
+      const agreement=(Number(s.agreeWindows)||0)/Math.max(1,Number(s.totalWindows)||0);
+      reliability*=.72 + .16*sim + .12*agreement;
+    }else if(item.key==='duplicate'){
+      const sim=Math.max(0,Math.min(100,Number(s.similarityScore)||0))/100;
+      const agreement=(Number(s.agreeWindows)||0)/Math.max(1,Number(s.totalWindows)||0);
+      reliability*=.70 + .15*sim + .15*agreement;
+
+      // Rhythm is allowed to change at any time. During a transition or high
+      // change-risk state, reduce the duplicate's influence instead of trusting
+      // the old rhythm blindly.
+      const rhythm=s.rhythm||s.liveRhythm||s.rhythmState||null;
+      const rhythmType=String(rhythm?.type||s.rhythmType||'').toUpperCase();
+      const changeRisk=Number(rhythm?.changeRisk ?? s.changeRisk ?? 0);
+      const stability=Number(rhythm?.stability ?? s.rhythmStability ?? 100);
+      if(rhythmType==='TRANSITION') reliability*=.58;
+      if(changeRisk>=70) reliability*=.62;
+      else if(changeRisk>=50) reliability*=.78;
+      if(stability>0 && stability<45) reliability*=.78;
+    }else if(item.key==='roadpreview'){
+      const quality=Math.max(0,Math.min(100,Number(s.quality)||0))/100;
+      const roadAgreement=(Number(s.roadsAgree)||0)/Math.max(1,Number(s.roadVotes)||0);
+      reliability*=.76 + .12*quality + .12*roadAgreement;
+    }
+
+    const weight=item.baseWeight*reliability;
+    totalWeight+=weight;
+    if(s.side==='P') pScore+=weight; else bScore+=weight;
+
+    candidates.push({
+      name:item.name, side:s.side, strength, weight,
+      evidence:item.key==='seqv2'
+        ? `${s.similarityScore||0}% similarity • ${s.agreeWindows||0}/${s.totalWindows||0} windows`
+        : item.key==='duplicate'
+          ? `${s.similarityScore||0}% similarity • live-rhythm adaptive`
+          : `${s.matches||0} historical matches • ${s.roadsAgree||0}/${s.roadVotes||0} road agreement`
+    });
+  });
+
+  const pVotes=candidates.filter(x=>x.side==='P').length;
+  const bVotes=candidates.filter(x=>x.side==='B').length;
+  const majoritySide=pVotes>bVotes?'P':bVotes>pVotes?'B':null;
+  const majorityVotes=Math.max(pVotes,bVotes);
+  const weightedSide=pScore>bScore?'P':bScore>pScore?'B':null;
+  const edge=totalWeight?Math.abs(pScore-bScore)/totalWeight:0;
+
+  let side=null, qualified=false, reason='';
+  if(liveCount<2){
+    reason=`WAIT: only ${liveCount}/3 Bot source AIs are ready.`;
+  }else if(!majoritySide || majorityVotes<2){
+    reason='WAIT: Sequence AI V2, Sequence Duplicate, and Road Preview AI do not have a 2-of-3 agreement.';
+  }else if(weightedSide!==majoritySide){
+    reason='WAIT: majority vote conflicts with weighted evidence quality.';
+  }else{
+    const supporters=candidates.filter(x=>x.side===majoritySide);
+    const avgStrength=supporters.reduce((a,x)=>a+x.strength,0)/Math.max(1,supporters.length);
+    const allThree=majorityVotes===3 && liveCount===3;
+    const minEdge=allThree?.06:.12;
+    const minStrength=phase.key==='55+'?58:phase.key==='40-54'?57:56;
+
+    if(edge<minEdge) reason=`WAIT: 3-signal weighted edge is only ${Math.round(edge*100)}%.`;
+    else if(avgStrength<minStrength) reason=`WAIT: agreeing sources average ${Math.round(avgStrength)}% strength; need ${minStrength}%.`;
+    else{
+      side=majoritySide;
+      qualified=true;
+    }
   }
-  const c=x.candidate||x.side;
-  const candidateEntry=c?{name:'Adaptive Historical Color',side:c,strength:x.strength||0,weight:1,reliability:1,evidence:`${x.samples} historical color continuations • ${x.windows} adaptive windows`,samples:x.samples}:null;
+
+  const supporters=side?candidates.filter(x=>x.side===side):[];
+  const avgStrength=supporters.length?supporters.reduce((a,x)=>a+x.strength,0)/supporters.length:0;
+  const agreementBoost=majorityVotes===3?7:majorityVotes===2?2:0;
+  const confidence=qualified
+    ? Math.min(92,Math.round(avgStrength + agreementBoost + Math.min(5,edge*12)))
+    : Math.round(avgStrength||0);
+
+  const candidate=majoritySide||weightedSide;
+  const agreement=liveCount?majorityVotes/liveCount:0;
+
   return {
-    side:qualified?x.side:null,candidate:c,confidence:x.strength||0,phase,
-    phaseHist:{samples:x.samples||0},roadMem:{samples:x.windows||0},directLib:x,liveRoad:null,
-    agreement:x.agreement||0,total:x.windows||0,agree:x.agreeing||0,qualified,reason,
-    candidates:candidateEntry?[candidateEntry]:[],historicalSamples:x.samples||0,pScore:x.pPct||0,bScore:x.bPct||0,
-    colorAdaptive:x
+    side,candidate,confidence,phase,
+    phaseHist:{samples:seq?.matches||0},
+    roadMem:{samples:road?.matches||0},
+    directLib:seq,liveRoad:road,
+    agreement,total:liveCount,agree:majorityVotes,qualified,reason,
+    candidates,historicalSamples:(seq?.matches||0)+(dup?.matches||0)+(road?.matches||0),
+    pScore:totalWeight?Math.round(pScore/totalWeight*100):0,
+    bScore:totalWeight?Math.round(bScore/totalWeight*100):0,
+    seqV2:seq,sequenceDuplicate:dup,roadPreview:road,
+    fusion:'Sequence AI V2 + Sequence Duplicate + Road Preview AI'
   };
 }
 function settleBotPrediction(actual){
