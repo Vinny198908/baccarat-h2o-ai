@@ -431,7 +431,7 @@
 
 </div>
 <div class="road-predict-panel">
-<div class="road-predict-title">Derived Road AI — Current-Shoe Independent Engine</div>
+<div class="road-predict-title">Derived Road AI — Sequence-Logic Preview Engine</div>
 <div class="road-predict-grid">
 <div class="road-predict-card"><span>Big Eye Boy</span><strong id="eyeNext">—</strong><small id="eyeNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
@@ -443,10 +443,10 @@
   <div id="derivedIndependentPrediction" style="font-size:26px;font-weight:900">Prediction: WAIT</div>
   <div id="derivedIndependentAgreement" style="margin-top:5px">Agreement: waiting for enough road-rule output</div>
   <div id="derivedIndependentConfidence" style="margin-top:3px">Rule confidence: —</div>
-  <div style="margin-top:7px;font-size:12px;opacity:.78">Source: live Big Eye Boy + Small Road + Cockroach Road only. It reads each road’s current structure, simulates Player and Banker, and compares which next result best fits the three live road behaviors. No saved history, H2O, Kaggle, Sequence AI, or Bot AI.</div>
+  <div style="margin-top:7px;font-size:12px;opacity:.78">Source: Big Eye Boy + Small Road + Cockroach Road histories mapped through the live Road Preview. Each derived road uses Sequence AI V2-style rolling historical matching to estimate its next RED/BLUE mark, then tests whether PLAYER or BANKER would create that mark on the live preview. RED/BLUE never directly means Player/Banker.</div>
 </div>
 
-<b>LIVE DERIVED-ROAD ANALYSIS — CURRENT SHOE ONLY.</b> This engine independently studies the current Big Eye Boy, Small Road, and Cockroach Road. For each road it measures recent run/chop/mixed behavior, simulates what a hypothetical Player or Banker would print next, and votes for the side whose simulated road mark better fits that road’s current structure. The three road votes are then combined. It does not use saved shoes, historical continuations, H2O, Kaggle, Sequence AI, Bot AI, or external model output. WAIT is used when the live roads are too short or conflict.</div>
+<b>DERIVED-ROAD SEQUENCE LOGIC.</b> Each derived road is treated like its own sequence. The engine compares the live RED/BLUE ending with the same road in saved shoes using short, medium, and long rolling windows, limits duplicate influence from one shoe, rewards persistent agreement, and uses a WAIT gate when continuations conflict. The predicted next derived-road color is then mapped through the live P/B Road Preview: whichever actual result would print that color becomes that road’s Player/Banker vote. The three mapped votes are combined. RED/BLUE is never directly translated to Player/Banker.</div>
 </div>
 <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
 </div>
@@ -2297,9 +2297,10 @@ function renderH2O(){
     else if(h.connected){st.textContent='🟢 AI CONNECTED';st.className='h2o-status on';}
     else {st.textContent='🔴 AI OFFLINE';st.className='h2o-status err';}
   }
-  document.getElementById('h2oP').textContent=x.p==null?'—':x.p+'%';
-  document.getElementById('h2oB').textContent=x.b==null?'—':x.b+'%';
-  document.getElementById('h2oT').textContent=x.t==null?'—':x.t+'%';
+  const setH2OText=(id,value)=>{const el=document.getElementById(id); if(el) el.textContent=value;};
+  setH2OText('h2oP',x.p==null?'—':x.p+'%');
+  setH2OText('h2oB',x.b==null?'—':x.b+'%');
+  setH2OText('h2oT',x.t==null?'—':x.t+'%');
   const note=document.getElementById('h2oNote');
   if(note && h.error) note.textContent='Last error: '+h.error;
   else if(note && x.side) note.textContent=`Live H2O score for this shoe: ${x.side==='P'?'Player':'Banker'} ${x.strength}%. The combined analyzer blends this with your local library and road signals.`;
@@ -2899,18 +2900,132 @@ function roadMarkLabel(mark){
   return mark==='R'?'RED':mark==='B'?'BLUE':'—';
 }
 
+function derivedRoadSequencePatternSignal(offset){
+  const key=offset===1?'bigEye':offset===2?'small':'roach';
+  const cur=deriveRoad(state.hands,offset);
+  const lib=activePatternLibrary().filter(x=>x && x.derivedRoadHistory && Array.isArray(x.derivedRoadHistory[key]));
+  const pMark=previewDerivedMark(state.hands,'P',offset);
+  const bMark=previewDerivedMark(state.hands,'B',offset);
+
+  if(cur.length<4 || !lib.length || !pMark || !bMark || pMark===bMark){
+    return {side:null,strength:0,pPct:50,bPct:50,pMark,bMark,expected:null,matches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need more live derived-road marks and saved road history.'};
+  }
+
+  const maxK=Math.min(18,cur.length);
+  const lengths=[];
+  for(let k=maxK;k>=3;k--){ if(k<=7 || k%2===0 || k===maxK) lengths.push(k); }
+
+  let windows=[], rawMatches=0, bestLen=0;
+  lengths.forEach(k=>{
+    const pattern=cur.slice(-k).join('');
+    const shoeVotes=[];
+    lib.forEach((shoe,shoeIndex)=>{
+      const ss=shoe.derivedRoadHistory[key]||[];
+      let r=0,b=0,hits=0;
+      for(let i=0;i+k<ss.length;i++){
+        if(ss.slice(i,i+k).join('')!==pattern) continue;
+        const nxt=ss[i+k];
+        if(nxt==='R') r++; else if(nxt==='B') b++;
+        hits++;
+      }
+      if(hits){
+        const z=r+b||1;
+        shoeVotes.push({shoeIndex,r:r/z,b:b/z,hits});
+      }
+    });
+    if(!shoeVotes.length) return;
+    const rAvg=shoeVotes.reduce((a,x)=>a+x.r,0)/shoeVotes.length;
+    const bAvg=shoeVotes.reduce((a,x)=>a+x.b,0)/shoeVotes.length;
+    const leader=rAvg>=bAvg?'R':'B';
+    const sampleQuality=Math.min(1,shoeVotes.length/8);
+    const lengthQuality=Math.min(1,k/14);
+    const persistence=Math.min(1,k/Math.max(6,cur.length));
+    const weight=(.45+.55*sampleQuality)*(1+.9*lengthQuality)*(1+.35*persistence);
+    rawMatches+=shoeVotes.length;
+    bestLen=Math.max(bestLen,k);
+    windows.push({length:k,r:rAvg,b:bAvg,leader,samples:shoeVotes.length,weight});
+  });
+
+  if(!windows.length){
+    return {side:null,strength:0,pPct:50,bPct:50,pMark,bMark,expected:null,matches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable saved derived-road sequence found.'};
+  }
+
+  const leaderWeights={R:0,B:0};
+  windows.forEach(w=>leaderWeights[w.leader]+=w.weight);
+  const expected=leaderWeights.R>=leaderWeights.B?'R':'B';
+  const agreeWindows=windows.filter(w=>w.leader===expected).length;
+  const totalWindows=windows.length;
+  const agreement=agreeWindows/totalWindows;
+
+  let ar=0,ab=0,aw=0;
+  windows.forEach(w=>{
+    const persistenceBoost=w.leader===expected ? (1+.35*agreement) : .55;
+    const ww=w.weight*persistenceBoost;
+    ar+=w.r*ww; ab+=w.b*ww; aw+=ww;
+  });
+  let rPct=(ar/aw)*100, bluePct=(ab/aw)*100;
+  const z=rPct+bluePct||1; rPct=rPct/z*100; bluePct=bluePct/z*100;
+  const colorEdge=Math.abs(rPct-bluePct);
+  const avgSamples=windows.reduce((a,w)=>a+Math.min(1,w.samples/8),0)/totalWindows;
+  const lengthQuality=Math.min(1,bestLen/14);
+  const similarityScore=Math.round(100*(.48*agreement+.30*avgSamples+.22*lengthQuality));
+  const grade=similarityScore>=84&&agreement>=.72?'VERY STRONG':similarityScore>=70&&agreement>=.62?'STRONG':similarityScore>=55?'MODERATE':'LOW';
+
+  // Map the predicted derived-road COLOR through the live preview.
+  // Never treat RED as Banker or BLUE as Player directly.
+  let side=null;
+  if(pMark===expected && bMark!==expected) side='P';
+  else if(bMark===expected && pMark!==expected) side='B';
+
+  const mappedEdge=Math.min(36,Math.max(0,colorEdge));
+  let pPct=50,bPct=50;
+  if(side==='P'){ pPct=Math.round(50+mappedEdge/2); bPct=100-pPct; }
+  else if(side==='B'){ bPct=Math.round(50+mappedEdge/2); pPct=100-bPct; }
+
+  if(!side || similarityScore<55 || agreement<.58 || colorEdge<8 || (rawMatches<3 && bestLen<7)){
+    return {side:null,strength:0,pPct,bPct,pMark,bMark,expected,matches:rawMatches,bestLen,similarityScore,grade,agreeWindows,totalWindows,
+      waitReason:`WAIT: ${similarityScore}% road-history similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(colorEdge)}-point color edge.`};
+  }
+
+  const sampleFactor=Math.min(1,rawMatches/20);
+  const persistenceFactor=Math.min(1,bestLen/14);
+  const strength=Math.min(88,Math.round(48 + colorEdge*.20 + Math.max(0,similarityScore-50)*.38 + sampleFactor*5 + persistenceFactor*4));
+  return {side,strength,pPct,bPct,pMark,bMark,expected,matches:rawMatches,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:''};
+}
+
+function derivedRoadSequenceAI(){
+  const roads=[1,2,3].map(derivedRoadSequencePatternSignal);
+  const live=roads.filter(r=>r && r.side);
+  let pWeight=0,bWeight=0,totalWeight=0;
+  live.forEach(r=>{
+    const w=Math.max(.5,(r.strength||50)/100) * Math.max(.55,(r.similarityScore||55)/100);
+    if(r.side==='P') pWeight+=w; else if(r.side==='B') bWeight+=w;
+    totalWeight+=w;
+  });
+  const pVotes=live.filter(r=>r.side==='P').length;
+  const bVotes=live.filter(r=>r.side==='B').length;
+  const winner=Math.max(pVotes,bVotes);
+  let side=null;
+  const edge=totalWeight?Math.abs(pWeight-bWeight)/totalWeight:0;
+  if(live.length>=2 && winner>=2 && pVotes!==bVotes && edge>=.12) side=pWeight>bWeight?'P':'B';
+  const supporters=side?live.filter(r=>r.side===side):[];
+  const confidence=supporters.length?Math.min(88,Math.round(supporters.reduce((a,r)=>a+r.strength,0)/supporters.length + Math.min(8,edge*18))):0;
+  return {side,confidence,pVotes,bVotes,winner,edge,roads,ready:roads.filter(r=>r.pMark&&r.bMark).length};
+}
+
 function renderDerivedRoadPredictions(){
-  // Independent CURRENT-SHOE engine. Each road reads only its own live R/B structure,
-  // then maps that expected next road color back through hypothetical P/B outcomes.
   const defs=[[1,'eyeNext','eyeNextPct'],[2,'smallNext','smallNextPct'],[3,'roachNext','roachNextPct']];
   defs.forEach(([offset,sideId,pctId])=>{
-    const sig=derivedRoadNextSignal(offset);
+    const sig=derivedRoadSequencePatternSignal(offset);
     const sideEl=document.getElementById(sideId), pctEl=document.getElementById(pctId);
     const label=sig.side==='P'?'PLAYER':sig.side==='B'?'BANKER':'WAIT';
     if(sideEl) sideEl.textContent=label;
     if(pctEl){
       if(!sig.pMark || !sig.bMark) pctEl.textContent='Building live road…';
-      else pctEl.textContent=`P ${sig.pPct}% • B ${sig.bPct}%  |  P→${roadMarkLabel(sig.pMark)} • B→${roadMarkLabel(sig.bMark)}`;
+      else {
+        const exp=sig.expected?` • history expects ${roadMarkLabel(sig.expected)}`:'';
+        pctEl.textContent=`P ${sig.pPct}% • B ${sig.bPct}% | P→${roadMarkLabel(sig.pMark)} • B→${roadMarkLabel(sig.bMark)}${exp}`;
+      }
     }
   });
 }
@@ -3389,21 +3504,27 @@ if(kaggleLibraryToggle) kaggleLibraryToggle.onchange=()=>{
 };
 renderKaggleLibraryToggle();
 
-document.getElementById('h2oSaveBtn').onclick=()=>{
-  state.h2o.url=document.getElementById('h2oUrl').value.trim();
-  state.h2o.key=document.getElementById('h2oKey').value.trim();
+const h2oSaveBtn=document.getElementById('h2oSaveBtn');
+if(h2oSaveBtn) h2oSaveBtn.onclick=()=>{
+  const urlEl=document.getElementById('h2oUrl'), keyEl=document.getElementById('h2oKey');
+  state.h2o.url=urlEl ? urlEl.value.trim() : (state.h2o.url||'');
+  state.h2o.key=keyEl ? keyEl.value.trim() : (state.h2o.key||'');
   state.h2o.connected=false;state.h2o.error='';state.h2o.last=null;persist();renderH2O();
   alert(state.h2o.url?'H2O connection settings saved. Tap Test / Score Now to connect.':'H2O connection cleared. Local predictor remains active.');
 };
-document.getElementById('h2oTestBtn').onclick=async()=>{
-  state.h2o.url=document.getElementById('h2oUrl').value.trim();
-  state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
+const h2oTestBtn=document.getElementById('h2oTestBtn');
+if(h2oTestBtn) h2oTestBtn.onclick=async()=>{
+  const urlEl=document.getElementById('h2oUrl'), keyEl=document.getElementById('h2oKey');
+  state.h2o.url=urlEl ? urlEl.value.trim() : (state.h2o.url||'');
+  state.h2o.key=keyEl ? keyEl.value.trim() : (state.h2o.key||''); persist();
   if(state.kaggleLibraryEnabled!==false) await scoreWithKaggle(true);
   await scoreWithH2O(true);
 };
-document.getElementById('h2oTrainBtn').onclick=async()=>{
-  state.h2o.url=document.getElementById('h2oUrl').value.trim();
-  state.h2o.key=document.getElementById('h2oKey').value.trim();persist();
+const h2oTrainBtn=document.getElementById('h2oTrainBtn');
+if(h2oTrainBtn) h2oTrainBtn.onclick=async()=>{
+  const urlEl=document.getElementById('h2oUrl'), keyEl=document.getElementById('h2oKey');
+  state.h2o.url=urlEl ? urlEl.value.trim() : (state.h2o.url||'');
+  state.h2o.key=keyEl ? keyEl.value.trim() : (state.h2o.key||''); persist();
   await trainH2O(true);
 };
 
@@ -3798,39 +3919,24 @@ setInterval(scan,1800);setTimeout(scan,300);
     const pred=document.getElementById('derivedIndependentPrediction');
     const agree=document.getElementById('derivedIndependentAgreement');
     const conf=document.getElementById('derivedIndependentConfidence');
-    if(!pred||!agree||!conf || typeof derivedRoadNextSignal!=='function') return;
+    if(!pred||!agree||!conf || typeof derivedRoadSequenceAI!=='function') return;
 
-    const roads=[derivedRoadNextSignal(1),derivedRoadNextSignal(2),derivedRoadNextSignal(3)];
-    const live=roads.filter(r=>r && r.side && r.strength>50);
-    const pVotes=live.filter(r=>r.side==='P').length;
-    const bVotes=live.filter(r=>r.side==='B').length;
-    const winner=Math.max(pVotes,bVotes);
-    const roadMarks=[1,2,3].map(o=>deriveRoad(state.hands,o).length);
-    const readyRoads=roadMarks.filter(n=>n>=3).length;
-
-    let choice='WAIT';
-    if(live.length>=2 && winner>=2 && pVotes!==bVotes) choice=pVotes>bVotes?'PLAYER':'BANKER';
-
-    // Confidence describes strength of agreement inside this independent heuristic,
-    // not a guaranteed win probability.
-    let confidence=0;
-    if(live.length){
-      const chosenSide=choice==='PLAYER'?'P':choice==='BANKER'?'B':(pVotes>=bVotes?'P':'B');
-      const supporters=live.filter(r=>r.side===chosenSide);
-      const avg=supporters.length?supporters.reduce((a,r)=>a+r.strength,0)/supporters.length:50;
-      const agreement=winner/3;
-      confidence=Math.round(Math.min(78, 48 + (avg-50)*0.85 + agreement*18));
-    }
-
+    const x=derivedRoadSequenceAI();
+    const choice=x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT';
     pred.textContent='Prediction: '+choice;
-    if(readyRoads<2){
-      agree.textContent=`Agreement: building live derived roads (${readyRoads}/3 ready)`;
-      conf.textContent='Independent confidence: —';
+
+    if(x.ready<2){
+      agree.textContent=`Agreement: building live road previews (${x.ready}/3 ready)`;
+      conf.textContent='Sequence-logic confidence: —';
       return;
     }
-    agree.textContent=`Agreement: ${winner} of 3 roads • Player ${pVotes} / Banker ${bVotes}`;
-    conf.textContent=choice==='WAIT' ? `Independent confidence: ${confidence||'—'}${confidence?'%':''} • conflict/weak evidence` : `Independent confidence: ${confidence}%`;
+
+    agree.textContent=`Agreement: ${x.winner} of 3 roads • Player ${x.pVotes} / Banker ${x.bVotes}`;
+    conf.textContent=x.side
+      ? `Sequence-logic confidence: ${x.confidence}%`
+      : 'Sequence-logic confidence: — • WAIT / conflicting mapped continuations';
   }
+
 
   const oldRender=window.render;
   if(typeof oldRender==='function') window.render=function(){
