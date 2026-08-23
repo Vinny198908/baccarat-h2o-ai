@@ -290,34 +290,6 @@
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
 
-
-<div class="analyzer" id="colorPatternAiPanel" style="border-color:#8b5cf6;box-shadow:0 0 0 1px rgba(139,92,246,.14) inset">
-  <div class="analyzer-title">Adaptive Historical Color Pattern AI</div>
-  <div class="analyzer-sub">SEPARATE AI. Uses only saved historical P/B/T color sequences. It scans the current shoe's rolling color pattern against the front, middle, and end of old shoes, follows strong continuations, and automatically reduces old matches when the live shoe breaks away. Sequence AI V2 is not changed and does not feed this AI.</div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>Color-pattern pick</span><strong id="colorAiSide">WAIT</strong></div>
-    <div class="analyzer-card"><span>Adaptive confidence</span><strong id="colorAiStrength">—</strong></div>
-    <div class="analyzer-card"><span>Matched continuations</span><strong id="colorAiMatches">0</strong></div>
-  </div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>Best live similarity</span><strong id="colorAiSimilarity">0%</strong></div>
-    <div class="analyzer-card"><span>Pattern grade</span><strong id="colorAiGrade">LOW</strong></div>
-    <div class="analyzer-card"><span>Windows agreeing</span><strong id="colorAiWindows">0/0</strong></div>
-  </div>
-  <div class="match-pcts">
-    <div class="match-pct"><strong id="colorAiP">—</strong><span>Player continuation</span></div>
-    <div class="match-pct"><strong id="colorAiB">—</strong><span>Banker continuation</span></div>
-    <div class="match-pct"><strong id="colorAiT">—</strong><span>Tie continuation</span></div>
-  </div>
-  <div class="analyzer-sub" id="colorAiNote" style="margin-top:8px">Enter live hands and keep historical shoes saved. This AI adapts independently as the color pattern changes.</div>
-</div>
-
-<div class="analyzer" id="verifiedAccuracyPanel" style="border-color:#2e9d66;box-shadow:0 0 0 1px rgba(46,157,102,.14) inset">
-  <div class="analyzer-title">✓ Accuracy Verified — Pre-Result Ledger</div>
-  <div class="analyzer-sub">A prediction counts only when it was locked before the next P/B result was entered. WAIT is never counted as a win. Ties are recorded separately and do not become a P/B win or loss. This is live verified accuracy, not backtest accuracy.</div>
-  <div id="verifiedAccuracyGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px"></div>
-  <div class="analyzer-sub" id="verifiedAccuracyNote" style="margin-top:8px">Verified tracking starts from this version forward.</div>
-</div>
 <div class="scoreboard">
 <div class="road-wrap"><div class="road" id="bigRoad"></div></div>
 </div>
@@ -431,7 +403,7 @@
 
 </div>
 <div class="road-predict-panel">
-<div class="road-predict-title">Derived Road AI — Current-Shoe Independent Engine</div>
+<div class="road-predict-title">Derived Road AI — Independent Rules Engine</div>
 <div class="road-predict-grid">
 <div class="road-predict-card"><span>Big Eye Boy</span><strong id="eyeNext">—</strong><small id="eyeNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
@@ -443,10 +415,10 @@
   <div id="derivedIndependentPrediction" style="font-size:26px;font-weight:900">Prediction: WAIT</div>
   <div id="derivedIndependentAgreement" style="margin-top:5px">Agreement: waiting for enough road-rule output</div>
   <div id="derivedIndependentConfidence" style="margin-top:3px">Rule confidence: —</div>
-  <div style="margin-top:7px;font-size:12px;opacity:.78">Source: live Big Eye Boy + Small Road + Cockroach Road only. It reads each road’s current structure, simulates Player and Banker, and compares which next result best fits the three live road behaviors. No saved history, H2O, Kaggle, Sequence AI, or Bot AI.</div>
+  <div style="margin-top:7px;font-size:12px;opacity:.78">Source: baccarat derived-road rules only. It simulates a hypothetical Player and Banker through Big Eye Boy, Small Road, and Cockroach Road, then compares the rule-generated RED/BLUE marks. It does not forecast from recent road trends and does not use saved history, H2O, Kaggle, Sequence AI, or Bot AI.</div>
 </div>
 
-<b>LIVE DERIVED-ROAD ANALYSIS — CURRENT SHOE ONLY.</b> This engine independently studies the current Big Eye Boy, Small Road, and Cockroach Road. For each road it measures recent run/chop/mixed behavior, simulates what a hypothetical Player or Banker would print next, and votes for the side whose simulated road mark better fits that road’s current structure. The three road votes are then combined. It does not use saved shoes, historical continuations, H2O, Kaggle, Sequence AI, Bot AI, or external model output. WAIT is used when the live roads are too short or conflict.</div>
+<b>RULE-ONLY DERIVED-ROAD ANALYSIS.</b> This engine does not forecast the next RED/BLUE color from recent road behavior. It applies the baccarat Big Eye Boy, Small Road, and Cockroach Road rules to hypothetical Player and Banker outcomes and uses only the resulting structural marks. RED is treated as structural order/consistency and BLUE as structural irregularity. Two or more agreeing road-rule votes are required; otherwise it returns WAIT. No saved shoes, historical continuations, H2O, Kaggle, Sequence AI, Bot AI, or external model output.</div>
 </div>
 <div class="analyzer-sub" id="resultDriver" style="margin-top:8px">Waiting for enough saved-pattern evidence.</div>
 </div>
@@ -465,29 +437,35 @@
 </div>
 <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Choose a shoe library and enter hands to begin historical matching.</div>
 </div>
-<div class="analyzer" id="sequenceDuplicatePanel" style="border-color:#2c7ca8;box-shadow:0 0 0 1px rgba(44,124,168,.14) inset">
-<div class="analyzer-title">Sequence AI V2 Duplicate <span style="font-size:10px;padding:4px 7px;border-radius:999px;background:#173c29;color:#8ff0b3;margin-left:6px">SEQUENCE ONLY</span></div>
-<div class="analyzer-sub">SEPARATE DUPLICATE. Same Sequence AI V2 decision logic as the original. Live P/B/T color-pattern analysis is confirmation only: it can strengthen or weaken confidence, but it cannot override the Sequence V2 side.</div>
+<div class="analyzer" id="sequenceH2oPanel" style="border-color:#2c7ca8;box-shadow:0 0 0 1px rgba(44,124,168,.14) inset">
+<div class="analyzer-title">Sequence AI V2 Duplicate → H2O</div>
+<div class="analyzer-sub">SEPARATE DUPLICATE. Keeps the original Sequence AI V2 untouched and blends its saved-shoe sequence evidence with the current H2O model score. Weighting: 65% Sequence AI V2 + 35% H2O. Strong disagreement returns WAIT.</div>
 <div class="analyzer-grid">
-<div class="analyzer-card"><span>Duplicate pick</span><strong id="seqDupSide">WAIT</strong></div>
-<div class="analyzer-card"><span>Duplicate confidence</span><strong id="seqDupStrength">—</strong></div>
-<div class="analyzer-card"><span>Color confirmation</span><strong id="seqDupColor">WAITING</strong></div>
+<div class="analyzer-card"><span>H2O-refined pick</span><strong id="seqH2oSide">WAIT</strong></div>
+<div class="analyzer-card"><span>H2O-refined confidence</span><strong id="seqH2oStrength">—</strong></div>
+<div class="analyzer-card"><span>Agreement</span><strong id="seqH2oAgree">WAITING</strong></div>
 </div>
 <div class="analyzer-grid">
-<div class="analyzer-card"><span>Sequence V2 base</span><strong id="seqDupBase">—</strong></div>
-<div class="analyzer-card"><span>Sequence similarity</span><strong id="seqDupSimilarity">0%</strong></div>
-<div class="analyzer-card"><span>Color pattern match</span><strong id="seqDupColorMatch">0%</strong></div>
+<div class="analyzer-card"><span>Sequence V2</span><strong id="seqH2oSeq">—</strong></div>
+<div class="analyzer-card"><span>H2O</span><strong id="seqH2oH2o">—</strong></div>
+<div class="analyzer-card"><span>Sequence similarity</span><strong id="seqH2oSimilarity">0%</strong></div>
 </div>
 <div class="match-pcts">
-<div class="match-pct"><strong id="seqDupP">—</strong><span>Player</span></div>
-<div class="match-pct"><strong id="seqDupB">—</strong><span>Banker</span></div>
-<div class="match-pct"><strong id="seqDupT">—</strong><span>Tie</span></div>
+<div class="match-pct"><strong id="seqH2oP">—</strong><span>Player blend</span></div>
+<div class="match-pct"><strong id="seqH2oB">—</strong><span>Banker blend</span></div>
+<div class="match-pct"><strong id="seqH2oT">—</strong><span>Tie blend</span></div>
 </div>
-<div class="analyzer-sub" id="seqDupNote" style="margin-top:8px">Waiting for enough Sequence AI V2 evidence.</div>
+<div class="analyzer-sub" id="seqH2oNote" style="margin-top:8px">Waiting for both Sequence AI V2 evidence and a live H2O score.</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
+<button class="tiny-btn" id="seqH2oScoreBtn">Score Duplicate with H2O</button>
+<button class="tiny-btn" id="seqH2oTrainBtn">Train Duplicate H2O</button>
 </div>
+
+</div>
+
 <div class="analyzer" id="consensusPanel">
 <div class="analyzer-title">AI Consensus Engine</div>
-<div class="analyzer-sub">Combines Sequence AI, historical-library, road structure, and card-composition signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
+<div class="analyzer-sub">Combines Sequence AI, H2O.ai, historical-library, road structure, and card-composition signals. Agreement increases the displayed confidence; disagreement reduces it.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Consensus</span><strong id="consensusSide">—</strong></div>
 <div class="analyzer-card"><span>Confidence</span><strong id="consensusStrength">—</strong></div>
@@ -495,11 +473,40 @@
 </div>
 <div class="analyzer-sub" id="consensusNote" style="margin-top:8px">Waiting for enough independent signals.</div>
 </div>
-<div class="analyzer" id="kaggleControlPanel">
-<div class="analyzer-title">Historical Library Control</div>
-<div style="margin-top:8px"><label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer"><input id="kaggleLibraryToggle" style="width:20px;height:20px" type="checkbox"/><span>Kaggle 200,000-Shoe Library</span></label></div>
-<div id="kaggleLibraryNote" class="analyzer-sub" style="margin-top:6px">Separate historical-library signal. It does not control the Sequence AI V2 Duplicate.</div>
+<div class="h2o-panel">
+<div class="h2o-head">
+<div>
+<div class="h2o-title">H2O.ai Model Connector</div>
+<div class="analyzer-sub">Shared connector mode: when hosted with the H2O API, iPhone and iPad automatically use the same /score endpoint.</div>
 </div>
+<span class="h2o-status err" id="h2oStatus">🔴 AI OFFLINE</span>
+</div>
+<div class="h2o-grid">
+<input autocomplete="off" class="h2o-input" id="h2oUrl" placeholder="Auto: same server /score" type="url"/>
+<input autocomplete="off" class="h2o-input" id="h2oKey" placeholder="API key (optional)" type="password"/>
+</div>
+<div class="h2o-actions">
+<button class="tiny-btn" id="h2oSaveBtn">Save Connection</button>
+<button class="tiny-btn" id="h2oTestBtn">Test / Score Now</button>
+</div>
+<div class="h2o-actions" style="grid-template-columns:1fr;margin-top:7px">
+<button class="tiny-btn" id="h2oTrainBtn">Train / Retrain H2O from Saved Shoes</button>
+</div>
+<div class="h2o-note" style="margin-top:9px;padding:9px;border:1px solid #2a3850;border-radius:10px">
+<label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer">
+<input id="kaggleLibraryToggle" style="width:20px;height:20px" type="checkbox"/>
+<span>Kaggle 200,000-Shoe Library</span>
+</label>
+<div id="kaggleLibraryNote" style="margin-top:5px">Kaggle is a separate historical-library signal. It does NOT feed Road Preview AI or H2O. Toggle it only for the separate Kaggle/Sequence features.</div>
+</div>
+<div class="h2o-result">
+<div class="h2o-card"><strong id="h2oP">—</strong><span>H2O Player</span></div>
+<div class="h2o-card"><strong id="h2oB">—</strong><span>H2O Banker</span></div>
+<div class="h2o-card"><strong id="h2oT">—</strong><span>H2O Tie</span></div>
+</div>
+<div class="h2o-note" id="h2oNote">H2O is now isolated. It scores only the H2O model trained from your saved shoes; Kaggle is never blended into H2O. Road Preview AI is isolated and uses only current-shoe road signals plus historical P/B/T color-pattern continuations. Your /score endpoint returns H2O P/B/T probabilities.</div>
+</div>
+
 <div class="card-entry">
 <div class="analyzer-title">Optional Card-Rank Tracker</div>
 <div class="analyzer-sub">Tap ranks as cards are exposed. This does not identify exact future cards; it only estimates whether the remaining shoe is slightly richer in low or high baccarat values.</div>
@@ -727,26 +734,26 @@
  <div class="tra-actions"><button class="tiny-btn" id="traRescan">Re-align Roads Now</button><button class="tiny-btn" id="traDetails">Show Alignment Details</button></div>
 </div>
 <div class="warning">
-    Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. Displayed percentages are analysis signals only and do not guarantee a future result.
+    Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. H2O and Ultimate Bot outputs are additional analysis signals only; disagreement lowers the consensus, and none of the displayed percentages guarantees a future result.
   </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
-<div class="analyzer-title">🤖 Bot AI — Adaptive Historical Color Patterns Only</div>
+<div class="analyzer-title">🤖 High-Powered Bot AI — Library + Derived Roads + Baccarat Rules</div>
 <div class="bot-live-strip" id="botLiveStrip">
 <div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
 <div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
 </div>
-<div class="analyzer-sub">Uses ONLY the selected historical shoe library's P/B/T color patterns. It continuously re-matches the live shoe against old shoes after every hand, can jump to better matching sections as the pattern changes, and drops old matches when they stop fitting. Sequence AI, derived roads, Kaggle, card composition, and other AIs do not influence this Bot.</div>
+<div class="analyzer-sub">Studies the selected RED/BLACK shoe library, raw P/B/T sequences, Big Road and all three derived roads. It changes thresholds by shoe phase and becomes stricter from hand 40 onward. Every qualified prediction is recorded before the next result so the Bot can measure its own real performance.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Bot decision</span><strong id="botDecision">WAIT</strong></div>
 <div class="analyzer-card"><span>Bot confidence</span><strong id="botConfidence">—</strong></div>
 <div class="analyzer-card"><span>Shoe phase</span><strong id="botPhase">EARLY</strong></div>
 </div>
 <div class="analyzer-grid">
-<div class="analyzer-card"><span>Historical color samples</span><strong id="botPhaseSamples">0</strong></div>
-<div class="analyzer-card"><span>Adaptive color windows</span><strong id="botRoadSamples">0</strong></div>
+<div class="analyzer-card"><span>Same-color phase samples</span><strong id="botPhaseSamples">0</strong></div>
+<div class="analyzer-card"><span>Road-memory samples</span><strong id="botRoadSamples">0</strong></div>
 <div class="analyzer-card"><span>Bot verified accuracy</span><strong id="botAccuracy">—</strong></div>
 </div>
-<div class="analyzer-sub" id="botNote" style="margin-top:8px">Choose RED or BLACK and enter hands. Bot AI will adapt only from historical shoe color patterns.</div>
+<div class="analyzer-sub" id="botNote" style="margin-top:8px">Choose RED or BLACK and enter hands to start Bot learning.</div>
 <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
 <button class="tiny-btn" id="botLearningToggle">Learning: ON</button>
 <button class="tiny-btn" id="botResetStats">Reset Bot Stats</button>
@@ -812,7 +819,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     settlePendingPrediction(actual);
     settleBotPrediction(actual);
     
-    
+    settleUltimatePrediction(actual);
     state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
     state.scanSnapshot=null;
     state.pp=state.bp=state.special=false;
@@ -821,14 +828,14 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     armBotPrediction();
     
     persist(); render();
-    
-    
+    if(state.h2o?.url){ scoreWithH2O(false); scoreSequenceDuplicateWithH2O(false); }
+    scoreUltimateBot(false);
     if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
     
   });
 });
-document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');settleBotPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
-document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');settleBotPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
+document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');settleBotPrediction('P');settleUltimatePrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.h2o?.url){scoreWithH2O(false);scoreSequenceDuplicateWithH2O(false);}scoreUltimateBot(false);if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
+document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');settleBotPrediction('B');settleUltimatePrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.h2o?.url){scoreWithH2O(false);scoreSequenceDuplicateWithH2O(false);}scoreUltimateBot(false);if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
 document.getElementById('undoBtn').onclick=()=>{state.hands.pop();state.scanSnapshot=null;persist();render();};
 document.getElementById('clearBtn').onclick=()=>{
   if(confirm('Start a new shoe and clear all results?')){
@@ -1277,7 +1284,7 @@ function renderDerivedRoadMemory(){
   document.getElementById('roadMemoryNote').textContent=!state.currentShoeColor&&state.predictionLibraryMode!=='combined'?'Choose RED or BLACK shoe first.':!a.available?'No saved shoes are available for this road-memory AI yet.':a.totalEvidence<3?'No strong previous derived-road ending matches yet. Keep entering hands; the AI checks again after every result.':a.pick?`Historical derived-road continuations favor ${a.pick==='P'?'Player':'Banker'} ${a.pick==='P'?a.pPct:a.bPct}% by road fit. This is a pattern signal, not a guaranteed outcome.`:`Historical road matches are present, but Player/Banker translation is too close or conflicting, so the AI returns WAIT.`;
 }
 
-function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderSeparateShoes();renderCurrentShoeColor();renderDerivedRoadMemory();}
+function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderH2O();renderSeparateShoes();renderCurrentShoeColor();renderDerivedRoadMemory();}
 
 
 
@@ -1841,7 +1848,7 @@ function setCurrentShoeColor(color){
   if(state.kaggle) state.kaggle.last=null;
   if(state.backtest) state.backtest.pending=null;
   persist();render();
-  
+  if(state.h2o?.url){ scoreWithH2O(false); scoreSequenceDuplicateWithH2O(false); }
   if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
   
 }
@@ -1853,7 +1860,7 @@ const currentBlackBtn=document.getElementById('currentBlackShoeBtn');
 const combinedShoeBtn=document.getElementById('combinedShoeBtn');
 if(currentRedBtn) currentRedBtn.onclick=()=>setCurrentShoeColor('red');
 if(currentBlackBtn) currentBlackBtn.onclick=()=>setCurrentShoeColor('black');
-if(combinedShoeBtn) combinedShoeBtn.onclick=()=>{state.predictionLibraryMode='combined'; if(state.h2o)state.h2o.last=null; if(state.kaggle)state.kaggle.last=null; persist();render();   if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
+if(combinedShoeBtn) combinedShoeBtn.onclick=()=>{state.predictionLibraryMode='combined'; if(state.h2o)state.h2o.last=null; if(state.kaggle)state.kaggle.last=null; persist();render(); scoreUltimateBot(false); if(state.h2o?.url){scoreWithH2O(false);scoreSequenceDuplicateWithH2O(false);} if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
 
 function remainingCompositionScore(){
   // Use the selected physical red/black shoe when it has entries; otherwise fall back to the optional generic tracker.
@@ -2472,17 +2479,10 @@ function renderSequenceAI(){
 
 
 function sequenceAIDuplicateSignal(){
-  const base=sequenceAISignal();
-  if(!base) return base;
-  const color=(typeof window.colorPatternAISignal==='function') ? window.colorPatternAISignal() : null;
-  if(!base.side) return {...base,duplicate:true,colorConfirmation:'WAITING',colorMatch:color?.bestSimilarity||0};
-  let strength=Number(base.strength)||0;
-  let colorConfirmation='WAITING';
-  if(color?.side){
-    if(color.side===base.side){ colorConfirmation='CONFIRMS'; strength=Math.min(92,strength+4); }
-    else { colorConfirmation='CONFLICT'; strength=Math.max(45,strength-6); }
-  }
-  return {...base,duplicate:true,strength,colorConfirmation,colorMatch:color?.bestSimilarity||0,colorSide:color?.side||null};
+  // True second copy of Sequence AI V2's current output.
+  // It is kept separate so H2O consumes ONLY this copy's summarized evidence.
+  const x=sequenceAISignal();
+  return x ? {...x, duplicate:true} : x;
 }
 function sequenceDuplicateMetaFeatures(){
   const s=sequenceAIDuplicateSignal();
@@ -2582,19 +2582,16 @@ function sequenceH2OSignal(){
   };
 }
 function renderSequenceH2O(){
-  const x=sequenceAIDuplicateSignal();
+  const x=sequenceH2OSignal();
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  const side=x?.side==='P'?'Player':x?.side==='B'?'Banker':'WAIT';
-  set('seqDupSide',side); set('seqDupStrength',x?.side?(x.strength||0)+'%':'WAIT');
-  set('seqDupColor',x?.colorConfirmation||'WAITING'); set('seqDupBase',x?.side?x.side:'—');
-  set('seqDupSimilarity',(x?.similarityScore||0)+'%'); set('seqDupColorMatch',(x?.colorMatch||0)+'%');
-  set('seqDupP',(x?.pPct||0)+'%'); set('seqDupB',(x?.bPct||0)+'%'); set('seqDupT',(x?.tPct||0)+'%');
-  const note=document.getElementById('seqDupNote'); if(note){
-    if(!x?.side) note.textContent=x?.waitReason||'WAIT: Sequence AI V2 is not ready.';
-    else if(x.colorConfirmation==='CONFIRMS') note.textContent=`Sequence AI V2 remains primary. Color patterns confirm ${side} and slightly strengthen confidence.`;
-    else if(x.colorConfirmation==='CONFLICT') note.textContent=`Sequence AI V2 remains primary. Color patterns conflict, so confidence is reduced; the ${side} pick is not overridden.`;
-    else note.textContent='Sequence AI V2 remains primary. Waiting for qualified color-pattern confirmation.';
-  }
+  set('seqH2oSide',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
+  set('seqH2oStrength',x.side?x.strength+'%':'WAIT');
+  set('seqH2oAgree',x.agreement||'WAITING');
+  set('seqH2oSeq',x.seq?.side?`${x.seq.side==='P'?'P':'B'} ${x.seq.strength||0}%`:'—');
+  set('seqH2oH2o',x.h?.side?`${x.h.side==='P'?'P':'B'} ${x.h.strength||0}%`:'—');
+  set('seqH2oSimilarity',(x.seq?.similarityScore||0)+'%');
+  set('seqH2oP',x.pPct?x.pPct+'%':'—');set('seqH2oB',x.bPct?x.bPct+'%':'—');set('seqH2oT',x.tPct||x.tPct===0?x.tPct+'%':'—');
+  const note=document.getElementById('seqH2oNote');if(note)note.textContent=x.side?`H2O refined the duplicate Sequence AI V2 evidence to ${x.side==='P'?'Player':'Banker'}. H2O received only duplicate Sequence V2 summary features. Status: ${x.agreement}.`:(x.reason||'Waiting for duplicate Sequence AI V2 and H2O.');
 }
 
 function combineEvidenceFamily(name, members){
@@ -2616,12 +2613,12 @@ function combineEvidenceFamily(name, members){
 }
 
 function independentEvidenceFamilies(){
-  const seq=sequenceAISignal(), deepseek=currentDeepSeekSignal();
+  const seq=sequenceAISignal(), h2o=currentH2OSignal(), deepseek=currentDeepSeekSignal();
   const lib=(state.kaggleLibraryEnabled!==false && currentKaggleSignal()?.side)?currentKaggleSignal():librarySignal();
   const roadAI=roadPreviewAISignal(), road=roadStructureSignal(), hist=historyPatternSignal();
   const historical=combineEvidenceFamily('Historical Intelligence',[
     {sig:seq,weight:seq.similarityScore>=82?.42:seq.similarityScore>=68?.34:.24},
-    {sig:lib,weight:.34},{sig:hist,weight:.18}
+    {sig:h2o,weight:.24},{sig:lib,weight:.22},{sig:hist,weight:.12}
   ]);
   const roads=combineEvidenceFamily('Road Intelligence',[
     {sig:roadAI,weight:.72},{sig:road,weight:.28}
@@ -2752,18 +2749,57 @@ function roadMarkLabel(mark){
   return mark==='R'?'RED':mark==='B'?'BLUE':'—';
 }
 
+function independentDerivedRuleSignal(offset){
+  // RULES ONLY: do not inspect recent derived-road runs, chops, frequencies,
+  // saved shoes, model output, or historical continuations.
+  const {pMark,bMark}=derivedRoadRuleProbe(offset);
+  if(!pMark || !bMark || pMark===bMark){
+    return {side:null,strength:0,pScore:50,bScore:50,pMark,bMark,reason:'NO RULE SEPARATION'};
+  }
+
+  // Derived-road RED means the compared structure is orderly/consistent; BLUE
+  // means the compared structure differs. This is a structural heuristic, not
+  // a probability that Player or Banker will win.
+  const pOrder=pMark==='R' ? 1 : 0;
+  const bOrder=bMark==='R' ? 1 : 0;
+  if(pOrder===bOrder){
+    return {side:null,strength:0,pScore:50,bScore:50,pMark,bMark,reason:'TIED RULE OUTPUT'};
+  }
+  const side=pOrder>bOrder ? 'P' : 'B';
+  return {
+    side,
+    strength:60,
+    pScore:side==='P'?60:40,
+    bScore:side==='B'?60:40,
+    pMark,bMark,
+    reason:'RED STRUCTURAL-ORDER MARK'
+  };
+}
+
+function independentDerivedRuleDecision(){
+  const roads=[1,2,3].map(independentDerivedRuleSignal);
+  const live=roads.filter(r=>r.side);
+  const pVotes=live.filter(r=>r.side==='P').length;
+  const bVotes=live.filter(r=>r.side==='B').length;
+  const winner=Math.max(pVotes,bVotes);
+  let side=null;
+  if(live.length>=2 && winner>=2 && pVotes!==bVotes) side=pVotes>bVotes?'P':'B';
+  const confidence=side ? Math.round(52 + (winner/3)*18) : 0;
+  return {side,confidence,pVotes,bVotes,winner,live:live.length,roads};
+}
+
 function renderDerivedRoadPredictions(){
-  // Independent CURRENT-SHOE engine. Each road reads only its own live R/B structure,
-  // then maps that expected next road color back through hypothetical P/B outcomes.
+  // Independent rules engine: each card shows what baccarat road rules produce
+  // for hypothetical Player vs Banker. It does NOT forecast from recent road trends.
   const defs=[[1,'eyeNext','eyeNextPct'],[2,'smallNext','smallNextPct'],[3,'roachNext','roachNextPct']];
   defs.forEach(([offset,sideId,pctId])=>{
-    const sig=derivedRoadNextSignal(offset);
+    const sig=independentDerivedRuleSignal(offset);
     const sideEl=document.getElementById(sideId), pctEl=document.getElementById(pctId);
     const label=sig.side==='P'?'PLAYER':sig.side==='B'?'BANKER':'WAIT';
     if(sideEl) sideEl.textContent=label;
     if(pctEl){
-      if(!sig.pMark || !sig.bMark) pctEl.textContent='Building live road…';
-      else pctEl.textContent=`P ${sig.pPct}% • B ${sig.bPct}%  |  P→${roadMarkLabel(sig.pMark)} • B→${roadMarkLabel(sig.bMark)}`;
+      if(!sig.pMark || !sig.bMark) pctEl.textContent='Building road-rule output…';
+      else pctEl.textContent=`Rule score P ${sig.pScore}% • B ${sig.bScore}%  |  P→${roadMarkLabel(sig.pMark)} • B→${roadMarkLabel(sig.bMark)}`;
     }
   });
 }
@@ -2893,120 +2929,48 @@ function botLibraryMatchSignal(){
   const edge=Math.abs(p-b)/n;
   return {side:p>=b?'P':'B',strength:Math.round(Math.min(84,50+edge*27+Math.min(7,m.matches*.3))),samples:m.matches,evidence:`${m.matches} library matches • ${m.len}-hand window`};
 }
-function botHistoricalColorAdaptiveSignal(){
-  const cur=currentSequence();
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
-  const phase=botPhaseInfo(cur.length);
-  if(cur.length<6 || !lib.length){
-    return {side:null,strength:0,samples:0,windows:0,bestSimilarity:0,bestLen:0,pPct:0,bPct:0,tPct:0,agreement:0,phase,reason:'Need at least 6 live hands plus saved historical shoe color patterns.'};
-  }
-
-  // Adaptive windows: short windows react quickly when the live pattern changes;
-  // longer windows keep influence only while the historical color match remains strong.
-  const maxK=Math.min(24,cur.length);
-  const lengths=[];
-  for(let k=maxK;k>=5;k--){
-    if(k<=9 || k%2===0 || k===maxK) lengths.push(k);
-  }
-
-  const windowVotes=[];
-  let samples=0,bestSimilarity=0,bestLen=0;
-  for(const k of lengths){
-    const live=cur.slice(-k);
-    const matches=[];
-    for(let shoeIndex=0;shoeIndex<lib.length;shoeIndex++){
-      const hist=(lib[shoeIndex].sequence||'').split('');
-      if(hist.length<=k) continue;
-      let best=null;
-      for(let pos=0;pos+k<hist.length;pos++){
-        let score=0,maxScore=0;
-        for(let j=0;j<k;j++){
-          // Recent hands receive more weight, so the Bot can adopt a new live color regime.
-          const recency=.58 + .92*((j+1)/k);
-          maxScore+=recency;
-          if(live[j]===hist[pos+j]) score+=recency;
-          else if(live[j]==='T' || hist[pos+j]==='T') score+=recency*.16;
-        }
-        const sim=maxScore?score/maxScore:0;
-        // Long matches must stay cleaner; short windows may react faster.
-        const floor=k>=16?.80:k>=10?.77:.74;
-        if(sim<floor) continue;
-        const next=hist[pos+k];
-        if(!'PBT'.includes(next)) continue;
-        if(!best || sim>best.sim) best={sim,next,pos,shoeIndex};
-      }
-      if(best) matches.push(best);
-    }
-    if(!matches.length) continue;
-    samples+=matches.length;
-    const top=Math.max(...matches.map(m=>m.sim));
-    if(top>bestSimilarity){bestSimilarity=top;bestLen=k;}
-
-    let p=0,b=0,t=0,w=0;
-    for(const m of matches){
-      // Strong and recent-window-consistent matches dominate; weak old matches fade automatically.
-      const mw=Math.pow(m.sim,5)*(0.70+k/20);
-      w+=mw;
-      if(m.next==='P')p+=mw; else if(m.next==='B')b+=mw; else t+=mw;
-    }
-    if(!w) continue;
-    p/=w;b/=w;t/=w;
-    const leader=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
-    const vals=[p,b,t].sort((a,b)=>b-a);
-    const edge=vals[0]-vals[1];
-    const avgSim=matches.reduce((a,m)=>a+m.sim,0)/matches.length;
-    // Longer windows are valuable only when they remain strong. Short windows help adaptation.
-    const adaptBoost=k<=9?1.08:1;
-    const weight=(.58+k/21)*(avgSim**3)*Math.min(1.25,.55+matches.length/8)*adaptBoost;
-    windowVotes.push({k,leader,p,b,t,edge,weight,matches:matches.length,avgSim,top});
-  }
-
-  if(!windowVotes.length){
-    return {side:null,strength:0,samples:0,windows:0,bestSimilarity:0,bestLen:0,pPct:0,bPct:0,tPct:0,agreement:0,phase,reason:'The live color pattern has not formed a reliable historical match yet.'};
-  }
-
-  let sw=0,p=0,b=0,t=0;
-  for(const v of windowVotes){sw+=v.weight;p+=v.p*v.weight;b+=v.b*v.weight;t+=v.t*v.weight;}
-  p/=sw;b/=sw;t/=sw;
-  const candidate=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
-  const agreeing=windowVotes.filter(v=>v.leader===candidate).length;
-  const agreement=agreeing/windowVotes.length;
-  const pbEdge=Math.abs(p-b);
-  const pPct=Math.round(p*100),bPct=Math.round(b*100),tPct=Math.round(t*100);
-  const simPct=Math.round(bestSimilarity*100);
-
-  let side=candidate, reason='';
-  if(candidate==='T') reason='Historical color continuations currently lean Tie, so Bot AI waits on P/B.';
-  else if(samples<2) reason='Too few historical color continuations.';
-  else if(agreement<.50) reason='Historical color windows conflict as the live shoe changes.';
-  else if(pbEdge<.08) reason='Historical Player/Banker continuation edge is too small.';
-  else if(simPct<76) reason='Best historical color similarity is too weak.';
-
-  const strength=side?Math.round(Math.min(86,50+pbEdge*36+(bestSimilarity-.74)*28+agreement*10+Math.min(4,samples*.18))):0;
-  return {side:reason?null:side,candidate,strength,samples,windows:windowVotes.length,bestSimilarity:simPct,bestLen,pPct,bPct,tPct,agreement,agreeing,phase,reason,windowVotes};
-}
-
 function masterBotSignal(){
   ensureBotState();
-  const x=botHistoricalColorAdaptiveSignal();
-  const phase=x.phase||botPhaseInfo();
-  const minConf=phase.key==='55+'?59:phase.key==='40-54'?58:56;
-  const qualified=!!x.side && x.strength>=minConf && x.samples>=2 && x.agreement>=.50;
-  let reason=x.reason||'';
-  if(x.side && !qualified){
-    if(x.strength<minConf) reason=`Adaptive color confidence is ${x.strength}%; this phase requires ${minConf}%.`;
-    else if(x.samples<2) reason='Need more historical color samples.';
-    else if(x.agreement<.50) reason='Adaptive historical color windows are conflicting.';
-  }
-  const c=x.candidate||x.side;
-  const candidateEntry=c?{name:'Adaptive Historical Color',side:c,strength:x.strength||0,weight:1,reliability:1,evidence:`${x.samples} historical color continuations • ${x.windows} adaptive windows`,samples:x.samples}:null;
-  return {
-    side:qualified?x.side:null,candidate:c,confidence:x.strength||0,phase,
-    phaseHist:{samples:x.samples||0},roadMem:{samples:x.windows||0},directLib:x,liveRoad:null,
-    agreement:x.agreement||0,total:x.windows||0,agree:x.agreeing||0,qualified,reason,
-    candidates:candidateEntry?[candidateEntry]:[],historicalSamples:x.samples||0,pScore:x.pPct||0,bScore:x.bPct||0,
-    colorAdaptive:x
+  const phase=botPhaseInfo();
+  const directLib=botLibraryMatchSignal();
+  const phaseHist=phaseHistoricalSignal();
+  const roadMem=roadMemorySignal();
+  const liveRoad=botLiveRoadSignal();
+  const seqV2=sequenceAISignal();
+  const candidates=[];
+  const add=(name,sig,baseWeight)=>{
+    if(!sig?.side || sig.side==='T' || Number(sig.strength)<=50)return;
+    const rel=botSpecialistReliability(name,phase.key);
+    // Reliability is learned from this Bot's own resolved predictions.
+    const weight=baseWeight*(0.65+rel);
+    candidates.push({name,side:sig.side,strength:Number(sig.strength),weight,reliability:rel,evidence:sig.evidence||'',samples:sig.samples||0});
   };
+  add('Library Match',directLib,1.10);
+  add('Phase Library',phaseHist,(phase.key==='40-54'||phase.key==='55+')?1.12:.92);
+  add('Road Memory',roadMem,(phase.key==='40-54'||phase.key==='55+')?1.08:.96);
+  add('Live Derived Roads',liveRoad,1.00);
+  // Sequence AI V2 is intentionally only a partial supporting influence on the Bot.
+  add('Sequence V2 (partial)',seqV2,0.25);
+  if(!candidates.length)return {side:null,confidence:0,phase,phaseHist,roadMem,agreement:0,total:0,reason:'No qualified library/road evidence yet.',candidates:[],historicalSamples:0};
+  let pScore=0,bScore=0;
+  for(const c of candidates){
+    const contribution=Math.max(.01,(c.strength-50)/50)*c.weight;
+    if(c.side==='P')pScore+=contribution; else bScore+=contribution;
+  }
+  const totalScore=pScore+bScore, side=pScore>=bScore?'P':'B';
+  const agree=candidates.filter(c=>c.side===side).length, agreement=agree/candidates.length;
+  const margin=totalScore?Math.abs(pScore-bScore)/totalScore:0;
+  const confidence=Math.round(Math.min(84,50+margin*24+agreement*10));
+  const historicalSamples=(phaseHist.samples||0)+(roadMem.samples||0)+(directLib.samples||0);
+  const strictLate=phase.key==='40-54'||phase.key==='55+';
+  const enoughSamples=!strictLate || historicalSamples>=phase.minSamples;
+  const qualified=candidates.length>=2 && agreement>=.60 && confidence>=phase.minConf && enoughSamples;
+  let reason='';
+  if(candidates.length<2)reason='Need at least 2 independent library/road specialists.';
+  else if(agreement<.60)reason='Library and derived-road evidence is conflicting.';
+  else if(confidence<phase.minConf)reason=`Phase threshold is ${phase.minConf}%.`;
+  else if(!enoughSamples)reason=`40+ mode needs at least ${phase.minSamples} library/road samples (${historicalSamples} found).`;
+  return {side:qualified?side:null,candidate:side,confidence,phase,phaseHist,roadMem,directLib,liveRoad,agreement,total:candidates.length,agree,qualified,reason,candidates,historicalSamples,pScore,bScore};
 }
 function settleBotPrediction(actual){
   ensureBotState();
@@ -3075,11 +3039,10 @@ function renderMasterBot(){
   document.getElementById('botRoadSamples').textContent=b.roadMem.samples||0;
   document.getElementById('botAccuracy').textContent=state.bot.predictions?`${Math.round(state.bot.wins*100/state.bot.predictions)}% (${state.bot.wins}/${state.bot.predictions})`:'—';
   const color=activeColorName()||'NO COLOR';
-  const ca=b.colorAdaptive||{};
-  const adaptive=`${ca.samples||0} historical continuations • ${ca.windows||0} adaptive windows • best ${ca.bestLen||0}-hand match ${ca.bestSimilarity||0}% • P ${ca.pPct||0}% / B ${ca.bPct||0}%`;
+  const sources=(b.candidates||[]).map(x=>`${x.name} ${x.side} ${Math.round(x.strength)}%`).join(' • ');
   document.getElementById('botNote').textContent=b.qualified
-    ? `${color} • ${b.phase.label}: ${adaptive}. Bot AI uses historical P/B/T color patterns ONLY and re-aligns after every live hand. The prediction is locked before the next non-tie result.`
-    : `${color} • WAIT: ${b.reason||'Color evidence is not strong enough.'} ${adaptive}. No Sequence AI, derived-road, H2O, Kaggle, card-composition, or other AI input.`;
+    ? `${color} • ${b.phase.label}: ${b.agree}/${b.total} sources agree. ${sources}. The Bot records this decision before the next non-tie result.`
+    : `${color} • WAIT: ${b.reason} ${sources?('Active: '+sources):''}`;
   document.getElementById('botLearningToggle').textContent='Learning: ALWAYS ON';
   document.getElementById('botLearningToggle').disabled=true;
 }
@@ -3216,9 +3179,9 @@ document.getElementById('exportBacktestBtn').onclick=()=>{
 
 
 const botLearningToggle=document.getElementById('botLearningToggle');
-if(botLearningToggle){botLearningToggle.disabled=true;botLearningToggle.title='Bot AI is always live and continuously adapts to historical color patterns.';}
+if(botLearningToggle){botLearningToggle.disabled=true;botLearningToggle.title='Master Bot AI is always live and cannot be turned off.';}
 const botResetStats=document.getElementById('botResetStats');
-if(botResetStats) botResetStats.onclick=()=>{if(confirm('Reset all verified Bot AI accuracy statistics?')){ensureBotState();state.bot.pending=null;state.bot.predictions=0;state.bot.wins=0;state.bot.rows=[];state.bot.phaseStats={};state.bot.specialistStats={};persist();renderMasterBot();}};
+if(botResetStats) botResetStats.onclick=()=>{if(confirm('Reset all verified Master Bot learning statistics?')){ensureBotState();state.bot.pending=null;state.bot.predictions=0;state.bot.wins=0;state.bot.rows=[];state.bot.phaseStats={};state.bot.specialistStats={};persist();renderMasterBot();}};
 
 
 function renderKaggleLibraryToggle(){
@@ -3238,7 +3201,7 @@ if(kaggleLibraryToggle) kaggleLibraryToggle.onchange=()=>{
   renderKaggleLibraryToggle();
   renderAnalyzer();
   if(state.kaggleLibraryEnabled) scoreWithKaggle(false);
-  
+  if(state.h2o?.url){ scoreWithH2O(false); scoreSequenceDuplicateWithH2O(false); }
 };
 renderKaggleLibraryToggle();
 
@@ -3545,7 +3508,72 @@ document.getElementById('clearScanBtn').onclick=()=>{
 bindSeparateShoeControls();
 load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
 </script>
-\n<script id="threeRoadAlignmentAiScript">
+<div class="h2o-panel" id="ultimateBotPanel" style="margin:14px"><div class="h2o-head"><div><div class="h2o-title">ULTIMATE BOT CONTROLLER</div><div class="analyzer-sub">10-second maximum decision budget • adaptive specialist voting • persistent performance learning • current-road + saved-library + shoe-regime + 40+ late-shoe specialists • complete Punto Banco rules knowledge</div></div><span class="h2o-status err" id="ultimateStatus">🔴 BOT READY</span></div><div class="h2o-grid"><div class="h2o-card"><strong id="ultimateDecision">WAIT</strong><span>Final Decision</span></div><div class="h2o-card"><strong id="ultimateConfidence">—</strong><span>Confidence</span></div><div class="h2o-card"><strong id="ultimateTime">—</strong><span>Decision Time</span></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>Phase</span><strong id="ultimatePhase">—</strong></div><div class="analyzer-card"><span>Model Votes</span><strong id="ultimateVotes">—</strong></div><div class="analyzer-card"><span>Budget</span><strong id="ultimateBudget">10.0s MAX</strong></div><div class="analyzer-card"><span>Rules Knowledge</span><strong>🟢 LIVE</strong></div></div><button class="tiny-btn" id="ultimateScoreBtn">Run Ultimate Bot Now</button><div class="h2o-note">Returns immediately when evidence is ready. Specialists are weighted by their recorded performance for the current shoe phase; weak or conflicting evidence returns WAIT. Confidence is controller agreement, not a guaranteed win probability. Baccarat rules knowledge validates game play but is not an extra vote.</div></div><script>
+function ultimateUrl(path){
+  // Ultimate Controller is a server feature. Prefer the same deployed server even when
+  // the H2O connector has a custom /score URL; when previewing a downloaded file,
+  // fall back to the saved H2O server URL so the controller can still reach Render.
+  if(location.protocol==='http:' || location.protocol==='https:') return location.origin + path;
+  const configured=(state.h2o?.url||'').trim();
+  if(!configured) return '';
+  try{
+    const u=new URL(configured);
+    return u.origin + path;
+  }catch(e){
+    return configured.replace(/\/score\/?(?:\?.*)?$/i,'').replace(/\/$/,'')+path;
+  }
+}
+async function scoreUltimateBot(showAlert=false){
+  const seq=currentSequence().join('');
+  const st=document.getElementById('ultimateStatus');
+  if(seq.length<6){
+    if(st){st.textContent='🟡 NEED '+(6-seq.length)+' MORE HAND'+((6-seq.length)===1?'':'S');st.className='h2o-status';}
+    renderUltimateBot();
+    return null;
+  }
+  const url=ultimateUrl('/bot/decide');
+  if(!url){
+    state.ultimate=state.ultimate||{};
+    state.ultimate.error='No server connection. Open the deployed Render app, or save your Render /score URL in H2O connection settings.';
+    state.ultimate.connected=false;
+    persist();renderUltimateBot();
+    if(showAlert) alert('Ultimate Bot needs the deployed server connection.');
+    return null;
+  }
+  if(st){st.textContent='🟡 BOT ANALYZING…';st.className='h2o-status';}
+  const headers={'Content-Type':'application/json'};
+  if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;
+  try{
+    const out=await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({features:{sequence:seq,library_mode:state.predictionLibraryMode||'selected',shoe_color:state.currentShoeColor||null,saved_shoes:activePatternLibrary().map(x=>x?.sequence||'').filter(Boolean)}})});
+    state.ultimate=state.ultimate||{};
+    state.ultimate.last=out;
+    state.ultimate.pendingId=out.prediction_id||null;
+    state.ultimate.connected=true;
+    state.ultimate.error='';
+    persist();renderUltimateBot();
+    return out;
+  }catch(e){
+    state.ultimate=state.ultimate||{};
+    state.ultimate.error=String(e.message||e);
+    state.ultimate.connected=false;
+    persist();renderUltimateBot();
+    if(showAlert)alert('Ultimate Bot failed: '+state.ultimate.error);
+    return null;
+  }
+}
+async function settleUltimatePrediction(actual){
+  const id=state.ultimate?.pendingId;
+  if(!id)return;
+  state.ultimate.pendingId=null;persist();
+  const url=ultimateUrl('/bot/feedback');
+  if(!url)return;
+  const headers={'Content-Type':'application/json'};
+  if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;
+  try{await h2oRequestJson(url,{method:'POST',headers,body:JSON.stringify({prediction_id:id,actual})});}catch(e){}
+}
+function renderUltimateBot(){const x=state.ultimate?.last||{};const st=document.getElementById('ultimateStatus');if(st){st.textContent=state.ultimate?.error?'🔴 BOT ERROR':state.ultimate?.connected?'🟢 BOT AI LIVE':'🔴 BOT READY';st.className='h2o-status '+(state.ultimate?.connected?'on':'err');}const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ultimateDecision',x.decision||'WAIT');set('ultimateConfidence',x.confidence==null?'—':Math.round(x.confidence*100)+'%');set('ultimateTime',x.decision_seconds==null?'—':x.decision_seconds+'s');set('ultimatePhase',x.phase||'—');const vv=(x.votes||[]).filter(v=>v.side==='P'||v.side==='B');const aa=vv.length&&x.decision!=='WAIT'?vv.filter(v=>v.side===x.decision).length:0;set('ultimateVotes',vv.length?aa+'/'+vv.length:'—');}
+document.getElementById('ultimateScoreBtn')?.addEventListener('click',()=>scoreUltimateBot(true));setTimeout(()=>{renderUltimateBot();if(currentSequence().length>=6)scoreUltimateBot(false);},400);
+</script>\n<script id="threeRoadAlignmentAiScript">
 (()=>{
 const $=id=>document.getElementById(id);
 const set=(id,v)=>{const e=$(id);if(e)e.textContent=v};
@@ -3640,8 +3668,8 @@ const oldRender=window.render;if(typeof oldRender==='function')window.render=fun
 setInterval(scan,1800);setTimeout(scan,300);
 })();
 
-
-
+document.getElementById('seqH2oScoreBtn')?.addEventListener('click',()=>scoreSequenceDuplicateWithH2O(true));
+document.getElementById('seqH2oTrainBtn')?.addEventListener('click',()=>trainSequenceDuplicateH2O(true));
 </script>
 
 <script>
@@ -3650,38 +3678,23 @@ setInterval(scan,1800);setTimeout(scan,300);
     const pred=document.getElementById('derivedIndependentPrediction');
     const agree=document.getElementById('derivedIndependentAgreement');
     const conf=document.getElementById('derivedIndependentConfidence');
-    if(!pred||!agree||!conf || typeof derivedRoadNextSignal!=='function') return;
+    if(!pred||!agree||!conf || typeof independentDerivedRuleDecision!=='function') return;
 
-    const roads=[derivedRoadNextSignal(1),derivedRoadNextSignal(2),derivedRoadNextSignal(3)];
-    const live=roads.filter(r=>r && r.side && r.strength>50);
-    const pVotes=live.filter(r=>r.side==='P').length;
-    const bVotes=live.filter(r=>r.side==='B').length;
-    const winner=Math.max(pVotes,bVotes);
-    const roadMarks=[1,2,3].map(o=>deriveRoad(state.hands,o).length);
-    const readyRoads=roadMarks.filter(n=>n>=3).length;
-
-    let choice='WAIT';
-    if(live.length>=2 && winner>=2 && pVotes!==bVotes) choice=pVotes>bVotes?'PLAYER':'BANKER';
-
-    // Confidence describes strength of agreement inside this independent heuristic,
-    // not a guaranteed win probability.
-    let confidence=0;
-    if(live.length){
-      const chosenSide=choice==='PLAYER'?'P':choice==='BANKER'?'B':(pVotes>=bVotes?'P':'B');
-      const supporters=live.filter(r=>r.side===chosenSide);
-      const avg=supporters.length?supporters.reduce((a,r)=>a+r.strength,0)/supporters.length:50;
-      const agreement=winner/3;
-      confidence=Math.round(Math.min(78, 48 + (avg-50)*0.85 + agreement*18));
-    }
+    const d=independentDerivedRuleDecision();
+    const choice=d.side==='P'?'PLAYER':d.side==='B'?'BANKER':'WAIT';
+    const available=d.roads.filter(r=>r.pMark && r.bMark).length;
 
     pred.textContent='Prediction: '+choice;
-    if(readyRoads<2){
-      agree.textContent=`Agreement: building live derived roads (${readyRoads}/3 ready)`;
-      conf.textContent='Independent confidence: —';
+    if(available<2){
+      agree.textContent=`Agreement: building baccarat rule output (${available}/3 roads available)`;
+      conf.textContent='Rule confidence: —';
       return;
     }
-    agree.textContent=`Agreement: ${winner} of 3 roads • Player ${pVotes} / Banker ${bVotes}`;
-    conf.textContent=choice==='WAIT' ? `Independent confidence: ${confidence||'—'}${confidence?'%':''} • conflict/weak evidence` : `Independent confidence: ${confidence}%`;
+
+    agree.textContent=`Rule agreement: ${d.winner} of 3 roads • Player ${d.pVotes} / Banker ${d.bVotes}`;
+    conf.textContent=d.side
+      ? `Rule confidence: ${d.confidence}% structural agreement — not win probability`
+      : 'Rule confidence: — • rules conflict, so WAIT';
   }
 
   const oldRender=window.render;
@@ -3695,143 +3708,5 @@ setInterval(scan,1800);setTimeout(scan,300);
 })();
 </script>
 
-
-<script id="adaptiveColorPatternAndAccuracyV1">
-(function(){
-  const safePct=n=>Number.isFinite(n)?Math.max(0,Math.min(100,Math.round(n))):0;
-  const sideName=s=>s==='P'?'Player':s==='B'?'Banker':s==='T'?'Tie':'WAIT';
-
-  function colorPatternAISignal(){
-    const cur=currentSequence();
-    const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
-    if(cur.length<6 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,bestSimilarity:0,grade:'LOW',agreeWindows:0,totalWindows:0,bestLen:0,reason:'WAIT: Need at least 6 live hands plus saved historical shoes.'};
-    const maxK=Math.min(22,cur.length), lengths=[];
-    for(let k=maxK;k>=5;k--){ if(k<=9 || k%2===0 || k===maxK) lengths.push(k); }
-    const windows=[]; let totalMatches=0,bestSimilarity=0,bestLen=0;
-    for(const k of lengths){
-      const pat=cur.slice(-k); const candidates=[];
-      lib.forEach((shoe,shoeIndex)=>{
-        const ss=(shoe.sequence||'').split('');
-        let best=null;
-        for(let i=0;i+k<ss.length;i++){
-          let score=0, max=0;
-          for(let j=0;j<k;j++){
-            const a=pat[j],b=ss[i+j];
-            const w=(j+1)/k*.7+.65; // recent colors matter a little more
-            max+=w;
-            if(a===b) score+=w;
-            else if(a==='T'||b==='T') score+=w*.18; // tie mismatch is softer, but still a mismatch
-          }
-          const sim=max?score/max:0;
-          if(sim<.76) continue;
-          const nxt=ss[i+k]; if(!'PBT'.includes(nxt)) continue;
-          if(!best || sim>best.sim) best={sim,nxt,pos:i};
-        }
-        if(best) candidates.push({...best,shoeIndex});
-      });
-      if(!candidates.length) continue;
-      totalMatches+=candidates.length;
-      const avgSim=candidates.reduce((a,x)=>a+x.sim,0)/candidates.length;
-      const topSim=Math.max(...candidates.map(x=>x.sim));
-      bestSimilarity=Math.max(bestSimilarity,topSim); bestLen=Math.max(bestLen,k);
-      let p=0,b=0,t=0,w=0;
-      candidates.forEach(x=>{ const ww=Math.pow(x.sim,4)*(1+k/22); w+=ww; if(x.nxt==='P')p+=ww; else if(x.nxt==='B')b+=ww; else t+=ww; });
-      if(!w) continue; p/=w;b/=w;t/=w;
-      const leader=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
-      const vals=[p,b,t].sort((a,b)=>b-a),edge=vals[0]-vals[1];
-      const quality=Math.min(1,candidates.length/7)*.45 + avgSim*.55;
-      const weight=(.65+k/18)*quality;
-      windows.push({k,p,b,t,leader,edge,weight,samples:candidates.length,avgSim,topSim});
-    }
-    if(!windows.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,bestSimilarity:0,grade:'LOW',agreeWindows:0,totalWindows:0,bestLen:0,reason:'WAIT: Current color pattern has not formed a strong historical match yet.'};
-    const leaderWeight={P:0,B:0,T:0}; windows.forEach(x=>leaderWeight[x.leader]+=x.weight);
-    const candidate=Object.entries(leaderWeight).sort((a,b)=>b[1]-a[1])[0][0];
-    const agreeWindows=windows.filter(x=>x.leader===candidate).length,totalWindows=windows.length;
-    let sw=0,p=0,b=0,t=0; windows.forEach(x=>{sw+=x.weight;p+=x.p*x.weight;b+=x.b*x.weight;t+=x.t*x.weight}); p/=sw;b/=sw;t/=sw;
-    const pPct=safePct(p*100),bPct=safePct(b*100),tPct=safePct(t*100);
-    const pbEdge=Math.abs(p-b)*100, agreement=agreeWindows/totalWindows, simPct=safePct(bestSimilarity*100);
-    const grade=simPct>=94&&agreement>=.65?'HIGH':simPct>=84&&agreement>=.5?'MEDIUM':'LOW';
-    let side=candidate, reason='';
-    if(side==='T') reason='WAIT: Historical color matches lean Tie; P/B signal is withheld.';
-    else if(totalMatches<2) reason='WAIT: Too few independent historical continuations.';
-    else if(agreement<.5) reason='WAIT: Historical color windows are conflicting.';
-    else if(pbEdge<9) reason=`WAIT: Player/Banker continuation edge is only ${Math.round(pbEdge)} points.`;
-    else if(simPct<78) reason=`WAIT: Best color similarity is only ${simPct}%.`;
-    if(reason) side=null;
-    const strength=side?safePct(50+pbEdge*.38+(simPct-75)*.35+agreement*10):0;
-    return {side,strength,pPct,bPct,tPct,matches:totalMatches,bestSimilarity:simPct,grade,agreeWindows,totalWindows,bestLen,reason};
-  }
-  window.colorPatternAISignal=colorPatternAISignal;
-
-  function renderColorPatternAI(){
-    const x=colorPatternAISignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
-    set('colorAiSide',sideName(x.side));set('colorAiStrength',x.side?x.strength+'%':'WAIT');set('colorAiMatches',x.matches||0);
-    set('colorAiSimilarity',(x.bestSimilarity||0)+'%');set('colorAiGrade',x.grade||'LOW');set('colorAiWindows',(x.agreeWindows||0)+'/'+(x.totalWindows||0));
-    set('colorAiP',x.matches?x.pPct+'%':'—');set('colorAiB',x.matches?x.bPct+'%':'—');set('colorAiT',x.matches?x.tPct+'%':'—');
-    const n=document.getElementById('colorAiNote'); if(n)n.textContent=x.side?`${x.matches} historical continuations • best ${x.bestLen}-hand adaptive window • ${x.bestSimilarity}% similarity. Old-shoe influence automatically falls when the live colors stop matching.`:(x.reason||'WAIT');
-  }
-
-  function ensureAccuracy(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:1};
-    if(!state.accuracyVerified.models)state.accuracyVerified.models={}; if(!state.accuracyVerified.pending)state.accuracyVerified.pending={};
-    return state.accuracyVerified;
-  }
-  const modelDefs=[
-    ['seqv2','Sequence AI V2',()=>sequenceAISignal()],
-    ['color','Color Pattern AI',()=>colorPatternAISignal()],
-    ['roadpreview','Road Preview AI',()=>roadPreviewAISignal()],
-    ['seqdup','Sequence AI V2 Duplicate',()=>sequenceAIDuplicateSignal()],
-    ['consensus','AI Consensus',()=>consensusSignal()],
-    ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal();return {side:x.qualified?x.side:null,strength:x.confidence||0}}],
-    
-  ];
-  function armVerifiedPredictions(){
-    const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join('');
-    modelDefs.forEach(([key,name,get])=>{
-      let x=null;try{x=get()}catch(e){}
-      const side=x?.side;
-      if(side==='P'||side==='B') a.pending[key]={side,hand,seq,lockedAt:Date.now(),strength:Number(x.strength)||0};
-      else delete a.pending[key];
-    });
-    persist();renderVerifiedAccuracy();
-  }
-  function settleVerifiedPredictions(actual){
-    const a=ensureAccuracy(); if(actual==='T'){a.ties=(a.ties||0)+1;persist();return;}
-    if(actual!=='P'&&actual!=='B')return;
-    modelDefs.forEach(([key,name])=>{
-      const p=a.pending[key]; if(!p)return;
-      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,last10:[],last25:[],last50:[]});
-      const win=p.side===actual; m.predictions++; if(win)m.wins++;else m.losses++;
-      [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
-      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength}; delete a.pending[key];
-    });
-    persist();renderVerifiedAccuracy();
-  }
-  function renderVerifiedAccuracy(){
-    const a=ensureAccuracy(),g=document.getElementById('verifiedAccuracyGrid');if(!g)return;g.innerHTML='';
-    modelDefs.forEach(([key,name])=>{
-      const m=a.models[key]||{wins:0,losses:0,predictions:0,last10:[],last25:[],last50:[]},p=a.pending[key];
-      const rate=m.predictions?Math.round(m.wins*100/m.predictions):null;
-      const recent=(arr)=>arr?.length?Math.round(arr.reduce((x,y)=>x+y,0)*100/arr.length)+'%':'—';
-      const d=document.createElement('div');d.className='analyzer-card';d.style.textAlign='left';
-      d.innerHTML=`<span style="font-size:10px">${name}</span><strong style="font-size:18px">${rate==null?'—':rate+'%'}</strong><small style="display:block;color:var(--muted);margin-top:3px">Verified ${m.wins||0}W–${m.losses||0}L • N=${m.predictions||0}<br>Last 10 ${recent(m.last10)} • 25 ${recent(m.last25)} • 50 ${recent(m.last50)}<br>${p?`LOCKED ${p.side} for hand #${p.hand}`:'No qualified prediction locked'}</small>`;
-      g.appendChild(d);
-    });
-    const n=document.getElementById('verifiedAccuracyNote');if(n)n.textContent=`Only pre-result P/B locks are scored. ${a.ties||0} tie result(s) observed while verification was active; ties do not become wins or losses.`;
-  }
-  window.renderColorPatternAI=renderColorPatternAI;window.renderVerifiedAccuracy=renderVerifiedAccuracy;
-
-  // Capture runs before the app's existing result handlers, so the ledger is settled before the new result is pushed.
-  document.querySelectorAll('[data-result]').forEach(btn=>btn.addEventListener('click',e=>{settleVerifiedPredictions(btn.dataset.result);setTimeout(()=>{renderColorPatternAI();armVerifiedPredictions();},120);setTimeout(armVerifiedPredictions,1400);},true));
-  ['previewP','previewB'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>{settleVerifiedPredictions(id==='previewP'?'P':'B');setTimeout(()=>{renderColorPatternAI();armVerifiedPredictions();},120);setTimeout(armVerifiedPredictions,1400);},true));
-  document.getElementById('clearBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};persist();renderColorPatternAI();renderVerifiedAccuracy();},150),true);
-  document.getElementById('undoBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};persist();renderColorPatternAI();armVerifiedPredictions();},150),true);
-
-  // Keep the new panels current even when existing render() is called by imports/scans/settings.
-  const oldRender=window.render;
-  if(typeof oldRender==='function') window.render=function(){const r=oldRender.apply(this,arguments);try{renderColorPatternAI();renderVerifiedAccuracy()}catch(e){}return r};
-  ensureAccuracy();renderColorPatternAI();renderVerifiedAccuracy();setTimeout(armVerifiedPredictions,500);setTimeout(armVerifiedPredictions,1800);
-})();
-</script>
 </body>
 </html>
