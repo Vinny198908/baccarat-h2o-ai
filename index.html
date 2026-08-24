@@ -434,7 +434,7 @@
 
 </div>
 <div class="road-predict-panel">
-<div class="road-predict-title">Derived Road AI — Sequence-Logic Preview Engine</div>
+<div class="road-predict-title">Derived Road AI V3 — Adaptive Multi-Window Road Engine</div>
 <div class="road-predict-grid">
 <div class="road-predict-card"><span>Big Eye Boy</span><strong id="eyeNext">—</strong><small id="eyeNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
@@ -470,7 +470,7 @@
 </div>
 <div class="analyzer" id="sequenceDuplicatePanel" style="border-color:#2c7ca8;box-shadow:0 0 0 1px rgba(44,124,168,.14) inset">
 <div class="analyzer-title">Sequence AI V2 Duplicate <span style="font-size:10px;padding:4px 7px;border-radius:999px;background:#173c29;color:#8ff0b3;margin-left:6px">SEQUENCE ONLY</span></div>
-<div class="analyzer-sub">SEPARATE POWER DUPLICATE. Uses its own enhanced multi-window historical continuation ensemble with per-shoe vote caps, long-pattern persistence, regime awareness, conflict detection, and a stronger WAIT gate. Live P/B/T color-pattern analysis remains confirmation only and can never flip the sequence-selected side. Original Sequence AI V2 is unchanged.</div>
+<div class="analyzer-sub">SEPARATE POWER DUPLICATE. Uses its own enhanced multi-window historical continuation ensemble with per-shoe vote caps, long-pattern persistence, regime awareness, conflict detection, and a stronger WAIT gate. When Kaggle is ON, the 200,000-shoe Kaggle signal becomes additional confirmation: agreement can strengthen the Duplicate, while strong conflict can force WAIT instead of blindly flipping sides. Original Sequence AI V2 is unchanged.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Duplicate pick</span><strong id="seqDupSide">WAIT</strong></div>
 <div class="analyzer-card"><span>Duplicate confidence</span><strong id="seqDupStrength">—</strong></div>
@@ -501,7 +501,7 @@
 <div class="analyzer" id="kaggleControlPanel">
 <div class="analyzer-title">Historical Library Control</div>
 <div style="margin-top:8px"><label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer"><input id="kaggleLibraryToggle" style="width:20px;height:20px" type="checkbox"/><span>Kaggle 200,000-Shoe Library</span></label></div>
-<div id="kaggleLibraryNote" class="analyzer-sub" style="margin-top:6px">Separate historical-library signal. It does not control the Sequence AI V2 Duplicate.</div>
+<div id="kaggleLibraryNote" class="analyzer-sub" style="margin-top:6px">When ON, Kaggle becomes a separate fourth evidence source for the High-Powered Bot. Sequence AI V2 and Sequence AI V2 Duplicate remain independent.</div>
 </div>
 <div class="card-entry">
 <div class="analyzer-title">Optional Card-Rank Tracker</div>
@@ -641,6 +641,8 @@
 <input accept=".json,application/json" class="import-file" id="restoreFullBackupInput" type="file"/>
 <button class="tiny-btn" id="recoverLocalBackupBtn">Recover On-Device Backup</button>
 <button class="tiny-btn" id="verifyBackupBtn">Verify Backup</button>
+<button class="tiny-btn" id="scanCleanDuplicatesBtn">Scan / Clean Duplicates</button>
+<button class="tiny-btn" id="deleteLocalBackupBtn" style="border-color:#8b3434;color:#ffb3b3">Delete On-Device Backup</button>
 </div>
 </div>
 </div>
@@ -744,7 +746,7 @@
     Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. Displayed percentages are analysis signals only and do not guarantee a future result.
   </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
-<div class="analyzer-title">🤖 High-Powered Bot AI — 3-Signal Fusion</div>
+<div class="analyzer-title">🤖 High-Powered Bot AI — 4-Signal Fusion</div>
 <div class="bot-live-strip" id="botLiveStrip">
 <div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
 <div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
@@ -760,7 +762,7 @@
 <div class="analyzer-card"><span>Road Preview matches</span><strong id="botRoadSamples">0</strong></div>
 <div class="analyzer-card"><span>Bot verified accuracy</span><strong id="botAccuracy">—</strong></div>
 </div>
-<div class="analyzer-sub" id="botNote" style="margin-top:8px">Enter hands to activate Sequence AI V2 + Sequence Duplicate + Road Preview AI fusion.</div>
+<div class="analyzer-sub" id="botNote" style="margin-top:8px">Enter hands to activate Sequence AI V2 + Sequence Duplicate + Road Preview AI + Kaggle fusion.</div>
 <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
 <button class="tiny-btn" id="botLearningToggle">Learning: ON</button>
 <button class="tiny-btn" id="botResetStats">Reset Bot Stats</button>
@@ -1439,9 +1441,12 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
   if(!key){ if(!quiet) alert('Choose 🔴 RED SHOE or ⚫ BLACK SHOE first.'); return false; }
   if(!Array.isArray(state[key])) state[key]=[];
   const s=seq.join('');
-  const duplicate=state[key].some(x=>x.sequence===s);
-  if(duplicate){
-    if(!quiet) alert('This exact shoe is already saved in the pattern library.');
+  const duplicateIndex=state[key].findIndex(x=>x && x.sequence===s);
+  if(duplicateIndex!==-1){
+    const existing=state[key][duplicateIndex]||{};
+    const savedWhen=existing.savedAt ? new Date(existing.savedAt).toLocaleString() : 'an earlier save';
+    // Duplicate warnings are NEVER hidden, including Auto-save and screenshot saves.
+    alert(`DUPLICATE SHOE BLOCKED\n\nThis exact ${activeColorName()} shoe is already saved.\nExisting copy: #${duplicateIndex+1} • ${savedWhen}\n\nNothing new was saved and your library count did not change.`);
     return false;
   }
   state[key].push(makeShoeRecord(seq,source));
@@ -1450,6 +1455,65 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
   if(!quiet) alert(`Saved ${seq.length} hands to the ${activeColorName()} pattern library. A safety backup was also updated.`);
   return true;
 }
+
+function duplicateReportForLibrary(lib){
+  const seen=new Map(), duplicates=[];
+  (Array.isArray(lib)?lib:[]).forEach((x,i)=>{
+    const seq=String(x?.sequence||'');
+    if(!seq)return;
+    if(seen.has(seq)) duplicates.push({index:i,firstIndex:seen.get(seq),sequence:seq});
+    else seen.set(seq,i);
+  });
+  return duplicates;
+}
+function cleanExactLibraryDuplicates(){
+  const red=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[];
+  const black=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[];
+  const redDup=duplicateReportForLibrary(red), blackDup=duplicateReportForLibrary(black);
+  const total=redDup.length+blackDup.length;
+  if(!total){
+    alert(`DUPLICATE SCAN COMPLETE\n\nNo exact duplicate shoes were found.\nRED: ${red.length} shoes\nBLACK: ${black.length} shoes`);
+    return;
+  }
+  const ok=confirm(`DUPLICATE SCAN FOUND ${total} EXTRA COP${total===1?'Y':'IES'}\n\nRED duplicates: ${redDup.length}\nBLACK duplicates: ${blackDup.length}\n\nClean them now? One original copy of every exact shoe will be kept.`);
+  if(!ok)return;
+  // Preserve one pre-clean snapshot first, then replace on-device backups with a clean snapshot.
+  saveLocalLibraryBackup('pre_duplicate_cleanup');
+  const dedupe=lib=>{
+    const seen=new Set();
+    return (Array.isArray(lib)?lib:[]).filter(x=>{
+      const seq=String(x?.sequence||'');
+      if(!seq || seen.has(seq)) return false;
+      seen.add(seq);return true;
+    });
+  };
+  state.redPatternLibrary=dedupe(red);
+  state.blackPatternLibrary=dedupe(black);
+  persist();
+  localStorage.removeItem(LIBRARY_BACKUP_KEY);
+  localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);
+  saveLocalLibraryBackup('post_duplicate_cleanup_clean');
+  render();
+  alert(`CLEANUP COMPLETE\n\nRemoved ${total} duplicate shoe${total===1?'':'s'}.\nRED: ${state.redPatternLibrary.length} kept\nBLACK: ${state.blackPatternLibrary.length} kept\n\nA new clean on-device backup was created.`);
+}
+function deleteOnDeviceLibraryBackups(){
+  const b=readBestLocalLibraryBackup(),c=libraryBackupCounts(b);
+  if(!b||!c.total){
+    alert('There is no on-device library backup to delete. Your live library was not changed.');
+    return;
+  }
+  const liveRed=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary.length:0;
+  const liveBlack=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary.length:0;
+  const ok1=confirm(`DELETE ON-DEVICE BACKUP?\n\nBackup contains: ${c.red} RED + ${c.black} BLACK shoes.\nLive library contains: ${liveRed} RED + ${liveBlack} BLACK shoes.\n\nThis does NOT delete the live library.`);
+  if(!ok1)return;
+  const ok2=confirm('FINAL CONFIRMATION: Delete the current on-device safety backup AND its backup history? Your live RED/BLACK libraries will stay untouched.');
+  if(!ok2)return;
+  localStorage.removeItem(LIBRARY_BACKUP_KEY);
+  localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);
+  renderLibraryBackupStatus();
+  alert(`ON-DEVICE BACKUP DELETED\n\nLive library was NOT changed.\nRED live shoes: ${liveRed}\nBLACK live shoes: ${liveBlack}`);
+}
+
 function patternWindowsCount(){
   let n=0;
   activePatternLibrary().forEach(shoe=>{
@@ -1829,6 +1893,10 @@ if(verifyBackupBtn)verifyBackupBtn.onclick=()=>{
   const live={red:Array.isArray(state.redPatternLibrary)?state.redPatternLibrary.length:0,black:Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary.length:0};
   alert(`LIVE LIBRARY\nRED: ${live.red}\nBLACK: ${live.black}\n\nBEST ON-DEVICE BACKUP\nRED: ${c.red}\nBLACK: ${c.black}\nCreated: ${b?.createdAt||'none'}\n\nThe backup is stored separately from the live library.`);
 };
+const scanCleanDuplicatesBtn=document.getElementById('scanCleanDuplicatesBtn');
+if(scanCleanDuplicatesBtn)scanCleanDuplicatesBtn.onclick=cleanExactLibraryDuplicates;
+const deleteLocalBackupBtn=document.getElementById('deleteLocalBackupBtn');
+if(deleteLocalBackupBtn)deleteLocalBackupBtn.onclick=deleteOnDeviceLibraryBackups;
 
 
 // --- Multi-signal analyzer, optional card-rank tracker, and backtesting ---
@@ -2622,7 +2690,7 @@ function renderSequenceAI(){
 }
 
 
-function sequenceAIDuplicateSignal(){
+function sequenceAIDuplicateBaseSignal(){
   const cur=currentSequence();
   const base=sequenceAISignal(); // reference only; original Sequence AI V2 is never modified.
   const color=(typeof window.colorPatternAISignal==='function') ? window.colorPatternAISignal() : null;
@@ -2778,6 +2846,64 @@ function sequenceAIDuplicateSignal(){
 
   return {side:candidate,strength,pPct:Math.round(pr),bPct:Math.round(br),tPct:Math.round(tr),matches:rawMatches,weightedMatches:Math.round(weightedMatches*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,duplicate:true,colorConfirmation,colorMatch:color?.bestSimilarity||0,colorSide:color?.side||null,regime:{runLen,chopRate},rhythm,voteEdge,baseSide:base?.side||null,waitReason:'',sources:[{name:'power-sequence-duplicate-v2'}]};
 }
+
+function sequenceAIDuplicateSignal(){
+  // Sequence Duplicate keeps its own sequence/rhythm engine, then uses Kaggle
+  // as an additional historical confirmation source when Kaggle is enabled.
+  // Original Sequence AI V2 is not touched.
+  const base=sequenceAIDuplicateBaseSignal();
+  const kaggle=(state.kaggleLibraryEnabled!==false)
+    ? currentKaggleSignal()
+    : {side:null,strength:0,matches:0,suffixLength:0};
+
+  if(!base || !base.side){
+    return {...(base||{}),kaggleUsed:false,kaggleSide:kaggle.side||null,kaggleMatches:kaggle.matches||0};
+  }
+
+  if(!kaggle.side || (kaggle.side!=='P' && kaggle.side!=='B')){
+    return {...base,kaggleUsed:false,kaggleSide:null,kaggleMatches:kaggle.matches||0};
+  }
+
+  const matches=Math.max(0,Number(kaggle.matches)||0);
+  const suffix=Math.max(0,Number(kaggle.suffixLength)||0);
+  const kStrength=Math.max(0,Math.min(100,Number(kaggle.strength)||0));
+  const evidenceQuality=Math.min(1,.55*Math.min(1,matches/24)+.45*Math.min(1,suffix/12));
+
+  // Kaggle confirms or weakens the Duplicate; it cannot blindly overpower
+  // strong live sequence/rhythm evidence.
+  let strength=Math.max(0,Math.min(100,Number(base.strength)||0));
+  let side=base.side;
+  let kaggleEffect='NEUTRAL';
+
+  if(kaggle.side===base.side){
+    const boost=Math.round((3+7*evidenceQuality)*(kStrength/100));
+    strength=Math.min(94,strength+boost);
+    kaggleEffect='CONFIRMS';
+  }else{
+    const penalty=Math.round((4+10*evidenceQuality)*(kStrength/100));
+    strength=Math.max(0,strength-penalty);
+    kaggleEffect='CONFLICTS';
+
+    // If Kaggle strongly conflicts and the duplicate itself is not strong,
+    // return WAIT rather than flipping the prediction.
+    if(matches>=8 && evidenceQuality>=.55 && kStrength>=62 && strength<61){
+      side=null;
+    }
+  }
+
+  return {
+    ...base,
+    side,
+    strength,
+    kaggleUsed:true,
+    kaggleSide:kaggle.side,
+    kaggleStrength:kStrength,
+    kaggleMatches:matches,
+    kaggleSuffixLength:suffix,
+    kaggleEffect
+  };
+}
+
 function sequenceDuplicateMetaFeatures(){
   const s=sequenceAIDuplicateSignal();
   if(!s) return null;
@@ -3060,108 +3186,159 @@ function derivedRoadSequencePatternSignal(offset){
     return {side:null,strength:0,pPct:50,bPct:50,pMark,bMark,expected:null,matches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need more live derived-road marks and saved road history.'};
   }
 
-  const maxK=Math.min(18,cur.length);
+  // ADAPTIVE DERIVED-ROAD V3:
+  // - searches short/medium/long rolling endings
+  // - allows near-matches instead of requiring perfect equality
+  // - recent marks carry extra weight so the engine can adapt when road rhythm changes
+  // - only the single best placement from each historical shoe can vote per window
+  const maxK=Math.min(24,cur.length);
   const lengths=[];
-  for(let k=maxK;k>=3;k--){ if(k<=7 || k%2===0 || k===maxK) lengths.push(k); }
-
-  let windows=[], rawMatches=0, bestLen=0;
-  lengths.forEach(k=>{
-    const pattern=cur.slice(-k).join('');
-    const shoeVotes=[];
-    lib.forEach((shoe,shoeIndex)=>{
-      const ss=shoe.derivedRoadHistory[key]||[];
-      let r=0,b=0,hits=0;
-      for(let i=0;i+k<ss.length;i++){
-        if(ss.slice(i,i+k).join('')!==pattern) continue;
-        const nxt=ss[i+k];
-        if(nxt==='R') r++; else if(nxt==='B') b++;
-        hits++;
-      }
-      if(hits){
-        const z=r+b||1;
-        shoeVotes.push({shoeIndex,r:r/z,b:b/z,hits});
-      }
-    });
-    if(!shoeVotes.length) return;
-    const rAvg=shoeVotes.reduce((a,x)=>a+x.r,0)/shoeVotes.length;
-    const bAvg=shoeVotes.reduce((a,x)=>a+x.b,0)/shoeVotes.length;
-    const leader=rAvg>=bAvg?'R':'B';
-    const sampleQuality=Math.min(1,shoeVotes.length/8);
-    const lengthQuality=Math.min(1,k/14);
-    const persistence=Math.min(1,k/Math.max(6,cur.length));
-    const weight=(.45+.55*sampleQuality)*(1+.9*lengthQuality)*(1+.35*persistence);
-    rawMatches+=shoeVotes.length;
-    bestLen=Math.max(bestLen,k);
-    windows.push({length:k,r:rAvg,b:bAvg,leader,samples:shoeVotes.length,weight});
-  });
-
-  if(!windows.length){
-    return {side:null,strength:0,pPct:50,bPct:50,pMark,bMark,expected:null,matches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable saved derived-road sequence found.'};
+  for(let k=maxK;k>=4;k--){
+    if(k<=9 || k%2===0 || k===maxK) lengths.push(k);
   }
 
-  const leaderWeights={R:0,B:0};
-  windows.forEach(w=>leaderWeights[w.leader]+=w.weight);
-  const expected=leaderWeights.R>=leaderWeights.B?'R':'B';
+  const windows=[];
+  let rawMatches=0,bestLen=0,bestSimilarity=0;
+
+  for(const k of lengths){
+    const live=cur.slice(-k);
+    const shoeVotes=[];
+
+    for(let shoeIndex=0;shoeIndex<lib.length;shoeIndex++){
+      const ss=lib[shoeIndex].derivedRoadHistory[key]||[];
+      if(ss.length<=k) continue;
+
+      let best=null;
+      for(let pos=0;pos+k<ss.length;pos++){
+        let hit=0,max=0;
+        for(let j=0;j<k;j++){
+          const recency=.55 + 1.05*((j+1)/k);
+          max+=recency;
+          if(live[j]===ss[pos+j]) hit+=recency;
+        }
+        const sim=max?hit/max:0;
+        const floor=k>=18?.79:k>=12?.76:k>=8?.73:.70;
+        if(sim<floor) continue;
+        const next=ss[pos+k];
+        if(next!=='R' && next!=='B') continue;
+        if(!best || sim>best.sim) best={sim,next,pos};
+      }
+      if(best) shoeVotes.push(best);
+    }
+
+    if(!shoeVotes.length) continue;
+    rawMatches+=shoeVotes.length;
+    bestLen=Math.max(bestLen,k);
+    bestSimilarity=Math.max(bestSimilarity,...shoeVotes.map(v=>v.sim));
+
+    let r=0,b=0,w=0;
+    for(const v of shoeVotes){
+      const vw=Math.pow(v.sim,5)*(0.70+k/18);
+      w+=vw;
+      if(v.next==='R') r+=vw; else b+=vw;
+    }
+    if(!w) continue;
+    r/=w;b/=w;
+
+    const leader=r>=b?'R':'B';
+    const edge=Math.abs(r-b);
+    const avgSim=shoeVotes.reduce((a,v)=>a+v.sim,0)/shoeVotes.length;
+    const windowWeight=(.55+k/20)*(avgSim**3)*Math.min(1.3,.55+shoeVotes.length/8);
+    windows.push({length:k,r,b,leader,edge,samples:shoeVotes.length,weight:windowWeight,avgSim});
+  }
+
+  if(!windows.length){
+    return {side:null,strength:0,pPct:50,bPct:50,pMark,bMark,expected:null,matches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No reliable saved derived-road continuation match yet.'};
+  }
+
+  let rScore=0,bScore=0,sw=0;
+  for(const w of windows){
+    sw+=w.weight;
+    rScore+=w.r*w.weight;
+    bScore+=w.b*w.weight;
+  }
+  rScore/=sw;bScore/=sw;
+
+  const expected=rScore>=bScore?'R':'B';
   const agreeWindows=windows.filter(w=>w.leader===expected).length;
   const totalWindows=windows.length;
   const agreement=agreeWindows/totalWindows;
+  const colorEdge=Math.abs(rScore-bScore)*100;
 
-  let ar=0,ab=0,aw=0;
-  windows.forEach(w=>{
-    const persistenceBoost=w.leader===expected ? (1+.35*agreement) : .55;
-    const ww=w.weight*persistenceBoost;
-    ar+=w.r*ww; ab+=w.b*ww; aw+=ww;
-  });
-  let rPct=(ar/aw)*100, bluePct=(ab/aw)*100;
-  const z=rPct+bluePct||1; rPct=rPct/z*100; bluePct=bluePct/z*100;
-  const colorEdge=Math.abs(rPct-bluePct);
-  const avgSamples=windows.reduce((a,w)=>a+Math.min(1,w.samples/8),0)/totalWindows;
-  const lengthQuality=Math.min(1,bestLen/14);
-  const similarityScore=Math.round(100*(.48*agreement+.30*avgSamples+.22*lengthQuality));
-  const grade=similarityScore>=84&&agreement>=.72?'VERY STRONG':similarityScore>=70&&agreement>=.62?'STRONG':similarityScore>=55?'MODERATE':'LOW';
+  const avgSampleQuality=windows.reduce((a,w)=>a+Math.min(1,w.samples/10),0)/totalWindows;
+  const lengthQuality=Math.min(1,bestLen/18);
+  const similarityScore=Math.round(100*(.42*agreement+.32*bestSimilarity+.16*avgSampleQuality+.10*lengthQuality));
+  const grade=similarityScore>=86&&agreement>=.72?'VERY STRONG':similarityScore>=72&&agreement>=.62?'STRONG':similarityScore>=58?'MODERATE':'LOW';
 
-  // Map the predicted derived-road COLOR through the live preview.
-  // Never treat RED as Banker or BLUE as Player directly.
   let side=null;
   if(pMark===expected && bMark!==expected) side='P';
   else if(bMark===expected && pMark!==expected) side='B';
 
-  const mappedEdge=Math.min(36,Math.max(0,colorEdge));
+  const mappedEdge=Math.min(40,Math.max(0,colorEdge));
   let pPct=50,bPct=50;
-  if(side==='P'){ pPct=Math.round(50+mappedEdge/2); bPct=100-pPct; }
-  else if(side==='B'){ bPct=Math.round(50+mappedEdge/2); pPct=100-bPct; }
+  if(side==='P'){pPct=Math.round(50+mappedEdge/2);bPct=100-pPct;}
+  else if(side==='B'){bPct=Math.round(50+mappedEdge/2);pPct=100-bPct;}
 
-  if(!side || similarityScore<55 || agreement<.58 || colorEdge<8 || (rawMatches<3 && bestLen<7)){
+  // Stronger WAIT gate: do not force a result just because one historical match exists.
+  const enoughEvidence = rawMatches>=3 || (bestLen>=9 && bestSimilarity>=.82);
+  if(!side || !enoughEvidence || similarityScore<58 || agreement<.56 || colorEdge<7){
     return {side:null,strength:0,pPct,bPct,pMark,bMark,expected,matches:rawMatches,bestLen,similarityScore,grade,agreeWindows,totalWindows,
-      waitReason:`WAIT: ${similarityScore}% road-history similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(colorEdge)}-point color edge.`};
+      waitReason:`WAIT: ${similarityScore}% adaptive road similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(colorEdge)}-point color edge • ${rawMatches} shoe matches.`};
   }
 
-  const sampleFactor=Math.min(1,rawMatches/20);
-  const persistenceFactor=Math.min(1,bestLen/14);
-  const strength=Math.min(88,Math.round(48 + colorEdge*.20 + Math.max(0,similarityScore-50)*.38 + sampleFactor*5 + persistenceFactor*4));
-  return {side,strength,pPct,bPct,pMark,bMark,expected,matches:rawMatches,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:''};
+  const sampleFactor=Math.min(1,rawMatches/24);
+  const strength=Math.min(90,Math.round(
+    47 + colorEdge*.22 + Math.max(0,similarityScore-50)*.40 + sampleFactor*5 + agreement*4
+  ));
+  return {side,strength,pPct,bPct,pMark,bMark,expected,matches:rawMatches,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',adaptive:true};
 }
-
 function derivedRoadSequenceAI(){
   const roads=[1,2,3].map(derivedRoadSequencePatternSignal);
   const live=roads.filter(r=>r && r.side);
+
   let pWeight=0,bWeight=0,totalWeight=0;
-  live.forEach(r=>{
-    const w=Math.max(.5,(r.strength||50)/100) * Math.max(.55,(r.similarityScore||55)/100);
+  live.forEach((r,idx)=>{
+    const roadBase=idx===0?1.00:idx===1?.96:.92;
+    const strengthQ=Math.max(.50,(r.strength||50)/100);
+    const simQ=Math.max(.52,(r.similarityScore||55)/100);
+    const agreement=(r.agreeWindows||0)/Math.max(1,r.totalWindows||1);
+    const sampleQ=Math.min(1,(r.matches||0)/16);
+    const w=roadBase*strengthQ*(.55+.25*simQ+.12*agreement+.08*sampleQ);
     if(r.side==='P') pWeight+=w; else if(r.side==='B') bWeight+=w;
     totalWeight+=w;
   });
+
   const pVotes=live.filter(r=>r.side==='P').length;
   const bVotes=live.filter(r=>r.side==='B').length;
   const winner=Math.max(pVotes,bVotes);
-  let side=null;
   const edge=totalWeight?Math.abs(pWeight-bWeight)/totalWeight:0;
-  if(live.length>=2 && winner>=2 && pVotes!==bVotes && edge>=.12) side=pWeight>bWeight?'P':'B';
-  const supporters=side?live.filter(r=>r.side===side):[];
-  const confidence=supporters.length?Math.min(88,Math.round(supporters.reduce((a,r)=>a+r.strength,0)/supporters.length + Math.min(8,edge*18))):0;
-  return {side,confidence,pVotes,bVotes,winner,edge,roads,ready:roads.filter(r=>r.pMark&&r.bMark).length};
-}
 
+  let side=null;
+  if(live.length>=2 && winner>=2 && pVotes!==bVotes){
+    const majority=pVotes>bVotes?'P':'B';
+    const weighted=pWeight>bWeight?'P':'B';
+    const supporters=live.filter(r=>r.side===majority);
+    const avgSim=supporters.reduce((a,r)=>a+(r.similarityScore||0),0)/Math.max(1,supporters.length);
+    const avgStrength=supporters.reduce((a,r)=>a+(r.strength||0),0)/Math.max(1,supporters.length);
+    // Two roads may qualify only with a meaningful weighted edge and solid quality.
+    if(weighted===majority && edge>=.10 && avgSim>=60 && avgStrength>=56) side=majority;
+  }
+
+  const supporters=side?live.filter(r=>r.side===side):[];
+  const confidence=supporters.length
+    ? Math.min(91,Math.round(
+        supporters.reduce((a,r)=>a+r.strength,0)/supporters.length
+        + Math.min(7,edge*18)
+        + (supporters.length===3?3:0)
+      ))
+    : 0;
+
+  return {
+    side,confidence,pVotes,bVotes,winner,edge,roads,
+    ready:roads.filter(r=>r.pMark&&r.bMark).length,
+    adaptive:true
+  };
+}
 function renderDerivedRoadPredictions(){
   const defs=[[1,'eyeNext','eyeNextPct'],[2,'smallNext','smallNextPct'],[3,'roachNext','roachNextPct']];
   defs.forEach(([offset,sideId,pctId])=>{
@@ -3400,20 +3577,23 @@ function botHistoricalColorAdaptiveSignal(){
 function masterBotSignal(){
   ensureBotState();
 
-  // HIGH-POWERED BOT 3-SIGNAL FUSION:
-  // 1) Original Sequence AI V2 (stable historical sequence baseline)
-  // 2) Sequence AI V2 Duplicate (adaptive live-rhythm sequence specialist)
-  // 3) Road Preview AI (independent road + historical color specialist)
-  // The source AIs stay independent. This function only combines their outputs.
+  // HIGH-POWERED BOT 4-SIGNAL FUSION:
+  // 1) Original Sequence AI V2
+  // 2) Sequence AI V2 Duplicate
+  // 3) Road Preview AI
+  // 4) Kaggle 200,000-shoe historical scan when the Kaggle toggle is ON
+  // The source AIs remain independent; this function only fuses qualified outputs.
   const seq = sequenceAISignal();
   const dup = sequenceAIDuplicateSignal();
   const road = roadPreviewAISignal();
+  const kaggle = (state.kaggleLibraryEnabled!==false) ? currentKaggleSignal() : {side:null,strength:0,matches:0};
   const phase = botPhaseInfo();
 
   const signals = [
     {key:'seqv2', name:'Sequence AI V2', sig:seq, baseWeight:1.00},
     {key:'duplicate', name:'Sequence Duplicate', sig:dup, baseWeight:1.08},
-    {key:'roadpreview', name:'Road Preview AI', sig:road, baseWeight:.94}
+    {key:'roadpreview', name:'Road Preview AI', sig:road, baseWeight:.96},
+    {key:'kaggle', name:'Kaggle 200K Library', sig:kaggle, baseWeight:1.02}
   ];
 
   let pScore=0,bScore=0,totalWeight=0;
@@ -3426,9 +3606,8 @@ function masterBotSignal(){
 
     liveCount++;
     const strength=Math.max(0,Math.min(100,Number(s.strength)||0));
-    let reliability=.55 + .45*(strength/100);
+    let reliability=.54 + .46*(strength/100);
 
-    // Reward evidence quality when the source exposes it.
     if(item.key==='seqv2'){
       const sim=Math.max(0,Math.min(100,Number(s.similarityScore)||0))/100;
       const agreement=(Number(s.agreeWindows)||0)/Math.max(1,Number(s.totalWindows)||0);
@@ -3437,10 +3616,6 @@ function masterBotSignal(){
       const sim=Math.max(0,Math.min(100,Number(s.similarityScore)||0))/100;
       const agreement=(Number(s.agreeWindows)||0)/Math.max(1,Number(s.totalWindows)||0);
       reliability*=.70 + .15*sim + .15*agreement;
-
-      // Rhythm is allowed to change at any time. During a transition or high
-      // change-risk state, reduce the duplicate's influence instead of trusting
-      // the old rhythm blindly.
       const rhythm=s.rhythm||s.liveRhythm||s.rhythmState||null;
       const rhythmType=String(rhythm?.type||s.rhythmType||'').toUpperCase();
       const changeRisk=Number(rhythm?.changeRisk ?? s.changeRisk ?? 0);
@@ -3453,20 +3628,27 @@ function masterBotSignal(){
       const quality=Math.max(0,Math.min(100,Number(s.quality)||0))/100;
       const roadAgreement=(Number(s.roadsAgree)||0)/Math.max(1,Number(s.roadVotes)||0);
       reliability*=.76 + .12*quality + .12*roadAgreement;
+    }else if(item.key==='kaggle'){
+      // Kaggle only earns major influence when it has enough matching evidence.
+      const matches=Math.max(0,Number(s.matches)||0);
+      const suffix=Math.max(0,Number(s.suffixLength)||0);
+      const sampleQ=Math.min(1,matches/30);
+      const lengthQ=Math.min(1,suffix/12);
+      reliability*=.62 + .23*sampleQ + .15*lengthQ;
+      if(matches<3) reliability*=.55;
     }
 
     const weight=item.baseWeight*reliability;
     totalWeight+=weight;
     if(s.side==='P') pScore+=weight; else bScore+=weight;
 
-    candidates.push({
-      name:item.name, side:s.side, strength, weight,
-      evidence:item.key==='seqv2'
-        ? `${s.similarityScore||0}% similarity • ${s.agreeWindows||0}/${s.totalWindows||0} windows`
-        : item.key==='duplicate'
-          ? `${s.similarityScore||0}% similarity • live-rhythm adaptive`
-          : `${s.matches||0} historical matches • ${s.roadsAgree||0}/${s.roadVotes||0} road agreement`
-    });
+    let evidence='';
+    if(item.key==='seqv2') evidence=`${s.similarityScore||0}% similarity • ${s.agreeWindows||0}/${s.totalWindows||0} windows`;
+    else if(item.key==='duplicate') evidence=`${s.similarityScore||0}% similarity • live-rhythm adaptive`;
+    else if(item.key==='roadpreview') evidence=`${s.matches||0} historical matches • ${s.roadsAgree||0}/${s.roadVotes||0} road agreement`;
+    else evidence=`${s.matches||0} Kaggle matches • ${s.suffixLength||0}-hand suffix`;
+
+    candidates.push({name:item.name, side:s.side, strength, weight, evidence});
   });
 
   const pVotes=candidates.filter(x=>x.side==='P').length;
@@ -3478,19 +3660,19 @@ function masterBotSignal(){
 
   let side=null, qualified=false, reason='';
   if(liveCount<2){
-    reason=`WAIT: only ${liveCount}/3 Bot source AIs are ready.`;
+    reason=`WAIT: only ${liveCount}/4 Bot source AIs are ready.`;
   }else if(!majoritySide || majorityVotes<2){
-    reason='WAIT: Sequence AI V2, Sequence Duplicate, and Road Preview AI do not have a 2-of-3 agreement.';
+    reason='WAIT: fewer than 2 source AIs agree on the same side.';
   }else if(weightedSide!==majoritySide){
     reason='WAIT: majority vote conflicts with weighted evidence quality.';
   }else{
     const supporters=candidates.filter(x=>x.side===majoritySide);
     const avgStrength=supporters.reduce((a,x)=>a+x.strength,0)/Math.max(1,supporters.length);
-    const allThree=majorityVotes===3 && liveCount===3;
-    const minEdge=allThree?.06:.12;
+    const strongAgreement=majorityVotes>=3;
+    const minEdge=strongAgreement?.055:.11;
     const minStrength=phase.key==='55+'?58:phase.key==='40-54'?57:56;
 
-    if(edge<minEdge) reason=`WAIT: 3-signal weighted edge is only ${Math.round(edge*100)}%.`;
+    if(edge<minEdge) reason=`WAIT: 4-signal weighted edge is only ${Math.round(edge*100)}%.`;
     else if(avgStrength<minStrength) reason=`WAIT: agreeing sources average ${Math.round(avgStrength)}% strength; need ${minStrength}%.`;
     else{
       side=majoritySide;
@@ -3500,9 +3682,9 @@ function masterBotSignal(){
 
   const supporters=side?candidates.filter(x=>x.side===side):[];
   const avgStrength=supporters.length?supporters.reduce((a,x)=>a+x.strength,0)/supporters.length:0;
-  const agreementBoost=majorityVotes===3?7:majorityVotes===2?2:0;
+  const agreementBoost=majorityVotes>=4?8:majorityVotes===3?5:majorityVotes===2?2:0;
   const confidence=qualified
-    ? Math.min(92,Math.round(avgStrength + agreementBoost + Math.min(5,edge*12)))
+    ? Math.min(93,Math.round(avgStrength + agreementBoost + Math.min(5,edge*12)))
     : Math.round(avgStrength||0);
 
   const candidate=majoritySide||weightedSide;
@@ -3514,11 +3696,11 @@ function masterBotSignal(){
     roadMem:{samples:road?.matches||0},
     directLib:seq,liveRoad:road,
     agreement,total:liveCount,agree:majorityVotes,qualified,reason,
-    candidates,historicalSamples:(seq?.matches||0)+(dup?.matches||0)+(road?.matches||0),
+    candidates,historicalSamples:(seq?.matches||0)+(dup?.matches||0)+(road?.matches||0)+(kaggle?.matches||0),
     pScore:totalWeight?Math.round(pScore/totalWeight*100):0,
     bScore:totalWeight?Math.round(bScore/totalWeight*100):0,
-    seqV2:seq,sequenceDuplicate:dup,roadPreview:road,
-    fusion:'Sequence AI V2 + Sequence Duplicate + Road Preview AI'
+    seqV2:seq,sequenceDuplicate:dup,roadPreview:road,kaggle,
+    fusion:'Sequence AI V2 + Sequence Duplicate + Road Preview AI + Kaggle 200K'
   };
 }
 function settleBotPrediction(actual){
@@ -4185,14 +4367,14 @@ setInterval(scan,1800);setTimeout(scan,300);
 
     if(x.ready<2){
       agree.textContent=`Agreement: building live road previews (${x.ready}/3 ready)`;
-      conf.textContent='Sequence-logic confidence: —';
+      conf.textContent='Adaptive road confidence: —';
       return;
     }
 
     agree.textContent=`Agreement: ${x.winner} of 3 roads • Player ${x.pVotes} / Banker ${x.bVotes}`;
     conf.textContent=x.side
-      ? `Sequence-logic confidence: ${x.confidence}%`
-      : 'Sequence-logic confidence: — • WAIT / conflicting mapped continuations';
+      ? `Adaptive road confidence: ${x.confidence}%`
+      : 'Adaptive road confidence: — • WAIT / conflicting mapped continuations';
   }
 
 
