@@ -458,7 +458,7 @@
   <div id="adaptiveMainDerivedConfidence" style="margin-top:3px">Adaptive confidence: —</div>
   <div id="adaptiveMainDerivedWeights" style="margin-top:3px">Live road weights: —</div>
   <div id="adaptiveMainDerivedTestScore" style="margin-top:3px;font-weight:800;color:#8ff0b3">Test score: —</div>
-  <div style="margin-top:7px;font-size:12px;opacity:.78">SEPARATE AI. Big Eye Boy, Small Road, and Cockroach Road are each treated like their own two-side Big Road. Their RED/BLUE marks are converted only for pattern comparison, matched against saved Big Road P/B history, then mapped back through the live P/B Road Preview. The three roads are reweighted during the shoe from their recent graded performance. Sequence AI V2 and the original Derived Roads AI are not changed.</div>
+  <div style="margin-top:7px;font-size:12px;opacity:.78">SEPARATE AI. Uses the saved shoe library only to rebuild Big Road Preview history and compare what the preview looked like before each actual P/B result. It does NOT read saved Big Eye Boy, Small Road, or Cockroach Road history. Each of the three live preview channels is matched against saved Big Road Preview states/results, then reweighted during the shoe from recent graded performance. Sequence AI V2 and the original Derived Roads AI are not changed.</div>
 </div>
 
 <b>DERIVED-ROAD SEQUENCE LOGIC.</b> Each derived road is treated like its own sequence. The engine compares the live RED/BLUE ending with the same road in saved shoes using short, medium, and long rolling windows, limits duplicate influence from one shoe, rewards persistent agreement, and uses a WAIT gate when continuations conflict. The predicted next derived-road color is then mapped through the live P/B Road Preview: whichever actual result would print that color becomes that road’s Player/Banker vote. The three mapped votes are combined. RED/BLUE is never directly translated to Player/Banker.</div>
@@ -3374,8 +3374,10 @@ function derivedRoadSequenceAI(){
 }
 
 // --- ADAPTIVE DERIVED ROADS — MAIN-ROAD MODE ---
-// Treat each derived R/B road as a two-side pseudo Big Road for historical matching.
-// R is encoded as P and B(blue) as B ONLY inside the matcher; this is not a bet mapping.
+// SEPARATE AI SOURCE CONTRACT:
+//   ALLOWED: saved shoe P/B/T sequences replayed into Big Road Preview states + actual next P/B result.
+//   BLOCKED: saved derivedRoadHistory / historical Big Eye / Small / Roach mark sequences.
+// Each offset is only a LIVE preview channel. Historical training comes from Big Road Preview states/results.
 function ensureAdaptiveDerivedState(){
   if(!state.adaptiveDerivedMain||typeof state.adaptiveDerivedMain!=='object') state.adaptiveDerivedMain={pending:{},roads:{eye:{last12:[]},small:{last12:[]},roach:{last12:[]}}};
   if(!state.adaptiveDerivedMain.pending) state.adaptiveDerivedMain.pending={};
@@ -3383,54 +3385,91 @@ function ensureAdaptiveDerivedState(){
   ['eye','small','roach'].forEach(k=>{if(!state.adaptiveDerivedMain.roads[k])state.adaptiveDerivedMain.roads[k]={last12:[]};if(!Array.isArray(state.adaptiveDerivedMain.roads[k].last12))state.adaptiveDerivedMain.roads[k].last12=[];});
   return state.adaptiveDerivedMain;
 }
+function previewHistoryToken(hands,offset){
+  const p=previewDerivedMark(hands,'P',offset), b=previewDerivedMark(hands,'B',offset);
+  if(!p||!b) return null;
+  // This is a Big Road Preview STATE: what P would print vs what B would print.
+  // It is not saved derived-road history.
+  return `${p}${b}`;
+}
+function replayBigRoadPreviewHistory(seq,offset){
+  const raw=String(seq||'').toUpperCase().replace(/[^PBT]/g,'').split('');
+  const hands=[] , rows=[];
+  for(let i=0;i<raw.length;i++){
+    const actual=raw[i];
+    if(actual==='T'){hands.push({r:'T'});continue;}
+    const token=previewHistoryToken(hands,offset);
+    if(token) rows.push({token,actual,hand:i+1});
+    hands.push({r:actual});
+  }
+  return rows;
+}
+function currentBigRoadPreviewHistory(offset){
+  const seq=currentSequence();
+  const hands=[] , rows=[];
+  for(let i=0;i<seq.length;i++){
+    const actual=seq[i];
+    if(actual==='T'){hands.push({r:'T'});continue;}
+    const token=previewHistoryToken(hands,offset);
+    if(token) rows.push({token,actual,hand:i+1});
+    hands.push({r:actual});
+  }
+  return rows;
+}
 function pseudoMainHistorySignal(offset){
-  const marks=deriveRoad(state.hands,offset);
   const pMark=previewDerivedMark(state.hands,'P',offset), bMark=previewDerivedMark(state.hands,'B',offset);
-  if(marks.length<4 || !pMark || !bMark || pMark===bMark) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches:0,bestLen:0,quality:0};
-  const pseudo=marks.map(x=>x==='R'?'P':'B');
+  const currentToken=previewHistoryToken(state.hands,offset);
+  const curRows=currentBigRoadPreviewHistory(offset);
   const lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=6);
-  if(!lib.length) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches:0,bestLen:0,quality:0};
-  const lens=[18,14,10,7,5,4].filter(k=>k<=pseudo.length);
+  if(!pMark||!bMark||!currentToken||curRows.length<3||!lib.length)
+    return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches:0,bestLen:0,quality:0,source:'BIG_ROAD_PREVIEW_ONLY'};
+
+  // Match recent Big Road Preview STATE history. Actual P/B outcomes are used only as the
+  // supervised continuation/result. Saved derived-road arrays are never read here.
+  const maxK=Math.min(14,curRows.length);
+  const lens=[12,10,8,6,5,4,3].filter(k=>k<=maxK);
   let pW=0,bW=0,matches=0,bestLen=0,bestSim=0;
   const windows=[];
   for(const k of lens){
-    const target=pseudo.slice(-k); let kp=0,kb=0,km=0,kw=0;
-    const threshold=k>=14?.76:k>=10?.79:k>=7?.82:.88;
+    const target=curRows.slice(-k).map(r=>r.token);
+    let kp=0,kb=0,km=0,kw=0;
+    const threshold=k>=10?.76:k>=6?.80:.86;
     for(let si=0;si<lib.length;si++){
-      const hist=lib[si].sequence.split('').filter(x=>x==='P'||x==='B');
-      if(hist.length<=k) continue;
+      const rows=replayBigRoadPreviewHistory(lib[si].sequence,offset);
+      if(rows.length<=k) continue;
       let best=null;
-      for(let pos=0;pos+k<hist.length;pos++){
-        let same=0;
-        for(let j=0;j<k;j++) if(hist[pos+j]===target[j]) same++;
-        const sim=same/k;
+      for(let pos=0;pos+k<rows.length;pos++){
+        let hit=0,max=0;
+        for(let j=0;j<k;j++){
+          const rec=.70+.60*((j+1)/k); max+=rec;
+          if(rows[pos+j].token===target[j]) hit+=rec;
+        }
+        const sim=max?hit/max:0;
         if(sim<threshold) continue;
-        const next=hist[pos+k]; if(next!=='P'&&next!=='B') continue;
+        const next=rows[pos+k]?.actual;
+        if(next!=='P'&&next!=='B') continue;
+        // Prefer the best placement per saved shoe/window so one shoe cannot flood votes.
         if(!best||sim>best.sim) best={sim,next};
       }
       if(best){
-        const w=Math.pow(k,1.35)*Math.pow(best.sim,4); km++;kw+=w;matches++;bestLen=Math.max(bestLen,k);bestSim=Math.max(bestSim,best.sim);
+        const w=Math.pow(k,1.20)*Math.pow(best.sim,5);
+        km++;kw+=w;matches++;bestLen=Math.max(bestLen,k);bestSim=Math.max(bestSim,best.sim);
         if(best.next==='P'){kp+=w;pW+=w}else{kb+=w;bW+=w}
       }
     }
     if(km) windows.push({k,leader:kp>=kb?'P':'B',edge:Math.abs(kp-kb)/(kp+kb||1),samples:km,weight:kw});
   }
   const total=pW+bW;
-  if(!total||!windows.length) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches,bestLen,quality:0};
-  const expectedPseudo=pW>=bW?'P':'B';
-  const expected=expectedPseudo==='P'?'R':'B';
-  let side=null;
-  if(pMark===expected&&bMark!==expected) side='P'; else if(bMark===expected&&pMark!==expected) side='B';
-  const pseudoEdge=Math.abs(pW-bW)/total;
-  const agree=windows.filter(w=>w.leader===expectedPseudo).length/windows.length;
-  const sampleQ=Math.min(1,matches/18), lenQ=Math.min(1,bestLen/14);
-  const quality=Math.round(100*(.36*agree+.30*bestSim+.18*sampleQ+.16*lenQ));
-  let pPct=50,bPct=50;
-  const mapped=Math.min(22,Math.round(pseudoEdge*30));
-  if(side==='P'){pPct=50+mapped;bPct=50-mapped}else if(side==='B'){bPct=50+mapped;pPct=50-mapped}
-  if(!side||matches<3||quality<54||pseudoEdge<.08) side=null;
-  const strength=side?Math.min(90,Math.round(48+quality*.27+pseudoEdge*18+Math.min(5,matches/7))):0;
-  return {side,strength,pPct,bPct,expected,pMark,bMark,matches,bestLen,quality,bestSimilarity:Math.round(bestSim*100),windowAgreement:agree};
+  if(!total||!windows.length) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches,bestLen,quality:0,source:'BIG_ROAD_PREVIEW_ONLY'};
+  let side=pW>=bW?'P':'B';
+  const pbEdge=Math.abs(pW-bW)/total;
+  const agree=windows.filter(w=>w.leader===side).length/windows.length;
+  const sampleQ=Math.min(1,matches/20),lenQ=Math.min(1,bestLen/12);
+  const quality=Math.round(100*(.38*agree+.30*bestSim+.18*sampleQ+.14*lenQ));
+  let pPct=Math.round(100*pW/total), bPct=100-Math.round(100*pW/total);
+  if(matches<3||quality<55||pbEdge<.08||agree<.50) side=null;
+  const strength=side?Math.min(91,Math.round(49+quality*.28+pbEdge*18+Math.min(5,matches/8))):0;
+  return {side,strength,pPct,bPct,expected:side,pMark,bMark,matches,bestLen,quality,bestSimilarity:Math.round(bestSim*100),windowAgreement:agree,currentToken,source:'BIG_ROAD_PREVIEW_ONLY'};
 }
 function adaptiveRoadReliability(key){
   const st=ensureAdaptiveDerivedState().roads[key];
@@ -3477,8 +3516,8 @@ function formatDerivedTestScore(key){
 function renderAdaptiveDerivedMain(){
   const x=adaptiveDerivedMainSignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
   set('adaptiveMainDerivedPrediction','Prediction: '+(x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT'));
-  set('adaptiveMainDerivedAgreement',x.ready<2?`Agreement: building pseudo-main roads (${x.ready}/3 ready)`:`Agreement: ${x.winner} of 3 roads • Player ${x.pVotes} / Banker ${x.bVotes}`);
-  set('adaptiveMainDerivedConfidence',x.side?`Adaptive confidence: ${x.confidence}%`:'Adaptive confidence: — • WAIT / conflicting Big Road-history continuations');
+  set('adaptiveMainDerivedAgreement',x.ready<2?`Agreement: building Big Road Preview history (${x.ready}/3 ready)`:`Agreement: ${x.winner} of 3 roads • Player ${x.pVotes} / Banker ${x.bVotes}`);
+  set('adaptiveMainDerivedConfidence',x.side?`Adaptive confidence: ${x.confidence}%`:'Adaptive confidence: — • WAIT / conflicting Big Road Preview continuations');
   const w=x.roads.map(r=>`${r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach'} ${Math.round(r.reliability*100)}%`).join(' • ');
   set('adaptiveMainDerivedWeights','Live road weights: '+w);
   set('adaptiveMainDerivedTestScore',formatDerivedTestScore('derivedmain'));
