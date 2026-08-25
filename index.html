@@ -445,8 +445,20 @@
   <div style="font-weight:800;font-size:18px;margin-bottom:8px">INDEPENDENT DERIVED ROAD AI</div>
   <div id="derivedIndependentPrediction" style="font-size:26px;font-weight:900">Prediction: WAIT</div>
   <div id="derivedIndependentAgreement" style="margin-top:5px">Agreement: waiting for enough road-rule output</div>
-  <div id="derivedIndependentConfidence" style="margin-top:3px">Rule confidence: —</div>
-  <div style="margin-top:7px;font-size:12px;opacity:.78">Source: Big Eye Boy + Small Road + Cockroach Road histories mapped through the live Road Preview. Each derived road uses Sequence AI V2-style rolling historical matching to estimate its next RED/BLUE mark, then tests whether PLAYER or BANKER would create that mark on the live preview. RED/BLUE never directly means Player/Banker.</div>
+  <div id="derivedIndependentConfidence" style="margin-top:3px">Adaptive confidence: —</div>
+  <div id="derivedIndependentWeights" style="margin-top:3px">Live road weights: —</div>
+  <div id="derivedIndependentTestScore" style="margin-top:3px;font-weight:800;color:#8ff0b3">Test score: —</div>
+  <div style="margin-top:7px;font-size:12px;opacity:.78">Source: Big Eye Boy + Small Road + Cockroach Road histories mapped through the live Road Preview. Each derived road uses Sequence AI V2-style rolling historical matching to estimate its next RED/BLUE mark, then tests whether PLAYER or BANKER would create that mark on the live preview. During the shoe, each road is independently reweighted from its recent graded hits/misses, so the AI can shift away from a road that stops tracking well. RED/BLUE never directly means Player/Banker.</div>
+</div>
+
+<div id="adaptiveMainDerivedFinal" style="margin-top:14px;padding:16px;border:2px solid #31b7ff;border-radius:14px;background:rgba(49,183,255,.08)">
+  <div style="font-weight:800;font-size:18px;margin-bottom:8px">ADAPTIVE DERIVED ROADS — MAIN-ROAD MODE</div>
+  <div id="adaptiveMainDerivedPrediction" style="font-size:26px;font-weight:900">Prediction: WAIT</div>
+  <div id="adaptiveMainDerivedAgreement" style="margin-top:5px">Agreement: building pseudo-main-road history</div>
+  <div id="adaptiveMainDerivedConfidence" style="margin-top:3px">Adaptive confidence: —</div>
+  <div id="adaptiveMainDerivedWeights" style="margin-top:3px">Live road weights: —</div>
+  <div id="adaptiveMainDerivedTestScore" style="margin-top:3px;font-weight:800;color:#8ff0b3">Test score: —</div>
+  <div style="margin-top:7px;font-size:12px;opacity:.78">SEPARATE AI. Big Eye Boy, Small Road, and Cockroach Road are each treated like their own two-side Big Road. Their RED/BLUE marks are converted only for pattern comparison, matched against saved Big Road P/B history, then mapped back through the live P/B Road Preview. The three roads are reweighted during the shoe from their recent graded performance. Sequence AI V2 and the original Derived Roads AI are not changed.</div>
 </div>
 
 <b>DERIVED-ROAD SEQUENCE LOGIC.</b> Each derived road is treated like its own sequence. The engine compares the live RED/BLUE ending with the same road in saved shoes using short, medium, and long rolling windows, limits duplicate influence from one shoe, rewards persistent agreement, and uses a WAIT gate when continuations conflict. The predicted next derived-road color is then mapped through the live P/B Road Preview: whichever actual result would print that color becomes that road’s Player/Banker vote. The three mapped votes are combined. RED/BLUE is never directly translated to Player/Banker.</div>
@@ -3292,18 +3304,39 @@ function derivedRoadSequencePatternSignal(offset){
   ));
   return {side,strength,pPct,bPct,pMark,bMark,expected,matches:rawMatches,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',adaptive:true};
 }
+function ensureAdaptiveOriginalDerivedState(){
+  if(!state.adaptiveDerivedOriginal||typeof state.adaptiveDerivedOriginal!=='object') state.adaptiveDerivedOriginal={pending:{},roads:{eye:{last12:[]},small:{last12:[]},roach:{last12:[]}}};
+  if(!state.adaptiveDerivedOriginal.pending) state.adaptiveDerivedOriginal.pending={};
+  if(!state.adaptiveDerivedOriginal.roads) state.adaptiveDerivedOriginal.roads={};
+  ['eye','small','roach'].forEach(k=>{if(!state.adaptiveDerivedOriginal.roads[k])state.adaptiveDerivedOriginal.roads[k]={last12:[]};if(!Array.isArray(state.adaptiveDerivedOriginal.roads[k].last12))state.adaptiveDerivedOriginal.roads[k].last12=[];});
+  return state.adaptiveDerivedOriginal;
+}
+function originalDerivedRoadReliability(key){
+  const a=ensureAdaptiveOriginalDerivedState().roads[key].last12||[]; if(!a.length)return .50;
+  const rate=a.reduce((x,y)=>x+y,0)/a.length,shrink=a.length/(a.length+6); return .50+(rate-.50)*shrink;
+}
+function armAdaptiveOriginalDerivedRoads(){
+  const st=ensureAdaptiveOriginalDerivedState();st.pending={};
+  [['eye',1],['small',2],['roach',3]].forEach(([key,off])=>{const x=derivedRoadSequencePatternSignal(off);if(x.side==='P'||x.side==='B')st.pending[key]={side:x.side,hand:currentSequence().length+1};});persist();
+}
+function settleAdaptiveOriginalDerivedRoads(actual){
+  if(actual!=='P'&&actual!=='B')return;const st=ensureAdaptiveOriginalDerivedState();
+  ['eye','small','roach'].forEach(key=>{const p=st.pending[key];if(!p)return;const r=st.roads[key];r.last12.push(p.side===actual?1:0);if(r.last12.length>12)r.last12=r.last12.slice(-12);delete st.pending[key];});persist();
+}
 function derivedRoadSequenceAI(){
-  const roads=[1,2,3].map(derivedRoadSequencePatternSignal);
+  const defs=[['eye',1,1.00],['small',2,.96],['roach',3,.92]];
+  const roads=defs.map(([key,offset,roadBase])=>{const r=derivedRoadSequencePatternSignal(offset);return {...r,key,offset,roadBase,reliability:originalDerivedRoadReliability(key)}});
   const live=roads.filter(r=>r && r.side);
 
   let pWeight=0,bWeight=0,totalWeight=0;
-  live.forEach((r,idx)=>{
-    const roadBase=idx===0?1.00:idx===1?.96:.92;
+  live.forEach((r)=>{
     const strengthQ=Math.max(.50,(r.strength||50)/100);
     const simQ=Math.max(.52,(r.similarityScore||55)/100);
     const agreement=(r.agreeWindows||0)/Math.max(1,r.totalWindows||1);
     const sampleQ=Math.min(1,(r.matches||0)/16);
-    const w=roadBase*strengthQ*(.55+.25*simQ+.12*agreement+.08*sampleQ);
+    const liveTrust=.72+.56*r.reliability;
+    const w=r.roadBase*liveTrust*strengthQ*(.55+.25*simQ+.12*agreement+.08*sampleQ);
+    r.liveWeight=w;
     if(r.side==='P') pWeight+=w; else if(r.side==='B') bWeight+=w;
     totalWeight+=w;
   });
@@ -3339,6 +3372,119 @@ function derivedRoadSequenceAI(){
     adaptive:true
   };
 }
+
+// --- ADAPTIVE DERIVED ROADS — MAIN-ROAD MODE ---
+// Treat each derived R/B road as a two-side pseudo Big Road for historical matching.
+// R is encoded as P and B(blue) as B ONLY inside the matcher; this is not a bet mapping.
+function ensureAdaptiveDerivedState(){
+  if(!state.adaptiveDerivedMain||typeof state.adaptiveDerivedMain!=='object') state.adaptiveDerivedMain={pending:{},roads:{eye:{last12:[]},small:{last12:[]},roach:{last12:[]}}};
+  if(!state.adaptiveDerivedMain.pending) state.adaptiveDerivedMain.pending={};
+  if(!state.adaptiveDerivedMain.roads) state.adaptiveDerivedMain.roads={};
+  ['eye','small','roach'].forEach(k=>{if(!state.adaptiveDerivedMain.roads[k])state.adaptiveDerivedMain.roads[k]={last12:[]};if(!Array.isArray(state.adaptiveDerivedMain.roads[k].last12))state.adaptiveDerivedMain.roads[k].last12=[];});
+  return state.adaptiveDerivedMain;
+}
+function pseudoMainHistorySignal(offset){
+  const marks=deriveRoad(state.hands,offset);
+  const pMark=previewDerivedMark(state.hands,'P',offset), bMark=previewDerivedMark(state.hands,'B',offset);
+  if(marks.length<4 || !pMark || !bMark || pMark===bMark) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches:0,bestLen:0,quality:0};
+  const pseudo=marks.map(x=>x==='R'?'P':'B');
+  const lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=6);
+  if(!lib.length) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches:0,bestLen:0,quality:0};
+  const lens=[18,14,10,7,5,4].filter(k=>k<=pseudo.length);
+  let pW=0,bW=0,matches=0,bestLen=0,bestSim=0;
+  const windows=[];
+  for(const k of lens){
+    const target=pseudo.slice(-k); let kp=0,kb=0,km=0,kw=0;
+    const threshold=k>=14?.76:k>=10?.79:k>=7?.82:.88;
+    for(let si=0;si<lib.length;si++){
+      const hist=lib[si].sequence.split('').filter(x=>x==='P'||x==='B');
+      if(hist.length<=k) continue;
+      let best=null;
+      for(let pos=0;pos+k<hist.length;pos++){
+        let same=0;
+        for(let j=0;j<k;j++) if(hist[pos+j]===target[j]) same++;
+        const sim=same/k;
+        if(sim<threshold) continue;
+        const next=hist[pos+k]; if(next!=='P'&&next!=='B') continue;
+        if(!best||sim>best.sim) best={sim,next};
+      }
+      if(best){
+        const w=Math.pow(k,1.35)*Math.pow(best.sim,4); km++;kw+=w;matches++;bestLen=Math.max(bestLen,k);bestSim=Math.max(bestSim,best.sim);
+        if(best.next==='P'){kp+=w;pW+=w}else{kb+=w;bW+=w}
+      }
+    }
+    if(km) windows.push({k,leader:kp>=kb?'P':'B',edge:Math.abs(kp-kb)/(kp+kb||1),samples:km,weight:kw});
+  }
+  const total=pW+bW;
+  if(!total||!windows.length) return {side:null,strength:0,pPct:50,bPct:50,expected:null,pMark,bMark,matches,bestLen,quality:0};
+  const expectedPseudo=pW>=bW?'P':'B';
+  const expected=expectedPseudo==='P'?'R':'B';
+  let side=null;
+  if(pMark===expected&&bMark!==expected) side='P'; else if(bMark===expected&&pMark!==expected) side='B';
+  const pseudoEdge=Math.abs(pW-bW)/total;
+  const agree=windows.filter(w=>w.leader===expectedPseudo).length/windows.length;
+  const sampleQ=Math.min(1,matches/18), lenQ=Math.min(1,bestLen/14);
+  const quality=Math.round(100*(.36*agree+.30*bestSim+.18*sampleQ+.16*lenQ));
+  let pPct=50,bPct=50;
+  const mapped=Math.min(22,Math.round(pseudoEdge*30));
+  if(side==='P'){pPct=50+mapped;bPct=50-mapped}else if(side==='B'){bPct=50+mapped;pPct=50-mapped}
+  if(!side||matches<3||quality<54||pseudoEdge<.08) side=null;
+  const strength=side?Math.min(90,Math.round(48+quality*.27+pseudoEdge*18+Math.min(5,matches/7))):0;
+  return {side,strength,pPct,bPct,expected,pMark,bMark,matches,bestLen,quality,bestSimilarity:Math.round(bestSim*100),windowAgreement:agree};
+}
+function adaptiveRoadReliability(key){
+  const st=ensureAdaptiveDerivedState().roads[key];
+  const a=st.last12||[];
+  if(!a.length) return .50;
+  const rate=a.reduce((x,y)=>x+y,0)/a.length;
+  // Conservative shrinkage toward 50% so tiny samples never dominate.
+  const shrink=a.length/(a.length+6);
+  return .50+(rate-.50)*shrink;
+}
+function adaptiveDerivedMainSignal(){
+  const defs=[['eye',1,1.00],['small',2,.96],['roach',3,.92]];
+  const roads=defs.map(([key,offset,base])=>{const x=pseudoMainHistorySignal(offset);const rel=adaptiveRoadReliability(key);const w=base*(.70+.60*rel)*(.65+.35*Math.max(.5,(x.quality||50)/100));return {...x,key,offset,reliability:rel,weight:w};});
+  const live=roads.filter(x=>x.side);
+  let p=0,b=0,total=0;
+  live.forEach(x=>{const edge=Math.max(.04,(x.strength-50)/50);const v=x.weight*edge;if(x.side==='P')p+=v;else b+=v;total+=v;});
+  const pVotes=live.filter(x=>x.side==='P').length,bVotes=live.filter(x=>x.side==='B').length;
+  const winner=Math.max(pVotes,bVotes); const edge=total?Math.abs(p-b)/total:0;
+  let side=null;
+  if(live.length>=2&&winner>=2&&pVotes!==bVotes&&edge>=.10) side=p>b?'P':'B';
+  const supporters=side?live.filter(x=>x.side===side):[];
+  const confidence=supporters.length?Math.min(91,Math.round(supporters.reduce((a,x)=>a+x.strength,0)/supporters.length+edge*8+(supporters.length===3?2:0))):0;
+  return {side,strength:confidence,confidence,pVotes,bVotes,winner,edge,roads,ready:roads.filter(x=>x.pMark&&x.bMark).length,adaptive:true};
+}
+function armAdaptiveDerivedRoads(){
+  const st=ensureAdaptiveDerivedState(); st.pending={};
+  [['eye',1],['small',2],['roach',3]].forEach(([key,off])=>{const x=pseudoMainHistorySignal(off);if(x.side==='P'||x.side==='B')st.pending[key]={side:x.side,hand:currentSequence().length+1};});
+  persist();
+}
+function settleAdaptiveDerivedRoads(actual){
+  if(actual!=='P'&&actual!=='B') return;
+  const st=ensureAdaptiveDerivedState();
+  ['eye','small','roach'].forEach(key=>{const p=st.pending[key];if(!p)return;const r=st.roads[key];r.last12.push(p.side===actual?1:0);if(r.last12.length>12)r.last12=r.last12.slice(-12);delete st.pending[key];});
+  persist();
+}
+function verifiedModelRate(key){
+  try{const m=ensureAccuracy().models[key];return m&&m.predictions?{rate:Math.round(100*m.wins/m.predictions),wins:m.wins||0,losses:m.losses||0,n:m.predictions||0,last10:m.last10||[]}:null}catch(e){return null}
+}
+function formatDerivedTestScore(key){
+  const m=verifiedModelRate(key); if(!m)return 'Test score: — (0 graded)';
+  const r=m.last10.length?Math.round(100*m.last10.reduce((a,b)=>a+b,0)/m.last10.length):null;
+  return `Test score: ${m.rate}% • ${m.wins}W–${m.losses}L • N=${m.n}${r==null?'':` • last 10 ${r}%`}`;
+}
+function renderAdaptiveDerivedMain(){
+  const x=adaptiveDerivedMainSignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('adaptiveMainDerivedPrediction','Prediction: '+(x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT'));
+  set('adaptiveMainDerivedAgreement',x.ready<2?`Agreement: building pseudo-main roads (${x.ready}/3 ready)`:`Agreement: ${x.winner} of 3 roads • Player ${x.pVotes} / Banker ${x.bVotes}`);
+  set('adaptiveMainDerivedConfidence',x.side?`Adaptive confidence: ${x.confidence}%`:'Adaptive confidence: — • WAIT / conflicting Big Road-history continuations');
+  const w=x.roads.map(r=>`${r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach'} ${Math.round(r.reliability*100)}%`).join(' • ');
+  set('adaptiveMainDerivedWeights','Live road weights: '+w);
+  set('adaptiveMainDerivedTestScore',formatDerivedTestScore('derivedmain'));
+  set('derivedIndependentTestScore',formatDerivedTestScore('derivedorig'));
+}
+
 function renderDerivedRoadPredictions(){
   const defs=[[1,'eyeNext','eyeNextPct'],[2,'smallNext','smallNextPct'],[3,'roachNext','roachNextPct']];
   defs.forEach(([offset,sideId,pctId])=>{
@@ -4372,9 +4518,14 @@ setInterval(scan,1800);setTimeout(scan,300);
     }
 
     agree.textContent=`Agreement: ${x.winner} of 3 roads • Player ${x.pVotes} / Banker ${x.bVotes}`;
+    const wt=document.getElementById('derivedIndependentWeights');
+    if(wt) wt.textContent='Live road weights: '+x.roads.map(r=>`${r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach'} ${Math.round((r.reliability??.5)*100)}%`).join(' • ');
     conf.textContent=x.side
       ? `Adaptive road confidence: ${x.confidence}%`
       : 'Adaptive road confidence: — • WAIT / conflicting mapped continuations';
+    const ts=document.getElementById('derivedIndependentTestScore');
+    if(ts && typeof formatDerivedTestScore==='function') ts.textContent=formatDerivedTestScore('derivedorig');
+    if(typeof renderAdaptiveDerivedMain==='function') renderAdaptiveDerivedMain();
   }
 
 
@@ -4474,6 +4625,8 @@ setInterval(scan,1800);setTimeout(scan,300);
     ['seqv2','Sequence AI V2',()=>sequenceAISignal()],
     ['color','Color Pattern AI',()=>colorPatternAISignal()],
     ['roadpreview','Road Preview AI',()=>roadPreviewAISignal()],
+    ['derivedorig','Derived Road AI',()=>{const x=derivedRoadSequenceAI();return {side:x.side,strength:x.confidence||0}}],
+    ['derivedmain','Adaptive Derived Roads — Main-Road Mode',()=>adaptiveDerivedMainSignal()],
     ['seqdup','Sequence AI V2 Duplicate',()=>sequenceAIDuplicateSignal()],
     ['consensus','AI Consensus',()=>consensusSignal()],
     ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal();return {side:x.qualified?x.side:null,strength:x.confidence||0}}],
@@ -4528,13 +4681,15 @@ setInterval(scan,1800);setTimeout(scan,300);
   // Capture runs before the app's existing result handlers, so the ledger is settled before the new result is pushed.
   document.querySelectorAll('[data-result]').forEach(btn=>btn.addEventListener('click',e=>{settleVerifiedPredictions(btn.dataset.result);setTimeout(()=>{renderColorPatternAI();armVerifiedPredictions();},120);setTimeout(armVerifiedPredictions,1400);},true));
   ['previewP','previewB'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>{settleVerifiedPredictions(id==='previewP'?'P':'B');setTimeout(()=>{renderColorPatternAI();armVerifiedPredictions();},120);setTimeout(armVerifiedPredictions,1400);},true));
+  document.querySelectorAll('[data-result]').forEach(btn=>btn.addEventListener('click',()=>{settleAdaptiveDerivedRoads(btn.dataset.result);settleAdaptiveOriginalDerivedRoads(btn.dataset.result);setTimeout(()=>{armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();renderAdaptiveDerivedMain();},160);},true));
+  ['previewP','previewB'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>{const actual=id==='previewP'?'P':'B';settleAdaptiveDerivedRoads(actual);settleAdaptiveOriginalDerivedRoads(actual);setTimeout(()=>{armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();renderAdaptiveDerivedMain();},160);},true));
   document.getElementById('clearBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};persist();renderColorPatternAI();renderVerifiedAccuracy();},150),true);
   document.getElementById('undoBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};persist();renderColorPatternAI();armVerifiedPredictions();},150),true);
 
   // Keep the new panels current even when existing render() is called by imports/scans/settings.
   const oldRender=window.render;
-  if(typeof oldRender==='function') window.render=function(){const r=oldRender.apply(this,arguments);try{renderColorPatternAI();renderVerifiedAccuracy()}catch(e){}return r};
-  ensureAccuracy();renderColorPatternAI();renderVerifiedAccuracy();setTimeout(armVerifiedPredictions,500);setTimeout(armVerifiedPredictions,1800);
+  if(typeof oldRender==='function') window.render=function(){const r=oldRender.apply(this,arguments);try{renderColorPatternAI();renderVerifiedAccuracy();renderAdaptiveDerivedMain()}catch(e){}return r};
+  ensureAccuracy();ensureAdaptiveDerivedState();ensureAdaptiveOriginalDerivedState();renderColorPatternAI();renderVerifiedAccuracy();renderAdaptiveDerivedMain();setTimeout(()=>{armVerifiedPredictions();armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();},500);setTimeout(()=>{armVerifiedPredictions();armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();},1800);
 })();
 </script>
 </body>
