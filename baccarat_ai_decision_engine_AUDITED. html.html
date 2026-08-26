@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Baccarat AI Decision Engine</title>
+<style>
+:root{
+  --bg:#0b0f14;--panel:#121923;--panel2:#182230;--text:#eef3f8;--muted:#9eb0c2;
+  --banker:#ff5d5d;--player:#4d8dff;--tie:#42c98b;--wait:#f4c95d;--line:#263548;
+  --good:#54d39d;--bad:#ff7b7b;
+}
+*{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#081018,#0b0f14 35%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:18px 14px 40px}
+h1{font-size:26px;margin:0 0 4px}.sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.card{background:rgba(18,25,35,.96);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.18)}
+.span12{grid-column:span 12}.span8{grid-column:span 8}.span6{grid-column:span 6}.span4{grid-column:span 4}
+@media(max-width:850px){.span8,.span6,.span4{grid-column:span 12}}
+.title{font-weight:800;font-size:14px;letter-spacing:.2px;margin-bottom:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{border:0;border-radius:11px;padding:12px 16px;font-weight:800;color:#fff;cursor:pointer;font-size:14px}
+button:active{transform:translateY(1px)} .b{background:var(--banker)} .p{background:var(--player)} .t{background:var(--tie)}
+.secondary{background:#273447;color:#dfe9f3}.danger{background:#5b2630}
+.outcome{font-size:28px;font-weight:900}.banker{color:var(--banker)}.player{color:var(--player)}.tie{color:var(--tie)}.wait{color:var(--wait)}
+.metric{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #1e2b3a}.metric:last-child{border-bottom:0}
+.label{color:var(--muted)} .val{font-weight:800}
+.models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media(max-width:650px){.models{grid-template-columns:1fr}}
+.model{background:var(--panel2);border:1px solid #2a3a4f;border-radius:12px;padding:12px}
+.modelHead{display:flex;justify-content:space-between;gap:10px;margin-bottom:8px}.modelName{font-weight:900}
+.bar{height:8px;background:#243143;border-radius:999px;overflow:hidden}.fill{height:100%;background:#7aa7ff}
+.small{font-size:12px;color:var(--muted)} .history{display:flex;gap:5px;flex-wrap:wrap;min-height:34px}
+.dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900}
+.dot.b{background:var(--banker)}.dot.p{background:var(--player)}.dot.t{background:var(--tie)}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px;border-bottom:1px solid #243143;text-align:left}th{color:var(--muted)}
+.notice{font-size:12px;color:#b7c6d5;line-height:1.45}
+.badge{display:inline-block;border:1px solid #33485f;background:#192536;border-radius:999px;padding:4px 8px;font-size:11px;color:#c9d8e8}
+.bigDecision{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.conf{font-size:14px;color:var(--muted)}.conf strong{color:var(--text);font-size:18px}
+textarea{width:100%;min-height:90px;background:#0d141d;color:#eaf1f7;border:1px solid #2a3a4f;border-radius:10px;padding:10px}
+input[type=range]{width:100%}
+
+.roadWrap{overflow:auto;background:#0c131c;border:1px solid #223246;border-radius:12px;padding:8px}
+.roadGrid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(6,28px);grid-auto-columns:28px;gap:2px;min-width:max-content}
+.roadCell{width:28px;height:28px;border:1px solid #203044;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.roadMark{width:20px;height:20px;border-radius:50%;border:3px solid currentColor;background:transparent;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900}
+.roadMark.banker{color:var(--banker)} .roadMark.player{color:var(--player)}
+.roadMark.tie{color:var(--tie);border-style:dashed}
+.derivedMark{width:16px;height:16px;border-radius:50%}
+.derivedMark.red{background:#ff5d5d}.derivedMark.blue{background:#4d8dff}
+.roadSectionTitle{font-size:12px;font-weight:900;color:#dce7f2;margin:8px 0 6px}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Baccarat AI Decision Engine</h1>
+  <div class="sub">Standalone model • independent predictors • adaptive weighting • verified prediction log • WAIT/NO BET controller • Audited Roads Build</div>
+
+  <div class="grid">
+    <section class="card span12">
+      <div class="title">LIVE HAND INPUT</div>
+      <div class="row">
+        <button class="b" onclick="addResult('B')">BANKER</button>
+        <button class="p" onclick="addResult('P')">PLAYER</button>
+        <button class="t" onclick="addResult('T')">TIE</button>
+        <button class="secondary" onclick="undo()">UNDO</button>
+        <button class="danger" onclick="resetShoe()">NEW SHOE</button>
+      </div>
+      <div class="small" style="margin-top:9px">Enter each completed hand only after the result is known. The prediction shown beforehand is then scored automatically.</div>
+    </section>
+
+    <section class="card span8">
+      <div class="title">FINAL CONTROLLER</div>
+      <div class="bigDecision">
+        <div>
+          <div class="small">NEXT DECISION</div>
+          <div id="finalPick" class="outcome wait">WAIT</div>
+          <div id="decisionReason" class="small">Need more live hands before betting.</div>
+        </div>
+        <div>
+          <div class="conf">Controller confidence <strong id="finalConf">0%</strong></div>
+          <div class="conf">Model agreement <strong id="agreement">0%</strong></div>
+          <div class="conf">Bet threshold <strong id="thresholdText">61%</strong></div>
+        </div>
+      </div>
+      <input id="threshold" type="range" min="52" max="75" value="61" oninput="thresholdText.textContent=this.value+'%';recalc()">
+    </section>
+
+    <section class="card span4">
+      <div class="title">VERIFIED ACCURACY</div>
+      <div class="metric"><span class="label">Scored bets</span><span class="val" id="scored">0</span></div>
+      <div class="metric"><span class="label">Correct</span><span class="val" id="correct">0</span></div>
+      <div class="metric"><span class="label">Accuracy</span><span class="val" id="accuracy">—</span></div>
+      <div class="metric"><span class="label">WAIT hands</span><span class="val" id="waits">0</span></div>
+    </section>
+
+    <section class="card span12">
+      <div class="title">INDEPENDENT AI MODELS</div>
+      <div class="models" id="models"></div>
+    </section>
+
+
+    <section class="card span12">
+      <div class="title">LIVE BACCARAT ROADMAPS</div>
+
+      <div class="roadSectionTitle">BIG ROAD</div>
+      <div class="roadWrap"><div id="bigRoad" class="roadGrid"></div></div>
+
+      <div class="roadSectionTitle">BIG EYE ROAD</div>
+      <div class="roadWrap"><div id="bigEyeRoad" class="roadGrid"></div></div>
+
+      <div class="roadSectionTitle">SMALL ROAD</div>
+      <div class="roadWrap"><div id="smallRoad" class="roadGrid"></div></div>
+
+      <div class="roadSectionTitle">COCKROACH ROAD</div>
+      <div class="roadWrap"><div id="cockroachRoad" class="roadGrid"></div></div>
+
+      <div class="small" style="margin-top:8px">
+        Big Road is built directly from live Player/Banker results. Ties are attached to the prior Big Road result.
+        Derived roads are calculated from Big Road structure and use red/blue structural signals rather than Player/Banker sides.
+      </div>
+    </section>
+
+    <section class="card span6">
+      <div class="title">CURRENT SHOE</div>
+      <div id="shoeHistory" class="history"></div>
+      <div class="metric"><span class="label">Hands</span><span class="val" id="hands">0</span></div>
+      <div class="metric"><span class="label">Banker / Player / Tie</span><span class="val" id="counts">0 / 0 / 0</span></div>
+      <div class="metric"><span class="label">Current streak</span><span class="val" id="streak">—</span></div>
+    </section>
+
+    <section class="card span6">
+      <div class="title">CONTROLLER WEIGHTS</div>
+      <div id="weights"></div>
+      <div class="small" style="margin-top:8px">Weights adapt gradually using each model’s recent verified performance. No model is allowed to dominate instantly.</div>
+    </section>
+
+    <section class="card span12">
+      <div class="title">PREDICTION AUDIT LOG</div>
+      <div style="overflow:auto;max-height:320px">
+        <table>
+          <thead><tr><th>Hand</th><th>Prediction</th><th>Confidence</th><th>Decision</th><th>Actual</th><th>Result</th></tr></thead>
+          <tbody id="audit"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card span12">
+      <div class="title">HISTORICAL SHOE LIBRARY</div>
+      <div class="small">Paste prior shoes as one sequence per line using B, P, T. Example: BPPBBPPTBB...</div>
+      <textarea id="libraryInput" placeholder="BPPBBPPTBBPPB&#10;PBBPPBPBBP..."></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="secondary" onclick="saveLibrary()">SAVE LIBRARY</button>
+        <button class="secondary" onclick="exportData()">EXPORT DATA</button>
+        <button class="secondary" onclick="document.getElementById('importFile').click()">IMPORT DATA</button>
+        <input id="importFile" type="file" accept=".json" style="display:none" onchange="importData(event)">
+      </div>
+    </section>
+
+    <section class="card span12 notice">
+      This software is an experimental pattern-analysis and decision-tracking tool. Baccarat outcomes are determined by dealt cards and fixed drawing rules; historical road or sequence correlations do not guarantee a predictive edge. Use the verified audit log and out-of-sample testing rather than assuming displayed confidence equals the true probability of winning.
+    </section>
+  </div>
+</div>
+
+<script>
+const KEY='baccarat-ai-decision-engine-v1';
+const defaultState={shoe:[],library:[],audit:[],pending:null,modelStats:{
+  sequence:{c:0,n:0,recent:[]},road:{c:0,n:0,recent:[]},historical:{c:0,n:0,recent:[]},adaptive:{c:0,n:0,recent:[]}
+}};
+let state=load();
+
+function load(){
+  try{const x=JSON.parse(localStorage.getItem(KEY));return x?Object.assign(structuredClone(defaultState),x):structuredClone(defaultState)}
+  catch(e){return structuredClone(defaultState)}
+}
+function persist(){localStorage.setItem(KEY,JSON.stringify(state))}
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const pct=x=>Math.round(x*100)+'%';
+
+function stripT(seq){return seq.filter(x=>x!=='T')}
+function streakInfo(seq){
+  const s=stripT(seq); if(!s.length)return {side:null,len:0};
+  const side=s[s.length-1]; let len=0; for(let i=s.length-1;i>=0&&s[i]===side;i--)len++;
+  return {side,len};
+}
+function recentBalance(seq,n=12){
+  const s=stripT(seq).slice(-n); if(!s.length)return .5;
+  return s.filter(x=>x==='B').length/s.length;
+}
+function transitionProb(seq,depth=3){
+  const s=stripT(seq); if(s.length<depth+2)return null;
+  const pat=s.slice(-depth).join(''); let b=1,p=1;
+  for(let i=0;i<=s.length-depth-1;i++){
+    if(s.slice(i,i+depth).join('')===pat){
+      const nx=s[i+depth]; if(nx==='B')b++; if(nx==='P')p++;
+    }
+  }
+  return {b:b/(b+p),samples:b+p-2};
+}
+
+function sequenceModel(){
+  const s=stripT(state.shoe);
+  if(s.length<4)return {pick:'B',conf:.50,evidence:'Insufficient sequence depth'};
+  const t3=transitionProb(s,3),t2=transitionProb(s,2);
+  let pb=.5,w=0;
+  if(t3&&t3.samples){pb+= (t3.b-.5)*.75; w+=t3.samples}
+  if(t2&&t2.samples){pb+= (t2.b-.5)*.35; w+=t2.samples}
+  pb=clamp(pb,.28,.72);
+  const pick=pb>=.5?'B':'P', conf=.5+Math.abs(pb-.5);
+  return {pick,conf,evidence:`Markov sequence match • ${w} prior transitions`};
+}
+function roadModel(){
+  const s=stripT(state.shoe);
+  if(s.length<6)return {pick:'B',conf:.50,evidence:'Road structure still forming'};
+
+  const logical=buildLogicalBigRoad(state.shoe);
+  const eye=derivedFromBigRoad(logical,1);
+  const small=derivedFromBigRoad(logical,2);
+  const cock=derivedFromBigRoad(logical,3);
+
+  // Score structural continuation using the latest derived-road colors plus Big Road rhythm.
+  const latest=[eye.at(-1),small.at(-1),cock.at(-1)].filter(Boolean);
+  let red=latest.filter(x=>x==='R').length;
+  let blue=latest.filter(x=>x==='U').length;
+
+  const st=streakInfo(s);
+  const last10=s.slice(-10);
+  let switches=0;
+  for(let i=1;i<last10.length;i++) if(last10[i]!==last10[i-1]) switches++;
+
+  // Convert road structure to a side forecast without pretending red/blue means Banker/Player.
+  // The side decision is based on whether current Big Road behavior is more continuation-like
+  // or chop-like, while derived roads strengthen/weaken confidence.
+  let continuationScore=0;
+  if(st.len>=3) continuationScore += 1.1;
+  if(st.len>=5) continuationScore += .5;
+  if(switches>=6) continuationScore -= 1.1;
+  if(switches<=3) continuationScore += .45;
+
+  // More agreement among the derived roads increases confidence in the detected structure.
+  const structureAgreement = latest.length ? Math.max(red,blue)/latest.length : .5;
+  const continueSide=st.side;
+  const switchSide=st.side==='B'?'P':'B';
+  const pick=continuationScore>=0 ? continueSide : switchSide;
+
+  const base=.53 + Math.min(.09,Math.abs(continuationScore)*.025);
+  const conf=clamp(base + Math.max(0,structureAgreement-.5)*.12,.50,.69);
+
+  return {
+    pick,
+    conf,
+    evidence:`Big Road + derived roads • ${red} red / ${blue} blue • streak ${st.len} • switches ${switches}`
+  };
+}
+function historicalModel(){
+  const current=stripT(state.shoe);
+  if(current.length<4||!state.library.length)return {pick:'B',conf:.50,evidence:'No usable historical matches'};
+  let scores={B:1,P:1},matches=0;
+  for(const raw of state.library){
+    const hist=stripT(raw.split(''));
+    for(const d of [6,5,4,3]){
+      if(current.length<d)continue;
+      const pat=current.slice(-d).join('');
+      for(let i=0;i<=hist.length-d-1;i++){
+        if(hist.slice(i,i+d).join('')===pat){
+          const nx=hist[i+d]; if(nx==='B'||nx==='P'){scores[nx]+=d*d;matches++}
+        }
+      }
+    }
+  }
+  const total=scores.B+scores.P,pb=scores.B/total,pick=pb>=.5?'B':'P';
+  const conf=matches?clamp(.5+Math.abs(pb-.5)*.8,.5,.73):.5;
+  return {pick,conf,evidence:`Historical suffix search • ${matches} matches`};
+}
+function adaptiveModel(){
+  const s=stripT(state.shoe); if(s.length<5)return {pick:'B',conf:.50,evidence:'Waiting for live-shoe adaptation'};
+  const b6=recentBalance(s,6),b14=recentBalance(s,14),trend=(b6-.5)*.65+(b14-.5)*.35;
+  const st=streakInfo(s);
+  let pb=.5+trend*.45;
+  if(st.len>=4)pb+=(st.side==='B'?1:-1)*.04;
+  pb=clamp(pb,.30,.70); const pick=pb>=.5?'B':'P';
+  return {pick,conf:.5+Math.abs(pb-.5),evidence:`Live-shoe adaptation • short/medium rhythm blend`};
+}
+function modelOutputs(){return {sequence:sequenceModel(),road:roadModel(),historical:historicalModel(),adaptive:adaptiveModel()}}
+
+function modelWeight(name){
+  const st=state.modelStats[name]||{c:0,n:0,recent:[]};
+  const recent=st.recent.slice(-20); const ra=recent.length?recent.reduce((a,b)=>a+b,0)/recent.length:.5;
+  const long=st.n?st.c/st.n:.5;
+  return clamp(.8 + (ra-.5)*1.2 + (long-.5)*.5,.55,1.45);
+}
+function controller(){
+  const outs=modelOutputs(); let sb=0,sp=0,total=0,agreeB=0,agreeP=0;
+  for(const [name,o] of Object.entries(outs)){
+    const w=modelWeight(name);
+    const strength=(o.conf-.5)*2;
+    if(o.pick==='B'){sb+=w*strength;agreeB+=w}else{sp+=w*strength;agreeP+=w}
+    total+=w;
+  }
+  const pick=sb>=sp?'B':'P';
+  const diff=Math.abs(sb-sp);
+  const conf=clamp(.5 + diff/(Math.max(.001,total))*0.42,.5,.78);
+  const agreement=Math.max(agreeB,agreeP)/total;
+  const threshold=Number(document.getElementById('threshold')?.value||61)/100;
+  const decision=(conf>=threshold && agreement>=.58 && stripT(state.shoe).length>=6)?pick:'WAIT';
+  return {outs,pick,conf,agreement,decision};
+}
+
+function addResult(x){
+  if(state.pending){
+    state.pending.actual=x;
+    if(state.pending.decision!=='WAIT' && x!=='T'){
+      state.pending.result=state.pending.pick===x?'WIN':'LOSS';
+      const nameOut=state.pending.models;
+      for(const [name,o] of Object.entries(nameOut)){
+        if(x==='B'||x==='P'){
+          const st=state.modelStats[name]; st.n++; const win=o.pick===x?1:0; st.c+=win; st.recent.push(win); if(st.recent.length>50)st.recent.shift();
+        }
+      }
+    } else if(state.pending.decision==='WAIT') state.pending.result='WAIT';
+    else state.pending.result='TIE';
+    state.audit.push(state.pending); state.pending=null;
+  }
+  state.shoe.push(x);
+  persist(); recalc(true);
+}
+function recalc(makePending=false){
+  const c=controller();
+  if(makePending || !state.pending){
+    state.pending={
+      hand:state.shoe.length+1,pick:c.pick,confidence:c.conf,decision:c.decision,actual:null,result:null,
+      models:c.outs,time:new Date().toISOString()
+    };
+  } else {
+    state.pending.pick=c.pick;state.pending.confidence=c.conf;state.pending.decision=c.decision;state.pending.models=c.outs;
+  }
+  persist(); render();
+}
+function undo(){
+  if(state.audit.length){
+    const last=state.audit.pop();
+    if(last.actual){
+      const x=state.shoe.pop();
+      if(last.decision!=='WAIT' && x!=='T'){
+        for(const [name,o] of Object.entries(last.models||{})){
+          const st=state.modelStats[name];
+          if(st.n>0){st.n--; const w=o.pick===x?1:0; st.c-=w; st.recent.pop();}
+        }
+      }
+    }
+  } else state.shoe.pop();
+  state.pending=null;persist();recalc(true);
+}
+function resetShoe(){
+  if(state.shoe.length && confirm('Start a new shoe? Current audit history will remain saved.')){
+    state.shoe=[];state.pending=null;persist();recalc(true);
+  }
+}
+function saveLibrary(){
+  const lines=document.getElementById('libraryInput').value.split(/\n+/).map(x=>x.toUpperCase().replace(/[^BPT]/g,'')).filter(x=>x.length>=4);
+  state.library=lines;persist();render();alert(`Saved ${lines.length} historical shoes.`);
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='baccarat_ai_engine_backup.json';a.click();URL.revokeObjectURL(a.href);
+}
+function importData(e){
+  const f=e.target.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{try{state=Object.assign(structuredClone(defaultState),JSON.parse(r.result));persist();recalc(true);alert('Import complete.')}catch(err){alert('Invalid backup file.')}};
+  r.readAsText(f);
+}
+
+function buildLogicalBigRoad(seq){
+  const cols=[];
+  let lastSide=null, currentCol=-1, lastCell=null;
+  for(const x of seq){
+    if(x==='T'){
+      if(lastCell) lastCell.ties=(lastCell.ties||0)+1;
+      continue;
+    }
+    if(x!=='B' && x!=='P') continue;
+    if(x!==lastSide){
+      currentCol++;
+      cols[currentCol]=[];
+      lastSide=x;
+    }
+    const cell={side:x,ties:0};
+    cols[currentCol].push(cell);
+    lastCell=cell;
+  }
+  return cols;
+}
+
+function placeRoadColumns(logicalCols){
+  // Standard 6-row roadmap placement with rightward "dragon tail" handling.
+  const occupied=new Map();
+  const cells=[];
+  let baseCol=-1;
+
+  for(let lc=0; lc<logicalCols.length; lc++){
+    const streak=logicalCols[lc];
+    baseCol++;
+    // A new streak starts on row 0; if that spot is already occupied by a tail,
+    // move right until the first open top-row cell.
+    while(occupied.has(`${baseCol},0`)) baseCol++;
+
+    let c=baseCol, r=0;
+    for(let i=0;i<streak.length;i++){
+      if(i===0){
+        c=baseCol; r=0;
+      }else{
+        const downKey=`${c},${r+1}`;
+        if(r<5 && !occupied.has(downKey)){
+          r++;
+        }else{
+          c++;
+          while(occupied.has(`${c},${r}`)) c++;
+        }
+      }
+      const item={...streak[i],c,r};
+      occupied.set(`${c},${r}`,item);
+      cells.push(item);
+    }
+  }
+  return cells;
+}
+
+function derivedFromBigRoad(big, offset){
+  // Derived roads compare Big Road column structure, not Banker/Player identity.
+  // offset: 1 = Big Eye, 2 = Small Road, 3 = Cockroach Road.
+  const out=[];
+  for(let c=0;c<big.length;c++){
+    for(let r=0;r<big[c].length;r++){
+      if(c < offset) continue;
+      let red;
+
+      if(r===0){
+        // First row compares the lengths of the two reference columns.
+        if(c-offset-1 < 0) continue;
+        const previousLen=big[c-1]?.length||0;
+        const comparisonLen=big[c-offset-1]?.length||0;
+        red = previousLen===comparisonLen;
+      }else{
+        // Lower rows use the standard one/two-cell structural comparison.
+        const refCol=big[c-offset]||[];
+        const hasSameRow=refCol.length>r;
+        const hasPreviousRow=refCol.length>(r-1);
+        red = hasSameRow || !hasPreviousRow;
+      }
+      out.push(red?'R':'U');
+    }
+  }
+  return out;
+}
+
+function sequenceToLogicalCols(seq){
+  const cols=[];
+  let last=null, c=-1;
+  for(const x of seq){
+    if(x!==last){
+      c++;
+      cols[c]=[];
+      last=x;
+    }
+    cols[c].push({side:x,ties:0});
+  }
+  return cols;
+}
+
+function renderPlacedRoad(elId, cells, derived=false){
+  const el=document.getElementById(elId);
+  if(!el)return;
+
+  const highest=cells.length ? Math.max(...cells.map(x=>x.c)) : 0;
+  const maxCols=Math.max(12,highest+1);
+  el.innerHTML='';
+  el.style.gridTemplateColumns=`repeat(${maxCols},28px)`;
+
+  const byPos=new Map(cells.map(x=>[`${x.c},${x.r}`,x]));
+
+  for(let c=0;c<maxCols;c++){
+    for(let r=0;r<6;r++){
+      const cell=document.createElement('div');
+      cell.className='roadCell';
+      cell.style.gridColumn=(c+1);
+      cell.style.gridRow=(r+1);
+
+      const item=byPos.get(`${c},${r}`);
+      if(item){
+        if(derived){
+          const m=document.createElement('div');
+          m.className='derivedMark '+(item.side==='R'?'red':'blue');
+          cell.appendChild(m);
+        }else{
+          const m=document.createElement('div');
+          m.className='roadMark '+(item.side==='B'?'banker':'player');
+          m.textContent=item.ties?String(item.ties):'';
+          cell.appendChild(m);
+        }
+      }
+      el.appendChild(cell);
+    }
+  }
+}
+
+function renderRoads(){
+  const logical=buildLogicalBigRoad(state.shoe);
+  const bigPlaced=placeRoadColumns(logical);
+
+  const eyeSeq=derivedFromBigRoad(logical,1);
+  const smallSeq=derivedFromBigRoad(logical,2);
+  const cockSeq=derivedFromBigRoad(logical,3);
+
+  const eyePlaced=placeRoadColumns(sequenceToLogicalCols(eyeSeq));
+  const smallPlaced=placeRoadColumns(sequenceToLogicalCols(smallSeq));
+  const cockPlaced=placeRoadColumns(sequenceToLogicalCols(cockSeq));
+
+  renderPlacedRoad('bigRoad',bigPlaced,false);
+  renderPlacedRoad('bigEyeRoad',eyePlaced,true);
+  renderPlacedRoad('smallRoad',smallPlaced,true);
+  renderPlacedRoad('cockroachRoad',cockPlaced,true);
+}
+
+function render(){
+  renderRoads();
+  const c=controller();
+  const el=document.getElementById('finalPick'); el.textContent=c.decision==='WAIT'?'WAIT / NO BET':(c.decision==='B'?'BANKER':'PLAYER');
+  el.className='outcome '+(c.decision==='WAIT'?'wait':c.decision==='B'?'banker':'player');
+  document.getElementById('finalConf').textContent=pct(c.conf);
+  document.getElementById('agreement').textContent=pct(c.agreement);
+  document.getElementById('decisionReason').textContent=c.decision==='WAIT'?'Models/confidence have not cleared the betting gate.':'Controller gate cleared by confidence + agreement.';
+  const modelNames={sequence:'Sequence AI',road:'Road AI',historical:'Historical Match AI',adaptive:'Adaptive AI'};
+  document.getElementById('models').innerHTML=Object.entries(c.outs).map(([name,o])=>{
+    const st=state.modelStats[name],acc=st.n?pct(st.c/st.n):'—';
+    return `<div class="model"><div class="modelHead"><span class="modelName">${modelNames[name]}</span><span class="${o.pick==='B'?'banker':'player'}">${o.pick==='B'?'BANKER':'PLAYER'} ${pct(o.conf)}</span></div>
+      <div class="bar"><div class="fill" style="width:${o.conf*100}%"></div></div>
+      <div class="small" style="margin-top:7px">${o.evidence}</div><div class="small">Verified: ${st.c}/${st.n} • ${acc}</div></div>`
+  }).join('');
+  document.getElementById('weights').innerHTML=Object.keys(modelNames).map(n=>`<div class="metric"><span class="label">${modelNames[n]}</span><span class="val">${modelWeight(n).toFixed(2)}×</span></div>`).join('');
+  document.getElementById('shoeHistory').innerHTML=state.shoe.map(x=>`<span class="dot ${x.toLowerCase()}">${x}</span>`).join('');
+  document.getElementById('hands').textContent=state.shoe.length;
+  const B=state.shoe.filter(x=>x==='B').length,P=state.shoe.filter(x=>x==='P').length,T=state.shoe.filter(x=>x==='T').length;
+  document.getElementById('counts').textContent=`${B} / ${P} / ${T}`;
+  const st=streakInfo(state.shoe);document.getElementById('streak').textContent=st.side?`${st.side==='B'?'Banker':'Player'} × ${st.len}`:'—';
+  const bets=state.audit.filter(a=>a.decision!=='WAIT'&&a.actual!=='T'), wins=bets.filter(a=>a.result==='WIN').length, waits=state.audit.filter(a=>a.decision==='WAIT').length;
+  document.getElementById('scored').textContent=bets.length;document.getElementById('correct').textContent=wins;
+  document.getElementById('accuracy').textContent=bets.length?pct(wins/bets.length):'—';document.getElementById('waits').textContent=waits;
+  document.getElementById('audit').innerHTML=state.audit.slice().reverse().slice(0,100).map(a=>`<tr><td>${a.hand}</td><td>${a.pick}</td><td>${pct(a.confidence)}</td><td>${a.decision}</td><td>${a.actual}</td><td>${a.result}</td></tr>`).join('');
+  document.getElementById('libraryInput').value=state.library.join('\n');
+}
+recalc(true);
+</script>
+</body>
+</html>
