@@ -5475,7 +5475,7 @@ setInterval(scan,1800);setTimeout(scan,300);
   const KEYS=[
     ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
     ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
-    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer'],['specialistv20','RED / BLACK Specialist V20'],['blackctxv22','BLACK Context Specialist V22']
+    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer'],['specialistv20','RED / BLACK Specialist V20'],['blackctxv22','BLACK Context Specialist V22'],['metav23','Walk-Forward Meta Learner V23']
   ];
   const clone=x=>JSON.parse(JSON.stringify(x));
   const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
@@ -5493,6 +5493,7 @@ setInterval(scan,1800);setTimeout(scan,300);
       else if(key==='bestestimate'){const z=computeCombinedAnalyzer();x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0};}
        else if(key==='specialistv20'){const z=window.__redBlackSpecialistV20?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
        else if(key==='blackctxv22'){const z=window.__blackContextV22?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
+       else if(key==='metav23'){const z=window.__metaWalkV23?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
       if(x && window.__slV10Signal) x=window.__slV10Signal(key,x);
       return x||{};
     }catch(e){ return {side:null,error:String(e)}; }
@@ -5502,7 +5503,7 @@ setInterval(scan,1800);setTimeout(scan,300);
     if(p)return p;
     p=document.createElement('div');p.id='fullLibraryBacktestPanel';p.className='analyzer';p.style.borderColor='#2f855a';
     p.innerHTML=`<div class="analyzer-title">🧪 Full Library AI Simulation</div>
-      <div class="analyzer-sub" style="color:#c4b5fd"><b>V22:</b> Backtest scores both RED / BLACK Specialist V20 and BLACK Context Specialist V22.</div>
+      <div class="analyzer-sub" style="color:#c4b5fd"><b>V23:</b> Backtest also scores Walk-Forward Meta Learner V23; V20 remains the benchmark.</div>
       <div class="analyzer-sub">Chronological, pre-result replay. Each shoe is hidden from the library until its replay finishes. Your live state is restored after the test.</div>
       <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
         <button class="tiny-btn" id="runFullLibraryBacktest">Run Full 42-Shoe Simulation</button>
@@ -6714,6 +6715,159 @@ setInterval(scan,1800);setTimeout(scan,300);
   setTimeout(ensurePanel,1600);
 
   window.__blackContextV22={signal:blackSpecialist,context,render:ensurePanel};
+})();
+</script>
+
+
+<script>
+/* ============================================================
+   V23 WALK-FORWARD META LEARNER — 2026-08-27
+   Preserves V20 as benchmark and V22 as experimental.
+   The live meta signal learns ONLY from verified predictions that
+   occurred before the current decision. It keeps separate RED /
+   BLACK ledgers and context buckets (phase + rhythm).
+   No future hand/result is used to choose the current prediction.
+   Sequence AI V2 core logic is unchanged.
+   ============================================================ */
+(function(){
+  const MODELS=['seqv2','color','roadpreview','derivedorig','derivedmain','seqdup','consensus','bot','bestestimate','specialistv20'];
+  const LABELS={seqv2:'Sequence AI V2',color:'Color Pattern AI',roadpreview:'Road Preview AI',
+    derivedorig:'Derived Road AI',derivedmain:'Adaptive Derived Roads',seqdup:'Sequence AI V2 Duplicate',
+    consensus:'AI Consensus',bot:'High-Powered Bot AI',bestestimate:'Best-Estimate Analyzer',
+    specialistv20:'RED / BLACK Specialist V20'};
+
+  function c(){return String(state.currentShoeColor||'').toLowerCase()==='black'?'black':'red'}
+  function pb(){
+    try{return (state.results||state.hands||[]).map(x=>typeof x==='string'?x:(x?.side||x?.result||x?.winner)).filter(x=>x==='P'||x==='B')}
+    catch(e){return []}
+  }
+  function ctx(){
+    const a=pb(),n=a.length,r=a.slice(-10);let sw=0,st=0,last=n?a[n-1]:null;
+    for(let i=1;i<r.length;i++)if(r[i]!==r[i-1])sw++;
+    for(let i=n-1;i>=0&&a[i]===last;i--)st++;
+    const chop=r.length>=6?sw/(r.length-1):.5;
+    return {phase:n<18?'early':n<36?'middle':'late',rhythm:chop>=.68?'chop':chop<=.35?'run':'mixed',streak:st,n};
+  }
+  function bucket(){const x=ctx();return `${c()}|${x.phase}|${x.rhythm}`}
+
+  function ensure(){
+    state.metaWalkV23 ||= {version:23,totalUpdates:0,buckets:{},pending:null};
+    return state.metaWalkV23;
+  }
+  function bkt(id){
+    const s=ensure(); s.buckets[id] ||= {};
+    for(const k of MODELS)s.buckets[id][k] ||= {w:0,l:0,n:0};
+    return s.buckets[id];
+  }
+  function stat(id,key){
+    const z=bkt(id)[key];
+    // Beta prior prevents tiny samples from dominating.
+    const rate=(z.w+5)/(z.n+10);
+    const maturity=Math.min(1,z.n/30);
+    return {rate,n:z.n,score:.5+(rate-.5)*maturity};
+  }
+
+  function signals(){
+    const defs=[
+      ['seqv2',()=>sequenceAISignal()],
+      ['color',()=>window.colorPatternAISignal?.()],
+      ['roadpreview',()=>roadPreviewAISignal()],
+      ['derivedorig',()=>{const z=derivedRoadSequenceAI();return {side:z.side,strength:z.confidence||0}}],
+      ['derivedmain',()=>adaptiveDerivedMainSignal()],
+      ['seqdup',()=>sequenceAIDuplicateSignal()],
+      ['consensus',()=>consensusSignal()],
+      ['bot',()=>{const z=masterBotSignal();return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
+      ['bestestimate',()=>{const z=computeCombinedAnalyzer();return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0}}],
+      ['specialistv20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.confidence||0}}]
+    ];
+    const out=[];
+    for(const [key,get] of defs){let z={};try{z=get()||{}}catch(e){}
+      if(z.side==='P'||z.side==='B')out.push({key,side:z.side,strength:Math.max(50,Math.min(88,Number(z.strength??z.confidence)||50))});
+    }
+    return out;
+  }
+
+  function meta(){
+    const id=bucket(), ss=signals();
+    if(ss.length<3)return {side:null,qualified:false,confidence:0,reason:'WAIT — insufficient signals',bucket:id,signals:ss};
+    let p=0,b=0,total=0,learned=0;
+    const details=[];
+    for(const s of ss){
+      const q=stat(id,s.key);
+      if(q.n>=8)learned++;
+      // contextual historical evidence changes weight gradually.
+      let w=.82+(q.score-.5)*7;
+      w*=Math.max(.82,Math.min(1.15,.86+(s.strength-50)/100));
+      // V20 remains a benchmark anchor; no single source can dominate.
+      if(s.key==='specialistv20')w*=1.08;
+      w=Math.max(.48,Math.min(1.48,w));
+      total+=w;if(s.side==='P')p+=w;else b+=w;
+      details.push({...s,weight:w,learnedRate:q.rate,learnedN:q.n});
+    }
+    const side=p>=b?'P':'B',win=Math.max(p,b),lose=Math.min(p,b),margin=total?(win-lose)/total:0;
+    const supporters=details.filter(x=>x.side===side);
+    const matureSupport=supporters.filter(x=>x.learnedN>=8&&x.learnedRate>.5).length;
+
+    // Early in walk-forward history, stay close to robust agreement.
+    const minMargin=learned>=4?.075:.095;
+    const qualified=supporters.length>=3 && margin>=minMargin &&
+      (learned<4 || matureSupport>=1);
+
+    const confidence=Math.round(Math.min(78,50+margin*62+Math.min(4,matureSupport)*1.2));
+    return {side:qualified?side:null,candidate:side,qualified,confidence:qualified?confidence:0,
+      margin,bucket:id,learnedModels:learned,matureSupport,details,
+      reason:qualified?`Walk-forward ${id}: ${supporters.length}/${details.length} weighted signals support ${side==='P'?'PLAYER':'BANKER'}.`
+                      :`WAIT — walk-forward ${id} has insufficient learned edge.`};
+  }
+
+  // Capture pre-result model outputs. The existing app's verified-prediction
+  // cycle calls render around completed hands, so we finalize only when the
+  // P/B hand count advances. This prevents current-result leakage.
+  function learnCycle(){
+    const s=ensure(), a=pb(), n=a.length;
+    if(s.pending && n>s.pending.handN){
+      const actual=a[s.pending.handN];
+      if(actual==='P'||actual==='B'){
+        const bucketStats=bkt(s.pending.bucket);
+        for(const q of s.pending.signals){
+          const z=bucketStats[q.key];z.n++;
+          if(q.side===actual)z.w++;else z.l++;
+        }
+        s.totalUpdates++;
+      }
+      s.pending=null;
+      try{persist()}catch(e){}
+    }
+    if(!s.pending){
+      const pre=signals();
+      if(pre.length)s.pending={handN:n,bucket:bucket(),signals:pre.map(x=>({key:x.key,side:x.side}))};
+    }
+  }
+
+  function panel(){
+    let p=document.getElementById('metaWalkV23');
+    if(!p){p=document.createElement('div');p.id='metaWalkV23';p.className='analyzer';p.style.borderColor='#0f766e';
+      p.innerHTML=`<div class="analyzer-title">🧠 Walk-Forward Meta Learner V23</div>
+      <div class="analyzer-sub">Learns model trust only from earlier verified hands, separately by RED/BLACK, shoe phase, and rhythm. V20 remains the benchmark. Sequence AI V2 core is unchanged.</div>
+      <div class="analyzer-grid">
+       <div class="analyzer-card"><span>META DECISION</span><strong id="v23Pick">WAIT</strong></div>
+       <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v23Conf">—</strong></div>
+       <div class="analyzer-card"><span>CONTEXT</span><strong id="v23Bucket">—</strong></div>
+       <div class="analyzer-card"><span>LEARNING UPDATES</span><strong id="v23N">0</strong></div>
+      </div><div class="analyzer-sub" id="v23Reason" style="margin-top:8px"></div>`;
+      const a=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('blackContextV22');
+      if(a?.parentNode)a.parentNode.insertBefore(p,a);else document.body.appendChild(p);
+    }
+    learnCycle();const z=meta(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('v23Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('v23Conf',z.qualified?`${z.confidence}%`:'—');set('v23Bucket',z.bucket||'—');
+    set('v23N',ensure().totalUpdates||0);set('v23Reason',z.reason||'');
+  }
+
+  const oldRender=window.render;
+  if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);try{panel()}catch(e){}return r};
+  setTimeout(panel,500);setTimeout(panel,1700);
+  window.__metaWalkV23={signal:meta,learnCycle,render:panel,reset:()=>{state.metaWalkV23={version:23,totalUpdates:0,buckets:{},pending:null};try{persist()}catch(e){}}};
 })();
 </script>
 
