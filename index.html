@@ -542,6 +542,7 @@
 <button class="tiny-btn" id="instantLibraryLearnRefresh">Show Deep Learned Scores</button>
 </div>
 <div class="analyzer-sub" id="instantLibraryLearnStatus" style="margin-top:8px">READY — tap Deep Learn Full Library Now</div>
+<div class="analyzer-sub" id="instantLibraryLearnHelp" style="margin-top:5px">Safari-safe progressive scan: the status should move from 1/6 to 6/6 while it learns.</div>
 <div class="analyzer-grid" id="instantLibraryLearnGrid" style="margin-top:8px"></div>
 <div class="analyzer-sub" id="instantLibraryLearnNote" style="margin-top:8px"></div>
 </div>
@@ -5769,15 +5770,38 @@ setInterval(scan,1800);setTimeout(scan,300);
     if(kind==='bot')return blendPack([seq,blendPack([seq,rh],[.60,.40]),roadPreview,roads],[.27,.27,.26,.20]);
     return blendPack([seq,blendPack([seq,rh],[.60,.40]),roadPreview,roads],[.25,.25,.27,.23]);
   }
-  function runV15(){
-    const btn=document.getElementById('instantLibraryLearnBtn'),st=document.getElementById('instantLibraryLearnStatus');
-    if(btn)btn.disabled=true;if(st)st.textContent='DEEP-SCANNING FULL LIBRARY…';
+  const v17Yield=()=>new Promise(resolve=>setTimeout(resolve,25));
+  async function runV15(){
+    const btn=document.getElementById('instantLibraryLearnBtn'),
+          st=document.getElementById('instantLibraryLearnStatus'),
+          grid=document.getElementById('instantLibraryLearnGrid');
+    if(btn){btn.disabled=true;btn.textContent='Scanning…';}
     const started=performance.now();
+    const setStatus=async text=>{
+      if(st)st.textContent=text;
+      await v17Yield();
+    };
     try{
+      await setStatus('1/6 — Reading saved RED + BLACK shoes…');
       const S=shoes();
-      if(!S.length)throw new Error('No saved shoes found.');
-      const seq=buildSequenceCV(S),rh=buildRhythmCV(S);
-      const eye=buildRoadCV(S,1,'EYE'),small=buildRoadCV(S,2,'SMALL'),roach=buildRoadCV(S,3,'ROACH');
+      if(!S.length)throw new Error('No saved shoes found. Restore/import your library first.');
+      if(grid)grid.innerHTML=`<div class="analyzer-card"><span>Library</span><strong>${S.length} shoes found</strong></div>`;
+
+      await setStatus(`2/6 — Learning sequence windows from ${S.length} shoes…`);
+      const seq=buildSequenceCV(S);
+
+      await setStatus('3/6 — Learning rhythm, streak and break behavior…');
+      const rh=buildRhythmCV(S);
+
+      await setStatus('4/6 — Learning Big Eye road behavior…');
+      const eye=buildRoadCV(S,1,'EYE');
+
+      await setStatus('5/6 — Learning Small + Cockroach road behavior…');
+      const small=buildRoadCV(S,2,'SMALL');
+      await v17Yield();
+      const roach=buildRoadCV(S,3,'ROACH');
+
+      await setStatus('6/6 — Validating models and saving learned knowledge…');
       const roads=blendPack([eye,small,roach],[1,.96,1.04]);
       const roadPreview=blendPack([seq,roads],[.56,.44]);
 
@@ -5803,31 +5827,31 @@ setInterval(scan,1800);setTimeout(scan,300);
 
       Object.entries(packs).forEach(([k,pack])=>{
         const g=conservative(pack.score);
-        state.selfLearning.libraryPriors[k]={...g,source:'V15_DEEP_LOSO_LIBRARY'};
+        state.selfLearning.libraryPriors[k]={...g,source:'V17_SAFARI_SAFE_DEEP_LOSO'};
         state.selfLearning.libraryContextPriors[k]={};
         PHASES.forEach(ph=>{
-          state.selfLearning.libraryContextPriors[k][ph]={...conservative(pack.phases?.[ph]),source:'V15_DEEP_PHASE_LOSO'};
+          state.selfLearning.libraryContextPriors[k][ph]={...conservative(pack.phases?.[ph]),source:'V17_SAFARI_PHASE_LOSO'};
         });
         state.selfLearning.libraryColorPriors[k]={
-          red:{...conservative(pack.colors?.red),source:'V15_DEEP_COLOR_LOSO'},
-          black:{...conservative(pack.colors?.black),source:'V15_DEEP_COLOR_LOSO'}
+          red:{...conservative(pack.colors?.red),source:'V17_SAFARI_COLOR_LOSO'},
+          black:{...conservative(pack.colors?.black),source:'V17_SAFARI_COLOR_LOSO'}
         };
       });
 
       state.selfLearning.libraryRoadPriors={
-        eye:{...conservative(eye.score),source:'V15_DEEP_ROAD_LOSO'},
-        small:{...conservative(small.score),source:'V15_DEEP_ROAD_LOSO'},
-        roach:{...conservative(roach.score),source:'V15_DEEP_ROAD_LOSO'}
+        eye:{...conservative(eye.score),source:'V17_SAFARI_ROAD_LOSO'},
+        small:{...conservative(small.score),source:'V17_SAFARI_ROAD_LOSO'},
+        roach:{...conservative(roach.score),source:'V17_SAFARI_ROAD_LOSO'}
       };
       state.selfLearning.libraryRoadPhasePriors={eye:{},small:{},roach:{}};
       PHASES.forEach(ph=>{
-        state.selfLearning.libraryRoadPhasePriors.eye[ph]={...conservative(eye.phases[ph]),source:'V15_DEEP_ROAD_PHASE'};
-        state.selfLearning.libraryRoadPhasePriors.small[ph]={...conservative(small.phases[ph]),source:'V15_DEEP_ROAD_PHASE'};
-        state.selfLearning.libraryRoadPhasePriors.roach[ph]={...conservative(roach.phases[ph]),source:'V15_DEEP_ROAD_PHASE'};
+        state.selfLearning.libraryRoadPhasePriors.eye[ph]={...conservative(eye.phases[ph]),source:'V17_SAFARI_ROAD_PHASE'};
+        state.selfLearning.libraryRoadPhasePriors.small[ph]={...conservative(small.phases[ph]),source:'V17_SAFARI_ROAD_PHASE'};
+        state.selfLearning.libraryRoadPhasePriors.roach[ph]={...conservative(roach.phases[ph]),source:'V17_SAFARI_ROAD_PHASE'};
       });
 
       state.fastLibraryLearning={
-        version:15,engine:'DEEP_FULL_LIBRARY_LOSO',
+        version:17,engine:'SAFARI_SAFE_DEEP_FULL_LIBRARY_LOSO',
         learnedAt:new Date().toISOString(),
         shoeCount:S.length,
         redShoes:S.filter(x=>x.__scanColor==='red').length,
@@ -5850,30 +5874,33 @@ setInterval(scan,1800);setTimeout(scan,300);
         }
       };
       persist();
-      const ms=Math.round(performance.now()-started);
+      await v17Yield();
       renderV15();
       try{window.__selfLearningV9?.render?.()}catch(e){}
-      if(st)st.textContent=`DEEP LEARNED ${S.length} UNIQUE SHOES • ${state.fastLibraryLearning.hands} P/B HANDS • ${ms} ms`;
+      const ms=Math.round(performance.now()-started);
+      if(st)st.textContent=`✅ COMPLETE — ${S.length} UNIQUE SHOES • ${state.fastLibraryLearning.hands} P/B HANDS • ${(ms/1000).toFixed(1)} sec`;
     }catch(e){
-      if(st)st.textContent='ERROR: '+e.message;
+      console.error('Library scan failed',e);
+      if(st)st.textContent='❌ SCAN ERROR — '+(e?.message||String(e));
+      if(grid)grid.innerHTML=`<div class="analyzer-card"><span>Scan error</span><strong>${String(e?.message||e)}</strong></div>`;
     }finally{
-      if(btn)btn.disabled=false;
+      if(btn){btn.disabled=false;btn.textContent='Deep Learn Full Library Now';}
     }
   }
   function pct(x){return x&&Number.isFinite(Number(x.rate))?Math.round(Number(x.rate)*100)+'%':'—'}
   function renderV15(){
     const f=state.fastLibraryLearning,grid=document.getElementById('instantLibraryLearnGrid'),note=document.getElementById('instantLibraryLearnNote');
     if(!grid)return;
-    if(!f||f.version!==15){
+    if(!f||![15,17].includes(f.version)){
       grid.innerHTML='<div class="analyzer-card"><span>Deep library learning</span><strong>NOT RUN</strong></div>';
-      if(note)note.textContent='V15 deep scan has not been run yet.';
+      if(note)note.textContent='Deep library scan has not been run yet.';
       return;
     }
     grid.innerHTML=Object.entries(f.priors||{}).map(([k,v])=>
       `<div class="analyzer-card"><span>${MODEL_NAMES[k]||k}</span><strong>${pct(v)} • N=${v.n||0}</strong></div>`
     ).join('');
     if(note)note.textContent=
-      `V15 leave-one-shoe-out learning: ${f.redShoes} red + ${f.blackShoes} black unique shoes, ${f.hands} P/B hands. `+
+      `Deep leave-one-shoe-out learning: ${f.redShoes} red + ${f.blackShoes} black unique shoes, ${f.hands} P/B hands. `+
       `Learns phase, color, sequence, rhythm/streak and derived-road context. Scores are validated historical priors, not guaranteed live win rates. Sequence AI V2 core logic is unchanged.`;
   }
   function install(){
@@ -5887,9 +5914,9 @@ setInterval(scan,1800);setTimeout(scan,300);
     const old=document.getElementById('instantLibraryLearnBtn');
     if(old){
       const fresh=old.cloneNode(true);
-      fresh.textContent='Deep Deep Learn Full Library Now';
+      fresh.textContent='Deep Learn Full Library Now';
       old.parentNode.replaceChild(fresh,old);
-      fresh.addEventListener('click',()=>setTimeout(runV15,20));
+      fresh.addEventListener('click',()=>setTimeout(()=>runV15(),20)); fresh.setAttribute('onclick','return false;');
     }
     const oldRefresh=document.getElementById('instantLibraryLearnRefresh');
     if(oldRefresh){
@@ -5904,7 +5931,7 @@ setInterval(scan,1800);setTimeout(scan,300);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,120));
   else setTimeout(install,120);
-  window.__deepLibraryLearnV15={run:runV15,render:renderV15};
+  window.__deepLibraryLearnV15={run:runV15,render:renderV15}; window.runDeepLibraryScan=runV15;
 })();
 </script>
 
