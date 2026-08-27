@@ -5475,7 +5475,7 @@ setInterval(scan,1800);setTimeout(scan,300);
   const KEYS=[
     ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
     ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
-    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer'],['specialistv20','RED / BLACK Specialist V20']
+    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer'],['specialistv20','RED / BLACK Specialist V20'],['blackctxv22','BLACK Context Specialist V22']
   ];
   const clone=x=>JSON.parse(JSON.stringify(x));
   const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
@@ -5492,6 +5492,7 @@ setInterval(scan,1800);setTimeout(scan,300);
       else if(key==='bot'){const z=masterBotSignal();x={side:z.qualified?z.side:null,strength:z.confidence||0};}
       else if(key==='bestestimate'){const z=computeCombinedAnalyzer();x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0};}
        else if(key==='specialistv20'){const z=window.__redBlackSpecialistV20?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
+       else if(key==='blackctxv22'){const z=window.__blackContextV22?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
       if(x && window.__slV10Signal) x=window.__slV10Signal(key,x);
       return x||{};
     }catch(e){ return {side:null,error:String(e)}; }
@@ -5501,7 +5502,7 @@ setInterval(scan,1800);setTimeout(scan,300);
     if(p)return p;
     p=document.createElement('div');p.id='fullLibraryBacktestPanel';p.className='analyzer';p.style.borderColor='#2f855a';
     p.innerHTML=`<div class="analyzer-title">🧪 Full Library AI Simulation</div>
-      <div class="analyzer-sub" style="color:#c4b5fd"><b>V21:</b> Backtest now scores RED / BLACK Specialist V20 as a separate 10th model.</div>
+      <div class="analyzer-sub" style="color:#c4b5fd"><b>V22:</b> Backtest scores both RED / BLACK Specialist V20 and BLACK Context Specialist V22.</div>
       <div class="analyzer-sub">Chronological, pre-result replay. Each shoe is hidden from the library until its replay finishes. Your live state is restored after the test.</div>
       <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
         <button class="tiny-btn" id="runFullLibraryBacktest">Run Full 42-Shoe Simulation</button>
@@ -6458,6 +6459,261 @@ setInterval(scan,1800);setTimeout(scan,300);
 
   setTimeout(ensurePanel,450);setTimeout(ensurePanel,1600);
   window.__redBlackSpecialistV20={signal:specialist,trust,render:ensurePanel};
+})();
+</script>
+
+
+<script>
+/* ============================================================
+   V22 BLACK CONTEXT SPECIALIST — 2026-08-27
+   Preserves V20/V21 specialist behavior on RED.
+   Adds BLACK-only contextual weighting based on:
+   - hand range / shoe phase
+   - recent streak vs chop state
+   - model agreement structure
+   - verified rolling model performance
+   - road-preview / sequence-duplicate anchor strength
+   This layer is conservative and avoids hard model shutdowns.
+   Sequence AI V2 core logic is unchanged.
+   ============================================================ */
+(function(){
+  function shoeColor(){
+    return String(state.currentShoeColor||'').toLowerCase()==='black'?'black':'red';
+  }
+
+  function currentPB(){
+    try{
+      const arr = (state.results||state.hands||[]).map(x=>{
+        if(typeof x==='string') return x;
+        return x?.side || x?.result || x?.winner || null;
+      }).filter(x=>x==='P'||x==='B');
+      return arr;
+    }catch(e){ return []; }
+  }
+
+  function context(){
+    const arr=currentPB(), n=arr.length;
+    let streak=0,last=null, switches=0;
+    for(let i=0;i<arr.length;i++){
+      if(i>0 && arr[i]!==arr[i-1]) switches++;
+    }
+    if(n){
+      last=arr[n-1];
+      for(let i=n-1;i>=0;i--){
+        if(arr[i]===last) streak++;
+        else break;
+      }
+    }
+    const recent=arr.slice(-10);
+    let recentSwitches=0;
+    for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) recentSwitches++;
+    const chop = recent.length>=6 ? recentSwitches/(recent.length-1) : 0.5;
+    let phase='early';
+    if(n>=18) phase='middle';
+    if(n>=36) phase='late';
+    return {n,streak,last,chop,phase,recent};
+  }
+
+  function rolling(key){
+    const a=state.accuracyVerified?.models?.[key]?.last25;
+    if(!Array.isArray(a)||a.length<8) return null;
+    const wins=a.reduce((s,v)=>s+(v?1:0),0);
+    return {rate:wins/a.length,n:a.length};
+  }
+
+  function getSignals(){
+    const defs=[
+      ['seqv2','Sequence AI V2',()=>sequenceAISignal()],
+      ['color','Color Pattern AI',()=>window.colorPatternAISignal?.()],
+      ['roadpreview','Road Preview AI',()=>roadPreviewAISignal()],
+      ['derivedorig','Derived Road AI',()=>{const z=derivedRoadSequenceAI();return {side:z.side,strength:z.confidence||0}}],
+      ['derivedmain','Adaptive Derived Roads',()=>adaptiveDerivedMainSignal()],
+      ['seqdup','Sequence AI V2 Duplicate',()=>sequenceAIDuplicateSignal()],
+      ['consensus','AI Consensus',()=>consensusSignal()],
+      ['bot','High-Powered Bot AI',()=>{const z=masterBotSignal();return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
+      ['bestestimate','Best-Estimate Analyzer',()=>{const z=computeCombinedAnalyzer();return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0}}]
+    ];
+    const out=[];
+    for(const [key,name,get] of defs){
+      let s={}; try{s=get()||{}}catch(e){}
+      if(s.side!=='P'&&s.side!=='B') continue;
+      out.push({
+        key,name,side:s.side,
+        strength:Math.max(50,Math.min(88,Number(s.strength??s.confidence??s.top)||50)),
+        rolling:rolling(key)
+      });
+    }
+    return out;
+  }
+
+  function blackWeights(ctx, sigs){
+    const w = {
+      seqv2:.72,color:1.05,roadpreview:1.30,derivedorig:.90,
+      derivedmain:.40,seqdup:1.12,consensus:1.05,bot:.96,bestestimate:.82
+    };
+
+    // Shoe phase specialization.
+    if(ctx.phase==='early'){
+      w.color += .07;
+      w.roadpreview += .04;
+      w.seqdup += .03;
+    } else if(ctx.phase==='middle'){
+      w.roadpreview += .07;
+      w.seqdup += .06;
+      w.consensus += .03;
+    } else {
+      w.roadpreview += .10;
+      w.seqdup += .08;
+      w.bot += .05;
+      w.derivedmain -= .06;
+    }
+
+    // Chop/run context.
+    if(ctx.chop>=.70){
+      w.roadpreview += .10;
+      w.color += .08;
+      w.seqdup += .04;
+      w.bot -= .04;
+    } else if(ctx.chop<=.35){
+      w.seqdup += .08;
+      w.bot += .07;
+      w.roadpreview += .04;
+      w.color -= .02;
+    }
+
+    // Longer active streak: favor continuation-capable anchors,
+    // while still retaining road-preview evidence.
+    if(ctx.streak>=4){
+      w.seqdup += .08;
+      w.bot += .06;
+      w.roadpreview += .05;
+    }
+
+    // Rolling verified performance softly modifies context weights.
+    for(const s of sigs){
+      if(!s.rolling) continue;
+      const adj=Math.max(-.14,Math.min(.14,(s.rolling.rate-.50)*1.2));
+      w[s.key]=(w[s.key]||1)+adj;
+    }
+
+    // Never allow any model to fully disappear.
+    for(const k in w) w[k]=Math.max(.28,Math.min(1.55,w[k]));
+    return w;
+  }
+
+  function scoreWithWeights(sigs,w){
+    let p=0,b=0,total=0;
+    for(const s of sigs){
+      const confFactor=Math.max(.78,Math.min(1.17,.84+(s.strength-50)/95));
+      const ww=(w[s.key]||1)*confFactor;
+      total+=ww;
+      if(s.side==='P')p+=ww;else b+=ww;
+    }
+    const side=p>=b?'P':'B';
+    const win=Math.max(p,b), lose=Math.min(p,b);
+    const margin=total?(win-lose)/total:0;
+    const supporters=sigs.filter(s=>s.side===side);
+    return {side,p,b,total,margin,supporters};
+  }
+
+  function blackSpecialist(){
+    // RED stays exactly on the V20/V21 specialist.
+    if(shoeColor()!=='black'){
+      const z=window.__redBlackSpecialistV20?.signal?.()||{};
+      return {...z, engine:'RED V20 preserved'};
+    }
+
+    const ctx=context(), sigs=getSignals();
+    if(sigs.length<3) return {side:null,qualified:false,confidence:0,reason:'WAIT — not enough BLACK signals',context:ctx,signals:sigs};
+
+    const w=blackWeights(ctx,sigs);
+    const sc=scoreWithWeights(sigs,w);
+    const supporters=sc.supporters;
+    const anchorKeys=['roadpreview','seqdup','color','consensus'];
+    const anchorSupport=supporters.filter(s=>anchorKeys.includes(s.key)).length;
+
+    // Agreement requirement adapts slightly by context.
+    let minMargin=.090;
+    if(ctx.phase==='late') minMargin=.100;
+    if(ctx.chop>=.70) minMargin=.095;
+    if(ctx.streak>=4) minMargin=.085;
+
+    const supportShare=sigs.length?supporters.length/sigs.length:0;
+    let qualified = supporters.length>=4 &&
+                    anchorSupport>=2 &&
+                    sc.margin>=minMargin &&
+                    supportShare>=.50;
+
+    // Extra guard against historically weak Adaptive Derived dominating BLACK.
+    const onlyWeak = supporters.every(s=>['derivedmain','derivedorig','bestestimate','seqv2'].includes(s.key));
+    if(onlyWeak) qualified=false;
+
+    const confidence=Math.round(Math.min(78,50+sc.margin*62+anchorSupport*1.5+(supportShare-.5)*10));
+    return {
+      side:qualified?sc.side:null,
+      qualified,
+      confidence:qualified?confidence:0,
+      candidate:sc.side,
+      margin:sc.margin,
+      anchorSupport,
+      supportShare,
+      supporters:supporters.map(s=>s.name),
+      context:ctx,
+      signals:sigs,
+      weights:w,
+      engine:'BLACK Context V22',
+      reason:qualified
+        ? `BLACK ${ctx.phase} phase • ${ctx.streak>=4?'run':'mixed/chop'} context • ${supporters.length}/${sigs.length} signals support ${sc.side==='P'?'PLAYER':'BANKER'}.`
+        : `WAIT — BLACK ${ctx.phase} context does not have enough weighted agreement.`
+    };
+  }
+
+  function ensurePanel(){
+    let p=document.getElementById('blackContextV22');
+    if(!p){
+      p=document.createElement('div');
+      p.id='blackContextV22';
+      p.className='analyzer';
+      p.style.borderColor='#111827';
+      p.innerHTML=`
+        <div class="analyzer-title">⚫ BLACK Context Specialist V22</div>
+        <div class="analyzer-sub">
+          RED uses the proven V20 specialist unchanged. BLACK is analyzed separately by shoe phase,
+          chop/run state, anchor agreement, and rolling verified model performance.
+        </div>
+        <div class="analyzer-grid">
+          <div class="analyzer-card"><span>DECISION</span><strong id="v22Pick">WAIT</strong></div>
+          <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v22Conf">—</strong></div>
+          <div class="analyzer-card"><span>ENGINE</span><strong id="v22Engine">—</strong></div>
+          <div class="analyzer-card"><span>PHASE / STREAK</span><strong id="v22Ctx">—</strong></div>
+        </div>
+        <div class="analyzer-sub" id="v22Reason" style="margin-top:8px"></div>`;
+      const anchor=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('rbSpecialistV20');
+      if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor);
+      else document.body.appendChild(p);
+    }
+
+    const z=blackSpecialist(), set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('v22Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('v22Conf',z.qualified?`${z.confidence}%`:'—');
+    set('v22Engine',z.engine||'—');
+    set('v22Ctx',z.context?`${String(z.context.phase).toUpperCase()} • S${z.context.streak}`:'—');
+    set('v22Reason',z.reason||'');
+  }
+
+  const oldRender=window.render;
+  if(typeof oldRender==='function'){
+    window.render=function(){
+      const r=oldRender.apply(this,arguments);
+      try{ensurePanel()}catch(e){}
+      return r;
+    };
+  }
+
+  setTimeout(ensurePanel,450);
+  setTimeout(ensurePanel,1600);
+
+  window.__blackContextV22={signal:blackSpecialist,context,render:ensurePanel};
 })();
 </script>
 
