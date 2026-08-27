@@ -7051,5 +7051,191 @@ setInterval(scan,1800);setTimeout(scan,300);
 })();
 </script>
 
+
+<script>
+/* ============================================================
+   V24 — CONTRIBUTION + BLACK DIAGNOSTICS — 2026-08-27
+   Diagnostic only. Does NOT change live prediction logic.
+   Records each model's pre-result P/B call during held-out-shoe replay,
+   then measures disagreements and RED/BLACK contribution.
+   ============================================================ */
+(function(){
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
+  const MODELS=[
+    ['seqv2','Sequence AI V2'],
+    ['color','Color Pattern AI'],
+    ['roadpreview','Road Preview AI'],
+    ['derivedorig','Derived Road AI'],
+    ['derivedmain','Adaptive Derived Roads'],
+    ['seqdup','Sequence Duplicate'],
+    ['consensus','AI Consensus'],
+    ['bot','High-Powered Bot'],
+    ['bestestimate','Best-Estimate'],
+    ['specialistv20','RED/BLACK Specialist V20'],
+    ['blackctxv22','BLACK Context Specialist V22'],
+    ['metav23','Walk-Forward Meta Learner V23']
+  ];
+  const blank=()=>({w:0,l:0,n:0,wait:0,redW:0,redN:0,blackW:0,blackN:0});
+  const pairBlank=()=>({n:0,aW:0,bW:0,redN:0,redAW:0,redBW:0,blackN:0,blackAW:0,blackBW:0});
+
+  function sig(k){
+    try{
+      let z=null;
+      if(k==='seqv2') z=sequenceAISignal();
+      else if(k==='color') z=window.colorPatternAISignal?.();
+      else if(k==='roadpreview') z=roadPreviewAISignal();
+      else if(k==='derivedorig'){const q=derivedRoadSequenceAI();z={side:q.side};}
+      else if(k==='derivedmain') z=adaptiveDerivedMainSignal();
+      else if(k==='seqdup') z=sequenceAIDuplicateSignal();
+      else if(k==='consensus') z=consensusSignal();
+      else if(k==='bot'){const q=masterBotSignal();z={side:q.qualified?q.side:null};}
+      else if(k==='bestestimate'){const q=computeCombinedAnalyzer();z={side:q.qualified?q.side:null};}
+      else if(k==='specialistv20'){const q=window.__redBlackSpecialistV20?.signal?.()||{};z={side:q.qualified?q.side:null};}
+      else if(k==='blackctxv22'){const q=window.__blackContextV22?.signal?.()||{};z={side:q.qualified?q.side:null};}
+      else if(k==='metav23'){const q=window.__metaWalkV23?.signal?.()||{};z={side:q.qualified?q.side:null};}
+      return z?.side==='P'||z?.side==='B'?z.side:null;
+    }catch(e){return null;}
+  }
+
+  function ensure(){
+    let p=document.getElementById('contributionDiagV24');
+    if(p)return p;
+    p=document.createElement('div');p.id='contributionDiagV24';p.className='analyzer';p.style.borderColor='#b7791f';
+    p.innerHTML=`<div class="analyzer-title">🔬 V24 Contribution + BLACK Diagnostics</div>
+      <div class="analyzer-sub">Diagnostic only — no live AI logic is changed. Replays the full library pre-result and measures which AI wins when models disagree, especially on BLACK shoes.</div>
+      <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
+        <button class="tiny-btn" id="runContributionV24">Run Contribution Diagnostic</button>
+        <button class="tiny-btn" id="copyContributionV24">Copy Diagnostic Results</button>
+      </div>
+      <div class="analyzer-sub" id="contributionStatusV24" style="margin-top:8px">READY</div>
+      <pre id="contributionTextV24" style="white-space:pre-wrap;max-height:560px;overflow:auto;font-size:11px;margin-top:8px"></pre>`;
+    const a=document.getElementById('ablationBacktestV24')||document.getElementById('fullLibraryBacktestPanel');
+    if(a?.parentNode)a.parentNode.insertBefore(p,a.nextSibling);else document.body.appendChild(p);
+    return p;
+  }
+
+  function score(s,pick,actual,color){
+    if(pick){s.n++;if(color==='red')s.redN++;else s.blackN++;
+      if(pick===actual){s.w++;if(color==='red')s.redW++;else s.blackW++;}else s.l++;
+    } else s.wait++;
+  }
+
+  function render(stats,pairs,meta){
+    const lines=[
+      'CONTRIBUTION + BLACK DIAGNOSTIC V24',
+      `${meta.shoes} shoes • ${meta.hands} P/B hands scored • ${meta.ties} ties skipped`,
+      `Minimum warm-up: ${meta.minWarm} hands per shoe`,
+      'Diagnostic only — live prediction logic unchanged.','',
+      'MODEL SCORECARD'
+    ];
+    for(const [k,name] of MODELS){
+      const s=stats[k];
+      lines.push(`${name}: ${pct(s.w,s.n)??'—'}% | ${s.w}W-${s.l}L | N=${s.n} | WAIT=${s.wait} | RED ${pct(s.redW,s.redN)??'—'}% | BLACK ${pct(s.blackW,s.blackN)??'—'}%`);
+    }
+    lines.push('','BLACK DISAGREEMENT MATRIX — only hands where both models predicted and disagreed');
+    const ranked=Object.entries(pairs).filter(([,x])=>x.blackN>=10).sort((a,b)=>b[1].blackN-a[1].blackN).slice(0,30);
+    if(!ranked.length)lines.push('Not enough BLACK disagreement samples yet.');
+    for(const [key,x] of ranked){
+      const [ak,bk]=key.split('|'),an=MODELS.find(x=>x[0]===ak)?.[1]||ak,bn=MODELS.find(x=>x[0]===bk)?.[1]||bk;
+      lines.push(`${an} vs ${bn}: BLACK N=${x.blackN} | ${an} ${pct(x.blackAW,x.blackN)}% | ${bn} ${pct(x.blackBW,x.blackN)}%`);
+    }
+    lines.push('','RED DISAGREEMENT MATRIX — largest samples');
+    const red=Object.entries(pairs).filter(([,x])=>x.redN>=10).sort((a,b)=>b[1].redN-a[1].redN).slice(0,15);
+    for(const [key,x] of red){
+      const [ak,bk]=key.split('|'),an=MODELS.find(x=>x[0]===ak)?.[1]||ak,bn=MODELS.find(x=>x[0]===bk)?.[1]||bk;
+      lines.push(`${an} vs ${bn}: RED N=${x.redN} | ${an} ${pct(x.redAW,x.redN)}% | ${bn} ${pct(x.redBW,x.redN)}%`);
+    }
+    document.getElementById('contributionTextV24').textContent=lines.join('\n');
+  }
+
+  async function run(){
+    const btn=document.getElementById('runContributionV24'),status=document.getElementById('contributionStatusV24');
+    if(btn.disabled)return;btn.disabled=true;
+    const savedState=clone(state), savedStorage=localStorage.getItem(KEY), savedBackup=localStorage.getItem(LIBRARY_BACKUP_KEY), savedHist=localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY);
+    const all=[...(savedState.redPatternLibrary||[]).map(x=>({...clone(x),__color:'red'})),...(savedState.blackPatternLibrary||[]).map(x=>({...clone(x),__color:'black'}))]
+      .sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||'')));
+    const stats={};MODELS.forEach(([k])=>stats[k]=blank());
+    const pairs={};for(let i=0;i<MODELS.length;i++)for(let j=i+1;j<MODELS.length;j++)pairs[MODELS[i][0]+'|'+MODELS[j][0]]=pairBlank();
+    const train={red:[],black:[]};let hands=0,ties=0;const minWarm=6;
+    try{
+      state=clone(savedState);state.hands=[];state.redPatternLibrary=[];state.blackPatternLibrary=[];state.accuracyVerified={models:{},pending:{},ties:0,version:1};
+      state.selfLearning={version:9,enabled:true,modelContexts:{},roadChannels:{},totalUpdates:0,createdAt:Date.now()};
+      for(let si=0;si<all.length;si++){
+        const shoe=all[si],seq=String(shoe.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
+        state.currentShoeColor=shoe.__color;state.predictionLibraryMode='selected';state.redPatternLibrary=clone(train.red);state.blackPatternLibrary=clone(train.black);state.hands=[];
+        if(state.accuracyVerified)state.accuracyVerified.pending={};
+        if(state.adaptiveDerived)state.adaptiveDerived.pending=null;
+        if(state.adaptiveOriginalDerived)state.adaptiveOriginalDerived.pending=null;
+        for(let i=0;i<seq.length;i++){
+          const actual=seq[i];
+          if(i>=minWarm&&(actual==='P'||actual==='B')){
+            hands++;
+            const calls={};for(const [k] of MODELS){calls[k]=sig(k);score(stats[k],calls[k],actual,shoe.__color);}
+            for(let a=0;a<MODELS.length;a++)for(let b=a+1;b<MODELS.length;b++){
+              const ak=MODELS[a][0],bk=MODELS[b][0],aa=calls[ak],bb=calls[bk];
+              if(aa&&bb&&aa!==bb){
+                const x=pairs[ak+'|'+bk];x.n++;if(aa===actual)x.aW++;if(bb===actual)x.bW++;
+                if(shoe.__color==='red'){x.redN++;if(aa===actual)x.redAW++;if(bb===actual)x.redBW++;}
+                else{x.blackN++;if(aa===actual)x.blackAW++;if(bb===actual)x.blackBW++;}
+              }
+            }
+            try{window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}
+            try{window.__settleVerifiedPredictions?.(actual);window.__settleAdaptiveDerivedRoads?.(actual);window.__settleAdaptiveOriginalDerivedRoads?.(actual);}catch(e){}
+          } else if(actual==='T')ties++;
+          state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});
+          if(i%10===0)await new Promise(r=>setTimeout(r,0));
+        }
+        train[shoe.__color].push(clone(shoe));
+        status.textContent=`DIAGNOSTIC ${si+1}/${all.length} • ${shoe.__color.toUpperCase()} • ${seq.length} hands`;
+        if(si%2===0){render(stats,pairs,{shoes:si+1,hands,ties,minWarm});await new Promise(r=>setTimeout(r,0));}
+      }
+      render(stats,pairs,{shoes:all.length,hands,ties,minWarm});
+      status.textContent=`COMPLETE • ${all.length} SHOES • live state restored`;
+    }catch(e){status.textContent='DIAGNOSTIC ERROR: '+(e?.message||e);console.error(e);}
+    finally{
+      state=savedState;
+      if(savedStorage==null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,savedStorage);
+      if(savedBackup==null)localStorage.removeItem(LIBRARY_BACKUP_KEY);else localStorage.setItem(LIBRARY_BACKUP_KEY,savedBackup);
+      if(savedHist==null)localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);else localStorage.setItem(LIBRARY_BACKUP_HISTORY_KEY,savedHist);
+      try{render();window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}
+      btn.disabled=false;
+    }
+  }
+
+  ensure();
+  document.getElementById('runContributionV24')?.addEventListener('click',run);
+  document.getElementById('copyContributionV24')?.addEventListener('click',async()=>{const t=document.getElementById('contributionTextV24')?.textContent||'';try{await navigator.clipboard.writeText(t);document.getElementById('contributionStatusV24').textContent='DIAGNOSTIC RESULTS COPIED';}catch(e){}});
+  window.__contributionDiagV24={run};
+})();
+</script>
+
+
+<script>
+(function(){
+  function surfaceContributionPanel(){
+    const p=document.getElementById('contributionDiagV24');
+    if(!p)return;
+    p.style.display='block';
+    p.style.visibility='visible';
+    p.style.opacity='1';
+    p.style.position='relative';
+    p.style.zIndex='2';
+    p.style.margin='14px auto';
+    p.style.maxWidth='980px';
+    // Put directly before Source Ablation when possible, otherwise near top of body.
+    const ab=document.getElementById('ablationBacktestV24');
+    if(ab && ab.parentNode){ ab.parentNode.insertBefore(p,ab); }
+    else {
+      const target=document.querySelector('.container,.wrap,main')||document.body;
+      target.insertBefore(p,target.firstChild);
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(surfaceContributionPanel,50));
+  else setTimeout(surfaceContributionPanel,50);
+  setTimeout(surfaceContributionPanel,500);
+})();
+</script>
+
 </body>
 </html>
