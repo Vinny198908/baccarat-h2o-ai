@@ -259,6 +259,11 @@
 <style id="threeRoadAlignmentAiStyles">
 .tra-ai{margin:8px 0;background:#171a1f;border:1px solid #7b4fb3;border-radius:14px;padding:10px}.tra-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.tra-badge{font-size:10px;font-weight:900;padding:5px 8px;border-radius:999px;background:#30213f;color:#ddb7ff}.tra-note{font-size:11px;color:#9ca5b1;line-height:1.4;margin-top:6px}.tra-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.tra-card{background:#22262d;border-radius:10px;padding:8px;text-align:center}.tra-card span{display:block;font-size:9px;color:#9ca5b1}.tra-card strong{font-size:16px}.tra-road-list{display:grid;gap:6px;margin-top:8px}.tra-road{display:grid;grid-template-columns:1.15fr .75fr .8fr .8fr;gap:6px;align-items:center;background:#22262d;border-radius:10px;padding:7px;font-size:10px}.tra-road b{font-size:11px}.tra-road span{color:#9ca5b1}.tra-fixed{font-size:10px;font-weight:900;color:#f1b827;margin-top:7px}.tra-actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}
 </style>
+
+<style id="v14-final-cleanup">
+/* V14 final cleanup — requested panels removed from visible UI. */
+#historicalPatternMatchBox, #reuseScannerBox, #roadReuseScannerBox { display:none !important; }
+</style>
 </head>
 <body>
 <div class="app">
@@ -529,6 +534,17 @@
 <div style="margin-top:8px"><label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer"><input id="kaggleLibraryToggle" style="width:20px;height:20px" type="checkbox"/><span>Kaggle 200,000-Shoe Library</span></label></div>
 <div id="kaggleLibraryNote" class="analyzer-sub" style="margin-top:6px">When ON, Kaggle becomes a separate fourth evidence source for the High-Powered Bot. Sequence AI V2 and Sequence AI V2 Duplicate remain independent.</div>
 </div>
+<div class="analyzer" id="instantLibraryLearnPanel" style="border-color:#57708f">
+<div class="analyzer-title">⚡ Deep Full-Library Learning V15 — All AI</div>
+<div class="analyzer-sub">One tap scans every saved red/black shoe, builds fast pattern indexes, learns derived-road → next Big Road relationships, and seeds conservative trust priors for every major AI.</div>
+<div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
+<button class="tiny-btn" id="instantLibraryLearnBtn">Deep Learn Full Library Now</button>
+<button class="tiny-btn" id="instantLibraryLearnRefresh">Show Deep Learned Scores</button>
+</div>
+<div class="analyzer-sub" id="instantLibraryLearnStatus" style="margin-top:8px">READY — tap Deep Learn Full Library Now</div>
+<div class="analyzer-grid" id="instantLibraryLearnGrid" style="margin-top:8px"></div>
+<div class="analyzer-sub" id="instantLibraryLearnNote" style="margin-top:8px"></div>
+</div>
 <div class="card-entry">
 <div class="analyzer-title">Optional Card-Rank Tracker</div>
 <div class="analyzer-sub">Tap ranks as cards are exposed. This does not identify exact future cards; it only estimates whether the remaining shoe is slightly richer in low or high baccarat values.</div>
@@ -602,7 +618,7 @@
 <div class="match-head"><b>Saved Derived-Road History</b><span id="savedRoadHistoryCount" style="font-size:10px;color:var(--muted)">0 road sets</span></div>
 <div class="match-line" id="savedRoadHistoryText">Each saved shoe keeps its Big Eye Boy, Small Road, and Cockroach Road history separately for road-pattern comparison.</div>
 </div>
-<div class="match-box">
+<div class="match-box" id="historicalPatternMatchBox">
 <div class="match-head">
 <b>Historical pattern match</b>
 <span id="matchLength" style="font-size:10px;color:var(--muted)">—</span>
@@ -5028,11 +5044,23 @@ setInterval(scan,1800);setTimeout(scan,300);
     const phaseAny=slPosterior(root[`${key}|${phase}|ANY|ANY`]);
     const global=slPosterior(root[`${key}|ANY|ANY|ANY`]);
     const weightedN=exact.n+phaseAny.n+global.n;
-    const reliability=weightedN
+    let reliability=weightedN
       ? (exact.rate*(exact.n+4)+phaseAny.rate*(phaseAny.n+3)+global.rate*(global.n+2))/
         ((exact.n+4)+(phaseAny.n+3)+(global.n+2))
       : .50;
-    return {reliability,n:weightedN,phase,band,agree,exactN:exact.n};
+    // V11 instant-library prior: cross-validated library learning can provide a
+    // conservative starting prior before enough live verified grades exist.
+    const gp=sl.libraryPriors&&sl.libraryPriors[key];
+    const cp=sl.libraryContextPriors?.[key]?.[phase];
+    const lp=(cp&&Number(cp.n)>=12)?cp:gp;
+    let priorN=0;
+    if(lp&&Number.isFinite(lp.rate)&&Number(lp.n)>=12){
+      priorN=Math.min(48,Number(lp.n)||0);
+      const priorRate=Math.max(.40,Math.min(.64,Number(lp.rate)));
+      const liveW=Math.min(.88,weightedN/(weightedN+20));
+      reliability=reliability*liveW+priorRate*(1-liveW);
+    }
+    return {reliability,n:weightedN+priorN,phase,band,agree,exactN:exact.n,libraryPrior:lp||null};
   }
   function slRecordModel(key,p,actual){
     if(!p || (actual!=='P'&&actual!=='B'))return;
@@ -5050,8 +5078,19 @@ setInterval(scan,1800);setTimeout(scan,300);
     const sl=slEnsure(), phase=slPhase(), root=sl.roadChannels;
     const exact=slPosterior(root[`${key}|${phase}`]);
     const global=slPosterior(root[`${key}|ANY`]);
-    if(!(exact.n||global.n))return .50;
-    return (exact.rate*(exact.n+5)+global.rate*(global.n+3))/((exact.n+5)+(global.n+3));
+    const gp=sl.libraryRoadPriors&&sl.libraryRoadPriors[key];
+    const cp=sl.libraryRoadPhasePriors?.[key]?.[phase];
+    const lp=(cp&&Number(cp.n)>=12)?cp:gp;
+    if(!(exact.n||global.n)){
+      return lp&&Number(lp.n)>=12 ? Math.max(.40,Math.min(.64,Number(lp.rate)||.50)) : .50;
+    }
+    let r=(exact.rate*(exact.n+5)+global.rate*(global.n+3))/((exact.n+5)+(global.n+3));
+    if(lp&&Number(lp.n)>=12){
+      const prior=Math.max(.40,Math.min(.64,Number(lp.rate)||.50));
+      const liveN=exact.n+global.n, liveW=Math.min(.90,liveN/(liveN+18));
+      r=r*liveW+prior*(1-liveW);
+    }
+    return r;
   }
   function slRecordRoad(key,p,actual){
     if(!p || (actual!=='P'&&actual!=='B'))return;
@@ -5535,5 +5574,465 @@ setInterval(scan,1800);setTimeout(scan,300);
 })();
 </script>
 
+
+
+<script>
+/* ============================================================
+   V15 — DEEP FULL-LIBRARY LEARNING
+   - Leave-one-shoe-out validation to reduce memorization.
+   - Learns RED/BLACK context separately plus combined evidence.
+   - Learns beginning / middle / late / very-late shoe phases.
+   - Longer multi-window sequence memory (3..16).
+   - Rhythm, streak, break and alternation context.
+   - Big Eye / Small / Cockroach derived-road continuation context.
+   - Exact duplicate shoes are de-weighted by deduplication.
+   - Seeds phase-aware conservative priors; live verified evidence
+     still overrides historical priors as the current shoe develops.
+   - Sequence AI V2 CORE prediction logic remains untouched.
+   ============================================================ */
+(function(){
+  const MODEL_NAMES={
+    seqv2:'Sequence AI V2',seqdup:'Sequence AI V2 Duplicate',roadpreview:'Road Preview AI',
+    color:'Color Pattern AI',derivedorig:'Derived Road AI',derivedmain:'Adaptive Derived Roads',
+    consensus:'AI Consensus',bot:'High-Powered Bot AI',bestestimate:'Best-Estimate Analyzer'
+  };
+  const PHASES=['1-15','16-39','40-54','55+'];
+  const pb=x=>String(x||'').replace(/T/g,'').replace(/[^PB]/g,'');
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const phaseAt=i=>i>=55?'55+':i>=40?'40-54':i>=16?'16-39':'1-15';
+  const colorOf=x=>{
+    const c=String(x?.shoeColor||x?.color||'').toLowerCase();
+    return c.includes('red')?'red':c.includes('black')?'black':'unknown';
+  };
+  function shoes(){
+    const tagged=[
+      ...(state.redPatternLibrary||[]).map(x=>({...x,__scanColor:'red'})),
+      ...(state.blackPatternLibrary||[]).map(x=>({...x,__scanColor:'black'}))
+    ];
+    const seen=new Set(),out=[];
+    tagged.forEach(x=>{
+      const raw=String(x?.sequence||'').toUpperCase();
+      if(!/^[PBT]+$/.test(raw))return;
+      const clean=pb(raw); if(clean.length<12)return;
+      const color=x.__scanColor||colorOf(x);
+      // Exact same normalized shoe in the same color is counted once.
+      const key=color+'|'+clean;
+      if(seen.has(key))return;
+      seen.add(key);
+      out.push({...x,sequence:raw,__scanColor:color,__pb:clean});
+    });
+    return out;
+  }
+  const blank=()=>({P:0,B:0,n:0});
+  function add(map,key,next,delta=1){
+    if(next!=='P'&&next!=='B')return;
+    let z=map[key]; if(!z)z=map[key]=blank();
+    z[next]+=delta; z.n+=delta;
+  }
+  function diff(a,b){
+    return {P:(a?.P||0)-(b?.P||0),B:(a?.B||0)-(b?.B||0),n:(a?.n||0)-(b?.n||0)};
+  }
+  function scoreExamples(global,locals,examples,filter=null){
+    let wins=0,losses=0,used=0;
+    for(const ex of examples){
+      if(filter&&!filter(ex))continue;
+      let pick=null;
+      for(const key of ex.keys){
+        const d=diff(global[key],locals[ex.si]?.[key]);
+        // Require at least 3 examples outside the held-out shoe.
+        if(d.n>=3 && d.P!==d.B){pick=d.P>d.B?'P':'B';break;}
+      }
+      if(!pick)continue;
+      used++;
+      if(pick===ex.next)wins++; else losses++;
+    }
+    return {rate:used?wins/used:.5,n:used,wins,losses};
+  }
+  function scorePack(global,locals,examples){
+    const score=scoreExamples(global,locals,examples);
+    const phases={};
+    PHASES.forEach(ph=>phases[ph]=scoreExamples(global,locals,examples,e=>e.phase===ph));
+    const colors={
+      red:scoreExamples(global,locals,examples,e=>e.color==='red'),
+      black:scoreExamples(global,locals,examples,e=>e.color==='black')
+    };
+    return {score,phases,colors,index:global,examples:examples.length};
+  }
+  function buildSequenceCV(S){
+    const g={},locals=S.map(()=>({})),examples=[];
+    S.forEach((shoe,si)=>{
+      const seq=shoe.__pb||pb(shoe.sequence),color=shoe.__scanColor||colorOf(shoe);
+      for(let i=3;i<seq.length;i++){
+        const next=seq[i],phase=phaseAt(i+1),keys=[];
+        for(let k=Math.min(16,i);k>=3;k--){
+          const tail=seq.slice(i-k,i);
+          // Most specific evidence first, then gracefully back off.
+          [
+            `SEQ|${color}|${phase}|${k}|${tail}`,
+            `SEQ|${phase}|${k}|${tail}`,
+            `SEQ|${color}|${k}|${tail}`,
+            `SEQ|ANY|${k}|${tail}`
+          ].forEach(key=>{keys.push(key);add(g,key,next);add(locals[si],key,next)});
+        }
+        examples.push({si,next,phase,color,keys});
+      }
+    });
+    return scorePack(g,locals,examples);
+  }
+  function buildRhythmCV(S){
+    const g={},locals=S.map(()=>({})),examples=[];
+    S.forEach((shoe,si)=>{
+      const seq=shoe.__pb||pb(shoe.sequence),color=shoe.__scanColor||colorOf(shoe);
+      for(let i=4;i<seq.length;i++){
+        const next=seq[i],phase=phaseAt(i+1),prev=seq[i-1];
+        let run=1; for(let j=i-2;j>=0&&seq[j]===prev;j--)run++;
+        let switches=0;
+        const tail6=seq.slice(Math.max(0,i-6),i);
+        for(let j=1;j<tail6.length;j++)if(tail6[j]!==tail6[j-1])switches++;
+        const shape=tail6.replace(/P/g,'1').replace(/B/g,'0');
+        const runBucket=Math.min(run,8),switchBucket=Math.min(switches,5);
+        const keys=[
+          `RHY|${color}|${phase}|${prev}|${runBucket}|${switchBucket}|${shape}`,
+          `RHY|${phase}|${prev}|${runBucket}|${switchBucket}|${shape}`,
+          `RHY|${color}|${prev}|${runBucket}|${switchBucket}`,
+          `RHY|ANY|${prev}|${runBucket}|${switchBucket}`,
+          `RHY|SHAPE|${shape}`
+        ];
+        keys.forEach(k=>{add(g,k,next);add(locals[si],k,next)});
+        examples.push({si,next,phase,color,keys});
+      }
+    });
+    return scorePack(g,locals,examples);
+  }
+  function roadMarksForPrefix(seq,n,offset){
+    try{return deriveRoad(seq.slice(0,n).split('').map(r=>({r})),offset)||[]}catch(e){return []}
+  }
+  function markChar(x){
+    if(typeof x==='string')return x==='R'||x==='B'?x:null;
+    const v=x?.c||x?.color||x?.r||x?.mark;
+    return v==='R'||v==='B'?v:null;
+  }
+  function buildRoadCV(S,offset,label){
+    const g={},locals=S.map(()=>({})),examples=[];
+    S.forEach((shoe,si)=>{
+      const raw=shoe.__pb||pb(shoe.sequence),color=shoe.__scanColor||colorOf(shoe);
+      for(let i=6;i<raw.length;i++){
+        const next=raw[i],phase=phaseAt(i+1);
+        const marks=roadMarksForPrefix(raw,i,offset).map(markChar).filter(Boolean);
+        if(marks.length<3)continue;
+        const keys=[];
+        for(let k=Math.min(12,marks.length);k>=3;k--){
+          const tail=marks.slice(-k).join('');
+          [
+            `ROAD|${label}|${color}|${phase}|${k}|${tail}`,
+            `ROAD|${label}|${phase}|${k}|${tail}`,
+            `ROAD|${label}|${color}|${k}|${tail}`,
+            `ROAD|${label}|ANY|${k}|${tail}`
+          ].forEach(key=>{keys.push(key);add(g,key,next);add(locals[si],key,next)});
+        }
+        examples.push({si,next,phase,color,keys});
+      }
+    });
+    return scorePack(g,locals,examples);
+  }
+  function blendScore(parts,weights){
+    let n=0,r=0,w=0,l=0;
+    parts.forEach((p,i)=>{
+      const wt=weights[i]||0;if(!p||!p.n||!wt)return;
+      const evidence=Math.min(1,p.n/120);
+      const adjWt=wt*(.60+.40*evidence);
+      n+=p.n*adjWt;r+=p.rate*p.n*adjWt;
+      w+=(p.wins||0)*adjWt;l+=(p.losses||0)*adjWt;
+    });
+    return {rate:n?r/n:.5,n:Math.round(n),wins:Math.round(w),losses:Math.round(l)};
+  }
+  function blendPack(parts,weights){
+    const score=blendScore(parts.map(x=>x.score),weights),phases={},colors={};
+    PHASES.forEach(ph=>phases[ph]=blendScore(parts.map(x=>x.phases?.[ph]),weights));
+    ['red','black'].forEach(c=>colors[c]=blendScore(parts.map(x=>x.colors?.[c]),weights));
+    return {score,phases,colors};
+  }
+  function conservative(v){
+    if(!v||!Number.isFinite(v.rate))return {rate:.5,n:0,wins:0,losses:0};
+    const n=Number(v.n)||0;
+    // Shrink small samples toward 50%; high-N validated evidence earns more trust.
+    const shrink=n/(n+36);
+    const r=.5+(v.rate-.5)*shrink;
+    return {...v,rate:clamp(r,.40,.64)};
+  }
+  function makeModelPack(seq,rh,roads,roadPreview,kind){
+    if(kind==='seqv2'||kind==='color')return seq;
+    if(kind==='seqdup')return blendPack([seq,rh],[.62,.38]);
+    if(kind==='derived')return roads;
+    if(kind==='roadpreview')return roadPreview;
+    if(kind==='consensus')return blendPack([seq,blendPack([seq,rh],[.62,.38]),roads],[.36,.34,.30]);
+    if(kind==='bot')return blendPack([seq,blendPack([seq,rh],[.60,.40]),roadPreview,roads],[.27,.27,.26,.20]);
+    return blendPack([seq,blendPack([seq,rh],[.60,.40]),roadPreview,roads],[.25,.25,.27,.23]);
+  }
+  function runV15(){
+    const btn=document.getElementById('instantLibraryLearnBtn'),st=document.getElementById('instantLibraryLearnStatus');
+    if(btn)btn.disabled=true;if(st)st.textContent='DEEP-SCANNING FULL LIBRARY…';
+    const started=performance.now();
+    try{
+      const S=shoes();
+      if(!S.length)throw new Error('No saved shoes found.');
+      const seq=buildSequenceCV(S),rh=buildRhythmCV(S);
+      const eye=buildRoadCV(S,1,'EYE'),small=buildRoadCV(S,2,'SMALL'),roach=buildRoadCV(S,3,'ROACH');
+      const roads=blendPack([eye,small,roach],[1,.96,1.04]);
+      const roadPreview=blendPack([seq,roads],[.56,.44]);
+
+      const packs={
+        seqv2:makeModelPack(seq,rh,roads,roadPreview,'seqv2'),
+        seqdup:makeModelPack(seq,rh,roads,roadPreview,'seqdup'),
+        roadpreview:makeModelPack(seq,rh,roads,roadPreview,'roadpreview'),
+        color:makeModelPack(seq,rh,roads,roadPreview,'color'),
+        derivedorig:makeModelPack(seq,rh,roads,roadPreview,'derived'),
+        derivedmain:makeModelPack(seq,rh,roads,roadPreview,'derived'),
+        consensus:makeModelPack(seq,rh,roads,roadPreview,'consensus'),
+        bot:makeModelPack(seq,rh,roads,roadPreview,'bot'),
+        bestestimate:makeModelPack(seq,rh,roads,roadPreview,'best')
+      };
+
+      state.selfLearning=state.selfLearning&&typeof state.selfLearning==='object'
+        ? state.selfLearning
+        : {version:9,enabled:true,modelContexts:{},roadChannels:{},totalUpdates:0,createdAt:Date.now()};
+
+      state.selfLearning.libraryPriors={};
+      state.selfLearning.libraryContextPriors={};
+      state.selfLearning.libraryColorPriors={};
+
+      Object.entries(packs).forEach(([k,pack])=>{
+        const g=conservative(pack.score);
+        state.selfLearning.libraryPriors[k]={...g,source:'V15_DEEP_LOSO_LIBRARY'};
+        state.selfLearning.libraryContextPriors[k]={};
+        PHASES.forEach(ph=>{
+          state.selfLearning.libraryContextPriors[k][ph]={...conservative(pack.phases?.[ph]),source:'V15_DEEP_PHASE_LOSO'};
+        });
+        state.selfLearning.libraryColorPriors[k]={
+          red:{...conservative(pack.colors?.red),source:'V15_DEEP_COLOR_LOSO'},
+          black:{...conservative(pack.colors?.black),source:'V15_DEEP_COLOR_LOSO'}
+        };
+      });
+
+      state.selfLearning.libraryRoadPriors={
+        eye:{...conservative(eye.score),source:'V15_DEEP_ROAD_LOSO'},
+        small:{...conservative(small.score),source:'V15_DEEP_ROAD_LOSO'},
+        roach:{...conservative(roach.score),source:'V15_DEEP_ROAD_LOSO'}
+      };
+      state.selfLearning.libraryRoadPhasePriors={eye:{},small:{},roach:{}};
+      PHASES.forEach(ph=>{
+        state.selfLearning.libraryRoadPhasePriors.eye[ph]={...conservative(eye.phases[ph]),source:'V15_DEEP_ROAD_PHASE'};
+        state.selfLearning.libraryRoadPhasePriors.small[ph]={...conservative(small.phases[ph]),source:'V15_DEEP_ROAD_PHASE'};
+        state.selfLearning.libraryRoadPhasePriors.roach[ph]={...conservative(roach.phases[ph]),source:'V15_DEEP_ROAD_PHASE'};
+      });
+
+      state.fastLibraryLearning={
+        version:15,engine:'DEEP_FULL_LIBRARY_LOSO',
+        learnedAt:new Date().toISOString(),
+        shoeCount:S.length,
+        redShoes:S.filter(x=>x.__scanColor==='red').length,
+        blackShoes:S.filter(x=>x.__scanColor==='black').length,
+        hands:S.reduce((a,x)=>a+(x.__pb||pb(x.sequence)).length,0),
+        priors:state.selfLearning.libraryPriors,
+        contextPriors:state.selfLearning.libraryContextPriors,
+        colorPriors:state.selfLearning.libraryColorPriors,
+        roadPriors:state.selfLearning.libraryRoadPriors,
+        roadPhasePriors:state.selfLearning.libraryRoadPhasePriors,
+        cachedIndexSizes:{
+          sequence:Object.keys(seq.index).length,
+          rhythm:Object.keys(rh.index).length,
+          eye:Object.keys(eye.index).length,
+          small:Object.keys(small.index).length,
+          roach:Object.keys(roach.index).length
+        },
+        examples:{
+          sequence:seq.examples,rhythm:rh.examples,eye:eye.examples,small:small.examples,roach:roach.examples
+        }
+      };
+      persist();
+      const ms=Math.round(performance.now()-started);
+      renderV15();
+      try{window.__selfLearningV9?.render?.()}catch(e){}
+      if(st)st.textContent=`DEEP LEARNED ${S.length} UNIQUE SHOES • ${state.fastLibraryLearning.hands} P/B HANDS • ${ms} ms`;
+    }catch(e){
+      if(st)st.textContent='ERROR: '+e.message;
+    }finally{
+      if(btn)btn.disabled=false;
+    }
+  }
+  function pct(x){return x&&Number.isFinite(Number(x.rate))?Math.round(Number(x.rate)*100)+'%':'—'}
+  function renderV15(){
+    const f=state.fastLibraryLearning,grid=document.getElementById('instantLibraryLearnGrid'),note=document.getElementById('instantLibraryLearnNote');
+    if(!grid)return;
+    if(!f||f.version!==15){
+      grid.innerHTML='<div class="analyzer-card"><span>Deep library learning</span><strong>NOT RUN</strong></div>';
+      if(note)note.textContent='V15 deep scan has not been run yet.';
+      return;
+    }
+    grid.innerHTML=Object.entries(f.priors||{}).map(([k,v])=>
+      `<div class="analyzer-card"><span>${MODEL_NAMES[k]||k}</span><strong>${pct(v)} • N=${v.n||0}</strong></div>`
+    ).join('');
+    if(note)note.textContent=
+      `V15 leave-one-shoe-out learning: ${f.redShoes} red + ${f.blackShoes} black unique shoes, ${f.hands} P/B hands. `+
+      `Learns phase, color, sequence, rhythm/streak and derived-road context. Scores are validated historical priors, not guaranteed live win rates. Sequence AI V2 core logic is unchanged.`;
+  }
+  function install(){
+    const p=document.getElementById('instantLibraryLearnPanel');
+    if(p){
+      const title=p.querySelector('.analyzer-title');
+      const sub=p.querySelector('.analyzer-sub');
+      if(title)title.textContent='⚡ Deep Full-Library Learning V15 — All AI';
+      if(sub)sub.textContent='One tap scans every unique saved red/black shoe and learns sequence, shoe-phase, color, rhythm/streak, and derived-road behavior with leave-one-shoe-out validation.';
+    }
+    const old=document.getElementById('instantLibraryLearnBtn');
+    if(old){
+      const fresh=old.cloneNode(true);
+      fresh.textContent='Deep Deep Learn Full Library Now';
+      old.parentNode.replaceChild(fresh,old);
+      fresh.addEventListener('click',()=>setTimeout(runV15,20));
+    }
+    const oldRefresh=document.getElementById('instantLibraryLearnRefresh');
+    if(oldRefresh){
+      const freshR=oldRefresh.cloneNode(true);
+      freshR.textContent='Show Deep Learned Scores';
+      oldRefresh.parentNode.replaceChild(freshR,oldRefresh);
+      freshR.addEventListener('click',renderV15);
+    }
+    const st=document.getElementById('instantLibraryLearnStatus');
+    if(st)st.textContent='READY — tap Deep Learn Full Library Now';
+    renderV15();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,120));
+  else setTimeout(install,120);
+  window.__deepLibraryLearnV15={run:runV15,render:renderV15};
+})();
+</script>
+
+<script>
+/* ============================================================
+   V12 — SELECTIVE LIVE ROAD ADAPTATION
+   - Roach starts highest, Big Eye second, Small lowest.
+   - V11 cross-validated road priors seed trust.
+   - Recent live graded hits/misses can override history quickly.
+   - Strong WAIT discipline: no forced P/B when road evidence is thin/conflicted.
+   - Sequence AI V2 core prediction logic remains untouched.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  function v12State(){
+    if(!state.selectiveLiveV12||typeof state.selectiveLiveV12!=='object')
+      state.selectiveLiveV12={version:12,enabled:true,createdAt:Date.now()};
+    return state.selectiveLiveV12;
+  }
+  function roadPrior(key){
+    const p=state.selfLearning?.libraryRoadPriors?.[key];
+    const rate=Number(p?.rate);
+    return Number.isFinite(rate)?clamp(rate,.42,.62):.50;
+  }
+  function recentRoadRate(key){
+    const arr=(ensureAdaptiveDerivedState().roads?.[key]?.last12||[]).slice(-8);
+    if(!arr.length)return {rate:.50,n:0};
+    // Exponential recency weighting: newest live grades matter most.
+    let w=0,s=0;
+    arr.forEach((x,i)=>{const wt=Math.pow(1.22,i);w+=wt;s+=wt*(x?1:0)});
+    const raw=w?s/w:.50;
+    const shrink=arr.length/(arr.length+3);
+    return {rate:.50+(raw-.50)*shrink,n:arr.length};
+  }
+  function roadTrust(key){
+    const prior=roadPrior(key),live=recentRoadRate(key);
+    // Live evidence takes over rapidly: ~40% at 2 grades, ~70% by 6+, 82% max.
+    const liveW=live.n?Math.min(.82,.22+.10*live.n):0;
+    return {rate:prior*(1-liveW)+live.rate*liveW,prior,liveRate:live.rate,liveN:live.n,liveW};
+  }
+  function baseWeight(key){
+    // User-requested ordering: Roach > Big Eye > Small.
+    return key==='roach'?1.12:key==='eye'?1.03:.90;
+  }
+
+  const oldAdaptive=adaptiveDerivedMainSignal;
+  adaptiveDerivedMainSignal=function(){
+    const defs=['eye','small','roach'];
+    const roads=defs.map(key=>{
+      const x=mainRoadHistorySignal(key),t=roadTrust(key);
+      const q=clamp((x.quality||50)/100,.45,1);
+      const histBoost=clamp(1+(t.prior-.50)*2.5,.84,1.30);
+      const liveBoost=clamp(1+(t.rate-.50)*3.2,.72,1.42);
+      const w=x.disabled?0:baseWeight(key)*histBoost*liveBoost*(.58+.42*q);
+      return {...x,key,reliability:t.rate,priorReliability:t.prior,liveReliability:t.liveRate,liveN:t.liveN,weight:w,enabled:!x.disabled};
+    });
+    const enabled=roads.filter(x=>x.enabled),live=enabled.filter(x=>x.side);
+    let p=0,b=0,total=0;
+    live.forEach(x=>{
+      const signalEdge=clamp(((x.strength||50)-50)/42,.04,1);
+      const v=x.weight*signalEdge;
+      if(x.side==='P')p+=v; else b+=v; total+=v;
+    });
+    const pVotes=live.filter(x=>x.side==='P').length,bVotes=live.filter(x=>x.side==='B').length;
+    const voteLeader=pVotes>bVotes?'P':bVotes>pVotes?'B':null;
+    const winner=Math.max(pVotes,bVotes),edge=total?Math.abs(p-b)/total:0;
+    let side=null,waitReason='';
+    const supporters=voteLeader?live.filter(x=>x.side===voteLeader):[];
+    const avgQuality=supporters.length?supporters.reduce((a,x)=>a+(x.quality||0),0)/supporters.length:0;
+    const avgStrength=supporters.length?supporters.reduce((a,x)=>a+(x.strength||0),0)/supporters.length:0;
+    const weightedLeader=p>b?'P':b>p?'B':null;
+
+    // Selective gate: no single-road calls. Two roads require strong edge/quality;
+    // unanimous three-road agreement is allowed at a slightly lower edge.
+    if(live.length<2) waitReason='WAIT: fewer than 2 qualified derived-road channels.';
+    else if(!voteLeader||weightedLeader!==voteLeader) waitReason='WAIT: road vote and learned weighting disagree.';
+    else if(winner===3 && edge>=.12 && avgQuality>=60 && avgStrength>=56) side=voteLeader;
+    else if(winner>=2 && edge>=.18 && avgQuality>=64 && avgStrength>=59) side=voteLeader;
+    else waitReason=`WAIT: selective gate needs stronger agreement (edge ${Math.round(edge*100)}%, quality ${Math.round(avgQuality)}).`;
+
+    const chosen=side?live.filter(x=>x.side===side):[];
+    const confidence=chosen.length?Math.min(88,Math.round(
+      chosen.reduce((a,x)=>a+(x.strength||0),0)/chosen.length + edge*6 + (chosen.length===3?2:0)
+    )):0;
+    return {side,strength:confidence,confidence,pVotes,bVotes,winner,edge,roads,
+      ready:enabled.filter(x=>x.matches>0).length,activeCount:enabled.length,liveCount:live.length,
+      adaptive:true,selectiveV12:true,waitReason};
+  };
+
+  // Make Best-Estimate obey the selective road confirmation instead of forcing a call.
+  if(typeof computeCombinedAnalyzer==='function'){
+    const oldBest=computeCombinedAnalyzer;
+    computeCombinedAnalyzer=function(){
+      const r=oldBest.apply(this,arguments),ad=adaptiveDerivedMainSignal();
+      r.selectiveRoads=ad;
+      if(r.qualified){
+        if(!ad.side){r.qualified=false;r.gateReason=ad.waitReason||'WAIT: Adaptive Derived Roads did not qualify.';}
+        else if(ad.side!==r.side){r.qualified=false;r.gateReason='WAIT: Best-Estimate conflicts with selectively weighted derived roads.';}
+        else if((Number(r.top)||0)<58){r.qualified=false;r.gateReason='WAIT: Selective live mode requires at least a 58-point combined score.';}
+      }
+      return r;
+    };
+  }
+
+  function renderPanel(){
+    let p=document.getElementById('selectiveLiveV12Panel');
+    if(!p){
+      p=document.createElement('div');p.className='analyzer';p.id='selectiveLiveV12Panel';p.style.borderColor='#6a7f9e';
+      p.innerHTML=`<div class="analyzer-title">🎯 Selective Live Adaptation V12</div>
+        <div class="analyzer-sub">Roach starts highest, Big Eye second, Small lowest. V11 library priors seed each road, then the latest live graded results rapidly reweight them. Weak/conflicting setups return WAIT.</div>
+        <div class="analyzer-grid" id="selectiveLiveV12Grid"></div>
+        <div class="analyzer-sub" id="selectiveLiveV12Note" style="margin-top:8px"></div>`;
+      const a=document.getElementById('instantLibraryLearnPanel')||document.querySelector('.analyzer');
+      if(a?.parentNode)a.parentNode.insertBefore(p,a.nextSibling);else document.body.appendChild(p);
+    }
+    try{
+      const x=adaptiveDerivedMainSignal(),g=document.getElementById('selectiveLiveV12Grid');
+      if(g)g.innerHTML=x.roads.map(r=>`<div class="analyzer-card"><span>${r.key==='eye'?'Big Eye':r.key==='small'?'Small Road':'Roach Road'}</span><strong>${Math.round(r.weight*100)/100}×</strong><small>Library ${Math.round(r.priorReliability*100)}% • Live ${r.liveN?Math.round(r.liveReliability*100)+'% N='+r.liveN:'building'}</small></div>`).join('');
+      const n=document.getElementById('selectiveLiveV12Note');
+      if(n)n.textContent=x.side?`QUALIFIED: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.confidence}% signal strength • ${Math.round(x.edge*100)}% weighted road edge`:(x.waitReason||'WAIT');
+    }catch(e){}
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function')window.render=function(){const z=oldRender.apply(this,arguments);try{renderPanel()}catch(e){}return z};
+  v12State();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(renderPanel,80));else setTimeout(renderPanel,80);
+  window.__selectiveLiveV12={roadTrust,render:renderPanel};
+})();
+</script>
 </body>
 </html>
