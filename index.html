@@ -956,26 +956,54 @@ toggle('ppBtn','pp'); toggle('bpBtn','bp'); toggle('specialBtn','special');
 document.querySelectorAll('[data-result]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const actual=btn.dataset.result;
+
+    // Grade every verification ledger BEFORE the actual result is added.
+    // Direct core-handler hooks are used instead of relying on late capture listeners.
+    try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
+    try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
+    try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
+
     settlePendingPrediction(actual);
     settleBotPrediction(actual);
-    
-    
+
     state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
     state.scanSnapshot=null;
     state.pp=state.bp=state.special=false;
     document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
     armNextPrediction();
     armBotPrediction();
-    
+
     persist(); render();
-    
-    
+
+    // Lock the NEXT hand only after the just-entered result is fully committed.
+    try{ window.__armVerifiedPredictions?.(); }catch(e){}
+    try{ window.__armAdaptiveDerivedRoads?.(); }catch(e){}
+    try{ window.__armAdaptiveOriginalDerivedRoads?.(); }catch(e){}
+    try{ window.renderVerifiedAccuracy?.(); window.renderAdaptiveDerivedMain?.(); }catch(e){}
+
     if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
-    
   });
 });
-document.getElementById('previewP').onclick=()=>{settlePendingPrediction('P');settleBotPrediction('P');state.hands.push({r:'P',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
-document.getElementById('previewB').onclick=()=>{settlePendingPrediction('B');settleBotPrediction('B');state.hands.push({r:'B',pp:false,bp:false,special:false,ts:Date.now()});state.scanSnapshot=null;armNextPrediction();armBotPrediction();persist();render();if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);};
+function commitPreviewResult(actual){
+  try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
+  try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
+  try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
+  settlePendingPrediction(actual);
+  settleBotPrediction(actual);
+  state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});
+  state.scanSnapshot=null;
+  armNextPrediction();
+  armBotPrediction();
+  persist();
+  render();
+  try{ window.__armVerifiedPredictions?.(); }catch(e){}
+  try{ window.__armAdaptiveDerivedRoads?.(); }catch(e){}
+  try{ window.__armAdaptiveOriginalDerivedRoads?.(); }catch(e){}
+  try{ window.renderVerifiedAccuracy?.(); window.renderAdaptiveDerivedMain?.(); }catch(e){}
+  if(state.kaggleLibraryEnabled!==false)scoreWithKaggle(false);
+}
+document.getElementById('previewP').onclick=()=>commitPreviewResult('P');
+document.getElementById('previewB').onclick=()=>commitPreviewResult('B');
 document.getElementById('undoBtn').onclick=()=>{state.hands.pop();state.scanSnapshot=null;persist();render();};
 document.getElementById('clearBtn').onclick=()=>{
   if(confirm('Start a new shoe and clear all results?')){
@@ -2594,7 +2622,7 @@ function roadPreviewAISignal(){
     perLength,bestSimilarity:Math.round(bestSimilarity*100),currentRoad,waitReason:''};
 }
 function renderRoadPreviewAI(){
-  const r=roadPreviewAISignal();
+  const r=window.__slV10Signal?window.__slV10Signal('roadpreview',roadPreviewAISignal()):roadPreviewAISignal();
   document.getElementById('roadAiSide').textContent=r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT';
   document.getElementById('roadAiStrength').textContent=r.side?r.strength+'%':'WAIT';
   document.getElementById('roadAiAgree').textContent=String(r.matches||0);
@@ -2705,7 +2733,7 @@ function sequenceAISignal(){
   return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources:[{name:'saved-shoes-v2'}]};
 }
 function renderSequenceAI(){
-  const s=sequenceAISignal();
+  const s=window.__slV10Signal?window.__slV10Signal('seqv2',sequenceAISignal()):sequenceAISignal();
   const name=s.side==='P'?'Player':s.side==='B'?'Banker':'WAIT';
   document.getElementById('seqAiSide').textContent=name;
   document.getElementById('seqAiStrength').textContent=s.side ? s.strength+'%' : 'WAIT';
@@ -3113,7 +3141,7 @@ function consensusSignal(){
 }
 
 function renderConsensus(){
-  const c=consensusSignal();
+  const c=window.__slV10Signal?window.__slV10Signal('consensus',consensusSignal()):consensusSignal();
   document.getElementById('consensusSide').textContent=c.side==='P'?'Player':c.side==='B'?'Banker':'—';
   document.getElementById('consensusStrength').textContent=c.side?c.strength+'%':'—';
   document.getElementById('consensusAgree').textContent=c.total?`${c.agree}/${c.total}`:'0/0';
@@ -4121,7 +4149,9 @@ setInterval(verifyBotHeartbeat,2500);
 function renderMasterBot(){
   botHeartbeat();
   ensureBotState();
-  const b=masterBotSignal();
+  const b0=masterBotSignal();
+  const bc=window.__slV10Signal?window.__slV10Signal('bot',{...b0,side:b0.qualified?b0.side:null,strength:b0.confidence||0}):{...b0,side:b0.qualified?b0.side:null,strength:b0.confidence||0};
+  const b={...b0,qualified:!!bc.side,side:bc.side,confidence:bc.strength||0,selfLearning:bc.selfLearning,selfLearnRate:bc.selfLearnRate,selfLearnN:bc.selfLearnN,reason:bc.side?b0.reason:(bc.waitReason||b0.reason)};
   const decision=document.getElementById('botDecision'); if(!decision)return;
   decision.textContent=b.qualified?(b.side==='P'?'PLAYER':'BANKER'):'WAIT';
   document.getElementById('botConfidence').textContent=b.confidence?b.confidence+'%':'—';
@@ -4737,7 +4767,9 @@ setInterval(scan,1800);setTimeout(scan,300);
     const conf=document.getElementById('derivedIndependentConfidence');
     if(!pred||!agree||!conf || typeof derivedRoadSequenceAI!=='function') return;
 
-    const x=derivedRoadSequenceAI();
+    const x0=derivedRoadSequenceAI();
+    const xc=window.__slV10Signal?window.__slV10Signal('derivedorig',{...x0,strength:x0.confidence||0}):{...x0,strength:x0.confidence||0};
+    const x={...x0,side:xc.side,confidence:xc.strength||0,selfLearning:xc.selfLearning,selfLearnRate:xc.selfLearnRate,selfLearnN:xc.selfLearnN};
     const choice=x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT';
     pred.textContent='Prediction: '+choice;
 
@@ -4839,7 +4871,7 @@ setInterval(scan,1800);setTimeout(scan,300);
   window.colorPatternAISignal=colorPatternAISignal;
 
   function renderColorPatternAI(){
-    const x=colorPatternAISignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    const x=window.__slV10Signal?window.__slV10Signal('color',colorPatternAISignal()):colorPatternAISignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
     set('colorAiSide',sideName(x.side));set('colorAiStrength',x.side?x.strength+'%':'WAIT');set('colorAiMatches',x.matches||0);
     set('colorAiSimilarity',(x.bestSimilarity||0)+'%');set('colorAiGrade',x.grade||'LOW');set('colorAiWindows',(x.agreeWindows||0)+'/'+(x.totalWindows||0));
     set('colorAiP',x.matches?x.pPct+'%':'—');set('colorAiB',x.matches?x.bPct+'%':'—');set('colorAiT',x.matches?x.tPct+'%':'—');
@@ -4852,16 +4884,15 @@ setInterval(scan,1800);setTimeout(scan,300);
     return state.accuracyVerified;
   }
   const modelDefs=[
-    ['seqv2','Sequence AI V2',()=>sequenceAISignal()],
-    ['color','Color Pattern AI',()=>colorPatternAISignal()],
-    ['roadpreview','Road Preview AI',()=>roadPreviewAISignal()],
-    ['derivedorig','Derived Road AI',()=>{const x=derivedRoadSequenceAI();return {side:x.side,strength:x.confidence||0}}],
-    ['derivedmain','Adaptive Derived Roads — Main-Road Mode',()=>adaptiveDerivedMainSignal()],
-    ['seqdup','Sequence AI V2 Duplicate',()=>sequenceAIDuplicateSignal()],
-    ['consensus','AI Consensus',()=>consensusSignal()],
-    ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal();return {side:x.qualified?x.side:null,strength:x.confidence||0}}],
-    ['bestestimate','Best-Estimate Analyzer',()=>{const x=computeCombinedAnalyzer();return {side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0}}],
-    
+    ['seqv2','Sequence AI V2',()=>window.__slV10Signal?window.__slV10Signal('seqv2',sequenceAISignal()):sequenceAISignal()],
+    ['color','Color Pattern AI',()=>window.__slV10Signal?window.__slV10Signal('color',colorPatternAISignal()):colorPatternAISignal()],
+    ['roadpreview','Road Preview AI',()=>window.__slV10Signal?window.__slV10Signal('roadpreview',roadPreviewAISignal()):roadPreviewAISignal()],
+    ['derivedorig','Derived Road AI',()=>{const x=derivedRoadSequenceAI(),y={side:x.side,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('derivedorig',y):y}],
+    ['derivedmain','Adaptive Derived Roads — Main-Road Mode',()=>{const x=adaptiveDerivedMainSignal();return window.__slV10Signal?window.__slV10Signal('derivedmain',x):x}],
+    ['seqdup','Sequence AI V2 Duplicate',()=>{const x=sequenceAIDuplicateSignal();return window.__slV10Signal?window.__slV10Signal('seqdup',x):x}],
+    ['consensus','AI Consensus',()=>{const x=consensusSignal();return window.__slV10Signal?window.__slV10Signal('consensus',x):x}],
+    ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal(),y={side:x.qualified?x.side:null,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('bot',y):y}],
+    ['bestestimate','Best-Estimate Analyzer',()=>{const x=computeCombinedAnalyzer(),y={side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0};return window.__slV10Signal?window.__slV10Signal('bestestimate',y):y}],
   ];
   function armVerifiedPredictions(){
     const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join('');
@@ -4907,13 +4938,16 @@ setInterval(scan,1800);setTimeout(scan,300);
     });
     const n=document.getElementById('verifiedAccuracyNote');if(n)n.textContent=`Only pre-result P/B locks are scored. ${a.ties||0} tie result(s) observed while verification was active; ties do not become wins or losses.`;
   }
-  window.renderColorPatternAI=renderColorPatternAI;window.renderVerifiedAccuracy=renderVerifiedAccuracy;
+  window.renderColorPatternAI=renderColorPatternAI;window.renderVerifiedAccuracy=renderVerifiedAccuracy;window.renderAdaptiveDerivedMain=renderAdaptiveDerivedMain;
 
-  // Capture runs before the app's existing result handlers, so the ledger is settled before the new result is pushed.
-  document.querySelectorAll('[data-result]').forEach(btn=>btn.addEventListener('click',e=>{settleVerifiedPredictions(btn.dataset.result);setTimeout(()=>{renderColorPatternAI();armVerifiedPredictions();},120);setTimeout(armVerifiedPredictions,1400);},true));
-  ['previewP','previewB'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>{settleVerifiedPredictions(id==='previewP'?'P':'B');setTimeout(()=>{renderColorPatternAI();armVerifiedPredictions();},120);setTimeout(armVerifiedPredictions,1400);},true));
-  document.querySelectorAll('[data-result]').forEach(btn=>btn.addEventListener('click',()=>{settleAdaptiveDerivedRoads(btn.dataset.result);settleAdaptiveOriginalDerivedRoads(btn.dataset.result);setTimeout(()=>{armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();renderAdaptiveDerivedMain();},160);},true));
-  ['previewP','previewB'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>{const actual=id==='previewP'?'P':'B';settleAdaptiveDerivedRoads(actual);settleAdaptiveOriginalDerivedRoads(actual);setTimeout(()=>{armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();renderAdaptiveDerivedMain();},160);},true));
+  // Expose direct grading hooks to the core result handlers above. This makes grading
+  // deterministic: settle old lock -> commit actual -> arm next lock.
+  window.__settleVerifiedPredictions=settleVerifiedPredictions;
+  window.__armVerifiedPredictions=armVerifiedPredictions;
+  window.__settleAdaptiveDerivedRoads=settleAdaptiveDerivedRoads;
+  window.__armAdaptiveDerivedRoads=armAdaptiveDerivedRoads;
+  window.__settleAdaptiveOriginalDerivedRoads=settleAdaptiveOriginalDerivedRoads;
+  window.__armAdaptiveOriginalDerivedRoads=armAdaptiveOriginalDerivedRoads;
   document.getElementById('clearBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};resetAdaptiveDerivedForNewShoe();persist();renderColorPatternAI();renderVerifiedAccuracy();renderAdaptiveDerivedMain();},150),true);
   document.getElementById('undoBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};undoAdaptiveDerivedGrade();persist();renderColorPatternAI();armVerifiedPredictions();armAdaptiveDerivedRoads();renderAdaptiveDerivedMain();},150),true);
 
@@ -4923,5 +4957,583 @@ setInterval(scan,1800);setTimeout(scan,300);
   ensureAccuracy();ensureAdaptiveDerivedState();ensureAdaptiveOriginalDerivedState();renderColorPatternAI();renderVerifiedAccuracy();renderAdaptiveDerivedMain();setTimeout(()=>{armVerifiedPredictions();armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();},500);setTimeout(()=>{armVerifiedPredictions();armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();},1800);
 })();
 </script>
+
+<script>
+/* ============================================================
+   SELF-LEARNING ENGINE V9
+   - Does NOT change Sequence AI V2 core logic.
+   - Learns from verified pre-result grades only.
+   - Persists phase/confidence/context performance in localStorage.
+   - Adapts Adaptive Derived Roads channel weights.
+   - Makes Best-Estimate more selective when learned evidence is weak.
+   ============================================================ */
+(function(){
+  function slEnsure(){
+    if(!state.selfLearning || typeof state.selfLearning!=='object'){
+      state.selfLearning={
+        version:9, enabled:true, modelContexts:{}, roadChannels:{},
+        totalUpdates:0, createdAt:Date.now()
+      };
+    }
+    if(!state.selfLearning.modelContexts) state.selfLearning.modelContexts={};
+    if(!state.selfLearning.roadChannels) state.selfLearning.roadChannels={};
+    if(!Number.isFinite(state.selfLearning.totalUpdates)) state.selfLearning.totalUpdates=0;
+    state.selfLearning.version=9;
+    state.selfLearning.enabled=true;
+    return state.selfLearning;
+  }
+  function slPhase(){
+    const n=(currentSequence?.()||[]).filter?.(x=>x==='P'||x==='B').length ?? 0;
+    if(n>=55)return '55+';
+    if(n>=40)return '40-54';
+    if(n>=16)return '16-39';
+    return '1-15';
+  }
+  function slBand(strength){
+    const s=Number(strength)||0;
+    if(s>=75)return '75+';
+    if(s>=65)return '65-74';
+    if(s>=60)return '60-64';
+    return '<60';
+  }
+  function slBucket(root,key){
+    if(!root[key]) root[key]={wins:0,losses:0,n:0,last20:[]};
+    const b=root[key];
+    if(!Array.isArray(b.last20))b.last20=[];
+    return b;
+  }
+  function slUpdateBucket(b,win){
+    b.n=(b.n||0)+1;
+    if(win)b.wins=(b.wins||0)+1;else b.losses=(b.losses||0)+1;
+    b.last20.push(win?1:0);
+    if(b.last20.length>20)b.last20=b.last20.slice(-20);
+  }
+  function slPosterior(b){
+    if(!b||!b.n)return {rate:.50,n:0,recent:.50};
+    // Beta(6,6) prior prevents a few lucky hands from dominating.
+    const rate=((b.wins||0)+6)/((b.n||0)+12);
+    const recent=b.last20?.length?b.last20.reduce((a,x)=>a+x,0)/b.last20.length:.50;
+    const blend=Math.min(.72,b.n/28);
+    return {rate:rate*(1-blend)+recent*blend,n:b.n,recent};
+  }
+  function slModelContextKey(key,phase,band,agree){
+    return `${key}|${phase}|${band}|${agree}`;
+  }
+  function slModelReliability(key,strength,side){
+    const sl=slEnsure(), phase=slPhase(), band=slBand(strength);
+    let seq=null; try{ seq=sequenceAISignal(); }catch(e){}
+    const agree=!seq?.side?'NOSEQ':seq.side===side?'AGREE':'OPPOSE';
+    const root=sl.modelContexts;
+    const exact=slPosterior(root[slModelContextKey(key,phase,band,agree)]);
+    const phaseAny=slPosterior(root[`${key}|${phase}|ANY|ANY`]);
+    const global=slPosterior(root[`${key}|ANY|ANY|ANY`]);
+    const weightedN=exact.n+phaseAny.n+global.n;
+    const reliability=weightedN
+      ? (exact.rate*(exact.n+4)+phaseAny.rate*(phaseAny.n+3)+global.rate*(global.n+2))/
+        ((exact.n+4)+(phaseAny.n+3)+(global.n+2))
+      : .50;
+    return {reliability,n:weightedN,phase,band,agree,exactN:exact.n};
+  }
+  function slRecordModel(key,p,actual){
+    if(!p || (actual!=='P'&&actual!=='B'))return;
+    const sl=slEnsure(), win=p.side===actual;
+    const phase=p.slPhase||slPhase(), band=p.slBand||slBand(p.strength);
+    const agree=p.slSeqAgree||'NOSEQ';
+    [
+      slModelContextKey(key,phase,band,agree),
+      `${key}|${phase}|ANY|ANY`,
+      `${key}|ANY|ANY|ANY`
+    ].forEach(k=>slUpdateBucket(slBucket(sl.modelContexts,k),win));
+    sl.totalUpdates++;
+  }
+  function slRoadReliability(key){
+    const sl=slEnsure(), phase=slPhase(), root=sl.roadChannels;
+    const exact=slPosterior(root[`${key}|${phase}`]);
+    const global=slPosterior(root[`${key}|ANY`]);
+    if(!(exact.n||global.n))return .50;
+    return (exact.rate*(exact.n+5)+global.rate*(global.n+3))/((exact.n+5)+(global.n+3));
+  }
+  function slRecordRoad(key,p,actual){
+    if(!p || (actual!=='P'&&actual!=='B'))return;
+    const sl=slEnsure(), win=p.side===actual, phase=p.slPhase||slPhase();
+    [`${key}|${phase}`,`${key}|ANY`].forEach(k=>slUpdateBucket(slBucket(sl.roadChannels,k),win));
+    sl.totalUpdates++;
+  }
+
+  // Upgrade verified grading hooks: attach the context that existed BEFORE the result.
+  const oldArm=window.__armVerifiedPredictions;
+  if(typeof oldArm==='function'){
+    window.__armVerifiedPredictions=function(){
+      oldArm();
+      try{
+        const a=ensureAccuracy(), seq=sequenceAISignal();
+        Object.entries(a.pending||{}).forEach(([key,p])=>{
+          p.slPhase=slPhase();
+          p.slBand=slBand(p.strength);
+          p.slSeqAgree=!seq?.side?'NOSEQ':seq.side===p.side?'AGREE':'OPPOSE';
+        });
+        persist();
+      }catch(e){}
+    };
+  }
+
+  const oldSettle=window.__settleVerifiedPredictions;
+  if(typeof oldSettle==='function'){
+    window.__settleVerifiedPredictions=function(actual){
+      let snapshot={};
+      try{
+        const a=ensureAccuracy();
+        Object.entries(a.pending||{}).forEach(([k,p])=>snapshot[k]={...p});
+      }catch(e){}
+      oldSettle(actual);
+      if(actual==='P'||actual==='B'){
+        Object.entries(snapshot).forEach(([k,p])=>slRecordModel(k,p,actual));
+        persist();
+      }
+    };
+  }
+
+  // Preserve learning across shoes for each derived road channel.
+  const oldRoadArm=window.__armAdaptiveDerivedRoads;
+  if(typeof oldRoadArm==='function'){
+    window.__armAdaptiveDerivedRoads=function(){
+      oldRoadArm();
+      try{
+        const st=ensureAdaptiveDerivedState();
+        Object.values(st.pending||{}).forEach(p=>p.slPhase=slPhase());
+        persist();
+      }catch(e){}
+    };
+  }
+  const oldRoadSettle=window.__settleAdaptiveDerivedRoads;
+  if(typeof oldRoadSettle==='function'){
+    window.__settleAdaptiveDerivedRoads=function(actual){
+      let snapshot={};
+      try{
+        const st=ensureAdaptiveDerivedState();
+        Object.entries(st.pending||{}).forEach(([k,p])=>snapshot[k]={...p});
+      }catch(e){}
+      oldRoadSettle(actual);
+      if(actual==='P'||actual==='B'){
+        Object.entries(snapshot).forEach(([k,p])=>slRecordRoad(k,p,actual));
+        persist();
+      }
+    };
+  }
+
+  // Make Adaptive Derived road reliability long-term + phase-aware, while
+  // retaining fast last-12 adaptation from the existing engine.
+  const baseAdaptiveRoadReliability=adaptiveRoadReliability;
+  adaptiveRoadReliability=function(key){
+    const short=baseAdaptiveRoadReliability(key);
+    const learned=slRoadReliability(key);
+    const sl=slEnsure(), phase=slPhase();
+    const n=(sl.roadChannels[`${key}|${phase}`]?.n||0)+(sl.roadChannels[`${key}|ANY`]?.n||0);
+    const learnedWeight=Math.min(.72,n/30);
+    return short*(1-learnedWeight)+learned*learnedWeight;
+  };
+
+  // Adaptive Derived: learned reliability now changes whether conflicting roads
+  // are trusted. Weak learned channels are automatically suppressed.
+  const baseAdaptiveDerivedMainSignal=adaptiveDerivedMainSignal;
+  adaptiveDerivedMainSignal=function(){
+    const base=baseAdaptiveDerivedMainSignal();
+    if(!base?.roads?.length)return base;
+    const learned=slModelReliability('derivedmain',base.confidence||base.strength,base.side);
+    const roads=base.roads.map(r=>{
+      const lr=slRoadReliability(r.key);
+      const n=(slEnsure().roadChannels[`${r.key}|ANY`]?.n||0);
+      const trust=n>=8?Math.max(.35,Math.min(1.25,.45+lr*1.25)):1;
+      return {...r,selfLearnReliability:lr,selfLearnSamples:n,weight:(r.weight||0)*trust};
+    });
+    const live=roads.filter(r=>r.enabled&&r.side);
+    let p=0,b=0;
+    live.forEach(r=>{
+      const edge=Math.max(.02,((r.strength||50)-50)/50);
+      const v=(r.weight||0)*edge;
+      if(r.side==='P')p+=v;else b+=v;
+    });
+    const total=p+b, edge=total?Math.abs(p-b)/total:0;
+    let side=total?(p>b?'P':'B'):null;
+    const same=side?live.filter(r=>r.side===side):[];
+    const opposing=side?live.filter(r=>r.side!==side):[];
+    // Stronger self-learning gate after enough graded samples.
+    if(learned.n>=12 && learned.reliability<.48)side=null;
+    if(side && opposing.length && edge<.18)side=null;
+    if(side && same.length<2 && base.activeCount>1)side=null;
+    let confidence=side?Math.round(Math.min(88,
+      50+edge*24+
+      (same.reduce((a,r)=>a+(r.strength||50),0)/Math.max(1,same.length)-50)*.55+
+      (learned.reliability-.50)*30
+    )):0;
+    return {...base,side,strength:confidence,confidence,edge,roads,
+      selfLearning:true,selfLearnRate:learned.reliability,selfLearnN:learned.n};
+  };
+
+  // Best-Estimate: keep original evidence generation, then learn when NOT to act.
+  // This is deliberately selective: verified performance controls qualification.
+  const baseComputeCombinedAnalyzer=computeCombinedAnalyzer;
+  computeCombinedAnalyzer=function(){
+    const a=baseComputeCombinedAnalyzer();
+    const side=a.side, top=Number(a.top)||0;
+    const learned=slModelReliability('bestestimate',top,side);
+    let seq=null; try{seq=sequenceAISignal();}catch(e){}
+    let qualified=!!a.qualified, reason=a.gateReason||'';
+    const seqHas=seq?.side==='P'||seq?.side==='B';
+    const agrees=seqHas&&seq.side===side;
+    const opposes=seqHas&&seq.side!==side;
+
+    if(qualified && top<60 && !(learned.n>=18 && learned.reliability>=.58)){
+      qualified=false; reason='Self-learning gate: sub-60 signals have not earned enough verified reliability.';
+    }
+    if(qualified && learned.n>=12 && learned.reliability<.49){
+      qualified=false; reason=`Self-learning gate: this context is underperforming (${Math.round(learned.reliability*100)}% learned reliability).`;
+    }
+    if(qualified && !seqHas && !(learned.n>=20 && learned.reliability>=.59)){
+      qualified=false; reason='Self-learning gate: Sequence AI V2 is WAIT and this context has not earned standalone trust.';
+    }
+    if(qualified && opposes && (Number(seq.strength)||0)>=60 &&
+       !(top>=63 && learned.n>=18 && learned.reliability>=.60)){
+      qualified=false; reason='Self-learning gate: conflict with Sequence AI V2 requires stronger verified evidence.';
+    }
+
+    // Calibrate displayed top confidence toward verified empirical reliability.
+    let calibratedTop=top;
+    if(learned.n>=8){
+      const empirical=50+(learned.reliability-.50)*100;
+      const w=Math.min(.45,learned.n/80);
+      calibratedTop=Math.round(top*(1-w)+Math.max(50,Math.min(75,empirical))*w);
+    }
+    return {...a,qualified,gateReason:qualified?'':reason,top:calibratedTop,
+      selfLearning:true,selfLearnRate:learned.reliability,selfLearnN:learned.n,
+      selfLearnPhase:learned.phase,selfLearnBand:learned.band,selfLearnAgreement:learned.agree};
+  };
+
+  // Visible status panel so learning is auditable instead of hidden.
+  function slRender(){
+    try{
+      let box=document.getElementById('selfLearningV9Panel');
+      if(!box){
+        box=document.createElement('div');
+        box.id='selfLearningV9Panel';
+        box.className='analyzer';
+        box.style.borderColor='#4a5d78';
+        box.innerHTML=`
+          <div class="analyzer-title">🧠 Self-Learning Engine V9</div>
+          <div class="analyzer-sub">Learns only from verified pre-result grades. Sequence AI V2 core logic is unchanged.</div>
+          <div class="analyzer-grid">
+            <div class="analyzer-card"><span>Learning updates</span><strong id="slV9Updates">0</strong></div>
+            <div class="analyzer-card"><span>Adaptive Derived learned trust</span><strong id="slV9Derived">—</strong></div>
+            <div class="analyzer-card"><span>Best-Estimate learned trust</span><strong id="slV9Best">—</strong></div>
+          </div>
+          <div class="analyzer-sub" id="slV9Note" style="margin-top:8px"></div>`;
+        const anchor=document.getElementById('verifiedAccuracyGrid')?.closest('.analyzer,section.card');
+        if(anchor?.parentNode)anchor.parentNode.insertBefore(box,anchor);
+        else document.body.appendChild(box);
+      }
+      const sl=slEnsure();
+      const d=adaptiveDerivedMainSignal(), b=computeCombinedAnalyzer();
+      const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+      set('slV9Updates',sl.totalUpdates||0);
+      set('slV9Derived',d.selfLearnN?`${Math.round(d.selfLearnRate*100)}% • N=${d.selfLearnN}`:'BUILDING');
+      set('slV9Best',b.selfLearnN?`${Math.round(b.selfLearnRate*100)}% • N=${b.selfLearnN}`:'BUILDING');
+      set('slV9Note',`Current phase ${slPhase()} • confidence context ${slBand(b.top)} • learning persists across shoes and automatically shrinks weak evidence.`);
+    }catch(e){}
+  }
+
+  const oldRenderSL=window.render;
+  if(typeof oldRenderSL==='function'){
+    window.render=function(){
+      const r=oldRenderSL.apply(this,arguments);
+      try{slRender();}catch(e){}
+      return r;
+    };
+  }
+  slEnsure();persist();
+  setTimeout(slRender,300);
+  setTimeout(()=>{try{window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();slRender();}catch(e){}},700);
+  window.__selfLearningV9={ensure:slEnsure,modelReliability:slModelReliability,roadReliability:slRoadReliability,render:slRender};
+})();
+</script>
+
+
+<script>
+/* ============================================================
+   ALL-AI SELF-LEARNING LAYER V10
+   Every major AI keeps its own specialty/core logic.
+   This layer learns when each final AI output deserves trust.
+   Only VERIFIED pre-result grades train it.
+   Sequence AI V2 CORE logic remains untouched.
+   ============================================================ */
+(function(){
+  const NAMES={
+    seqv2:'Sequence AI V2',
+    seqdup:'Sequence AI V2 Duplicate',
+    roadpreview:'Road Preview AI',
+    color:'Color Pattern AI',
+    derivedorig:'Derived Road AI',
+    derivedmain:'Adaptive Derived Roads',
+    consensus:'AI Consensus',
+    bot:'High-Powered Bot AI',
+    bestestimate:'Best-Estimate Analyzer'
+  };
+
+  function engine(){ return window.__selfLearningV9 || null; }
+
+  function policy(key){
+    // These are trust/qualification policies, NOT prediction algorithms.
+    // More selective systems can learn a stronger WAIT discipline.
+    return ({
+      seqv2:      {minN:20, hard:.455, soft:.49, softStrength:61, bonusCap:4},
+      seqdup:     {minN:14, hard:.465, soft:.50, softStrength:60, bonusCap:6},
+      roadpreview:{minN:14, hard:.47,  soft:.50, softStrength:61, bonusCap:6},
+      color:      {minN:16, hard:.47,  soft:.50, softStrength:61, bonusCap:6},
+      derivedorig:{minN:14, hard:.475, soft:.505,softStrength:62, bonusCap:6},
+      derivedmain:{minN:12, hard:.48,  soft:.51, softStrength:62, bonusCap:7},
+      consensus:  {minN:14, hard:.49,  soft:.515,softStrength:62, bonusCap:6},
+      bot:        {minN:14, hard:.485, soft:.51, softStrength:61, bonusCap:7},
+      bestestimate:{minN:12,hard:.49,  soft:.515,softStrength:61, bonusCap:7}
+    })[key] || {minN:16,hard:.47,soft:.50,softStrength:61,bonusCap:5};
+  }
+
+  function learned(key,x){
+    if(!x || (x.side!=='P' && x.side!=='B')) return x;
+    const E=engine();
+    if(!E?.modelReliability) return x;
+    const strength=Number(x.strength ?? x.confidence ?? x.top)||0;
+    const r=E.modelReliability(key,strength,x.side);
+    const p=policy(key);
+    let side=x.side, waitReason=x.waitReason||x.reason||'';
+    let calibrated=strength;
+
+    // Empirical performance can only move displayed confidence gradually.
+    if(r.n>=8){
+      const empirical=Math.max(42,Math.min(68,50+(r.reliability-.50)*100));
+      const blend=Math.min(.38,r.n/90);
+      calibrated=Math.round(strength*(1-blend)+empirical*blend);
+      const bonus=Math.max(-p.bonusCap,Math.min(p.bonusCap,Math.round((r.reliability-.50)*40)));
+      calibrated=Math.max(50,Math.min(88,calibrated+bonus));
+    }
+
+    // Model-specific learned WAIT behavior.
+    if(r.n>=p.minN && r.reliability<p.hard){
+      side=null;
+      waitReason=`SELF-LEARN WAIT: ${NAMES[key]||key} is only ${Math.round(r.reliability*100)}% reliable in this learned context (N=${r.n}).`;
+    } else if(r.n>=p.minN && r.reliability<p.soft && strength<p.softStrength){
+      side=null;
+      waitReason=`SELF-LEARN WAIT: weak ${strength}% signal plus ${Math.round(r.reliability*100)}% learned reliability (N=${r.n}).`;
+    }
+
+    // A strong learned record may slightly relax a marginal strength, but it
+    // can never create a pick when the underlying AI originally returned WAIT.
+    if(side && r.n>=20 && r.reliability>=.59)
+      calibrated=Math.min(88,calibrated+2);
+
+    return {
+      ...x,
+      side,
+      strength:side?calibrated:0,
+      confidence:('confidence' in x)?(side?calibrated:0):x.confidence,
+      top:('top' in x)?(side?calibrated:0):x.top,
+      selfLearning:true,
+      selfLearnRate:r.reliability,
+      selfLearnN:r.n,
+      selfLearnPhase:r.phase,
+      selfLearnBand:r.band,
+      selfLearnAgreement:r.agree,
+      waitReason:side?x.waitReason:waitReason,
+      reason:side?x.reason:waitReason
+    };
+  }
+  window.__slV10Signal=learned;
+
+  // Audit panel: one row per AI so the user can see whether each model is
+  // actually learning instead of taking our word for it.
+  function currentRaw(key){
+    try{
+      if(key==='seqv2')return sequenceAISignal();
+      if(key==='seqdup')return sequenceAIDuplicateSignal();
+      if(key==='roadpreview')return roadPreviewAISignal();
+      if(key==='derivedorig'){const x=derivedRoadSequenceAI();return {side:x.side,strength:x.confidence||0};}
+      if(key==='derivedmain')return adaptiveDerivedMainSignal();
+      if(key==='consensus')return consensusSignal();
+      if(key==='bot'){const x=masterBotSignal();return {side:x.qualified?x.side:null,strength:x.confidence||0};}
+      if(key==='bestestimate'){const x=computeCombinedAnalyzer();return {side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0};}
+      // Color Pattern AI lives inside its original closure, but its verified
+      // ledger still trains it; show ledger-derived trust below.
+    }catch(e){}
+    return null;
+  }
+
+  function ledgerTrust(key){
+    try{
+      const a=state.accuracyVerified?.models?.[key];
+      if(!a?.predictions)return null;
+      const all=(a.wins||0)/(a.predictions||1);
+      const l=a.last25||[];
+      const recent=l.length?l.reduce((s,v)=>s+v,0)/l.length:all;
+      return {rate:.45*all+.55*recent,n:a.predictions};
+    }catch(e){}
+    return null;
+  }
+
+  function render(){
+    let panel=document.getElementById('allAiLearningV10Panel');
+    if(!panel){
+      panel=document.createElement('div');
+      panel.id='allAiLearningV10Panel';
+      panel.className='analyzer';
+      panel.style.borderColor='#6b5b95';
+      panel.innerHTML=`
+        <div class="analyzer-title">🧠 All-AI Self-Learning V10</div>
+        <div class="analyzer-sub">Every major AI now has its own verified-performance trust gate. Core specialty logic stays separate; learned weak contexts automatically become WAIT.</div>
+        <div id="allAiLearningRows" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px"></div>
+        <div class="analyzer-sub" id="allAiLearningNote" style="margin-top:8px"></div>`;
+      const v9=document.getElementById('selfLearningV9Panel');
+      if(v9?.parentNode)v9.parentNode.insertBefore(panel,v9.nextSibling);
+      else document.body.appendChild(panel);
+    }
+    const rows=document.getElementById('allAiLearningRows');
+    if(!rows)return;
+    rows.innerHTML='';
+    Object.keys(NAMES).forEach(key=>{
+      let raw=currentRaw(key);
+      let y=raw?learned(key,raw):null;
+      let r=y?.selfLearnN?{rate:y.selfLearnRate,n:y.selfLearnN}:ledgerTrust(key);
+      const card=document.createElement('div');
+      card.className='analyzer-card';
+      const trust=r?`${Math.round(r.rate*100)}% • N=${r.n}`:'BUILDING';
+      const action=y?(y.side==='P'?'PLAYER':y.side==='B'?'BANKER':'WAIT'):'LEARNING';
+      card.innerHTML=`<span>${NAMES[key]}</span><strong>${trust}</strong><small style="display:block;margin-top:3px;opacity:.72">Learned action: ${action}</small>`;
+      rows.appendChild(card);
+    });
+    const total=state.selfLearning?.totalUpdates||0;
+    document.getElementById('allAiLearningNote').textContent=
+      `${total} verified learning updates stored. Learning persists across shoes; no Tie is scored as a P/B win or loss.`;
+  }
+
+  const oldRender=window.render;
+  if(typeof oldRender==='function'){
+    window.render=function(){
+      const r=oldRender.apply(this,arguments);
+      try{render();}catch(e){}
+      return r;
+    };
+  }
+  setTimeout(render,450);
+  setTimeout(render,1600);
+  window.__allAiLearningV10={signal:learned,render};
+})();
+</script>
+
+<script>
+/* ============================================================
+   FULL LIBRARY AI BACKTEST V1 — 2026-08-26
+   Read-only chronological replay. Restores live state/localStorage.
+   ============================================================ */
+(function(){
+  const KEYS=[
+    ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
+    ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
+    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer']
+  ];
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
+  function getSignal(key){
+    try{
+      let x=null;
+      if(key==='seqv2') x=sequenceAISignal();
+      else if(key==='color') x=window.colorPatternAISignal?.();
+      else if(key==='roadpreview') x=roadPreviewAISignal();
+      else if(key==='derivedorig'){const z=derivedRoadSequenceAI();x={side:z.side,strength:z.confidence||0};}
+      else if(key==='derivedmain') x=adaptiveDerivedMainSignal();
+      else if(key==='seqdup') x=sequenceAIDuplicateSignal();
+      else if(key==='consensus') x=consensusSignal();
+      else if(key==='bot'){const z=masterBotSignal();x={side:z.qualified?z.side:null,strength:z.confidence||0};}
+      else if(key==='bestestimate'){const z=computeCombinedAnalyzer();x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0};}
+      if(x && window.__slV10Signal) x=window.__slV10Signal(key,x);
+      return x||{};
+    }catch(e){ return {side:null,error:String(e)}; }
+  }
+  function ensurePanel(){
+    let p=document.getElementById('fullLibraryBacktestPanel');
+    if(p)return p;
+    p=document.createElement('div');p.id='fullLibraryBacktestPanel';p.className='analyzer';p.style.borderColor='#2f855a';
+    p.innerHTML=`<div class="analyzer-title">🧪 Full Library AI Simulation</div>
+      <div class="analyzer-sub">Chronological, pre-result replay. Each shoe is hidden from the library until its replay finishes. Your live state is restored after the test.</div>
+      <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
+        <button class="tiny-btn" id="runFullLibraryBacktest">Run Full 42-Shoe Simulation</button>
+        <button class="tiny-btn" id="copyBacktestReport">Copy Results</button>
+      </div>
+      <div class="analyzer-sub" id="fullBacktestStatus" style="margin-top:8px">READY</div>
+      <div id="fullBacktestResults" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px"></div>
+      <pre id="fullBacktestText" style="white-space:pre-wrap;max-height:320px;overflow:auto;font-size:11px;margin-top:8px"></pre>`;
+    const anchor=document.getElementById('allAiLearningV10Panel')||document.getElementById('verifiedAccuracyGrid')?.closest('.analyzer');
+    if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor.nextSibling); else document.body.appendChild(p);
+    return p;
+  }
+  function show(stats,meta){
+    const box=document.getElementById('fullBacktestResults');if(!box)return;
+    box.innerHTML='';
+    KEYS.forEach(([k,n])=>{const s=stats[k],r=pct(s.wins,s.n);const d=document.createElement('div');d.className='analyzer-card';
+      d.innerHTML=`<span>${n}</span><strong>${r==null?'—':r+'%'}</strong><small style="display:block;margin-top:3px;opacity:.72">${s.wins}W–${s.losses}L • N=${s.n} • WAIT=${s.waits}<br>RED ${pct(s.redW,s.redN)??'—'}% (N=${s.redN}) • BLACK ${pct(s.blackW,s.blackN)??'—'}% (N=${s.blackN})</small>`;box.appendChild(d);});
+    const lines=[`FULL LIBRARY BACKTEST`,`${meta.shoes} shoes • ${meta.hands} P/B hands scored • ${meta.ties} ties skipped`, `Minimum warm-up: ${meta.minWarm} hands per shoe`, ''];
+    KEYS.forEach(([k,n])=>{const s=stats[k];lines.push(`${n}: ${pct(s.wins,s.n)??'—'}% | ${s.wins}W-${s.losses}L | N=${s.n} | WAIT=${s.waits} | RED ${pct(s.redW,s.redN)??'—'}% | BLACK ${pct(s.blackW,s.blackN)??'—'}%`)});
+    document.getElementById('fullBacktestText').textContent=lines.join('\n');
+  }
+  async function run(){
+    const btn=document.getElementById('runFullLibraryBacktest'),status=document.getElementById('fullBacktestStatus');
+    if(btn.disabled)return;btn.disabled=true;
+    const savedState=clone(state), savedStorage=localStorage.getItem(KEY), savedBackup=localStorage.getItem(LIBRARY_BACKUP_KEY), savedHist=localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY);
+    const all=[...(savedState.redPatternLibrary||[]).map(x=>({...clone(x),__color:'red'})),...(savedState.blackPatternLibrary||[]).map(x=>({...clone(x),__color:'black'}))]
+      .sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||'')));
+    const stats={};KEYS.forEach(([k])=>stats[k]={wins:0,losses:0,n:0,waits:0,redW:0,redN:0,blackW:0,blackN:0});
+    const train={red:[],black:[]};let hands=0,ties=0;const minWarm=6;
+    try{
+      // Fresh temporary learning ledger; historical shoes are introduced only after testing.
+      state=clone(savedState);state.hands=[];state.redPatternLibrary=[];state.blackPatternLibrary=[];state.accuracyVerified={models:{},pending:{},ties:0,version:1};
+      state.selfLearning={version:9,enabled:true,modelContexts:{},roadChannels:{},totalUpdates:0,createdAt:Date.now()};
+      for(let si=0;si<all.length;si++){
+        const shoe=all[si],seq=String(shoe.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
+        state.currentShoeColor=shoe.__color;state.predictionLibraryMode='selected';state.redPatternLibrary=clone(train.red);state.blackPatternLibrary=clone(train.black);state.hands=[];
+        // Reset only per-shoe pending state; keep temporary learned reliability across shoes.
+        if(state.accuracyVerified)state.accuracyVerified.pending={};
+        if(state.adaptiveDerived)state.adaptiveDerived.pending=null;
+        if(state.adaptiveOriginalDerived)state.adaptiveOriginalDerived.pending=null;
+        for(let i=0;i<seq.length;i++){
+          const actual=seq[i];
+          if(i>=minWarm && (actual==='P'||actual==='B')){
+            hands++;
+            KEYS.forEach(([k])=>{const x=getSignal(k),s=stats[k];if(x.side==='P'||x.side==='B'){s.n++;if(shoe.__color==='red')s.redN++;else s.blackN++;if(x.side===actual){s.wins++;if(shoe.__color==='red')s.redW++;}else{s.losses++;}if(x.side===actual&&shoe.__color==='black')s.blackW++;}else s.waits++;});
+            // Train the same temporary verified/self-learning hooks after scoring the locked pre-result signals.
+            try{window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}
+            try{window.__settleVerifiedPredictions?.(actual);window.__settleAdaptiveDerivedRoads?.(actual);window.__settleAdaptiveOriginalDerivedRoads?.(actual);}catch(e){}
+          } else if(actual==='T') ties++;
+          state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});
+          if(i%12===0) await new Promise(r=>setTimeout(r,0));
+        }
+        train[shoe.__color].push(clone(shoe));
+        status.textContent=`TESTING ${si+1}/${all.length} • ${shoe.__color.toUpperCase()} • ${seq.length} hands`;
+        if(si%2===0){show(stats,{shoes:si+1,hands:hands,ties,minWarm});await new Promise(r=>setTimeout(r,0));}
+      }
+      show(stats,{shoes:all.length,hands:hands,ties,minWarm});
+      status.textContent=`COMPLETE • ${all.length} SHOES • live state restored`;
+    }catch(e){status.textContent='SIMULATION ERROR: '+(e?.message||e);console.error(e);}
+    finally{
+      state=savedState;
+      if(savedStorage==null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,savedStorage);
+      if(savedBackup==null)localStorage.removeItem(LIBRARY_BACKUP_KEY);else localStorage.setItem(LIBRARY_BACKUP_KEY,savedBackup);
+      if(savedHist==null)localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);else localStorage.setItem(LIBRARY_BACKUP_HISTORY_KEY,savedHist);
+      try{render();window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}
+      btn.disabled=false;
+    }
+  }
+  ensurePanel();
+  document.getElementById('runFullLibraryBacktest')?.addEventListener('click',run);
+  document.getElementById('copyBacktestReport')?.addEventListener('click',async()=>{const t=document.getElementById('fullBacktestText')?.textContent||'';try{await navigator.clipboard.writeText(t);document.getElementById('fullBacktestStatus').textContent='RESULTS COPIED';}catch(e){}});
+  window.__fullLibraryBacktest={run};
+})();
+</script>
+
 </body>
 </html>
