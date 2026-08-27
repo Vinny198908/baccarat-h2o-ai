@@ -6292,5 +6292,172 @@ setInterval(scan,1800);setTimeout(scan,300);
 })();
 </script>
 
+
+<script>
+/* ============================================================
+   V20 RED / BLACK SPECIALIST CONTROLLER — 2026-08-27
+   Built from 49-shoe backtest evidence.
+   Does NOT alter Sequence AI V2 core logic.
+   Purpose:
+   1) Treat RED and BLACK as separate decision regimes.
+   2) BLACK emphasizes Road Preview / Duplicate / Color evidence
+      and sharply discounts Adaptive Derived evidence.
+   3) RED emphasizes the historically stronger Bot / Duplicate /
+      Road Preview family.
+   4) Add a high-confidence specialist signal that requires
+      independent agreement rather than claiming confidence from
+      a single model.
+   ============================================================ */
+(function(){
+  const HIST = {
+    red:{
+      seqv2:.555,color:.552,roadpreview:.561,derivedorig:.516,
+      derivedmain:.548,seqdup:.567,consensus:.540,bot:.573,bestestimate:.567
+    },
+    black:{
+      seqv2:.486,color:.505,roadpreview:.514,derivedorig:.504,
+      derivedmain:.465,seqdup:.506,consensus:.509,bot:.502,bestestimate:.497
+    }
+  };
+
+  const BASE = {
+    red:{
+      seqv2:.92,color:1.00,roadpreview:1.13,derivedorig:.68,
+      derivedmain:.82,seqdup:1.18,consensus:.88,bot:1.22,bestestimate:1.08
+    },
+    black:{
+      seqv2:.72,color:1.04,roadpreview:1.28,derivedorig:.88,
+      derivedmain:.42,seqdup:1.10,consensus:1.04,bot:.96,bestestimate:.82
+    }
+  };
+
+  function color(){
+    return String(state.currentShoeColor||'').toLowerCase()==='black'?'black':'red';
+  }
+
+  function liveRate(key){
+    const a=state.accuracyVerified?.models?.[key]?.last25;
+    if(!Array.isArray(a)||a.length<8)return null;
+    const wins=a.reduce((s,v)=>s+(v?1:0),0);
+    return {rate:wins/a.length,n:a.length};
+  }
+
+  function trust(key){
+    const c=color(), prior=HIST[c][key]??.50, live=liveRate(key);
+    if(!live)return {rate:prior,n:0,prior};
+    const share=Math.min(.45,live.n/55);
+    let rate=prior*(1-share)+live.rate*share;
+    rate=.50+(rate-.50)*.90;
+    return {rate,n:live.n,prior};
+  }
+
+  function rawSignals(){
+    const defs=[
+      ['seqv2','Sequence AI V2',()=>sequenceAISignal()],
+      ['color','Color Pattern AI',()=>window.colorPatternAISignal?.()],
+      ['roadpreview','Road Preview AI',()=>roadPreviewAISignal()],
+      ['derivedorig','Derived Road AI',()=>{const z=derivedRoadSequenceAI();return {side:z.side,strength:z.confidence||0}}],
+      ['derivedmain','Adaptive Derived Roads',()=>adaptiveDerivedMainSignal()],
+      ['seqdup','Sequence AI V2 Duplicate',()=>sequenceAIDuplicateSignal()],
+      ['bot','High-Powered Bot AI',()=>{const z=masterBotSignal();return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
+      ['bestestimate','Best-Estimate Analyzer',()=>{const z=computeCombinedAnalyzer();return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0}}]
+    ];
+    const out=[];
+    for(const [key,name,get] of defs){
+      let s={};try{s=get()||{}}catch(e){}
+      if(s.side!=='P'&&s.side!=='B')continue;
+      const t=trust(key);
+      const conf=Math.max(50,Math.min(88,Number(s.strength??s.confidence??s.top)||50));
+      let w=BASE[color()][key]||1;
+      // Smooth reliability influence, never a hard historical shutoff.
+      w*=Math.max(.55,Math.min(1.35,.88+(t.rate-.50)*6));
+      w*=Math.max(.78,Math.min(1.16,.84+(conf-50)/95));
+      out.push({key,name,side:s.side,conf,trust:t.rate,weight:w});
+    }
+    return out;
+  }
+
+  function specialist(){
+    const c=color(), a=rawSignals();
+    if(a.length<3)return {side:null,qualified:false,confidence:0,reason:'WAIT — not enough independent signals',signals:a};
+
+    let p=0,b=0;
+    for(const x of a){ if(x.side==='P')p+=x.weight;else b+=x.weight; }
+    const total=p+b, side=p>=b?'P':'B', win=Math.max(p,b), lose=Math.min(p,b);
+    const margin=total?(win-lose)/total:0;
+    const support=a.filter(x=>x.side===side);
+    const supportWeight=support.reduce((s,x)=>s+x.weight,0);
+    const supportShare=total?supportWeight/total:0;
+
+    // Require at least one of the historically more useful independent
+    // families for the current color. This avoids a "confidence" label
+    // created solely by several weak correlated signals.
+    const anchors=c==='red'
+      ? ['bot','seqdup','roadpreview']
+      : ['roadpreview','seqdup','color','consensus'];
+    const anchorSupport=support.filter(x=>anchors.includes(x.key)).length;
+
+    let threshold=c==='black'?.105:.085;
+    let qualified = support.length>=3 && anchorSupport>=2 &&
+                    margin>=threshold && supportShare>=.60;
+
+    // BLACK is empirically close to chance in the 49-shoe sample.
+    // Be more selective there, but do not disable learning/predictions
+    // in the underlying models.
+    if(c==='black' && support.length<4)qualified=false;
+
+    const confidence=Math.round(Math.min(79,50+margin*60+(supportShare-.5)*14+anchorSupport*1.5));
+    return {
+      side:qualified?side:null,qualified,
+      confidence:qualified?confidence:0,
+      candidate:side,margin,supportShare,anchorSupport,
+      supporters:support.map(x=>x.name),signals:a,
+      reason:qualified
+        ? `${c.toUpperCase()} specialist: ${support.length}/${a.length} signals support ${side==='P'?'PLAYER':'BANKER'}.`
+        : `WAIT — ${c.toUpperCase()} specialist agreement is not strong enough.`
+    };
+  }
+
+  function ensurePanel(){
+    let p=document.getElementById('rbSpecialistV20');
+    if(!p){
+      p=document.createElement('div');p.id='rbSpecialistV20';p.className='analyzer';
+      p.style.borderColor='#8b5cf6';
+      p.innerHTML=`
+       <div class="analyzer-title">🎯 RED / BLACK Specialist V20</div>
+       <div class="analyzer-sub">Separate RED and BLACK weighting. BLACK heavily discounts its historically weak Adaptive Derived signal. Sequence AI V2 core logic is unchanged.</div>
+       <div class="analyzer-grid">
+        <div class="analyzer-card"><span>SPECIALIST DECISION</span><strong id="v20Pick">WAIT</strong></div>
+        <div class="analyzer-card"><span>SPECIALIST CONFIDENCE</span><strong id="v20Conf">—</strong></div>
+        <div class="analyzer-card"><span>SHOE ENGINE</span><strong id="v20Color">—</strong></div>
+        <div class="analyzer-card"><span>ANCHOR AGREEMENT</span><strong id="v20Anchor">—</strong></div>
+       </div>
+       <div class="analyzer-sub" id="v20Reason" style="margin-top:8px"></div>
+       <div class="analyzer-sub" style="margin-top:6px">High-confidence mode is intentionally capped below 80% until unseen-shoe validation demonstrates otherwise. Displayed confidence is a signal-strength score, not a guaranteed win probability.</div>`;
+      const anchor=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('softAdaptiveControllerV19');
+      if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor);else document.body.appendChild(p);
+    }
+    const s=specialist(), set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('v20Pick',s.qualified?(s.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('v20Conf',s.qualified?`${s.confidence}%`:'—');
+    set('v20Color',color().toUpperCase());
+    set('v20Anchor',`${s.anchorSupport||0}`);
+    set('v20Reason',s.reason);
+  }
+
+  const oldRender=window.render;
+  if(typeof oldRender==='function'){
+    window.render=function(){
+      const r=oldRender.apply(this,arguments);
+      try{ensurePanel()}catch(e){}
+      return r;
+    };
+  }
+
+  setTimeout(ensurePanel,450);setTimeout(ensurePanel,1600);
+  window.__redBlackSpecialistV20={signal:specialist,trust,render:ensurePanel};
+})();
+</script>
+
 </body>
 </html>
