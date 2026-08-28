@@ -7276,7 +7276,7 @@ setInterval(scan,1800);setTimeout(scan,300);
     'seqv2|color':[20,.500], 'derivedmain|bot':[13,.308], 'color|metav23':[10,.500]
   };
 
-  function shoeColor(){return String(state.currentShoeColor||'').toLowerCase()==='black'?'black':'red'}
+  function shoeColor(){const c=String(state.currentShoeColor||'').toLowerCase();return c==='red'||c==='black'?c:null}
   function sideOf(z){return z?.side==='P'||z?.side==='B'?z.side:null}
   function getSignals(){
     const defs=[
@@ -7322,7 +7322,10 @@ setInterval(scan,1800);setTimeout(scan,300);
   }
   function decide(){
     const c=shoeColor(), ss=getSignals();
-    if(ss.length<3)return {side:null,qualified:false,confidence:0,reason:'WAIT — fewer than 3 independent qualified signals.',signals:ss};
+    if(!c)return {side:null,qualified:false,confidence:0,anchorSupport:0,reason:'WAIT — select RED SHOE or BLACK SHOE before V25 can weight the models.',signals:ss};
+    const nonTieCount=state.hands.filter(h=>h.r==='P'||h.r==='B').length;
+    if(nonTieCount<6)return {side:null,qualified:false,confidence:0,anchorSupport:0,reason:`WAIT — V25 warm-up ${nonTieCount}/6 P/B hands.`,signals:ss};
+    if(ss.length<3)return {side:null,qualified:false,confidence:0,anchorSupport:0,reason:'WAIT — fewer than 3 qualified source signals.',signals:ss};
     const weights={};for(const s of ss)weights[s.key]=priorWeight(s.key,c)*Math.max(.84,Math.min(1.14,.88+(s.strength-50)/110));
     for(let i=0;i<ss.length;i++)for(let j=i+1;j<ss.length;j++){
       const [ai,aj]=pairAdjustment(ss[i],ss[j],c);weights[ss[i].key]*=ai;weights[ss[j].key]*=aj;
@@ -7334,10 +7337,13 @@ setInterval(scan,1800);setTimeout(scan,300);
     const supporters=ss.filter(s=>s.side===candidate), opponents=ss.filter(s=>s.side!==candidate);
     const anchors=c==='black'?['roadpreview','color','consensus','seqdup','bestestimate']:['seqv2','seqdup','bot','consensus','metav23'];
     const anchorSupport=supporters.filter(s=>anchors.includes(s.key)).length;
+    const primaryKeys=['seqv2','color','roadpreview','derivedmain','seqdup'];
+    const primarySupport=supporters.filter(s=>primaryKeys.includes(s.key)).length;
     const weakBlack=supporters.length&&supporters.every(s=>['derivedmain','seqv2'].includes(s.key));
     let minMargin=c==='black'?.105:.085;
     if(ss.length<=4)minMargin+=.025;
-    let qualified=supporters.length>=3 && anchorSupport>=2 && margin>=minMargin && !weakBlack;
+    // Aggregates (Consensus/Bot/Best-Estimate/Meta) may share source evidence, so they cannot qualify a call by themselves.
+    let qualified=supporters.length>=3 && primarySupport>=2 && anchorSupport>=2 && margin>=minMargin && !weakBlack;
     // If BLACK Sequence V2 is isolated against Road Preview/Consensus/Meta, do not let it force a call.
     if(c==='black'){
       const seq=ss.find(s=>s.key==='seqv2'), rp=ss.find(s=>s.key==='roadpreview'), con=ss.find(s=>s.key==='consensus'), meta=ss.find(s=>s.key==='metav23');
@@ -7347,8 +7353,8 @@ setInterval(scan,1800);setTimeout(scan,300);
       }
     }
     const confidence=Math.round(Math.min(77,50+margin*62+anchorSupport*1.2));
-    return {side:qualified?candidate:null,candidate,qualified,confidence:qualified?confidence:0,margin,anchorSupport,supporters,opponents,weights,signals:ss,
-      reason:qualified?`${c.toUpperCase()} V25: ${supporters.length}/${ss.length} weighted signals support ${candidate==='P'?'PLAYER':'BANKER'}; disagreement safeguards passed.`:`WAIT — ${c.toUpperCase()} weighted edge/disagreement evidence is not strong enough.`};
+    return {side:qualified?candidate:null,candidate,qualified,confidence:qualified?confidence:0,margin,anchorSupport,primarySupport,supporters,opponents,weights,signals:ss,
+      reason:qualified?`${c.toUpperCase()} V25: ${supporters.length}/${ss.length} weighted signals support ${candidate==='P'?'PLAYER':'BANKER'}; ${primarySupport} primary source AIs support it and disagreement safeguards passed.`:`WAIT — ${c.toUpperCase()} weighted edge/source agreement is not strong enough.`};
   }
 
   function ensurePanel(){
@@ -7361,7 +7367,7 @@ setInterval(scan,1800);setTimeout(scan,300);
       const a=document.querySelector('.predict');if(a?.parentNode)a.parentNode.insertBefore(p,a.nextSibling);else document.body.appendChild(p);
     }
     const z=decide(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
-    set('v25Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v25Conf',z.qualified?z.confidence+'%':'—');set('v25Color',shoeColor().toUpperCase());set('v25Anchors',String(z.anchorSupport||0));set('v25Reason',z.reason);
+    set('v25Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v25Conf',z.qualified?z.confidence+'%':'—');set('v25Color',shoeColor()?shoeColor().toUpperCase():'SELECT COLOR');set('v25Anchors',String(z.anchorSupport||0));set('v25Reason',z.reason);
     return z;
   }
 
@@ -7383,6 +7389,13 @@ setInterval(scan,1800);setTimeout(scan,300);
   if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);try{ensurePanel()}catch(e){}return r;};
   setTimeout(ensurePanel,300);setTimeout(ensurePanel,1200);
   window.__contextFinalV25={signal:decide,render:ensurePanel};
+  // Keep the internal accuracy/backtest pending prediction synchronized with the V25 decision shown on screen.
+  armNextPrediction=function(){
+    if(!state.backtest) state.backtest={predictions:0,wins:0,currentRun:0,rows:[],pending:null};
+    const z=decide();
+    state.backtest.pending=z.qualified?{side:z.side,score:z.confidence,source:'V25'}:null;
+  };
+  window.armNextPrediction=armNextPrediction;
 })();
 </script>
 
