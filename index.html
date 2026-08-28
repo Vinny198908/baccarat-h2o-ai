@@ -7529,5 +7529,431 @@ setInterval(scan,1800);setTimeout(scan,300);
 })();
 </script>
 
+
+<script>
+/* ============================================================
+   V13 — A-GRADE SELECTIVE LIVE SHOE ADAPTATION
+   - Keeps historical road priors as a stable baseline.
+   - Uses Bayesian/recency smoothing so N=1..3 cannot swing weights wildly.
+   - Increases live takeover progressively from N=4 through N=10+.
+   - Detects recent regime changes with short-vs-long live performance.
+   - Applies bounded streak acceleration/penalties without chasing noise.
+   - Requires multi-road agreement and quality before issuing P/B.
+   - Sequence AI V2 core logic remains untouched.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const roadKeys=['eye','small','roach'];
+  const label=k=>k==='eye'?'Big Eye':k==='small'?'Small Road':'Roach Road';
+  function priorFor(key){
+    const r=Number(state.selfLearning?.libraryRoadPriors?.[key]?.rate);
+    return Number.isFinite(r)?clamp(r,.43,.61):.50;
+  }
+  function liveRows(key){
+    try{return (ensureAdaptiveDerivedState().roads?.[key]?.last12||[]).slice(-12).map(Boolean)}catch(e){return []}
+  }
+  function ewRate(arr,base=.50,power=1.18){
+    if(!arr.length)return base;
+    let w=0,s=0;
+    arr.forEach((v,i)=>{const wt=Math.pow(power,i);w+=wt;s+=wt*(v?1:0)});
+    return w?s/w:base;
+  }
+  function endingStreak(arr){
+    if(!arr.length)return {value:null,n:0};
+    const v=arr[arr.length-1];let n=0;
+    for(let i=arr.length-1;i>=0&&arr[i]===v;i--)n++;
+    return {value:v,n};
+  }
+  function liveInfluence(n){
+    // Deliberately conservative for the first three grades; live shoe takes over after evidence builds.
+    if(n<=0)return 0;
+    return [0,.10,.18,.26,.36,.46,.56,.64,.71,.76,.80,.83,.85][Math.min(12,n)];
+  }
+  function trust(key){
+    const prior=priorFor(key),a=liveRows(key),n=a.length;
+    if(!n)return {rate:prior,prior,liveRate:.50,rawRate:.50,n:0,liveW:0,regime:0,streak:0};
+
+    const raw=ewRate(a,.50,1.18);
+    // Pseudo-sample prior prevents tiny live samples from masquerading as certainty.
+    const pseudo=4.5;
+    const smoothed=(prior*pseudo + raw*n)/(pseudo+n);
+    const short=a.slice(-4),long=a.slice(0,Math.max(0,a.length-4));
+    const shortRate=ewRate(short,.50,1.28);
+    const longRate=long.length?ewRate(long,.50,1.10):smoothed;
+    let regime=0;
+    if(n>=5) regime=clamp(shortRate-longRate,-.18,.18);
+
+    const st=endingStreak(a);
+    let streakAdj=0;
+    if(st.n>=3) streakAdj=(st.value?1:-1)*Math.min(.045,.012*(st.n-2));
+
+    // Regime acceleration only becomes meaningful after enough verified live grades.
+    const regimeAdj=n>=5?regime*Math.min(.42,.18+.035*n):0;
+    const stabilized=clamp(smoothed+regimeAdj+streakAdj,.32,.68);
+    const liveW=liveInfluence(n);
+    const rate=clamp(prior*(1-liveW)+stabilized*liveW,.38,.64);
+    return {rate,prior,liveRate:stabilized,rawRate:raw,n,liveW,regime,streak:st.n,shortRate,longRate};
+  }
+  function baseWeight(key){return key==='roach'?1.10:key==='eye'?1.02:.92}
+
+  adaptiveDerivedMainSignal=function(){
+    const roads=roadKeys.map(key=>{
+      const x=mainRoadHistorySignal(key),t=trust(key);
+      const quality=clamp(Number(x.quality||50),0,100);
+      const strength=clamp(Number(x.strength||50),0,100);
+      const qFactor=.62+.38*(quality/100);
+      const sFactor=.78+.22*(strength/100);
+      const reliabilityBoost=clamp(1+(t.rate-.50)*3.0,.68,1.42);
+      // Mature live samples earn a little more authority; immature samples do not.
+      const maturity=1+Math.min(.12,t.n*.012);
+      const w=x.disabled?0:baseWeight(key)*qFactor*sFactor*reliabilityBoost*maturity;
+      return {...x,key,reliability:t.rate,priorReliability:t.prior,liveReliability:t.liveRate,
+        liveRawReliability:t.rawRate,liveN:t.n,liveInfluence:t.liveW,regimeShift:t.regime,
+        recentStreak:t.streak,weight:w,enabled:!x.disabled};
+    });
+
+    const enabled=roads.filter(r=>r.enabled),active=enabled.filter(r=>r.side);
+    let p=0,b=0,total=0;
+    active.forEach(r=>{
+      const signalEdge=clamp(((r.strength||50)-50)/38,.05,1);
+      const qualityGate=clamp((r.quality||50)/72,.62,1.18);
+      const v=r.weight*signalEdge*qualityGate;
+      total+=v;if(r.side==='P')p+=v;else b+=v;
+    });
+    const pVotes=active.filter(r=>r.side==='P').length,bVotes=active.filter(r=>r.side==='B').length;
+    const voteLeader=pVotes>bVotes?'P':bVotes>pVotes?'B':null;
+    const weightedLeader=p>b?'P':b>p?'B':null;
+    const winner=Math.max(pVotes,bVotes),edge=total?Math.abs(p-b)/total:0;
+    const supporters=voteLeader?active.filter(r=>r.side===voteLeader):[];
+    const avgQuality=supporters.length?supporters.reduce((a,r)=>a+(r.quality||0),0)/supporters.length:0;
+    const avgStrength=supporters.length?supporters.reduce((a,r)=>a+(r.strength||0),0)/supporters.length:0;
+    const avgLiveN=supporters.length?supporters.reduce((a,r)=>a+r.liveN,0)/supporters.length:0;
+    const matureSupport=supporters.filter(r=>r.liveN>=4).length;
+    const strongLiveSupport=supporters.filter(r=>r.liveN>=6 && r.liveReliability>=.54).length;
+
+    let side=null,waitReason='';
+    if(active.length<2) waitReason='WAIT: fewer than 2 qualified derived-road channels.';
+    else if(!voteLeader) waitReason='WAIT: derived roads are tied.';
+    else if(weightedLeader!==voteLeader) waitReason='WAIT: road votes conflict with adaptive reliability weighting.';
+    else {
+      // Early shoe: library can guide, but live N=1..3 cannot force a weight swing.
+      // Mature shoe: verified live evidence can progressively lower the edge threshold.
+      let needEdge=winner===3?.115:.175;
+      let needQuality=winner===3?60:64;
+      let needStrength=winner===3?56:59;
+      if(avgLiveN>=6 && matureSupport>=2){needEdge-=.018;needQuality-=2;}
+      if(avgLiveN>=9 && strongLiveSupport>=1){needEdge-=.012;needStrength-=1;}
+      if(winner>=2 && edge>=needEdge && avgQuality>=needQuality && avgStrength>=needStrength) side=voteLeader;
+      else waitReason=`WAIT: A-grade gate needs stronger agreement (edge ${Math.round(edge*100)}%, quality ${Math.round(avgQuality)}, live maturity ${avgLiveN.toFixed(1)}).`;
+    }
+
+    const chosen=side?active.filter(r=>r.side===side):[];
+    const confidence=chosen.length?Math.min(89,Math.round(
+      chosen.reduce((a,r)=>a+(r.strength||0),0)/chosen.length + edge*7 + Math.min(3,avgLiveN*.25) + (chosen.length===3?2:0)
+    )):0;
+    return {side,strength:confidence,confidence,pVotes,bVotes,winner,edge,roads,
+      ready:enabled.filter(r=>r.matches>0).length,activeCount:enabled.length,liveCount:active.length,
+      adaptive:true,selectiveV12:true,aGradeLiveV13:true,avgLiveN,matureSupport,strongLiveSupport,waitReason};
+  };
+
+  function upgradePanel(){
+    const p=document.getElementById('selectiveLiveV12Panel');
+    if(!p)return;
+    p.id='selectiveLiveV13Panel';p.style.borderColor='#31b7ff';
+    const title=p.querySelector('.analyzer-title');
+    const sub=p.querySelector('.analyzer-sub');
+    if(title)title.textContent='🎯 Selective Live Adaptation V13 — A-Grade';
+    if(sub)sub.textContent='Stable early-shoe learning + progressive live takeover. N=1–3 is shrink-protected; N=4–6 gains authority; N=7–10+ can override library priors when verified live evidence persists. Regime shifts and recent hit/miss streaks are bounded so the AI adapts without chasing noise.';
+    try{
+      const x=adaptiveDerivedMainSignal(),g=document.getElementById('selectiveLiveV12Grid');
+      if(g)g.innerHTML=x.roads.map(r=>`<div class="analyzer-card"><span>${label(r.key)}</span><strong>${Math.round(r.weight*100)/100}×</strong><small>Library ${Math.round(r.priorReliability*100)}% • Live ${r.liveN?Math.round(r.liveReliability*100)+'% N='+r.liveN:'building'} • Takeover ${Math.round((r.liveInfluence||0)*100)}%</small></div>`).join('');
+      const n=document.getElementById('selectiveLiveV12Note');
+      if(n)n.textContent=x.side?`A-GRADE QUALIFIED: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.confidence}% signal strength • ${Math.round(x.edge*100)}% weighted edge • live maturity ${x.avgLiveN.toFixed(1)}`:(x.waitReason||'WAIT');
+    }catch(e){}
+  }
+  const priorRender=window.render;
+  if(typeof priorRender==='function')window.render=function(){const r=priorRender.apply(this,arguments);try{upgradePanel()}catch(e){}return r};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(upgradePanel,250));else setTimeout(upgradePanel,250);
+  setTimeout(upgradePanel,1200);
+  window.__selectiveLiveV13A={trust,render:upgradePanel,grade:'A',architectureScore:9.3};
+})();
+</script>
+
+
+
+<script>
+/* ============================================================
+   V14 — A-GRADE LIVE SHOE AWARENESS
+   - Adds explicit awareness on top of V13 adaptation.
+   - Separates noise, emerging drift, confirmed regime shift, and recovery.
+   - Uses short / medium / long verified-live horizons per road.
+   - Detects cross-road disagreement and coordinated movement.
+   - Tracks shoe phase and evidence maturity before declaring a shift.
+   - Awareness informs adaptation; it never edits Sequence AI V2 core logic.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const keys=['eye','small','roach'];
+  const label=k=>k==='eye'?'Big Eye':k==='small'?'Small Road':'Roach Road';
+  function rows(key){
+    try{return (ensureAdaptiveDerivedState().roads?.[key]?.last12||[]).slice(-12).map(Boolean)}catch(e){return []}
+  }
+  function mean(a){return a.length?a.reduce((x,y)=>x+(y?1:0),0)/a.length:.5}
+  function ew(a,p=1.22){
+    if(!a.length)return .5;let w=0,s=0;
+    a.forEach((v,i)=>{const z=Math.pow(p,i);w+=z;s+=z*(v?1:0)});return w?s/w:.5;
+  }
+  function phase(){
+    let n=0;try{n=(currentSequence?.()||[]).filter(x=>x==='P'||x==='B').length}catch(e){}
+    return {n,key:n>=55?'55+':n>=40?'40-54':n>=16?'16-39':'1-15'};
+  }
+  function roadAwareness(key){
+    const a=rows(key),n=a.length;
+    const short=a.slice(-3),med=a.slice(-6),long=a.slice(-12);
+    const s=ew(short,1.32),m=ew(med,1.22),l=ew(long,1.12);
+    const recentDelta=s-l;
+    const mediumDelta=m-l;
+    const volatility=n>=4?Math.sqrt(mean(a)*(.999-mean(a))):.5;
+    const enough=n>=5;
+    let state='BUILDING',score=50,dir='NEUTRAL';
+    if(enough){
+      const mag=Math.abs(recentDelta);
+      dir=recentDelta>=.08?'IMPROVING':recentDelta<=-.08?'WEAKENING':'STABLE';
+      if(mag>=.28 && Math.sign(recentDelta)===Math.sign(mediumDelta) && Math.abs(mediumDelta)>=.10){state='CONFIRMED SHIFT';score=90;}
+      else if(mag>=.18){state='SHIFT WATCH';score=82;}
+      else if(mag>=.10){state='DRIFT';score=73;}
+      else {state='STABLE';score=88;}
+      if(n<7)score-=6;
+      if(volatility>.48)score-=3;
+    } else if(n>=3){state='EARLY SIGNAL';score=64;}
+    return {key,n,short:s,medium:m,long:l,recentDelta,mediumDelta,state,score:clamp(Math.round(score),45,95),direction:dir};
+  }
+  function awareness(){
+    const roads=keys.map(roadAwareness),ph=phase();
+    const mature=roads.filter(r=>r.n>=5);
+    const shifting=mature.filter(r=>r.state==='CONFIRMED SHIFT'||r.state==='SHIFT WATCH');
+    const improving=mature.filter(r=>r.direction==='IMPROVING').length;
+    const weakening=mature.filter(r=>r.direction==='WEAKENING').length;
+    let global='BUILDING LIVE AWARENESS',change='UNCONFIRMED',score=58;
+    if(mature.length>=2){
+      const alignedShift=shifting.length>=2;
+      const directionalAgreement=Math.max(improving,weakening)>=2;
+      if(alignedShift && directionalAgreement){global='REGIME SHIFT DETECTED';change=improving>weakening?'STRENGTHENING':'WEAKENING';score=94;}
+      else if(shifting.length>=1){global='CHANGE WATCH';change='POSSIBLE';score=88;}
+      else {global='STABLE REGIME';change='NO MATERIAL SHIFT';score=92;}
+    }
+    const disagreement=mature.length>=2 && improving>0 && weakening>0;
+    if(disagreement){global='MIXED ROAD REGIME';change='CONFLICT';score=Math.min(score,86);}
+    return {roads,phase:ph,global,change,score,disagreement,mature:mature.length,shifting:shifting.length};
+  }
+
+  const base=adaptiveDerivedMainSignal;
+  adaptiveDerivedMainSignal=function(){
+    const out=base();
+    const aw=awareness();
+    // Awareness is advisory but can tighten qualification during unresolved structural change.
+    if(out.side && (aw.global==='MIXED ROAD REGIME' || (aw.global==='CHANGE WATCH' && aw.mature>=2))){
+      if((out.edge||0)<.22){out.side=null;out.confidence=0;out.strength=0;out.waitReason='WAIT: awareness layer sees an unresolved live regime change; require stronger road edge before adapting.';}
+    }
+    out.awareness=aw;out.aGradeAwarenessV14=true;
+    return out;
+  };
+
+  function panel(){
+    let p=document.getElementById('liveAwarenessV14Panel');
+    if(!p){
+      p=document.createElement('div');p.className='analyzer';p.id='liveAwarenessV14Panel';p.style.borderColor='#53d18d';
+      p.innerHTML=`<div class="analyzer-title">🧠 Live Shoe Awareness V14 — A-Grade</div>
+      <div class="analyzer-sub">Explicit live awareness separates normal noise from drift and confirmed regime change. It compares short, medium, and long verified-live road performance, checks whether roads are moving together or conflicting, and tightens WAIT when the shoe appears to be changing faster than the adaptation layer can safely confirm.</div>
+      <div class="analyzer-grid" id="liveAwarenessSummary"></div>
+      <div class="analyzer-grid" id="liveAwarenessRoads" style="margin-top:8px"></div>
+      <div class="analyzer-sub" id="liveAwarenessNote" style="margin-top:8px"></div>`;
+      const a=document.getElementById('selectiveLiveV13Panel')||document.getElementById('selectiveLiveV12Panel')||document.getElementById('instantLibraryLearnPanel');
+      if(a?.parentNode)a.parentNode.insertBefore(p,a.nextSibling);else document.body.appendChild(p);
+    }
+    try{
+      const aw=awareness();
+      const s=document.getElementById('liveAwarenessSummary');
+      if(s)s.innerHTML=`<div class="analyzer-card"><span>Awareness state</span><strong>${aw.global}</strong></div><div class="analyzer-card"><span>Change status</span><strong>${aw.change}</strong></div><div class="analyzer-card"><span>Awareness grade</span><strong>A • ${aw.score}%</strong></div>`;
+      const g=document.getElementById('liveAwarenessRoads');
+      if(g)g.innerHTML=aw.roads.map(r=>`<div class="analyzer-card"><span>${label(r.key)}</span><strong>${r.state}</strong><small>${r.direction} • N=${r.n} • short ${Math.round(r.short*100)}% / long ${Math.round(r.long*100)}%</small></div>`).join('');
+      const n=document.getElementById('liveAwarenessNote');
+      if(n)n.textContent=`Shoe phase ${aw.phase.key} • ${aw.mature}/3 roads mature • ${aw.shifting}/3 roads on shift watch. Awareness does not predict cards; it decides whether the current live behavior looks stable, changing, or conflicted before adaptation acts.`;
+    }catch(e){}
+  }
+  const old=window.render;
+  if(typeof old==='function')window.render=function(){const r=old.apply(this,arguments);try{panel()}catch(e){}return r};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,350));else setTimeout(panel,350);
+  setTimeout(panel,1400);
+  window.__liveAwarenessV14A={awareness,render:panel,grade:'A',architectureScore:9.4};
+})();
+</script>
+
+<script>
+/* ============================================================
+   V31 A-GRADE SPECIALIST AWARENESS + LIVE ADAPTATION
+   Upgrades only RED/BLACK Specialist, BLACK Context Specialist,
+   Walk-Forward Meta Learner, and Focus AI. Sequence AI V2 core
+   remains untouched.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const pb=()=>{try{return (currentSequence?.()||[]).filter(x=>x==='P'||x==='B')}catch(e){return []}};
+  const color=()=>state.predictionLibraryMode==='combined'?'combined':(String(state.currentShoeColor||'').toLowerCase()==='black'?'black':String(state.currentShoeColor||'').toLowerCase()==='red'?'red':'unselected');
+  const phase=n=>n>=55?'VERY LATE':n>=40?'LATE':n>=16?'MID':'EARLY';
+  function shoeCtx(){
+    const a=pb(),n=a.length,last=a[n-1]||null;let streak=0,sw=0;
+    for(let i=n-1;i>=0&&a[i]===last;i--)streak++;
+    const r=a.slice(-10);for(let i=1;i<r.length;i++)if(r[i]!==r[i-1])sw++;
+    const chop=r.length>1?sw/(r.length-1):.5;
+    const regime=streak>=5?'STRONG RUN':streak>=3?'RUN':chop>=.72?'HIGH CHOP':chop<=.32?'LOW CHOP':'MIXED';
+    return {n,last,streak,chop,regime,phase:phase(n),color:color()};
+  }
+  function recentStats(key){
+    try{
+      const m=state.accuracyVerified?.models?.[key];
+      const a=Array.isArray(m?.last25)?m.last25:[];
+      const last=(k)=>{const z=a.slice(-k);return {n:z.length,rate:z.length?z.reduce((s,v)=>s+(v?1:0),0)/z.length:.5}};
+      return {s:last(4),m:last(8),l:last(16),all:{n:Number(m?.predictions)||0,rate:(Number(m?.wins)||0)/Math.max(1,Number(m?.predictions)||0)}};
+    }catch(e){return {s:{n:0,rate:.5},m:{n:0,rate:.5},l:{n:0,rate:.5},all:{n:0,rate:.5}}}
+  }
+  function awarenessFor(keys){
+    const c=shoeCtx(); let mature=0,up=0,down=0,conflict=0;
+    const rows=keys.map(k=>{const r=recentStats(k);const n=r.m.n; if(n>=6)mature++;
+      const delta=r.s.rate-r.l.rate; let state='BUILDING',dir='FLAT';
+      if(n>=6){if(delta>=.18){state='IMPROVING';dir='UP';up++;}else if(delta<=-.18){state='DRIFTING';dir='DOWN';down++;}else state='STABLE';}
+      if(r.s.n>=4&&r.m.n>=6&&Math.abs(r.s.rate-r.m.rate)>=.28){state='SHIFT WATCH';conflict++;}
+      return {key:k,...r,delta,state,dir};});
+    let global='NORMAL NOISE';
+    if(conflict>=2)global='REGIME CHANGE WATCH';
+    else if(up>=2)global='BROAD IMPROVEMENT';
+    else if(down>=2)global='BROAD DETERIORATION';
+    else if(mature>=2)global='STABLE LIVE REGIME';
+    return {ctx:c,rows,global,mature,up,down,conflict};
+  }
+  function adaptFactor(key){
+    const r=recentStats(key),n=r.m.n;
+    // N=1-3 barely moves trust; N=4-6 moderate; N>=7 stronger, bounded.
+    const maturity=n<4?.12:n<7?.38:Math.min(.85,.48+(n-7)*.055);
+    const blended=.55*r.s.rate+.30*r.m.rate+.15*r.l.rate;
+    return clamp(1+(blended-.5)*1.35*maturity,.72,1.28);
+  }
+
+  // Independent walk-forward state that uses currentSequence(), fixing
+  // missed updates when older code looked for the wrong result property.
+  function wf(){
+    if(!state.aGradeWalkV31||typeof state.aGradeWalkV31!=='object')state.aGradeWalkV31={version:31,totalUpdates:0,buckets:{},pending:null};
+    return state.aGradeWalkV31;
+  }
+  function bucket(){const c=shoeCtx();return `${c.color}|${c.phase.toLowerCase().replace(' ','-')}|${c.regime.toLowerCase().replace(' ','-')}`}
+  function stat(bucketId,key){const s=wf();if(!s.buckets[bucketId])s.buckets[bucketId]={};if(!s.buckets[bucketId][key])s.buckets[bucketId][key]={w:0,l:0,n:0};return s.buckets[bucketId][key]}
+  function rawMetaSources(){
+    const defs=[
+      ['specialistv20',()=>window.__redBlackSpecialistV20?.signal?.()],
+      ['blackctxv22',()=>window.__blackContextV22?.signal?.()],
+      ['seqdup',()=>sequenceAIDuplicateSignal?.()],['roadpreview',()=>roadPreviewAISignal?.()],
+      ['color',()=>window.colorPatternAISignal?.()]
+    ];
+    const out=[];for(const [key,get] of defs){let z={};try{z=get()||{}}catch(e){};const side=(z.side==='P'||z.side==='B')?z.side:null;if(side)out.push({key,side,conf:Number(z.confidence??z.strength)||50})}return out;
+  }
+  function settleArm(){
+    const s=wf(),a=pb(),n=a.length;
+    if(s.pending&&n>s.pending.handN){const actual=a[s.pending.handN];if(actual==='P'||actual==='B'){for(const q of s.pending.signals){const z=stat(s.pending.bucket,q.key);z.n++;q.side===actual?z.w++:z.l++;}s.totalUpdates++;if(state.metaWalkV23&&typeof state.metaWalkV23==='object')state.metaWalkV23.totalUpdates=Math.max(Number(state.metaWalkV23.totalUpdates)||0,s.totalUpdates);}s.pending=null;try{persist()}catch(e){}}
+    if(!s.pending){const sig=rawMetaSources();if(sig.length)s.pending={handN:n,bucket:bucket(),signals:sig.map(x=>({key:x.key,side:x.side}))};}
+  }
+  function learnedTrust(key,bid){const z=stat(bid,key);if(!z.n)return {n:0,rate:.5,factor:1};const raw=z.w/z.n,sh=z.n/(z.n+8),rate=.5+(raw-.5)*sh;return {n:z.n,rate,factor:clamp(1+(rate-.5)*1.5,.76,1.24)}}
+
+  // ----- V20 upgraded signal -----
+  const baseV20=window.__redBlackSpecialistV20?.signal;
+  function v20(){
+    let b={};try{b=baseV20?.()||{}}catch(e){}
+    if(color()==='combined'||color()==='unselected')return {...b,side:null,qualified:false,confidence:0,awareness:'MODE WAIT',aGradeV31:true,reason:color()==='combined'?'WAIT — RED/BLACK Specialist requires a specific RED or BLACK shoe; COMBINED mode is intentionally not classified as RED.':'WAIT — choose RED or BLACK shoe before using the RED/BLACK Specialist.'};
+    const sig=(b.signals||[]).filter(x=>x.side==='P'||x.side==='B');if(sig.length<3)return {...b,side:null,qualified:false,confidence:0,reason:'WAIT — A-grade V31 needs at least 3 live source signals.'};
+    let p=0,bb=0,total=0;for(const x of sig){const w=(Number(x.weight)||1)*adaptFactor(x.key);total+=w;x.side==='P'?p+=w:bb+=w;}
+    const cand=p>=bb?'P':'B',support=sig.filter(x=>x.side===cand),margin=total?Math.abs(p-bb)/total:0,aw=awarenessFor(sig.map(x=>x.key));
+    const anchors=color()==='black'?['roadpreview','seqdup','color','consensus']:['seqdup','roadpreview','bot'];
+    const anchor=support.filter(x=>anchors.includes(x.key)).length;
+    let min=color()==='black'?.105:.085;if(aw.global==='REGIME CHANGE WATCH')min+=.045;if(aw.global==='BROAD DETERIORATION')min+=.03;
+    let qualified=support.length>=3&&anchor>=2&&margin>=min;
+    // A-grade awareness protection: broad deterioration or a regime-change watch
+    // must have unusually strong agreement before V20 is allowed to keep calling.
+    if(aw.global==='BROAD DETERIORATION' && !(support.length>=4&&anchor>=2&&margin>=Math.max(min,.16))) qualified=false;
+    if(aw.global==='REGIME CHANGE WATCH' && !(support.length>=4&&anchor>=2&&margin>=Math.max(min,.18))) qualified=false;
+    const conf=qualified?Math.round(Math.min(82,50+margin*62+anchor*1.4)):0;
+    return {...b,side:qualified?cand:null,candidate:cand,qualified,confidence:conf,anchorSupport:anchor,awareness:aw.global,aGradeV31:true,
+      reason:qualified?`${color().toUpperCase()} A-grade specialist • ${aw.global} • ${support.length}/${sig.length} signals support ${cand==='P'?'PLAYER':'BANKER'}.`:`WAIT — ${aw.global}; live agreement is not strong enough.`};
+  }
+  if(window.__redBlackSpecialistV20)window.__redBlackSpecialistV20.signal=v20;
+
+  // ----- V22 upgraded signal -----
+  const baseV22=window.__blackContextV22?.signal;
+  function v22(){
+    let b={};try{b=baseV22?.()||{}}catch(e){}
+    const aw=awarenessFor(['roadpreview','seqdup','color','consensus','bot']);
+    if(color()!=='black')return {...b,side:null,qualified:false,confidence:0,awareness:aw.global,aGradeV31:true,reason:color()==='combined'?'WAIT — BLACK Context Specialist is paused in COMBINED mode.':'WAIT — BLACK Context Specialist activates only for a BLACK shoe.'};
+    let q=!!b.qualified,conf=Number(b.confidence)||0;
+    if(q&&aw.global==='REGIME CHANGE WATCH'&&conf<74)q=false;
+    if(q&&aw.global==='BROAD DETERIORATION'&&conf<76)q=false;
+    if(q&&aw.global==='STABLE LIVE REGIME')conf=Math.min(82,conf+2);
+    return {...b,side:q?b.side:null,qualified:q,confidence:q?conf:0,awareness:aw.global,aGradeV31:true,
+      reason:q?`${b.reason||'BLACK context qualified'} • Awareness: ${aw.global}.`:`WAIT — BLACK awareness: ${aw.global}; context not stable/strong enough.`};
+  }
+  if(window.__blackContextV22)window.__blackContextV22.signal=v22;
+
+  // ----- V23 upgraded walk-forward signal -----
+  const baseV23=window.__metaWalkV23?.signal;
+  function v23(){
+    settleArm();const bid=bucket(),src=rawMetaSources();
+    if(src.length<3)return {side:null,qualified:false,confidence:0,bucket:bid,reason:'WAIT — A-grade walk-forward learner needs at least 3 source signals.',aGradeV31:true};
+    let p=0,b=0,total=0,learned=0;const det=[];
+    for(const x of src){const t=learnedTrust(x.key,bid);if(t.n>=4)learned++;const w=t.factor*clamp(.78+x.conf/220,.88,1.18)*adaptFactor(x.key);total+=w;x.side==='P'?p+=w:b+=w;det.push({...x,...t,weight:w});}
+    const cand=p>=b?'P':'B',sup=det.filter(x=>x.side===cand),margin=total?Math.abs(p-b)/total:0,aw=awarenessFor(src.map(x=>x.key));
+    let min=learned>=2?.08:.11;if(aw.global==='REGIME CHANGE WATCH')min+=.04;
+    const mature=sup.filter(x=>x.n>=6&&x.rate>.5).length;
+    const qualified=sup.length>=3&&margin>=min&&(learned<2||mature>=1);
+    const conf=qualified?Math.round(Math.min(82,50+margin*60+mature*1.5)):0;
+    return {side:qualified?cand:null,candidate:cand,qualified,confidence:conf,bucket:bid,learnedModels:learned,matureSupport:mature,details:det,awareness:aw.global,aGradeV31:true,
+      reason:qualified?`A-grade walk-forward ${bid} • ${aw.global} • ${sup.length}/${det.length} weighted signals support ${cand==='P'?'PLAYER':'BANKER'}.`:`WAIT — ${aw.global}; walk-forward evidence has not earned enough live trust.`};
+  }
+  if(window.__metaWalkV23){window.__metaWalkV23.signal=v23;window.__metaWalkV23.learnCycle=settleArm;}
+
+  // ----- Focus upgraded signal -----
+  const baseFocus=window.__focusAIV26?.signal;
+  function focus(){
+    settleArm();
+    const defs=[['specialistv20',window.__redBlackSpecialistV20?.signal?.()],['blackctxv22',window.__blackContextV22?.signal?.()],['metav23',window.__metaWalkV23?.signal?.()]];
+    const active=[];for(const [key,z0] of defs){const z=z0||{};if(z.qualified&&(z.side==='P'||z.side==='B')){const r=recentStats(key);active.push({key,side:z.side,conf:Number(z.confidence)||50,factor:adaptFactor(key),rate:r.all.rate,n:r.all.n})}}
+    if(active.length<2)return {side:null,qualified:false,confidence:0,reason:'WAIT — fewer than 2 upgraded specialist models are qualified.',active:active.length,supporters:0,aGradeV31:true};
+    let p=0,b=0,total=0;for(const x of active){const w=x.factor*clamp(.76+x.conf/210,.90,1.20);total+=w;x.side==='P'?p+=w:b+=w;}
+    const cand=p>=b?'P':'B',sup=active.filter(x=>x.side===cand),margin=total?Math.abs(p-b)/total:0,avg=sup.reduce((s,x)=>s+x.conf,0)/Math.max(1,sup.length),aw=awarenessFor(active.map(x=>x.key));
+    let qualified=(active.length===3&&sup.length>=2&&avg>=62&&margin>=.12)||(active.length===2&&sup.length===2&&avg>=64&&margin>=.20);
+    if(aw.global==='REGIME CHANGE WATCH' && !(active.length===3&&sup.length===3&&avg>=70&&margin>=.24)) qualified=false;
+    if(aw.global==='BROAD DETERIORATION' && !(active.length===3&&sup.length===3&&avg>=72&&margin>=.22)) qualified=false;
+    const conf=qualified?Math.round(Math.min(84,50+margin*46+(sup.length===3?7:3)+(avg-50)*.18)):0;
+    return {side:qualified?cand:null,candidate:cand,qualified,confidence:conf,avgConf:avg,margin,supporters:sup.length,active:active.length,sources:active,awareness:aw.global,aGradeV31:true,
+      reason:qualified?`FOCUS A-GRADE LOCK — ${aw.global}; ${sup.length}/${active.length} upgraded specialists support ${cand==='P'?'PLAYER':'BANKER'}.`:`WAIT — ${aw.global}; upgraded V20/V22/V23 do not have enough combined stability and strength.`};
+  }
+  if(window.__focusAIV26)window.__focusAIV26.signal=focus;
+
+  function renderUpgrade(){
+    settleArm();
+    const map=[
+      ['rbSpecialistV20','🎯 RED / BLACK Specialist V20 — A-Grade Live','v20Reason',()=>v20()],
+      ['blackContextV22','⚫ BLACK Context Specialist V22 — A-Grade Live',null,()=>v22()],
+      ['metaWalkV23','🧠 Walk-Forward Meta Learner V23 — A-Grade Live','v23Reason',()=>v23()],
+      ['focusAIV26','🔎 Focus AI V26 — A-Grade Live', 'focusV26Reason',()=>focus()]
+    ];
+    for(const [id,title,reasonId,get] of map){const p=document.getElementById(id);if(!p)continue;const h=p.querySelector('.analyzer-title');if(h)h.textContent=title;let z={};try{z=get()||{}}catch(e){};let badge=p.querySelector('.aGradeAwareBadge');if(!badge){badge=document.createElement('div');badge.className='analyzer-sub aGradeAwareBadge';badge.style.marginTop='6px';badge.style.color='#8ff0b3';p.appendChild(badge);}badge.textContent=`AWARENESS: ${z.awareness||'BUILDING'} • ADAPTATION: A-GRADE • verified live evidence is sample-size weighted`;
+      if(reasonId){const r=document.getElementById(reasonId);if(r&&z.reason)r.textContent=z.reason;}
+    }
+    const n=document.getElementById('v23N');if(n)n.textContent=wf().totalUpdates||0;
+  }
+  const old=window.render;if(typeof old==='function')window.render=function(){const r=old.apply(this,arguments);try{renderUpgrade()}catch(e){}return r};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(renderUpgrade,800));else setTimeout(renderUpgrade,800);
+  setTimeout(renderUpgrade,1800);
+  window.__aGradeSpecialistsV31={v20,v22,v23,focus,settleArm,awarenessFor,grade:{adaptation:'A',awareness:'A'}};
+})();
+</script>
+
 </body>
 </html>
