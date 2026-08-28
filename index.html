@@ -4628,7 +4628,6 @@ bindSeparateShoeControls();
 load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
 renderLibraryBackupStatus();
 </script>
-\n
 
 <script>
 (function(){
@@ -5953,7 +5952,7 @@ renderLibraryBackupStatus();
   window.__selectiveLiveV12={roadTrust,render:renderPanel};
 })();
 </script>
-\n\n
+
 <script>
 /* ============================================================
    V19 SOFT ADAPTIVE WEIGHTING — 2026-08-27
@@ -7941,6 +7940,61 @@ renderLibraryBackupStatus();
   const old=window.render;if(typeof old==='function')window.render=function(){const z=old.apply(this,arguments);try{cycle()}catch(e){}return z};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(cycle,1200));else setTimeout(cycle,1200);
   window.__liveModelGovernorV34={decision,cycle,status:()=>g,undo:undoLast,newShoe};
+})();
+</script>
+
+<script id="v36-test-tools-absolute-bottom">
+(()=>{
+  'use strict';
+  const IDS=['fullLibraryBacktestPanel','contributionDiagV24','ablationBacktestV24'];
+  let moving=false;
+  function ensureDock(){
+    let dock=document.getElementById('diagnosticToolsAbsoluteBottomV36');
+    if(!dock){
+      dock=document.createElement('div');
+      dock.id='diagnosticToolsAbsoluteBottomV36';
+      dock.style.cssText='max-width:1200px;margin:18px auto 0;padding:0 8px 18px;';
+      document.body.appendChild(dock);
+    }
+    if(dock.parentNode!==document.body || dock!==document.body.lastElementChild){
+      document.body.appendChild(dock);
+    }
+    return dock;
+  }
+  function moveTools(){
+    if(moving)return;
+    moving=true;
+    try{
+      const dock=ensureDock();
+      for(const id of IDS){
+        const p=document.getElementById(id);
+        if(!p)continue;
+        p.style.display='block';
+        p.style.visibility='visible';
+        p.style.opacity='1';
+        p.style.position='relative';
+        if(p.parentNode!==dock)dock.appendChild(p);
+      }
+      if(dock!==document.body.lastElementChild)document.body.appendChild(dock);
+    }finally{moving=false;}
+  }
+  function sweepRawArtifacts(){
+    try{
+      const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+      const kill=[];let n;
+      while((n=walker.nextNode())){
+        const v=String(n.nodeValue||'').trim();
+        if(/^\\n(?:\s*\\n)*$/.test(v))kill.push(n);
+      }
+      kill.forEach(n=>n.remove());
+    }catch(e){}
+  }
+  function enforce(){ sweepRawArtifacts(); moveTools(); }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enforce();setTimeout(enforce,250);setTimeout(enforce,1200);setTimeout(enforce,2500);});
+  else {enforce();setTimeout(enforce,250);setTimeout(enforce,1200);setTimeout(enforce,2500);}
+  const obs=new MutationObserver(()=>{ if(!moving) queueMicrotask(enforce); });
+  obs.observe(document.body,{childList:true,subtree:true});
+  window.__v36MoveDiagnosticToolsToAbsoluteBottom=enforce;
 })();
 </script>
 
