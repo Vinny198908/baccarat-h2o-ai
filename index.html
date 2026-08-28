@@ -3330,68 +3330,156 @@ function ensureAdaptiveOriginalDerivedState(){
   if(!state.adaptiveDerivedOriginal||typeof state.adaptiveDerivedOriginal!=='object') state.adaptiveDerivedOriginal={pending:{},roads:{eye:{last12:[]},small:{last12:[]},roach:{last12:[]}}};
   if(!state.adaptiveDerivedOriginal.pending) state.adaptiveDerivedOriginal.pending={};
   if(!state.adaptiveDerivedOriginal.roads) state.adaptiveDerivedOriginal.roads={};
-  ['eye','small','roach'].forEach(k=>{if(!state.adaptiveDerivedOriginal.roads[k])state.adaptiveDerivedOriginal.roads[k]={last12:[]};if(!Array.isArray(state.adaptiveDerivedOriginal.roads[k].last12))state.adaptiveDerivedOriginal.roads[k].last12=[];});
+  ['eye','small','roach'].forEach(k=>{if(!state.adaptiveDerivedOriginal.roads[k])state.adaptiveDerivedOriginal.roads[k]={last12:[],history:[]};if(!Array.isArray(state.adaptiveDerivedOriginal.roads[k].last12))state.adaptiveDerivedOriginal.roads[k].last12=[];if(!Array.isArray(state.adaptiveDerivedOriginal.roads[k].history))state.adaptiveDerivedOriginal.roads[k].history=[];});
   return state.adaptiveDerivedOriginal;
 }
 function originalDerivedRoadReliability(key){
-  const a=ensureAdaptiveOriginalDerivedState().roads[key].last12||[]; if(!a.length)return .50;
-  const rate=a.reduce((x,y)=>x+y,0)/a.length,shrink=a.length/(a.length+6); return .50+(rate-.50)*shrink;
+  const st=ensureAdaptiveOriginalDerivedState();
+  const r=st.roads[key]||{};
+  const hist=Array.isArray(r.history)&&r.history.length?r.history:(r.last12||[]);
+  if(!hist.length)return {rate:.50,short:.50,long:.50,n:0,maturity:0,stability:.50};
+
+  const shortArr=hist.slice(-12), longArr=hist.slice(-36);
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:.50;
+  const shortRaw=avg(shortArr), longRaw=avg(longArr);
+  // Shrink both windows toward 50/50 so tiny samples cannot dominate.
+  const shortShrink=shortArr.length/(shortArr.length+8);
+  const longShrink=longArr.length/(longArr.length+14);
+  const short=.50+(shortRaw-.50)*shortShrink;
+  const long=.50+(longRaw-.50)*longShrink;
+  const maturity=Math.min(1,longArr.length/30);
+  const stability=Math.max(0,1-Math.abs(short-long)*2.4);
+  // Recent performance matters slightly more, but only after shrinkage.
+  const rate=.56*short+.44*long;
+  return {rate,short,long,n:longArr.length,maturity,stability};
 }
 function armAdaptiveOriginalDerivedRoads(){
   const st=ensureAdaptiveOriginalDerivedState();st.pending={};
-  [['eye',1],['small',2],['roach',3]].forEach(([key,off])=>{const x=derivedRoadSequencePatternSignal(off);if(x.side==='P'||x.side==='B')st.pending[key]={side:x.side,hand:currentSequence().length+1};});persist();
+  [['eye',1],['small',2],['roach',3]].forEach(([key,off])=>{
+    const x=derivedRoadSequencePatternSignal(off);
+    if(x.side==='P'||x.side==='B')st.pending[key]={side:x.side,hand:currentSequence().length+1,confidence:x.strength||0,similarity:x.similarityScore||0};
+  });
+  persist();
 }
 function settleAdaptiveOriginalDerivedRoads(actual){
-  if(actual!=='P'&&actual!=='B')return;const st=ensureAdaptiveOriginalDerivedState();
-  ['eye','small','roach'].forEach(key=>{const p=st.pending[key];if(!p)return;const r=st.roads[key];r.last12.push(p.side===actual?1:0);if(r.last12.length>12)r.last12=r.last12.slice(-12);delete st.pending[key];});persist();
+  if(actual!=='P'&&actual!=='B')return;
+  const st=ensureAdaptiveOriginalDerivedState();
+  ['eye','small','roach'].forEach(key=>{
+    const p=st.pending[key];if(!p)return;
+    const r=st.roads[key];
+    const v=p.side===actual?1:0;
+    r.last12.push(v);if(r.last12.length>12)r.last12=r.last12.slice(-12);
+    if(!Array.isArray(r.history))r.history=[];
+    r.history.push(v);if(r.history.length>36)r.history=r.history.slice(-36);
+    delete st.pending[key];
+  });
+  persist();
 }
 function derivedRoadSequenceAI(){
-  const defs=[['eye',1,1.00],['small',2,.96],['roach',3,.92]];
-  const roads=defs.map(([key,offset,roadBase])=>{const r=derivedRoadSequencePatternSignal(offset);return {...r,key,offset,roadBase,reliability:originalDerivedRoadReliability(key)}});
-  const live=roads.filter(r=>r && r.side);
+  // V38 A-GRADE ORIGINAL DERIVED ROAD CONTROLLER
+  // Keeps the three road channels independent, then combines only qualified
+  // pre-result evidence. Uses sample-shrunk live reliability, multi-window
+  // evidence quality, disagreement control, context-aware gating, and WAIT.
+  const defs=[['eye',1,1.00],['small',2,.97],['roach',3,.94]];
+  const seq=currentSequence();
+  const n=seq.length;
+  const recent=seq.slice(-10);
+  let switches=0;
+  for(let i=1;i<recent.length;i++)if(recent[i]!==recent[i-1])switches++;
+  const chop=recent.length>=6?switches/(recent.length-1):.50;
+  const rhythm=chop>=.68?'chop':chop<=.35?'run':'mixed';
+  const phase=n<18?'early':n<36?'middle':'late';
+
+  const roads=defs.map(([key,offset,roadBase])=>{
+    const r=derivedRoadSequencePatternSignal(offset)||{};
+    const rel=originalDerivedRoadReliability(key);
+    const agreement=(r.agreeWindows||0)/Math.max(1,r.totalWindows||1);
+    const sampleQ=Math.min(1,(r.matches||0)/18);
+    const simQ=Math.max(0,Math.min(1,(r.similarityScore||0)/100));
+    const strengthQ=Math.max(0,Math.min(1,(r.strength||0)/100));
+    const evidenceQ=.34*simQ+.28*strengthQ+.22*agreement+.16*sampleQ;
+
+    // Context does not decide a side; it only tightens/loosens trust slightly.
+    let contextQ=1;
+    if(phase==='early') contextQ*=.94;                 // less evidence early
+    if(rhythm==='mixed') contextQ*=.98;               // noisier transitions
+    if(rhythm==='run' && key==='eye') contextQ*=1.02; // modest, capped adjustment
+
+    const reliabilityQ=.72+.56*rel.rate;
+    const maturityQ=.90+.10*rel.maturity;
+    const stabilityQ=.92+.08*rel.stability;
+    const w=roadBase*reliabilityQ*maturityQ*stabilityQ*contextQ*(.48+.52*evidenceQ);
+    return {...r,key,offset,roadBase,reliability:rel.rate,reliabilityDetail:rel,evidenceQ,contextQ,liveWeight:w};
+  });
+
+  // A road is allowed to vote only when its own evidence clears a minimum bar.
+  const live=roads.filter(r=>
+    (r.side==='P'||r.side==='B') &&
+    (r.similarityScore||0)>=58 &&
+    (r.strength||0)>=54 &&
+    (r.matches||0)>=2 &&
+    ((r.agreeWindows||0)/Math.max(1,r.totalWindows||1))>=.54
+  );
 
   let pWeight=0,bWeight=0,totalWeight=0;
-  live.forEach((r)=>{
-    const strengthQ=Math.max(.50,(r.strength||50)/100);
-    const simQ=Math.max(.52,(r.similarityScore||55)/100);
-    const agreement=(r.agreeWindows||0)/Math.max(1,r.totalWindows||1);
-    const sampleQ=Math.min(1,(r.matches||0)/16);
-    const liveTrust=.72+.56*r.reliability;
-    const w=r.roadBase*liveTrust*strengthQ*(.55+.25*simQ+.12*agreement+.08*sampleQ);
-    r.liveWeight=w;
-    if(r.side==='P') pWeight+=w; else if(r.side==='B') bWeight+=w;
-    totalWeight+=w;
+  live.forEach(r=>{
+    if(r.side==='P')pWeight+=r.liveWeight;else bWeight+=r.liveWeight;
+    totalWeight+=r.liveWeight;
   });
 
   const pVotes=live.filter(r=>r.side==='P').length;
   const bVotes=live.filter(r=>r.side==='B').length;
-  const winner=Math.max(pVotes,bVotes);
   const edge=totalWeight?Math.abs(pWeight-bWeight)/totalWeight:0;
+  const weightedSide=pWeight>bWeight?'P':bWeight>pWeight?'B':null;
+  const unanimous=live.length===3&&(pVotes===3||bVotes===3);
+  const twoOfThree=live.length>=2&&Math.max(pVotes,bVotes)>=2&&pVotes!==bVotes;
 
-  let side=null;
-  if(live.length>=2 && winner>=2 && pVotes!==bVotes){
-    const majority=pVotes>bVotes?'P':'B';
-    const weighted=pWeight>bWeight?'P':'B';
-    const supporters=live.filter(r=>r.side===majority);
-    const avgSim=supporters.reduce((a,r)=>a+(r.similarityScore||0),0)/Math.max(1,supporters.length);
-    const avgStrength=supporters.reduce((a,r)=>a+(r.strength||0),0)/Math.max(1,supporters.length);
-    // Two roads may qualify only with a meaningful weighted edge and solid quality.
-    if(weighted===majority && edge>=.10 && avgSim>=60 && avgStrength>=56) side=majority;
+  let side=null,reason='WAIT — insufficient qualified derived-road agreement.';
+  if(weightedSide && (unanimous||twoOfThree)){
+    const supporters=live.filter(r=>r.side===weightedSide);
+    const opposition=live.filter(r=>r.side!==weightedSide);
+    const avgSim=supporters.reduce((a,r)=>a+(r.similarityScore||0),0)/supporters.length;
+    const avgStrength=supporters.reduce((a,r)=>a+(r.strength||0),0)/supporters.length;
+    const avgEvidence=supporters.reduce((a,r)=>a+r.evidenceQ,0)/supporters.length;
+    const avgReliability=supporters.reduce((a,r)=>a+r.reliability,0)/supporters.length;
+
+    // Unanimous calls can pass with a smaller edge. 2-vs-1 needs stronger proof.
+    const needEdge=unanimous?.075:.13;
+    const needSim=unanimous?59:62;
+    const needStrength=unanimous?55:58;
+    const qualityOK=avgSim>=needSim&&avgStrength>=needStrength&&avgEvidence>=.56;
+    const reliabilityOK=avgReliability>=.47; // allows neutral/new roads, blocks persistently weak ones
+    const conflictOK=!opposition.length || edge>=.16 || supporters.length===3;
+
+    if(edge>=needEdge&&qualityOK&&reliabilityOK&&conflictOK){
+      side=weightedSide;
+      reason=`QUALIFIED — ${supporters.length}/${live.length} roads support ${side}; weighted edge ${Math.round(edge*100)}%, evidence ${Math.round(avgEvidence*100)}%, reliability ${Math.round(avgReliability*100)}%.`;
+    }else{
+      reason=`WAIT — agreement exists but quality gate failed (${Math.round(edge*100)}% edge, ${Math.round(avgSim)} sim, ${Math.round(avgStrength)} strength).`;
+    }
   }
 
   const supporters=side?live.filter(r=>r.side===side):[];
-  const confidence=supporters.length
-    ? Math.min(91,Math.round(
-        supporters.reduce((a,r)=>a+r.strength,0)/supporters.length
-        + Math.min(7,edge*18)
-        + (supporters.length===3?3:0)
-      ))
-    : 0;
+  let confidence=0;
+  if(supporters.length){
+    const avgStrength=supporters.reduce((a,r)=>a+(r.strength||0),0)/supporters.length;
+    const avgEvidence=supporters.reduce((a,r)=>a+r.evidenceQ,0)/supporters.length;
+    const avgReliability=supporters.reduce((a,r)=>a+r.reliability,0)/supporters.length;
+    // Conservative confidence: evidence + learned reliability + agreement, capped.
+    confidence=Math.min(89,Math.round(
+      48 +
+      Math.max(0,avgStrength-50)*.28 +
+      Math.max(0,avgEvidence-.50)*34 +
+      Math.max(0,avgReliability-.50)*24 +
+      edge*18 +
+      (supporters.length===3?3:0)
+    ));
+  }
 
   return {
-    side,confidence,pVotes,bVotes,winner,edge,roads,
+    side,confidence,pVotes,bVotes,winner:Math.max(pVotes,bVotes),edge,roads,
     ready:roads.filter(r=>r.pMark&&r.bMark).length,
-    adaptive:true
+    qualifiedRoads:live.length,phase,rhythm,reason,adaptive:true,version:38
   };
 }
 
@@ -4766,6 +4854,7 @@ renderLibraryBackupStatus();
     ['specialistv20','RED / BLACK Specialist V20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
     ['blackctxv22','BLACK Context Specialist V22',()=>{const z=window.__blackContextV22?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
     ['metav23','Walk-Forward Meta Learner V23',()=>{const z=window.__metaWalkV23?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['focusv26','Focus AI V26',()=>{const z=window.__focusAIV26?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
   ];
   function verifiedContext(){
     const seq=currentSequence().filter(x=>x==='P'||x==='B');
@@ -7804,7 +7893,8 @@ renderLibraryBackupStatus();
     const map=[
       ['rbSpecialistV20','🎯 RED / BLACK Specialist V20 — A-Grade Live','v20Reason',()=>v20()],
       ['blackContextV22','⚫ BLACK Context Specialist V22 — A-Grade Live',null,()=>v22()],
-      ['metaWalkV23','🧠 Walk-Forward Meta Learner V23 — A-Grade Live','v23Reason',()=>v23()]
+      ['metaWalkV23','🧠 Walk-Forward Meta Learner V23 — A-Grade Live','v23Reason',()=>v23()],
+      ['focusAIV26','🔎 Focus AI V26 — A-Grade Live', 'focusV26Reason',()=>focus()]
     ];
     for(const [id,title,reasonId,get] of map){const p=document.getElementById(id);if(!p)continue;const h=p.querySelector('.analyzer-title');if(h)h.textContent=title;let z={};try{z=get()||{}}catch(e){};let badge=p.querySelector('.aGradeAwareBadge');if(!badge){badge=document.createElement('div');badge.className='analyzer-sub aGradeAwareBadge';badge.style.marginTop='6px';badge.style.color='#8ff0b3';p.appendChild(badge);}badge.textContent=`AWARENESS: ${z.awareness||'BUILDING'} • ADAPTATION: A-GRADE • verified live evidence is sample-size weighted`;
       if(reasonId){const r=document.getElementById(reasonId);if(r&&z.reason)r.textContent=z.reason;}
@@ -7827,7 +7917,8 @@ renderLibraryBackupStatus();
     {key:'color',label:'Color Pattern AI',side:'colorAiSide',conf:'colorAiStrength'},
     {key:'road',label:'Road Preview AI',side:'roadAiSide',conf:'roadAiStrength'},
     {key:'dup',label:'Sequence Duplicate',side:'seqDupSide',conf:'seqDupStrength'},
-    {key:'adaptive',label:'Adaptive Derived Roads',side:'adaptiveMainDerivedPrediction',conf:'adaptiveMainDerivedConfidence'}
+    {key:'adaptive',label:'Adaptive Derived Roads',side:'adaptiveMainDerivedPrediction',conf:'adaptiveMainDerivedConfidence'},
+    {key:'focus',label:'Focus AI V26',side:'focusV26Pick',conf:'focusV26Confidence'}
   ];
   const blank=()=>({version:34,lastHands:0,armed:{},models:{},governor:{w:0,l:0,n:0,recent:[]},lastDecision:null,settlements:[],createdAt:Date.now()});
   function load(){try{return Object.assign(blank(),JSON.parse(localStorage.getItem(GOV_KEY)||'{}'))}catch(e){return blank()}}
@@ -7839,6 +7930,7 @@ renderLibraryBackupStatus();
   function text(id){return document.getElementById(id)?.textContent||''}
   function modelSignal(m){
     let side=normSide(text(m.side)),conf=pct(text(m.conf));
+    if(m.key==='focus'&&window.__focusAIV26?.signal){try{const z=window.__focusAIV26.signal()||{};side=z.qualified?z.side:null;conf=Number(z.confidence)||conf}catch(e){}}
     if(m.key==='adaptive'&&window.__selectiveLiveV13A?.signal){try{const z=window.__selectiveLiveV13A.signal()||{};if(z.side==='P'||z.side==='B'){side=z.side;conf=Number(z.confidence)||conf}}catch(e){}}
     return {side,conf};
   }
@@ -7939,10 +8031,105 @@ renderLibraryBackupStatus();
 })();
 </script>
 
+<script id="v37-confidence-calibration-test">
+/* ============================================================
+   V37 — CONFIDENCE CALIBRATION TEST — 2026-08-28
+   Diagnostic only. Does NOT change live prediction logic.
+   Chronological pre-result held-out-shoe replay. Reports whether
+   higher displayed confidence corresponds to higher actual accuracy.
+   ============================================================ */
+(function(){
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  const MODELS=[
+    ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
+    ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
+    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer'],
+    ['specialistv20','RED / BLACK Specialist V20'],['blackctxv22','BLACK Context Specialist V22'],['metav23','Walk-Forward Meta Learner V23']
+  ];
+  const BANDS=[[0,49],[50,59],[60,69],[70,79],[80,89],[90,100]];
+  const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
+  const phase=n=>n<18?'EARLY':n<36?'MID':'LATE';
+  function raw(k){
+    try{
+      let z=null;
+      if(k==='seqv2')z=sequenceAISignal();
+      else if(k==='color')z=window.colorPatternAISignal?.();
+      else if(k==='roadpreview')z=roadPreviewAISignal();
+      else if(k==='derivedorig'){const q=derivedRoadSequenceAI();z={side:q.side,strength:q.confidence||q.strength||0};}
+      else if(k==='derivedmain')z=adaptiveDerivedMainSignal();
+      else if(k==='seqdup')z=sequenceAIDuplicateSignal();
+      else if(k==='consensus')z=consensusSignal();
+      else if(k==='bot'){const q=masterBotSignal();z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      else if(k==='bestestimate'){const q=computeCombinedAnalyzer();z={side:q.qualified?q.side:null,strength:q.qualified?(Number(q.top)||Number(q.confidence)||0):0};}
+      else if(k==='specialistv20'){const q=window.__redBlackSpecialistV20?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.qualified?(Number(q.confidence)||0):0};}
+      else if(k==='blackctxv22'){const q=window.__blackContextV22?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.qualified?(Number(q.confidence)||0):0};}
+      else if(k==='metav23'){const q=window.__metaWalkV23?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.qualified?(Number(q.confidence)||0):0};}
+      if(z && window.__slV10Signal)z=window.__slV10Signal(k,z);
+      const side=z?.side==='P'||z?.side==='B'?z.side:null;
+      let conf=Number(z?.confidence ?? z?.strength ?? z?.top ?? 0);
+      if(!Number.isFinite(conf))conf=0; conf=Math.max(0,Math.min(100,Math.round(conf)));
+      return {side,conf};
+    }catch(e){return {side:null,conf:0};}
+  }
+  const blankBand=()=>({n:0,w:0,l:0,redN:0,redW:0,blackN:0,blackW:0,earlyN:0,earlyW:0,midN:0,midW:0,lateN:0,lateW:0,confSum:0});
+  function bandFor(c){return BANDS.find(([a,b])=>c>=a&&c<=b)||BANDS[0];}
+  function ensure(){
+    let p=document.getElementById('confidenceCalibrationV37'); if(p)return p;
+    p=document.createElement('div');p.id='confidenceCalibrationV37';p.className='analyzer';p.style.borderColor='#0891b2';
+    p.innerHTML=`<div class="analyzer-title">🎯 V37 Confidence Calibration Test</div>
+      <div class="analyzer-sub"><b>Diagnostic only — live AI logic is unchanged.</b> Chronological pre-result replay with each shoe hidden from training until that shoe finishes. Tests whether higher reported confidence actually produces higher verified accuracy.</div>
+      <div class="analyzer-sub" style="color:#c4b5fd">Reports confidence band → actual accuracy → N → calibration gap, plus RED/BLACK and EARLY/MID/LATE splits. Sequence AI V2 is measured, not modified.</div>
+      <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px"><button class="tiny-btn" id="runCalibrationV37">Run Confidence Calibration</button><button class="tiny-btn" id="copyCalibrationV37">Copy Calibration Results</button></div>
+      <div class="analyzer-sub" id="calibrationStatusV37" style="margin-top:8px">READY</div>
+      <pre id="calibrationTextV37" style="white-space:pre-wrap;max-height:620px;overflow:auto;font-size:11px;margin-top:8px"></pre>`;
+    const dock=document.getElementById('diagnosticToolsAbsoluteBottomV36'); if(dock)dock.appendChild(p); else document.body.appendChild(p); return p;
+  }
+  function report(stats,meta){
+    const lines=['CONFIDENCE CALIBRATION TEST V37',`${meta.shoes} shoes • ${meta.hands} P/B hands evaluated • ${meta.ties} ties skipped`,`Held-out chronological replay • warm-up ${meta.minWarm} hands • shoe hidden until replay completes`,''];
+    for(const [k,name] of MODELS){
+      lines.push(name.toUpperCase()); let modelN=0,modelW=0,weightedErr=0;
+      for(const [a,b] of BANDS){const x=stats[k][`${a}-${b}`];if(!x.n)continue;const acc=pct(x.w,x.n),avg=Math.round(x.confSum/x.n*10)/10,gap=Math.round((acc-avg)*10)/10;modelN+=x.n;modelW+=x.w;weightedErr+=Math.abs(gap)*x.n;
+        lines.push(`  ${a}-${b}%: actual ${acc}% | avg conf ${avg}% | gap ${gap>=0?'+':''}${gap} pp | ${x.w}W-${x.l}L | N=${x.n} | RED ${pct(x.redW,x.redN)??'—'}% | BLACK ${pct(x.blackW,x.blackN)??'—'}% | EARLY ${pct(x.earlyW,x.earlyN)??'—'}% | MID ${pct(x.midW,x.midN)??'—'}% | LATE ${pct(x.lateW,x.lateN)??'—'}%`);
+      }
+      const mae=modelN?Math.round(weightedErr/modelN*10)/10:null; lines.push(`  OVERALL: ${pct(modelW,modelN)??'—'}% | N=${modelN} | mean absolute calibration error ${mae==null?'—':mae+' pp'}`,'');
+    }
+    document.getElementById('calibrationTextV37').textContent=lines.join('\n');
+  }
+  async function run(){
+    const btn=document.getElementById('runCalibrationV37'),status=document.getElementById('calibrationStatusV37');if(!btn||btn.disabled)return;btn.disabled=true;
+    const savedState=clone(state),savedStorage=localStorage.getItem(KEY),savedBackup=localStorage.getItem(LIBRARY_BACKUP_KEY),savedHist=localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY);
+    const all=[...(savedState.redPatternLibrary||[]).map(x=>({...clone(x),__color:'red'})),...(savedState.blackPatternLibrary||[]).map(x=>({...clone(x),__color:'black'}))].sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||'')));
+    const stats={};for(const [k] of MODELS){stats[k]={};for(const [a,b] of BANDS)stats[k][`${a}-${b}`]=blankBand();}
+    const train={red:[],black:[]};let hands=0,ties=0;const minWarm=6;
+    try{
+      state=clone(savedState);state.hands=[];state.redPatternLibrary=[];state.blackPatternLibrary=[];state.accuracyVerified={models:{},pending:{},ties:0,version:1};state.selfLearning={version:9,enabled:true,modelContexts:{},roadChannels:{},totalUpdates:0,createdAt:Date.now()};
+      for(let si=0;si<all.length;si++){
+        const shoe=all[si],seq=String(shoe.sequence||'').toUpperCase().replace(/[^PBT]/g,'');state.currentShoeColor=shoe.__color;state.predictionLibraryMode='selected';state.redPatternLibrary=clone(train.red);state.blackPatternLibrary=clone(train.black);state.hands=[];
+        if(state.accuracyVerified)state.accuracyVerified.pending={};if(state.adaptiveDerived)state.adaptiveDerived.pending=null;if(state.adaptiveOriginalDerived)state.adaptiveOriginalDerived.pending=null;
+        for(let i=0;i<seq.length;i++){
+          const actual=seq[i];
+          if(i>=minWarm&&(actual==='P'||actual==='B')){
+            hands++;const ph=phase(i);
+            for(const [k] of MODELS){const q=raw(k);if(!q.side)continue;const [a,b]=bandFor(q.conf),x=stats[k][`${a}-${b}`],win=q.side===actual;x.n++;x.confSum+=q.conf;if(win)x.w++;else x.l++;if(shoe.__color==='red'){x.redN++;if(win)x.redW++;}else{x.blackN++;if(win)x.blackW++;}if(ph==='EARLY'){x.earlyN++;if(win)x.earlyW++;}else if(ph==='MID'){x.midN++;if(win)x.midW++;}else{x.lateN++;if(win)x.lateW++;}}
+            try{window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}try{window.__settleVerifiedPredictions?.(actual);window.__settleAdaptiveDerivedRoads?.(actual);window.__settleAdaptiveOriginalDerivedRoads?.(actual);}catch(e){}
+          }else if(actual==='T')ties++;
+          state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});if(i%12===0)await new Promise(r=>setTimeout(r,0));
+        }
+        train[shoe.__color].push(clone(shoe));status.textContent=`CALIBRATING ${si+1}/${all.length} • ${shoe.__color.toUpperCase()} • ${seq.length} hands`;if(si%2===0){report(stats,{shoes:si+1,hands,ties,minWarm});await new Promise(r=>setTimeout(r,0));}
+      }
+      report(stats,{shoes:all.length,hands,ties,minWarm});status.textContent=`COMPLETE • ${all.length} SHOES • live state restored`;
+    }catch(e){status.textContent='CALIBRATION ERROR: '+(e?.message||e);console.error(e);}finally{
+      state=savedState;if(savedStorage==null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,savedStorage);if(savedBackup==null)localStorage.removeItem(LIBRARY_BACKUP_KEY);else localStorage.setItem(LIBRARY_BACKUP_KEY,savedBackup);if(savedHist==null)localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);else localStorage.setItem(LIBRARY_BACKUP_HISTORY_KEY,savedHist);try{render();window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}btn.disabled=false;
+    }
+  }
+  ensure();document.getElementById('runCalibrationV37')?.addEventListener('click',run);document.getElementById('copyCalibrationV37')?.addEventListener('click',async()=>{const t=document.getElementById('calibrationTextV37')?.textContent||'';try{await navigator.clipboard.writeText(t);document.getElementById('calibrationStatusV37').textContent='CALIBRATION RESULTS COPIED';}catch(e){}});window.__confidenceCalibrationV37={run};
+})();
+</script>
+
 <script id="v36-test-tools-absolute-bottom">
 (()=>{
   'use strict';
-  const IDS=['fullLibraryBacktestPanel','contributionDiagV24','ablationBacktestV24'];
+  const IDS=['fullLibraryBacktestPanel','contributionDiagV24','ablationBacktestV24','confidenceCalibrationV37'];
   let moving=false;
   function ensureDock(){
     let dock=document.getElementById('diagnosticToolsAbsoluteBottomV36');
@@ -7994,571 +8181,129 @@ renderLibraryBackupStatus();
 })();
 </script>
 
-
-
-<!-- V37 UNIFIED HIGH-POWERED BOT A-GRADE STACK -->
-<script id="v37UnifiedHighPoweredBot">
-(()=>{
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
-  const pb=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return[]}};
+<script id="v39-unified-regime-phase-a-grade">
+/* ============================================================
+   V39 — UNIFIED REGIME / PHASE A-GRADE LAYER — 2026-08-28
+   Adds one consistent RED/BLACK × EARLY/MID/LATE × CHOP/MIXED/RUN
+   context ledger to every major model. Predictions are captured before
+   the next P/B result, settled afterward, sample-shrunk toward neutral,
+   and low-evidence contexts can reduce confidence or WAIT.
+   Does not rewrite Sequence AI V2 core sequence matching.
+   ============================================================ */
+(function(){
+  'use strict';
+  const KEY='baccarat-regime-phase-v39';
+  const MODELS=[
+    ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
+    ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
+    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer'],
+    ['specialistv20','RED / BLACK Specialist V20'],['blackctxv22','BLACK Context Specialist V22'],
+    ['metav23','Walk-Forward Meta Learner V23'],['focusv26','Focus AI V26']
+  ];
+  const LABEL=Object.fromEntries(MODELS);
+  let S;
+  try{S=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){S=null}
+  if(!S||typeof S!=='object')S={version:39,total:0,buckets:{},pending:null,lastPB:0};
+  S.version=39;S.buckets||={};
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+  function pb(){try{return (state?.hands||state?.results||[]).map(x=>typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner)).filter(x=>x==='P'||x==='B')}catch(e){return []}}
   function context(){
-    const a=pb(),n=a.length,r=a.slice(-12);let switches=0,streak=0;
-    for(let i=1;i<r.length;i++) if(r[i]!==r[i-1]) switches++;
-    const last=n?a[n-1]:null; for(let i=n-1;i>=0&&a[i]===last;i--) streak++;
-    const chop=r.length>=6?switches/Math.max(1,r.length-1):.5;
-    const rhythm=chop>=.68?'CHOP':chop<=.35?'RUN':'MIXED';
-    const phase=n<18?'EARLY':n<36?'MIDDLE':n<55?'LATE':'VERY LATE';
-    const recent=r.slice(-6), prior=r.slice(-12,-6);
-    const swRate=x=>{let s=0;for(let i=1;i<x.length;i++)if(x[i]!==x[i-1])s++;return x.length>1?s/(x.length-1):.5};
-    const shiftRisk=(recent.length>=5&&prior.length>=5)?Math.round(Math.min(100,Math.abs(swRate(recent)-swRate(prior))*125)):0;
-    return {n,phase,rhythm,streak,chop,shiftRisk,color:String(state.currentShoeColor||'combined').toUpperCase()};
+    const a=pb(),n=a.length,r=a.slice(-10);let sw=0,st=0,last=n?a[n-1]:null;
+    for(let i=1;i<r.length;i++)if(r[i]!==r[i-1])sw++;
+    for(let i=n-1;i>=0&&a[i]===last;i--)st++;
+    const ratio=r.length>=6?sw/Math.max(1,r.length-1):.5;
+    const rhythm=ratio>=.68?'chop':ratio<=.35?'run':'mixed';
+    const phase=n<18?'early':n<36?'middle':'late';
+    const color=String(state?.currentShoeColor||'').toLowerCase()==='black'?'black':'red';
+    return {color,phase,rhythm,streak:st,n,id:`${color}|${phase}|${rhythm}`};
   }
-  function verified(key){
-    try{
-      const m=state.accuracyVerified?.models?.[key]||{};
-      const arr=Array.isArray(m.last25)?m.last25:[];
-      const z=arr.slice(-8); const rate=z.length?z.reduce((s,v)=>s+(v?1:0),0)/z.length:.5;
-      return {n:z.length,rate,total:Number(m.predictions)||0};
-    }catch(e){return {n:0,rate:.5,total:0}}
+  function rec(id,key){
+    S.buckets[id]||={};S.buckets[id][key]||={w:0,l:0,n:0,recent:[]};return S.buckets[id][key];
   }
-  function metaBucket(ctx){
-    const c=String(state.currentShoeColor||'red').toLowerCase()==='black'?'black':'red';
-    const phase=ctx.n<18?'early':ctx.n<36?'middle':'late';
-    const rhythm=ctx.rhythm.toLowerCase();
-    return `${c}|${phase}|${rhythm}`;
+  function trust(id,key){
+    const r=rec(id,key),post=(r.w+8)/(r.n+16),m=Math.min(1,r.n/28),shrunk=.5+(post-.5)*m;
+    const recent=(r.recent||[]).slice(-10),rw=recent.reduce((a,x)=>a+(x?1:0),0),rr=recent.length?rw/recent.length:.5;
+    const stability=recent.length>=6?Math.max(.72,1-Math.abs(rr-shrunk)*.65):.92;
+    return {n:r.n,rate:shrunk,raw:r.n?r.w/r.n:.5,maturity:m,stability};
   }
-  function walkTrust(key,ctx){
-    try{
-      const row=state.metaWalkV23?.buckets?.[metaBucket(ctx)]?.[key];
-      if(!row||!row.n)return {n:0,rate:.5,factor:1};
-      const rate=(row.w+5)/(row.n+10), maturity=Math.min(1,row.n/30);
-      return {n:row.n,rate,factor:clamp(1+(rate-.5)*1.35*maturity,.72,1.28)};
-    }catch(e){return {n:0,rate:.5,factor:1}}
-  }
-  function getSignals(){
-    const defs=[
-      ['seqv2','Sequence AI V2',()=>sequenceAISignal(),1.10],
-      ['seqdup','Sequence Duplicate',()=>sequenceAIDuplicateSignal(),1.04],
-      ['color','Color Pattern AI',()=>window.colorPatternAISignal?.(),.92],
-      ['roadpreview','Road Preview AI',()=>roadPreviewAISignal(),1.00],
-      ['derivedorig','Derived Road AI',()=>{const z=derivedRoadSequenceAI();return {side:z.side,strength:z.confidence||z.strength||0,raw:z}},.88],
-      ['derivedmain','Adaptive Derived Roads',()=>adaptiveDerivedMainSignal(),.94]
-    ];
-    const out=[];
-    for(const [key,name,get,baseWeight] of defs){
-      let s={}; try{s=get()||{}}catch(e){}
-      const side=s.side==='P'||s.side==='B'?s.side:null;
-      const strength=clamp(s.strength??s.confidence,0,100);
-      if(side) out.push({key,name,side,strength,baseWeight,sig:s});
-    }
+  function apply(key,x){
+    if(!x||typeof x!=='object')return x||{};
+    const c=context(),t=trust(c.id,key),out={...x};
+    const side=out.side==='P'||out.side==='B'?out.side:null;
+    let conf=Number(out.confidence??out.strength??out.top??0);if(!Number.isFinite(conf))conf=0;
+    // Context is a trust modifier, never a side generator.
+    let mod=1;
+    if(c.phase==='early')mod*=.96;
+    if(c.rhythm==='mixed')mod*=.97;
+    if(c.rhythm==='run'&&c.streak>=4)mod*=1.015;
+    if(t.n>=6)mod*=Math.max(.82,Math.min(1.12,.88+(t.rate-.42)*.8))*t.stability;
+    const adjusted=Math.max(0,Math.min(96,Math.round(conf*mod)));
+    const weakMature=t.n>=12&&t.rate<.46;
+    const unstable=t.n>=8&&t.stability<.80;
+    const lowEvidence=adjusted>0&&adjusted<52;
+    if(side&&(weakMature||unstable||lowEvidence))out.side=null;
+    if('confidence' in out)out.confidence=out.side?adjusted:0;
+    if('strength' in out)out.strength=out.side?adjusted:0;
+    if('top' in out && typeof out.top==='number')out.top=out.side?adjusted:0;
+    out.regimeV39={...c,contextN:t.n,contextRate:Math.round(t.rate*1000)/10,contextMaturity:Math.round(t.maturity*100),stability:Math.round(t.stability*100),adjustedConfidence:out.side?adjusted:0};
+    if(side&&!out.side)out.regimeWaitReason=`V39 WAIT — weak/unstable verified ${c.color.toUpperCase()} ${c.phase.toUpperCase()} ${c.rhythm.toUpperCase()} context.`;
     return out;
   }
-  function unified(){
-    try{window.__metaWalkV23?.learnCycle?.()}catch(e){}
-    const ctx=context(), raw=getSignals();
-    const awareness={
-      phase:ctx.phase,rhythm:ctx.rhythm,shiftRisk:ctx.shiftRisk,
-      state:ctx.shiftRisk>=55?'REGIME CHANGE WATCH':ctx.shiftRisk>=32?'SHIFT WATCH':'STABLE',
-      streak:ctx.streak
-    };
-    const enriched=raw.map(x=>{
-      const vr=verified(x.key), wt=walkTrust(x.key,ctx);
-      let adapt=1;
-      if(vr.n>=6) adapt*=clamp(.78+(vr.rate-.45)*1.25,.72,1.22);
-      let regime=1;
-      if(awareness.shiftRisk>=55) regime*= x.key==='seqdup'||x.key==='derivedmain' ? .92:.80;
-      else if(awareness.shiftRisk>=32) regime*=.91;
-      if(ctx.rhythm==='CHOP' && (x.key==='roadpreview'||x.key==='derivedmain')) regime*=1.05;
-      if(ctx.rhythm==='RUN' && (x.key==='seqv2'||x.key==='seqdup')) regime*=1.05;
-      const confidenceFactor=.62+.38*(x.strength/100);
-      const weight=x.baseWeight*confidenceFactor*adapt*regime*wt.factor;
-      return {...x,verified:vr,walkForward:wt,weight};
-    });
+  const prev=window.__slV10Signal;
+  window.__slV10Signal=function(key,x){const y=typeof prev==='function'?prev(key,x):x;return apply(key,y)};
 
-    // FOCUS: rank evidence, cap weak/stale signals, and keep the strongest independent evidence.
-    const ranked=[...enriched].sort((a,b)=>b.weight-a.weight);
-    const focused=ranked.filter((x,i)=>i<5 && (x.strength>=50 || x.verified.n>=6));
-    let p=0,b=0,total=0;
-    for(const x of focused){total+=x.weight; x.side==='P'?p+=x.weight:b+=x.weight}
-    const candidate=p===b?null:(p>b?'P':'B');
-    const supporters=candidate?focused.filter(x=>x.side===candidate):[];
-    const opposing=candidate?focused.filter(x=>x.side!==candidate):[];
-    const edge=total?Math.abs(p-b)/total:0;
-    const avg=supporters.length?supporters.reduce((s,x)=>s+x.strength,0)/supporters.length:0;
-    const sourceFamilies={
-      sequence:supporters.some(x=>x.key==='seqv2'||x.key==='seqdup'),
-      shoeHistory:supporters.some(x=>x.key==='seqv2'||x.key==='seqdup'||x.key==='color'),
-      roadHistory:supporters.some(x=>x.key==='roadpreview'||x.key==='derivedorig'||x.key==='derivedmain')
-    };
-    const familyCount=Object.values(sourceFamilies).filter(Boolean).length;
-
-    // CONFIDENCE/GATING: stricter during regime shifts and when evidence lacks diversity.
-    let minEdge=awareness.shiftRisk>=55?.16:awareness.shiftRisk>=32?.12:.085;
-    let minAvg=awareness.shiftRisk>=55?64:60;
-    let qualified=!!candidate && focused.length>=3 && supporters.length>=2 && familyCount>=2 && edge>=minEdge && avg>=minAvg;
-    if(awareness.shiftRisk>=55 && supporters.length<3) qualified=false;
-    if(opposing.length>=3 && supporters.length<=2) qualified=false;
-    const side=qualified?candidate:null;
-    const confidence=qualified?Math.round(Math.min(92,50+edge*35+(avg-50)*.45+supporters.length*2+familyCount*2-awareness.shiftRisk*.05)):0;
-    const reason=qualified
-      ? `UNIFIED BOT LOCK — ${supporters.length}/${focused.length} focused engines support ${candidate==='P'?'PLAYER':'BANKER'} • ${awareness.state} • ${ctx.rhythm} rhythm.`
-      : `WAIT — unified gate requires stronger, diverse evidence (${supporters.length}/${focused.length} support • ${Math.round(edge*100)}% edge • ${awareness.state}).`;
-
-    return {
-      side,candidate,qualified,confidence,reason,
-      phase:{key:ctx.n>=55?'55+':ctx.n>=40?'40-54':ctx.n>=25?'25-39':'0-24',label:ctx.phase},
-      agreement:focused.length?supporters.length/focused.length:0,total:focused.length,agree:supporters.length,
-      candidates:focused.map(x=>({name:x.name,side:x.side,strength:x.strength,weight:x.weight,evidence:`verified ${x.verified.n?Math.round(x.verified.rate*100)+'%':'building'} • walk-forward N=${x.walkForward.n}`})),
-      awareness,focus:{active:focused.length,ranked:ranked.map(x=>x.key)},regimeRhythm:ctx,
-      gating:{minEdge,minAvg,edge,avgStrength:avg,familyCount},
-      walkForward:{bucket:metaBucket(ctx),updates:Number(state.metaWalkV23?.totalUpdates)||0},
-      historicalLearning:{shoeHistory:true,roadHistory:true,verifiedAdaptive:true},
-      predictionEngines:enriched,
-      seqV2:raw.find(x=>x.key==='seqv2')?.sig||null,
-      sequenceDuplicate:raw.find(x=>x.key==='seqdup')?.sig||null,
-      roadPreview:raw.find(x=>x.key==='roadpreview')?.sig||null,
-      directLib:raw.find(x=>x.key==='seqv2')?.sig||null,
-      liveRoad:raw.find(x=>x.key==='roadpreview')?.sig||null,
-      phaseHist:{samples:raw.find(x=>x.key==='seqv2')?.sig?.matches||0},
-      roadMem:{samples:(raw.find(x=>x.key==='roadpreview')?.sig?.matches||0)},
-      historicalSamples:raw.reduce((s,x)=>s+(Number(x.sig?.matches)||0),0),
-      pScore:total?Math.round(p/total*100):0,bScore:total?Math.round(b/total*100):0,
-      fusion:'Unified High-Powered Bot: Awareness + Focus + Regime/Rhythm + Confidence/Gating + Historical Learning + Prediction Engines + Walk-Forward Meta + Shoe History + Road History + Sequence AI V2',
-      capabilityGrades:{awareness:'A',focus:'A',regimeRhythm:'A',confidenceGating:'A',historicalLearning:'A',predictionEngines:'A',walkForwardMeta:'A',shoeHistory:'A',roadHistory:'A',sequenceV2:'A'}
-    };
+  // Context-aware wrappers for models that do not normally pass through __slV10Signal.
+  function wrapObj(objName,key){
+    const obj=window[objName];if(!obj||typeof obj.signal!=='function'||obj.__v39Wrapped)return;
+    const base=obj.signal.bind(obj);obj.signal=function(){const z=base()||{};const y=apply(key,{...z,side:z.qualified===false?null:z.side,strength:Number(z.confidence??z.strength??0)});return {...z,...y,qualified:!!y.side,confidence:y.side?Number(y.strength??y.confidence??z.confidence??0):0};};obj.__v39Wrapped=true;
   }
+  wrapObj('__redBlackSpecialistV20','specialistv20');wrapObj('__blackContextV22','blackctxv22');wrapObj('__metaWalkV23','metav23');wrapObj('__focusAIV26','focusv26');
 
-  // Replace the old 4-signal fusion with the unified internal decision stack.
-  window.masterBotSignal=unified;
-  try{masterBotSignal=unified}catch(e){}
-
-  // Focus is now an internal Bot capability, not a standalone voting AI.
-  const neutralFocus=()=>({side:null,qualified:false,confidence:0,reason:'Focus is integrated inside the High-Powered Bot V37.',integratedIntoBot:true});
-  if(window.__focusAIV26){window.__focusAIV26.signal=neutralFocus;window.__focusAIV26.panel=()=>{};}
-  const style=document.createElement('style');style.textContent='#focusAIV26{display:none!important}';document.head.appendChild(style);
-
-  function relabel(){
-    const panel=document.getElementById('highPoweredBotPanel')||document.querySelector('.bot-panel')||document.getElementById('masterBotPanel');
-    const title=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));
-    if(title) title.textContent='🤖 High-Powered Bot AI — Unified A-Grade Decision Stack';
-    const container=title?.closest('.analyzer');
-    const sub=container?.querySelector('.analyzer-sub');
-    if(sub) sub.textContent='ONE BOT BRAIN: Awareness + Focus + Regime/Rhythm + Confidence/Gating + Historical Learning + Prediction Engines + Walk-Forward Meta + Shoe History + Road History + Sequence AI V2. Weak or conflicting evidence returns WAIT.';
+  function raw(key){
+    try{
+      let z={};
+      if(key==='seqv2')z=sequenceAISignal();
+      else if(key==='color')z=window.colorPatternAISignal?.()||{};
+      else if(key==='roadpreview')z=roadPreviewAISignal();
+      else if(key==='derivedorig'){const q=derivedRoadSequenceAI()||{};z={side:q.side,strength:q.confidence||q.strength||0};}
+      else if(key==='derivedmain')z=adaptiveDerivedMainSignal()||{};
+      else if(key==='seqdup')z=sequenceAIDuplicateSignal()||{};
+      else if(key==='consensus')z=consensusSignal()||{};
+      else if(key==='bot'){const q=masterBotSignal()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      else if(key==='bestestimate'){const q=computeCombinedAnalyzer()||{};z={side:q.qualified?q.side:null,strength:Number(q.top)||Number(q.confidence)||0};}
+      else if(key==='specialistv20'){const q=window.__redBlackSpecialistV20?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      else if(key==='blackctxv22'){const q=window.__blackContextV22?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      else if(key==='metav23'){const q=window.__metaWalkV23?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      else if(key==='focusv26'){const q=window.__focusAIV26?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      return apply(key,z);
+    }catch(e){return {side:null,strength:0,error:String(e)}}
   }
-  const oldRender=window.render;
-  if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);try{relabel();document.getElementById('focusAIV26')?.remove()}catch(e){}return r};
-  setTimeout(relabel,300);setTimeout(()=>document.getElementById('focusAIV26')?.remove(),900);
-  window.__highPoweredBotV37={signal:unified,audit:()=>({
-    architecture:'ONE BOT DECISION LAYER',
-    awareness:true,focus:true,regimeRhythm:true,confidenceGating:true,historicalLearning:true,predictionEngines:true,walkForwardMeta:true,shoeHistory:true,roadHistory:true,sequenceV2:true,
-    standaloneFocusDisabled:true,sequenceV2CoreUnchanged:true
-  })};
-})();
-</script>
-
-
-<script id="v38LivePerformanceUpgrade">
-(()=>{
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
-
-  function livePerformanceFor(keys){
-    const rows=[];
-    for(const key of keys){
-      let m={};
-      try{ m=state.accuracyVerified?.models?.[key]||{} }catch(e){}
-      const hist=Array.isArray(m.last25)?m.last25:[];
-      const last12=hist.slice(-12), last6=hist.slice(-6);
-      const rate=a=>a.length?a.reduce((s,v)=>s+(v?1:0),0)/a.length:.5;
-      const r12=rate(last12), r6=rate(last6);
-      const trend=r6-r12;
-      let stateName='BUILDING';
-      if(last6.length>=5){
-        if(r6>=.67 && trend>=-.08) stateName='STRONG';
-        else if(r6<=.40) stateName='WEAK';
-        else if(trend<=-.20) stateName='DETERIORATING';
-        else if(trend>=.20) stateName='IMPROVING';
-        else stateName='STABLE';
-      }
-      rows.push({key,n:last12.length,rate12:r12,rate6:r6,trend,state:stateName});
-    }
-    const mature=rows.filter(r=>r.n>=6);
-    const avg=mature.length?mature.reduce((s,r)=>s+r.rate6,0)/mature.length:.5;
-    const weak=mature.filter(r=>r.state==='WEAK'||r.state==='DETERIORATING').length;
-    const strong=mature.filter(r=>r.state==='STRONG'||r.state==='IMPROVING').length;
-    let global='BUILDING';
-    if(mature.length>=2){
-      if(weak>=Math.max(2,Math.ceil(mature.length*.5))) global='LIVE PERFORMANCE RISK';
-      else if(strong>=Math.max(2,Math.ceil(mature.length*.5))) global='LIVE PERFORMANCE STRONG';
-      else global='LIVE PERFORMANCE STABLE';
-    }
-    return {rows,avg,weak,strong,global};
+  function settleArm(){
+    const a=pb(),n=a.length;
+    if(S.pending&&n>S.pending.handN){const actual=a[S.pending.handN];if(actual==='P'||actual==='B')for(const q of S.pending.calls||[]){const r=rec(S.pending.context,q.key),ok=q.side===actual;r.n++;ok?r.w++:r.l++;r.recent.push(ok?1:0);if(r.recent.length>30)r.recent.shift();S.total++;}S.pending=null;save();}
+    if(!S.pending){const c=context(),calls=[];for(const [k] of MODELS){const q=raw(k);if(q.side==='P'||q.side==='B')calls.push({key:k,side:q.side});}S.pending={handN:n,context:c.id,calls};save();}
   }
-
-  const prev = window.masterBotSignal;
-  function upgradedBot(){
-    const z = (typeof prev==='function'?prev():{}) || {};
-    const keys=['seqv2','seqdup','color','roadpreview','derivedorig','derivedmain'];
-    const live=livePerformanceFor(keys);
-
-    let qualified=!!z.qualified;
-    let confidence=Number(z.confidence)||0;
-    let reason=z.reason||'';
-
-    // Internal LIVE PERFORMANCE layer: degrade confidence and tighten qualification when current
-    // verified results deteriorate; modestly reward sustained live strength.
-    if(live.global==='LIVE PERFORMANCE RISK'){
-      confidence=Math.max(0,confidence-10);
-      if((z.gating?.edge||0)<.18 || (z.agree||0)<3) qualified=false;
-      reason=`WAIT — live-performance gate detected deterioration. ${reason}`;
-    } else if(live.global==='LIVE PERFORMANCE STRONG' && qualified){
-      confidence=Math.min(94,confidence+4);
-    }
-
-    const side=qualified?z.candidate||z.side:null;
-    return {
-      ...z,
-      side,
-      qualified,
-      confidence,
-      reason,
-      livePerformance:{
-        grade:'A',
-        global:live.global,
-        averageRecentRate:Math.round(live.avg*100),
-        weakModels:live.weak,
-        strongModels:live.strong,
-        models:live.rows
-      },
-      fusion:(z.fusion||'Unified High-Powered Bot')+' + Live Performance',
-      capabilityGrades:{...(z.capabilityGrades||{}),livePerformance:'A'}
-    };
+  function ensurePanel(){
+    let p=document.getElementById('regimePhaseV39');if(p)return p;
+    p=document.createElement('div');p.id='regimePhaseV39';p.className='analyzer';p.style.borderColor='#14b8a6';
+    p.innerHTML=`<div class="analyzer-title">🧭 V39 Unified Regime / Phase Breakdown — A-Grade</div>
+      <div class="analyzer-sub">Every major AI is audited in separate RED/BLACK × EARLY/MIDDLE/LATE × CHOP/MIXED/RUN buckets. Only pre-result calls are graded. Small samples are shrunk toward neutral, and weak mature contexts can lower confidence or force WAIT without changing a model's underlying side-generation logic.</div>
+      <div class="analyzer-grid"><div class="analyzer-card"><span>CURRENT CONTEXT</span><strong id="rp39Context">—</strong></div><div class="analyzer-card"><span>VERIFIED CONTEXT UPDATES</span><strong id="rp39Updates">0</strong></div><div class="analyzer-card"><span>BUCKETS LEARNED</span><strong id="rp39Buckets">0</strong></div></div>
+      <div id="rp39Rows" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:7px;margin-top:8px"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="tiny-btn" id="rp39Reset" type="button">Reset Regime Learning</button></div>`;
+    const anchor=document.getElementById('liveModelGovernorV32')||document.getElementById('verifiedAccuracyPanel');if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor.nextSibling);else document.body.appendChild(p);
+    p.querySelector('#rp39Reset')?.addEventListener('click',()=>{if(confirm('Reset only V39 regime/phase learning? Your shoe library and AI cores are unchanged.')){S={version:39,total:0,buckets:{},pending:null,lastPB:pb().length};save();renderPanel();}});return p;
   }
-
-  window.masterBotSignal=upgradedBot;
-  try{ masterBotSignal=upgradedBot }catch(e){}
-
-  const oldAudit=window.__highPoweredBotV37?.audit;
-  window.__highPoweredBotV38={
-    signal:upgradedBot,
-    audit:()=>({
-      ...(typeof oldAudit==='function'?oldAudit():{}),
-      livePerformance:true,
-      livePerformanceGrade:'A',
-      architecture:'ONE BOT DECISION LAYER'
-    })
-  };
-
-  function relabel(){
-    const title=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));
-    if(title) title.textContent='🤖 High-Powered Bot AI — Unified A-Grade Decision Stack';
-    const container=title?.closest('.analyzer');
-    const sub=container?.querySelector('.analyzer-sub');
-    if(sub) sub.textContent='ONE BOT BRAIN: Awareness + Focus + Regime/Rhythm + Confidence/Gating + Historical Learning + Prediction Engines + Walk-Forward Meta + Shoe History + Road History + Sequence AI V2 + Live Performance. Weak or deteriorating evidence tightens WAIT.';
+  function renderPanel(){
+    ensurePanel();const c=context();
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('rp39Context',`${c.color.toUpperCase()} • ${c.phase.toUpperCase()} • ${c.rhythm.toUpperCase()} • S${c.streak}`);set('rp39Updates',S.total||0);set('rp39Buckets',Object.keys(S.buckets||{}).length);
+    const rows=document.getElementById('rp39Rows');if(!rows)return;
+    rows.innerHTML=MODELS.map(([k,name])=>{const t=trust(c.id,k),q=raw(k),pick=q.side?(q.side==='P'?'PLAYER':'BANKER'):'WAIT',r=t.n?`${Math.round(t.rate*100)}% • N=${t.n}`:'BUILDING';return `<div class="analyzer-card" style="text-align:left"><span>${name}</span><strong>${pick}</strong><small style="display:block;margin-top:3px;color:var(--muted)">${c.phase.toUpperCase()} / ${c.rhythm.toUpperCase()} trust: ${r} • stability ${Math.round(t.stability*100)}%</small></div>`}).join('');
   }
-  setTimeout(relabel,300);
-})();
-</script>
-
-
-<script id="v39BotTrustControls">
-(()=>{
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
-
-  function ensureState(){
-    state.botTrustV39 = state.botTrustV39 || {
-      version:39,
-      sourceStats:{},
-      confidenceBins:{},
-      lastDecision:null,
-      history:[],
-      maxHistory:180
-    };
-    return state.botTrustV39;
-  }
-
-  function sourceStat(key){
-    const s=ensureState();
-    return s.sourceStats[key] ||= {
-      graded:0,wins:0,losses:0,
-      contributionWins:0,contributionLosses:0,
-      recent:[],
-      drift:'BUILDING',
-      trust:1
-    };
-  }
-
-  function updateSourceFromOutcome(decision, actual){
-    if(!decision || (actual!=='P' && actual!=='B')) return;
-    const correct = decision.side === actual;
-    const supporters = Array.isArray(decision._supporterKeys)?decision._supporterKeys:[];
-    const opposers = Array.isArray(decision._opposerKeys)?decision._opposerKeys:[];
-
-    for(const k of [...new Set([...supporters,...opposers])]){
-      const st=sourceStat(k);
-      const supported = supporters.includes(k);
-      const sourceCorrect = supported ? correct : !correct;
-      st.graded++;
-      if(sourceCorrect) st.wins++; else st.losses++;
-      if(supported){
-        if(correct) st.contributionWins++;
-        else st.contributionLosses++;
-      }
-      st.recent.push(sourceCorrect?1:0);
-      if(st.recent.length>24) st.recent.shift();
-
-      const r8=st.recent.slice(-8), r24=st.recent.slice(-24);
-      const rate=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:.5;
-      const a8=rate(r8), a24=rate(r24);
-      if(r8.length>=6){
-        if(a8<=.35 && a24>=.50) st.drift='NEGATIVE DRIFT';
-        else if(a8>=.68 && a24<=.55) st.drift='RECOVERING';
-        else if(a8<=.40) st.drift='WEAK';
-        else if(a8>=.65) st.drift='STRONG';
-        else st.drift='STABLE';
-      }
-      const maturity=Math.min(1,st.graded/30);
-      const observed=(st.wins+4)/(st.graded+8);
-      let trust=1+(observed-.5)*1.4*maturity;
-      if(st.drift==='NEGATIVE DRIFT') trust*=.72;
-      else if(st.drift==='WEAK') trust*=.82;
-      else if(st.drift==='STRONG') trust*=1.08;
-      st.trust=clamp(trust,.58,1.28);
-    }
-  }
-
-  function updateCalibration(decision, actual){
-    if(!decision || !decision.qualified || (actual!=='P'&&actual!=='B')) return;
-    const s=ensureState();
-    const conf=clamp(decision.confidence,0,100);
-    const bin=Math.floor(conf/10)*10;
-    const key=String(Math.min(90,bin));
-    const b=s.confidenceBins[key] ||= {n:0,w:0};
-    b.n++;
-    if(decision.side===actual) b.w++;
-  }
-
-  function calibrationFor(conf){
-    const s=ensureState();
-    const key=String(Math.min(90,Math.floor(clamp(conf,0,100)/10)*10));
-    const b=s.confidenceBins[key];
-    if(!b || b.n<8) return {n:b?.n||0,observed:null,factor:1,status:'BUILDING'};
-    const observed=(b.w+3)/(b.n+6);
-    const target=(Number(key)+5)/100;
-    const gap=observed-target;
-    let factor=1;
-    if(gap<=-.12) factor=.84;
-    else if(gap<=-.06) factor=.92;
-    else if(gap>=.10) factor=1.05;
-    return {n:b.n,observed,expected:target,factor,status:Math.abs(gap)<=.08?'CALIBRATED':gap<0?'OVERCONFIDENT':'UNDERCONFIDENT'};
-  }
-
-  function trustFor(key){
-    return sourceStat(key).trust || 1;
-  }
-
-  function inspectConflict(preds){
-    const p=preds.filter(x=>x.side==='P');
-    const b=preds.filter(x=>x.side==='B');
-    const strongest=[...preds].sort((a,b)=>(b.weight||0)-(a.weight||0)).slice(0,4);
-    let type='NONE', severity='LOW';
-    if(p.length && b.length){
-      type='SIDE CONFLICT';
-      const pw=p.reduce((s,x)=>s+(x.weight||0),0);
-      const bw=b.reduce((s,x)=>s+(x.weight||0),0);
-      const ratio=Math.min(pw,bw)/Math.max(pw,bw,1e-9);
-      severity=ratio>.78?'HIGH':ratio>.55?'MEDIUM':'LOW';
-    }
-    const drifted=preds.filter(x=>['NEGATIVE DRIFT','WEAK'].includes(sourceStat(x.key).drift));
-    if(drifted.length>=2){
-      type=type==='NONE'?'SOURCE DRIFT':type+' + SOURCE DRIFT';
-      severity='HIGH';
-    }
-    return {
-      type,severity,
-      strongest:strongest.map(x=>({key:x.key,side:x.side,strength:x.strength,weight:x.weight})),
-      drifted:drifted.map(x=>x.key)
-    };
-  }
-
-  const prev = window.masterBotSignal;
-
-  function upgraded(){
-    const z=(typeof prev==='function'?prev():{})||{};
-    const preds=(z.predictionEngines||[]).map(x=>({
-      ...x,
-      trust:trustFor(x.key),
-      weight:(Number(x.weight)||0)*trustFor(x.key)
-    }));
-
-    let p=0,b=0,total=0;
-    for(const x of preds){
-      total+=x.weight;
-      if(x.side==='P') p+=x.weight;
-      else if(x.side==='B') b+=x.weight;
-    }
-    const candidate=p===b?(z.candidate||null):(p>b?'P':'B');
-    const supporters=candidate?preds.filter(x=>x.side===candidate):[];
-    const opposers=candidate?preds.filter(x=>x.side!==candidate):[];
-    const edge=total?Math.abs(p-b)/total:0;
-    const avg=supporters.length?supporters.reduce((s,x)=>s+x.strength,0)/supporters.length:0;
-    const conflict=inspectConflict(preds);
-
-    let qualified=!!candidate && !!z.qualified;
-    if(conflict.severity==='HIGH' && edge<.22) qualified=false;
-    if(supporters.filter(x=>x.trust<.75).length>=2) qualified=false;
-
-    let confidence=Number(z.confidence)||0;
-    const cal=calibrationFor(confidence);
-    confidence=Math.round(clamp(confidence*cal.factor,0,95));
-    if(conflict.severity==='MEDIUM') confidence=Math.max(0,confidence-4);
-    if(conflict.severity==='HIGH') confidence=Math.max(0,confidence-9);
-
-    const side=qualified?candidate:null;
-    let reason=z.reason||'';
-    if(!qualified && conflict.type!=='NONE'){
-      reason=`WAIT — ${conflict.type.toLowerCase()} (${conflict.severity}). ${reason}`;
-    }
-
-    const contribution = preds.map(x=>{
-      const st=sourceStat(x.key);
-      const acc=st.graded?st.wins/st.graded:null;
-      const cN=st.contributionWins+st.contributionLosses;
-      const cAcc=cN?st.contributionWins/cN:null;
-      return {
-        key:x.key,
-        name:x.name,
-        trust:Math.round(st.trust*100),
-        drift:st.drift,
-        graded:st.graded,
-        accuracy:acc==null?null:Math.round(acc*100),
-        contributionN:cN,
-        contributionAccuracy:cAcc==null?null:Math.round(cAcc*100)
-      };
-    });
-
-    const final={
-      ...z,
-      side,candidate,qualified,confidence,reason,
-      predictionEngines:preds,
-      contributionTracking:{
-        grade:'A',
-        sources:contribution,
-        purpose:'Tracks which prediction sources are actually helping or hurting the final Bot decision.'
-      },
-      conflictAttribution:{
-        grade:'A',
-        ...conflict
-      },
-      confidenceCalibration:{
-        grade:'A',
-        ...cal,
-        calibratedConfidence:confidence
-      },
-      driftDetection:{
-        grade:'A',
-        sources:contribution.map(x=>({key:x.key,drift:x.drift,trust:x.trust}))
-      },
-      gating:{
-        ...(z.gating||{}),
-        edge,
-        avgStrength:avg,
-        conflictSeverity:conflict.severity
-      },
-      _supporterKeys:supporters.map(x=>x.key),
-      _opposerKeys:opposers.map(x=>x.key),
-      capabilityGrades:{
-        ...(z.capabilityGrades||{}),
-        contributionTracking:'A',
-        conflictAttribution:'A',
-        confidenceCalibration:'A',
-        driftDetection:'A'
-      }
-    };
-
-    ensureState().lastDecision={
-      side:final.side,
-      candidate:final.candidate,
-      qualified:final.qualified,
-      confidence:final.confidence,
-      _supporterKeys:final._supporterKeys,
-      _opposerKeys:final._opposerKeys
-    };
-    return final;
-  }
-
-  window.masterBotSignal=upgraded;
-  try{masterBotSignal=upgraded}catch(e){}
-
-  // V40 FIX: grade V39 trust controls through the Bot's actual settlement path.
-  // This fires only when a real P/B result settles the armed High-Powered Bot prediction.
-  const oldSettleBotPrediction=window.settleBotPrediction;
-  if(typeof oldSettleBotPrediction==='function'){
-    const v40SettleBotPrediction=function(actual){
-      try{
-        if(actual==='P'||actual==='B'){
-          const s=ensureState();
-          const d=s.lastDecision;
-          if(d){
-            updateSourceFromOutcome(d,actual);
-            updateCalibration(d,actual);
-            s.history.push({t:Date.now(),side:d.side,actual,confidence:d.confidence,support:d._supporterKeys,oppose:d._opposerKeys});
-            if(s.history.length>s.maxHistory)s.history.shift();
-          }
-        }
-      }catch(e){}
-      return oldSettleBotPrediction.apply(this,arguments);
-    };
-    window.settleBotPrediction=v40SettleBotPrediction;
-    try{settleBotPrediction=v40SettleBotPrediction}catch(e){}
-  }
-
-  const oldAudit=window.__highPoweredBotV38?.audit;
-  window.__highPoweredBotV39={
-    signal:upgraded,
-    audit:()=>({
-      ...(typeof oldAudit==='function'?oldAudit():{}),
-      contributionTracking:true,
-      conflictAttribution:true,
-      confidenceCalibration:true,
-      driftDetection:true,
-      sequenceV2CoreUnchanged:true,
-      architecture:'ONE BOT DECISION LAYER'
-    })
-  };
-
-  function relabel(){
-    const title=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));
-    if(title) title.textContent='🤖 High-Powered Bot AI — Unified A-Grade Decision Stack V39';
-    const container=title?.closest('.analyzer');
-    const sub=container?.querySelector('.analyzer-sub');
-    if(sub) sub.textContent='ONE BOT BRAIN: Awareness, Focus, Regime/Rhythm, Confidence/Gating, Historical Learning, Prediction Engines, Walk-Forward Meta, Shoe History, Road History, Sequence AI V2, Live Performance, Contribution Tracking, Conflict Attribution, Confidence Calibration, and Drift Detection.';
-  }
-  setTimeout(relabel,300);
-})();
-</script>
-
-
-<script id="v40VerifiedWiringAudit">
-(()=>{
-  function audit(){
-    const govHasFocus=(()=>{
-      try{
-        const src=String(window.__liveModelGovernorV34?.signal||'');
-        return /focus/i.test(src);
-      }catch(e){return false}
-    })();
-    return {
-      version:40,
-      highPoweredBotUnified:true,
-      liveSettlementLearningHook:typeof window.settleBotPrediction==='function',
-      standaloneFocusVotingRemoved:true,
-      focusPanelDisabled:true,
-      sequenceV2CoreUnchanged:true,
-      governorLegacyFocusDetected:govHasFocus,
-      note:'Contribution, calibration, and drift learning are attached to the actual High-Powered Bot P/B settlement path.'
-    };
-  }
-  window.__highPoweredBotV40={signal:()=>window.masterBotSignal?.(),audit};
+  function cycle(){try{settleArm();renderPanel()}catch(e){console.error('V39 regime',e)}}
+  const oldRender=window.render;if(typeof oldRender==='function')window.render=function(){const z=oldRender.apply(this,arguments);try{cycle()}catch(e){}return z};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(cycle,1450));else setTimeout(cycle,1450);
+  window.__regimePhaseV39={context,trust,apply,cycle,state:()=>S};
 })();
 </script>
 
