@@ -4910,14 +4910,30 @@ setInterval(scan,1800);setTimeout(scan,300);
     ['consensus','AI Consensus',()=>{const x=consensusSignal();return window.__slV10Signal?window.__slV10Signal('consensus',x):x}],
     ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal(),y={side:x.qualified?x.side:null,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('bot',y):y}],
     ['bestestimate','Best-Estimate Analyzer',()=>{const x=computeCombinedAnalyzer(),y={side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0};return window.__slV10Signal?window.__slV10Signal('bestestimate',y):y}],
+    ['specialistv20','RED / BLACK Specialist V20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['blackctxv22','BLACK Context Specialist V22',()=>{const z=window.__blackContextV22?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['metav23','Walk-Forward Meta Learner V23',()=>{const z=window.__metaWalkV23?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['focusv26','Focus AI V26',()=>{const z=window.__focusAIV26?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
   ];
+  function verifiedContext(){
+    const seq=currentSequence().filter(x=>x==='P'||x==='B');
+    const n=seq.length;
+    const color=String(state.currentShoeColor||'combined').toLowerCase();
+    const phase=n<18?'early':n<36?'middle':'late';
+    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
+    return {color,phase,learningUpdates,learningStage:learningUpdates>0?'after':'before'};
+  }
   function armVerifiedPredictions(){
-    const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join('');
+    const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join(''),ctx=verifiedContext();
     modelDefs.forEach(([key,name,get])=>{
       let x=null;try{x=get()}catch(e){}
       const side=x?.side;
-      if(side==='P'||side==='B') a.pending[key]={side,hand,seq,lockedAt:Date.now(),strength:Number(x.strength)||0};
-      else delete a.pending[key];
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      if(side==='P'||side==='B') a.pending[key]={side,hand,seq,lockedAt:Date.now(),strength:Number(x.strength)||0,...ctx};
+      else {
+        delete a.pending[key];
+        if(m.lastWaitHand!==hand){m.waits=(m.waits||0)+1;m.lastWaitHand=hand;}
+      }
     });
     persist();renderVerifiedAccuracy();
   }
@@ -4926,10 +4942,15 @@ setInterval(scan,1800);setTimeout(scan,300);
     if(actual!=='P'&&actual!=='B')return;
     modelDefs.forEach(([key,name])=>{
       const p=a.pending[key]; if(!p)return;
-      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,last10:[],last25:[],last50:[]});
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      m.splits ||= {};
       const win=p.side===actual; m.predictions++; if(win)m.wins++;else m.losses++;
+      const bump=(id)=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n++;if(win)z.w++;else z.l++;};
+      if(p.color==='red'||p.color==='black')bump('color:'+p.color);
+      if(p.phase)bump('phase:'+p.phase);
+      if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
       [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
-      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength}; delete a.pending[key];
+      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates}; delete a.pending[key];
     });
     persist();renderVerifiedAccuracy();
   }
@@ -4946,15 +4967,26 @@ setInterval(scan,1800);setTimeout(scan,300);
   function renderVerifiedAccuracy(){
     const a=ensureAccuracy(),g=document.getElementById('verifiedAccuracyGrid');if(!g)return;g.innerHTML='';
     modelDefs.forEach(([key,name])=>{
-      const m=a.models[key]||{wins:0,losses:0,predictions:0,last10:[],last25:[],last50:[]},p=a.pending[key];
+      const m=a.models[key]||{wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}},p=a.pending[key];
       const rate=m.predictions?Math.round(m.wins*100/m.predictions):null;
       const recent=(arr)=>arr?.length?Math.round(arr.reduce((x,y)=>x+y,0)*100/arr.length)+'%':'—';
       const d=document.createElement('div');d.className='analyzer-card';d.style.textAlign='left';
-      d.innerHTML=`<span style="font-size:10px">${name}</span><strong style="font-size:18px">${rate==null?'—':rate+'%'}</strong><small style="display:block;color:var(--muted);margin-top:3px">Verified ${m.wins||0}W–${m.losses||0}L • N=${m.predictions||0}<br>Last 10 ${recent(m.last10)} • 25 ${recent(m.last25)} • 50 ${recent(m.last50)}<br>${p?`LOCKED ${p.side} for hand #${p.hand}`:'No qualified prediction locked'}</small>`;
+      d.innerHTML=`<span style="font-size:10px">${name}</span><strong style="font-size:18px">${rate==null?'—':rate+'%'}</strong><small style="display:block;color:var(--muted);margin-top:3px">Verified ${m.wins||0}W–${m.losses||0}L • N=${m.predictions||0} • WAIT=${m.waits||0}<br>Last 10 ${recent(m.last10)} • 25 ${recent(m.last25)} • 50 ${recent(m.last50)}<br>${p?`LOCKED ${p.side} for hand #${p.hand}`:'No qualified prediction locked'}</small>`;
       g.appendChild(d);
     });
     const n=document.getElementById('verifiedAccuracyNote');if(n)n.textContent=`Only pre-result P/B locks are scored. ${a.ties||0} tie result(s) observed while verification was active; ties do not become wins or losses.`;
   }
+  function verifiedSummary(key){
+    const m=ensureAccuracy().models[key]||{wins:0,losses:0,predictions:0,waits:0,splits:{}};
+    const fmt=(z)=>z&&z.n?`${Math.round(z.w*100/z.n)}% (${z.w}W–${z.l}L, N=${z.n})`:'—';
+    return {
+      rate:m.predictions?Math.round(m.wins*100/m.predictions):null,wins:m.wins||0,losses:m.losses||0,n:m.predictions||0,waits:m.waits||0,
+      red:fmt(m.splits?.['color:red']),black:fmt(m.splits?.['color:black']),
+      early:fmt(m.splits?.['phase:early']),middle:fmt(m.splits?.['phase:middle']),late:fmt(m.splits?.['phase:late']),
+      before:fmt(m.splits?.['learning:before']),after:fmt(m.splits?.['learning:after'])
+    };
+  }
+  window.__verifiedAccuracySummary=verifiedSummary;
   window.renderColorPatternAI=renderColorPatternAI;window.renderVerifiedAccuracy=renderVerifiedAccuracy;window.renderAdaptiveDerivedMain=renderAdaptiveDerivedMain;
 
   // Expose direct grading hooks to the core result handlers above. This makes grading
@@ -6437,6 +6469,7 @@ setInterval(scan,1800);setTimeout(scan,300);
         <div class="analyzer-card"><span>ANCHOR AGREEMENT</span><strong id="v20Anchor">—</strong></div>
        </div>
        <div class="analyzer-sub" id="v20Reason" style="margin-top:8px"></div>
+       <div class="analyzer-card" style="margin-top:8px;text-align:left;border:1px solid #2e9d66"><span>✓ VERIFIED ACCURACY</span><strong id="v20Verified">—</strong><small id="v20VerifiedDetail" style="display:block;color:var(--muted);margin-top:3px">0W–0L • N=0 • WAIT=0</small></div>
        <div class="analyzer-sub" style="margin-top:6px">High-confidence mode is intentionally capped below 80% until unseen-shoe validation demonstrates otherwise. Displayed confidence is a signal-strength score, not a guaranteed win probability.</div>`;
       const anchor=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('softAdaptiveControllerV19');
       if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor);else document.body.appendChild(p);
@@ -6447,6 +6480,8 @@ setInterval(scan,1800);setTimeout(scan,300);
     set('v20Color',color().toUpperCase());
     set('v20Anchor',`${s.anchorSupport||0}`);
     set('v20Reason',s.reason);
+    const va=window.__verifiedAccuracySummary?.('specialistv20');
+    if(va){set('v20Verified',va.rate==null?'—':va.rate+'%');set('v20VerifiedDetail',`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits} • RED ${va.red} • BLACK ${va.black}`);}
   }
 
   const oldRender=window.render;
@@ -6688,7 +6723,8 @@ setInterval(scan,1800);setTimeout(scan,300);
           <div class="analyzer-card"><span>ENGINE</span><strong id="v22Engine">—</strong></div>
           <div class="analyzer-card"><span>PHASE / STREAK</span><strong id="v22Ctx">—</strong></div>
         </div>
-        <div class="analyzer-sub" id="v22Reason" style="margin-top:8px"></div>`;
+        <div class="analyzer-sub" id="v22Reason" style="margin-top:8px"></div>
+        <div class="analyzer-card" style="margin-top:8px;text-align:left;border:1px solid #2e9d66"><span>✓ VERIFIED ACCURACY</span><strong id="v22Verified">—</strong><small id="v22VerifiedDetail" style="display:block;color:var(--muted);margin-top:3px">0W–0L • N=0 • WAIT=0</small></div>`;
       const anchor=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('rbSpecialistV20');
       if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor);
       else document.body.appendChild(p);
@@ -6700,6 +6736,8 @@ setInterval(scan,1800);setTimeout(scan,300);
     set('v22Engine',z.engine||'—');
     set('v22Ctx',z.context?`${String(z.context.phase).toUpperCase()} • S${z.context.streak}`:'—');
     set('v22Reason',z.reason||'');
+    const va=window.__verifiedAccuracySummary?.('blackctxv22');
+    if(va){set('v22Verified',va.rate==null?'—':va.rate+'%');set('v22VerifiedDetail',`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits} • EARLY ${va.early} • MID ${va.middle} • LATE ${va.late}`);}
   }
 
   const oldRender=window.render;
@@ -6854,7 +6892,8 @@ setInterval(scan,1800);setTimeout(scan,300);
        <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v23Conf">—</strong></div>
        <div class="analyzer-card"><span>CONTEXT</span><strong id="v23Bucket">—</strong></div>
        <div class="analyzer-card"><span>LEARNING UPDATES</span><strong id="v23N">0</strong></div>
-      </div><div class="analyzer-sub" id="v23Reason" style="margin-top:8px"></div>`;
+      </div><div class="analyzer-sub" id="v23Reason" style="margin-top:8px"></div>
+      <div class="analyzer-card" style="margin-top:8px;text-align:left;border:1px solid #2e9d66"><span>✓ VERIFIED ACCURACY</span><strong id="v23Verified">—</strong><small id="v23VerifiedDetail" style="display:block;color:var(--muted);margin-top:3px">0W–0L • N=0 • WAIT=0</small></div>`;
       const a=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('blackContextV22');
       if(a?.parentNode)a.parentNode.insertBefore(p,a);else document.body.appendChild(p);
     }
@@ -6862,12 +6901,103 @@ setInterval(scan,1800);setTimeout(scan,300);
     set('v23Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');
     set('v23Conf',z.qualified?`${z.confidence}%`:'—');set('v23Bucket',z.bucket||'—');
     set('v23N',ensure().totalUpdates||0);set('v23Reason',z.reason||'');
+    const va=window.__verifiedAccuracySummary?.('metav23');
+    if(va){set('v23Verified',va.rate==null?'—':va.rate+'%');set('v23VerifiedDetail',`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits} • BEFORE LEARNING ${va.before} • AFTER LEARNING ${va.after}`);}
   }
 
   const oldRender=window.render;
   if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);try{panel()}catch(e){}return r};
   setTimeout(panel,500);setTimeout(panel,1700);
   window.__metaWalkV23={signal:meta,learnCycle,render:panel,reset:()=>{state.metaWalkV23={version:23,totalUpdates:0,buckets:{},pending:null};try{persist()}catch(e){}}};
+})();
+</script>
+
+<script>
+/* ============================================================
+   V26 FOCUS AI — SELECTIVE DECISION LAYER — 2026-08-27
+   Uses ONLY the three requested specialist outputs: V20, V22, V23.
+   It does not alter their prediction logic. It qualifies a pick only
+   when agreement, source confidence, and already-verified source trust
+   are strong enough. Otherwise it returns WAIT.
+   ============================================================ */
+(function(){
+  function sourceStats(key){
+    try{
+      const m=state.accuracyVerified?.models?.[key];
+      if(!m||!m.predictions)return {n:0,rate:.5};
+      return {n:Number(m.predictions)||0,rate:(Number(m.wins)||0)/Math.max(1,Number(m.predictions)||0)};
+    }catch(e){return {n:0,rate:.5}}
+  }
+  function collect(){
+    const defs=[
+      ['specialistv20','V20',()=>window.__redBlackSpecialistV20?.signal?.()],
+      ['blackctxv22','V22',()=>window.__blackContextV22?.signal?.()],
+      ['metav23','V23',()=>window.__metaWalkV23?.signal?.()]
+    ];
+    return defs.map(([key,label,get])=>{
+      let z={};try{z=get()||{}}catch(e){}
+      const side=z.qualified&&(z.side==='P'||z.side==='B')?z.side:null;
+      const conf=side?Math.max(0,Math.min(100,Number(z.confidence)||0)):0;
+      const st=sourceStats(key);
+      // Verified history changes trust slowly and never creates a signal by itself.
+      const maturity=Math.min(1,st.n/40);
+      const trust=Math.max(.82,Math.min(1.18,1+(st.rate-.5)*.7*maturity));
+      return {key,label,side,conf,n:st.n,rate:st.rate,trust};
+    });
+  }
+  function signal(){
+    const src=collect(),active=src.filter(x=>x.side);
+    if(active.length<2)return {side:null,qualified:false,confidence:0,reason:'WAIT — fewer than 2 of V20/V22/V23 are qualified.',sources:src};
+    let p=0,b=0,total=0;
+    for(const x of active){
+      const w=x.trust*Math.max(.72,Math.min(1.20,.72+x.conf/200));
+      total+=w;if(x.side==='P')p+=w;else b+=w;
+    }
+    const candidate=p>=b?'P':'B';
+    const supporters=active.filter(x=>x.side===candidate);
+    const opposition=active.length-supporters.length;
+    const avgConf=supporters.reduce((a,x)=>a+x.conf,0)/Math.max(1,supporters.length);
+    const margin=total?Math.abs(p-b)/total:0;
+    const unanimous=active.length===3&&supporters.length===3;
+    const twoOfThree=active.length===3&&supporters.length===2;
+    const twoOfTwo=active.length===2&&supporters.length===2;
+    // Focus AI is intentionally selective: no 1-v-1 calls and no weak 2-v-1 calls.
+    const qualified=(unanimous&&avgConf>=57&&margin>=.16) ||
+                    (twoOfThree&&avgConf>=63&&margin>=.12) ||
+                    (twoOfTwo&&avgConf>=64&&margin>=.22);
+    const confidence=qualified?Math.round(Math.min(82,50+margin*45+(unanimous?7:3)+(avgConf-50)*.18)):0;
+    const names=supporters.map(x=>x.label).join('+');
+    return {side:qualified?candidate:null,candidate,qualified,confidence,avgConf,margin,supporters:supporters.length,active:active.length,sources:src,
+      reason:qualified?`FOCUS LOCK — ${names} support ${candidate==='P'?'PLAYER':'BANKER'}; ${supporters.length}/${active.length} active models agree.`
+                      :`WAIT — V20/V22/V23 do not have enough combined agreement and strength for a Focus lock.`};
+  }
+  function panel(){
+    let p=document.getElementById('focusAIV26');
+    if(!p){
+      p=document.createElement('div');p.id='focusAIV26';p.className='analyzer';p.style.borderColor='#f1b827';p.style.boxShadow='0 0 0 1px rgba(241,184,39,.14) inset';
+      p.innerHTML=`<div class="analyzer-title">🔎 Focus AI V26 — Selective Decision Layer</div>
+      <div class="analyzer-sub">Watches only V20, V22, and V23. It does not change those models. Focus AI makes a call only when their pre-result signals show enough agreement and strength; otherwise it deliberately returns WAIT. Existing verified records gradually adjust source trust without overriding the live signals.</div>
+      <div class="analyzer-grid">
+       <div class="analyzer-card"><span>FOCUS DECISION</span><strong id="focusV26Pick">WAIT</strong></div>
+       <div class="analyzer-card"><span>FOCUS CONFIDENCE</span><strong id="focusV26Conf">—</strong></div>
+       <div class="analyzer-card"><span>MODELS AGREEING</span><strong id="focusV26Agree">0/3</strong></div>
+       <div class="analyzer-card"><span>ACTIVE MODELS</span><strong id="focusV26Active">0/3</strong></div>
+      </div>
+      <div class="analyzer-sub" id="focusV26Reason" style="margin-top:8px"></div>
+      <div class="analyzer-card" style="margin-top:8px;text-align:left;border:1px solid #2e9d66"><span>✓ VERIFIED ACCURACY</span><strong id="focusV26Verified">—</strong><small id="focusV26VerifiedDetail" style="display:block;color:var(--muted);margin-top:3px">0W–0L • N=0 • WAIT=0</small></div>`;
+      const a=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('metaWalkV23');
+      if(a?.parentNode)a.parentNode.insertBefore(p,a);else document.body.appendChild(p);
+    }
+    const z=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('focusV26Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('focusV26Conf',z.qualified?z.confidence+'%':'—');set('focusV26Agree',(z.supporters||0)+'/3');set('focusV26Active',(z.active||0)+'/3');set('focusV26Reason',z.reason);
+    const va=window.__verifiedAccuracySummary?.('focusv26');
+    if(va){set('focusV26Verified',va.rate==null?'—':va.rate+'%');set('focusV26VerifiedDetail',`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits}`);}
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);try{panel()}catch(e){}return r};
+  window.__focusAIV26={signal,panel};
+  setTimeout(panel,650);setTimeout(panel,1850);
 })();
 </script>
 
