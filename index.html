@@ -7237,5 +7237,154 @@ setInterval(scan,1800);setTimeout(scan,300);
 })();
 </script>
 
+
+<script>
+/* ============================================================
+   V25 CONTEXT-AWARE FINAL DECISION CONTROLLER — 2026-08-27
+   Uses V24 contribution/disagreement evidence conservatively.
+   - Does NOT modify Sequence AI V2 core logic.
+   - RED / BLACK trust is separate.
+   - BLACK sharply discounts Adaptive Derived Roads.
+   - BLACK disagreement rules favor the model that demonstrated
+     the stronger held-out result only when sample size is adequate.
+   - Small samples are shrinkage-weighted toward 50/50.
+   - Final screen prediction can WAIT instead of forcing a vote.
+   ============================================================ */
+(function(){
+  const LABEL={
+    seqv2:'Sequence AI V2', color:'Color Pattern AI', roadpreview:'Road Preview AI',
+    derivedmain:'Adaptive Derived Roads', seqdup:'Sequence Duplicate', consensus:'AI Consensus',
+    bot:'High-Powered Bot', bestestimate:'Best-Estimate', metav23:'Walk-Forward Meta Learner V23'
+  };
+  const PRIOR={
+    red:{seqv2:.536,color:.506,roadpreview:.479,derivedmain:.514,seqdup:.541,consensus:.501,bot:.551,bestestimate:.508,metav23:.517},
+    black:{seqv2:.465,color:.500,roadpreview:.531,derivedmain:.435,seqdup:.496,consensus:.500,bot:.500,bestestimate:.537,metav23:.487}
+  };
+  // V24 disagreement evidence. Each entry is [sample, left-win-rate].
+  // Applied with strong shrinkage so N=10-20 cannot dominate live behavior.
+  const PAIR_BLACK={
+    'derivedmain|consensus':[85,.400], 'color|consensus':[65,.538], 'color|derivedmain':[63,.603],
+    'roadpreview|derivedmain':[40,.625], 'derivedmain|metav23':[35,.343], 'seqv2|derivedmain':[32,.531],
+    'seqv2|color':[30,.300], 'seqv2|roadpreview':[27,.222], 'seqv2|consensus':[21,.190],
+    'color|roadpreview':[20,.400], 'color|metav23':[17,.471], 'derivedmain|bot':[16,.375],
+    'seqv2|metav23':[15,.133], 'roadpreview|consensus':[14,.571], 'roadpreview|metav23':[14,.643],
+    'derivedmain|seqdup':[10,.400]
+  };
+  const PAIR_RED={
+    'derivedmain|consensus':[66,.545], 'color|consensus':[49,.469], 'color|derivedmain':[48,.521],
+    'roadpreview|derivedmain':[26,.577], 'derivedmain|metav23':[23,.348], 'seqv2|derivedmain':[21,.619],
+    'seqv2|color':[20,.500], 'derivedmain|bot':[13,.308], 'color|metav23':[10,.500]
+  };
+
+  function shoeColor(){return String(state.currentShoeColor||'').toLowerCase()==='black'?'black':'red'}
+  function sideOf(z){return z?.side==='P'||z?.side==='B'?z.side:null}
+  function getSignals(){
+    const defs=[
+      ['seqv2',()=>sequenceAISignal()],
+      ['color',()=>window.colorPatternAISignal?.()],
+      ['roadpreview',()=>roadPreviewAISignal()],
+      ['derivedmain',()=>adaptiveDerivedMainSignal()],
+      ['seqdup',()=>sequenceAIDuplicateSignal()],
+      ['consensus',()=>consensusSignal()],
+      ['bot',()=>{const q=masterBotSignal();return {side:q.qualified?q.side:null,strength:q.confidence||0}}],
+      ['bestestimate',()=>{const q=computeCombinedAnalyzer();return {side:q.qualified?q.side:null,strength:q.qualified?(Number(q.top)||0):0}}],
+      ['metav23',()=>{const q=window.__metaWalkV23?.signal?.()||{};return {side:q.qualified?q.side:null,strength:q.confidence||0}}]
+    ];
+    const out=[];
+    for(const [key,get] of defs){let z={};try{z=get()||{}}catch(e){}
+      const side=sideOf(z);if(!side)continue;
+      const strength=Math.max(50,Math.min(88,Number(z.strength??z.confidence??z.top)||50));
+      out.push({key,name:LABEL[key],side,strength});
+    }
+    return out;
+  }
+  function priorWeight(key,c){
+    const r=PRIOR[c][key]??.5;
+    // Bayesian-style shrinkage: even 43.5%/55% does not become an on/off switch.
+    let w=1+(r-.5)*5.0;
+    if(c==='black'&&key==='derivedmain')w*=.55;
+    if(c==='black'&&key==='roadpreview')w*=1.12;
+    if(c==='black'&&key==='seqv2')w*=.86;
+    return Math.max(.42,Math.min(1.35,w));
+  }
+  function pairAdjustment(a,b,c){
+    if(a.side===b.side)return [1,1];
+    const tbl=c==='black'?PAIR_BLACK:PAIR_RED;
+    let key=a.key+'|'+b.key, flip=false, e=tbl[key];
+    if(!e){key=b.key+'|'+a.key;e=tbl[key];flip=true;}
+    if(!e)return [1,1];
+    const [n,leftRate0]=e,leftRate=flip?1-leftRate0:leftRate0;
+    // Ignore tiny samples; gradually trust larger disagreement samples.
+    const maturity=Math.max(0,Math.min(1,(n-12)/55));
+    const shrunk=.5+(leftRate-.5)*maturity*.78;
+    const edge=shrunk-.5;
+    return [Math.max(.72,Math.min(1.28,1+edge*2.6)),Math.max(.72,Math.min(1.28,1-edge*2.6))];
+  }
+  function decide(){
+    const c=shoeColor(), ss=getSignals();
+    if(ss.length<3)return {side:null,qualified:false,confidence:0,reason:'WAIT — fewer than 3 independent qualified signals.',signals:ss};
+    const weights={};for(const s of ss)weights[s.key]=priorWeight(s.key,c)*Math.max(.84,Math.min(1.14,.88+(s.strength-50)/110));
+    for(let i=0;i<ss.length;i++)for(let j=i+1;j<ss.length;j++){
+      const [ai,aj]=pairAdjustment(ss[i],ss[j],c);weights[ss[i].key]*=ai;weights[ss[j].key]*=aj;
+    }
+    // Cap any one source so correlated models cannot dominate the final decision.
+    for(const k of Object.keys(weights))weights[k]=Math.max(.35,Math.min(1.65,weights[k]));
+    let p=0,b=0,total=0;for(const s of ss){const w=weights[s.key];total+=w;if(s.side==='P')p+=w;else b+=w;}
+    const candidate=p>=b?'P':'B',win=Math.max(p,b),lose=Math.min(p,b),margin=total?(win-lose)/total:0;
+    const supporters=ss.filter(s=>s.side===candidate), opponents=ss.filter(s=>s.side!==candidate);
+    const anchors=c==='black'?['roadpreview','color','consensus','seqdup','bestestimate']:['seqv2','seqdup','bot','consensus','metav23'];
+    const anchorSupport=supporters.filter(s=>anchors.includes(s.key)).length;
+    const weakBlack=supporters.length&&supporters.every(s=>['derivedmain','seqv2'].includes(s.key));
+    let minMargin=c==='black'?.105:.085;
+    if(ss.length<=4)minMargin+=.025;
+    let qualified=supporters.length>=3 && anchorSupport>=2 && margin>=minMargin && !weakBlack;
+    // If BLACK Sequence V2 is isolated against Road Preview/Consensus/Meta, do not let it force a call.
+    if(c==='black'){
+      const seq=ss.find(s=>s.key==='seqv2'), rp=ss.find(s=>s.key==='roadpreview'), con=ss.find(s=>s.key==='consensus'), meta=ss.find(s=>s.key==='metav23');
+      if(seq && seq.side===candidate){
+        const strongerOpp=[rp,con,meta].filter(x=>x&&x.side!==seq.side).length;
+        if(strongerOpp>=2)qualified=false;
+      }
+    }
+    const confidence=Math.round(Math.min(77,50+margin*62+anchorSupport*1.2));
+    return {side:qualified?candidate:null,candidate,qualified,confidence:qualified?confidence:0,margin,anchorSupport,supporters,opponents,weights,signals:ss,
+      reason:qualified?`${c.toUpperCase()} V25: ${supporters.length}/${ss.length} weighted signals support ${candidate==='P'?'PLAYER':'BANKER'}; disagreement safeguards passed.`:`WAIT — ${c.toUpperCase()} weighted edge/disagreement evidence is not strong enough.`};
+  }
+
+  function ensurePanel(){
+    let p=document.getElementById('contextFinalV25');
+    if(!p){p=document.createElement('div');p.id='contextFinalV25';p.className='analyzer';p.style.borderColor='#22c55e';
+      p.innerHTML=`<div class="analyzer-title">🧠 V25 Context-Aware Final Decision</div>
+      <div class="analyzer-sub">Final controller uses separate RED/BLACK trust and V24 disagreement evidence with sample-size shrinkage. Sequence AI V2 core logic is unchanged. Confidence is a signal score, not a guaranteed win probability.</div>
+      <div class="analyzer-grid"><div class="analyzer-card"><span>FINAL DECISION</span><strong id="v25Pick">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v25Conf">—</strong></div><div class="analyzer-card"><span>SHOE</span><strong id="v25Color">—</strong></div><div class="analyzer-card"><span>ANCHORS</span><strong id="v25Anchors">—</strong></div></div>
+      <div class="analyzer-sub" id="v25Reason" style="margin-top:8px"></div>`;
+      const a=document.querySelector('.predict');if(a?.parentNode)a.parentNode.insertBefore(p,a.nextSibling);else document.body.appendChild(p);
+    }
+    const z=decide(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('v25Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v25Conf',z.qualified?z.confidence+'%':'—');set('v25Color',shoeColor().toUpperCase());set('v25Anchors',String(z.anchorSupport||0));set('v25Reason',z.reason);
+    return z;
+  }
+
+  // Make the top-of-screen "Next" decision use V25 while leaving all source analyzers visible and unchanged.
+  const oldRenderStats=window.renderStats||renderStats;
+  if(typeof oldRenderStats==='function'){
+    renderStats=function(){
+      const r=oldRenderStats.apply(this,arguments);let z={};try{z=ensurePanel()||{}}catch(e){}
+      const pick=z.qualified?z.side:null,ball=document.getElementById('signalBall');
+      if(ball){ball.className='signal-ball '+(pick?pick.toLowerCase():'none');ball.textContent=pick||'WAIT';}
+      const st=document.getElementById('signalText');if(st)st.textContent=pick?(pick==='P'?'Player — V25 qualified signal':'Banker — V25 qualified signal'):'WAIT / NO BET';
+      const sr=document.getElementById('signalReason');if(sr)sr.textContent=z.reason||'WAIT — insufficient V25 evidence.';
+      const cf=document.getElementById('confidence');if(cf)cf.textContent=pick?z.confidence+'%':'WAIT';
+      return r;
+    };
+    window.renderStats=renderStats;
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);try{ensurePanel()}catch(e){}return r;};
+  setTimeout(ensurePanel,300);setTimeout(ensurePanel,1200);
+  window.__contextFinalV25={signal:decide,render:ensurePanel};
+})();
+</script>
+
 </body>
 </html>
