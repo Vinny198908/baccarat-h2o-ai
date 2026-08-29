@@ -8307,5 +8307,102 @@ renderLibraryBackupStatus();
 })();
 </script>
 
+
+
+<script id="derived-road-67-profile">
+/* ============================================================
+   DERIVED ROAD — RESTORED STRONG-GATE PROFILE
+   Minimal override only. No other AI is changed.
+   This profile matches the earlier selective operating idea:
+   require a strong three-road weighted separation before issuing
+   P/B; otherwise WAIT. Historical 67.7% early / 66.7% middle
+   figures were simulation results, not guaranteed live accuracy.
+   ============================================================ */
+(function(){
+  if(typeof derivedRoadSequenceAI!=='function') return;
+  const __derivedBase67 = derivedRoadSequenceAI;
+  derivedRoadSequenceAI = function(){
+    const out = __derivedBase67.apply(this, arguments) || {};
+    const roads = Array.isArray(out.roads) ? out.roads : [];
+    const qualified = roads.filter(r => r && (r.side==='P'||r.side==='B'));
+
+    let p=0,b=0,total=0;
+    qualified.forEach(r=>{
+      const w = Number.isFinite(r.liveWeight) ? Math.max(0,r.liveWeight) : 1;
+      total += w;
+      if(r.side==='P') p += w; else b += w;
+    });
+    const edge = total ? Math.abs(p-b)/total : 0;
+    const pVotes = qualified.filter(r=>r.side==='P').length;
+    const bVotes = qualified.filter(r=>r.side==='B').length;
+    const leader = p>b ? 'P' : b>p ? 'B' : null;
+    const support = leader ? qualified.filter(r=>r.side===leader) : [];
+
+    const avg = (arr,fn)=>arr.length?arr.reduce((a,x)=>a+fn(x),0)/arr.length:0;
+    const sim = avg(support,r=>Number(r.similarityScore)||0);
+    const strength = avg(support,r=>Number(r.strength)||0);
+    const agreement = avg(support,r=>(Number(r.agreeWindows)||0)/Math.max(1,Number(r.totalWindows)||1));
+    const matches = support.reduce((a,r)=>a+(Number(r.matches)||0),0);
+
+    // Earlier selective profile: do not manufacture a side from weak separation.
+    const voteOK = leader && support.length>=2 && Math.max(pVotes,bVotes)>=2;
+    const strongGate = voteOK && edge>=0.15 && sim>=60 && strength>=56 && agreement>=0.56 && matches>=4;
+
+    if(!strongGate){
+      out.side = null;
+      out.confidence = 0;
+      out.reason = `WAIT — 67-profile strong gate: ${Math.round(edge*100)}% separation • ${support.length}/3 supporting roads • ${Math.round(sim)} similarity • ${Math.round(strength)} strength.`;
+    }else{
+      out.side = leader;
+      // Keep confidence conservative and distinct from empirical accuracy.
+      const q = Math.min(96, Math.round(55 + edge*55 + Math.max(0,sim-60)*0.18 + Math.max(0,strength-56)*0.15));
+      out.confidence = q;
+      out.reason = `QUALIFIED — restored strong-gate Derived profile: ${support.length}/3 roads support ${leader}; ${Math.round(edge*100)}% weighted separation.`;
+    }
+    out.edge = edge;
+    out.pVotes = pVotes;
+    out.bVotes = bVotes;
+    out.derivedProfile = '67-strong-gate';
+    return out;
+  };
+
+  // Update only the regular Derived Road label; leave Adaptive Derived untouched.
+  function label(){
+    const title=document.querySelector('.road-predict-title');
+    if(title) title.textContent='Derived Road AI — Restored Strong-Gate Profile';
+    const box=document.getElementById('derivedIndependentFinal');
+    if(box){
+      const head=box.querySelector('div[style*="font-weight:800"]');
+      if(head) head.textContent='INDEPENDENT DERIVED ROAD AI — STRONG GATE';
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',label); else label();
+  const oldRender=window.render;
+  if(typeof oldRender==='function') window.render=function(){const r=oldRender.apply(this,arguments);try{label()}catch(e){}return r;};
+})();
+</script>
+
+<script id="derived-road-67-late-guard">
+/* 67% Derived benchmark guard: preserve the validated early/middle operating zone.
+   Regular Derived only. Adaptive Derived and all other models are untouched. */
+(function(){
+  if(typeof derivedRoadSequenceAI!=='function') return;
+  const __derived67EarlyMiddle = derivedRoadSequenceAI;
+  derivedRoadSequenceAI = function(){
+    const out = __derived67EarlyMiddle.apply(this, arguments) || {};
+    try{
+      const seq = (typeof currentSequence==='function' ? currentSequence() : []);
+      const pbHands = Array.isArray(seq) ? seq.filter(x=>x==='P'||x==='B').length : 0;
+      if(pbHands >= 35){
+        out.side = null;
+        out.confidence = 0;
+        out.reason = 'WAIT — 67% Derived profile is restricted to beginning/middle shoe; late-shoe benchmark was materially weaker.';
+        out.phaseGuard = 'late-wait';
+      }
+    }catch(e){}
+    return out;
+  };
+})();
+</script>
 </body>
 </html>
