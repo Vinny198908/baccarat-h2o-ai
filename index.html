@@ -951,12 +951,30 @@ function _protectedLibrary(current,stored){
   b.forEach((v,k)=>{if(!a.has(k))a.set(k,v)});
   return [...a.values()];
 }
+let __persistGuardCache=null;
+try{
+  const __p0=JSON.parse(localStorage.getItem(KEY)||'null');
+  if(__p0&&typeof __p0==='object') __persistGuardCache={
+    redPatternLibrary:Array.isArray(__p0.redPatternLibrary)?__p0.redPatternLibrary.slice():[],
+    blackPatternLibrary:Array.isArray(__p0.blackPatternLibrary)?__p0.blackPatternLibrary.slice():[]
+  };
+}catch(e){}
+window.addEventListener('storage',e=>{
+  if(e.key!==KEY)return;
+  try{
+    const z=JSON.parse(e.newValue||'null');
+    __persistGuardCache=z&&typeof z==='object'?{
+      redPatternLibrary:Array.isArray(z.redPatternLibrary)?z.redPatternLibrary.slice():[],
+      blackPatternLibrary:Array.isArray(z.blackPatternLibrary)?z.blackPatternLibrary.slice():[]
+    }:null;
+  }catch(err){}
+});
 function persist(opts={}){
   const allowLibraryShrink=opts===true || !!opts?.allowLibraryShrink;
   let payload=state;
   if(!allowLibraryShrink){
     try{
-      const old=JSON.parse(localStorage.getItem(KEY)||'null');
+      const old=__persistGuardCache;
       if(old&&typeof old==='object'){
         const redNow=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[];
         const blackNow=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[];
@@ -979,6 +997,12 @@ function persist(opts={}){
     }catch(e){console.warn('Library guard check failed; preserving normal save path',e)}
   }
   localStorage.setItem(KEY,JSON.stringify(payload));
+  // Keep only the two protected library arrays in memory for the next guard check.
+  // Avoids reparsing the entire saved application state on every prediction/ledger update.
+  __persistGuardCache={
+    redPatternLibrary:Array.isArray(payload.redPatternLibrary)?payload.redPatternLibrary.slice():[],
+    blackPatternLibrary:Array.isArray(payload.blackPatternLibrary)?payload.blackPatternLibrary.slice():[]
+  };
 }
 function toggle(id,key){
   const el=document.getElementById(id);
@@ -4199,8 +4223,9 @@ function verifyBotHeartbeat(){
     meta.textContent='Heartbeat stopped';
   }
 }
-setInterval(botHeartbeat,2000);
-setInterval(verifyBotHeartbeat,2500);
+// PERFORMANCE FIX: heartbeat is cosmetic; keep it lightweight on mobile.
+setInterval(()=>{ if(!document.hidden) botHeartbeat(); },5000);
+setInterval(()=>{ if(!document.hidden) verifyBotHeartbeat(); },6500);
 
 function renderMasterBot(){
   botHeartbeat();
@@ -4756,7 +4781,9 @@ renderLibraryBackupStatus();
     return out;
   };
   updateIndependentDerivedFinal();
-  setInterval(updateIndependentDerivedFinal,700);
+  // PERFORMANCE FIX: no continuous 700ms derived-road recomputation.
+  // Normal render() already schedules updateIndependentDerivedFinal after every live state change.
+  // This prevents background CPU churn/freezing on iPhone/Safari without changing decision logic.
 })();
 </script>
 
