@@ -9349,5 +9349,91 @@ renderLibraryBackupStatus();
 })();
 </script>
 <script>window.__V27_META_SELECTOR_SCORE_BUILD__={metaSelector:48,verifiedPreResultScore:true,basePreserved:true};</script>
+
+<script id="ios-pb-input-render-fix5">
+/* FIX5 — iPhone/iPad P/B/T input safety.
+   Keeps the existing core handler. A fallback runs only when a tap did NOT
+   change state.hands, preventing double entries while restoring dead taps. */
+(function(){
+  function safeRefresh(){
+    try { if (typeof window.render === 'function') window.render(); } catch(e) {
+      try { renderRoad(); } catch(_){}
+      try { renderDerived(); } catch(_){}
+      try { renderPreview(); } catch(_){}
+      try { renderMainRoadFutureTest(); } catch(_){}
+      try { renderMainRoadFutureAccuracy(); } catch(_){}
+      try { renderHistory(); } catch(_){}
+    }
+  }
+
+  function fallbackCommit(actual){
+    if (!window.state || !Array.isArray(state.hands)) return;
+    try { window.__settleVerifiedPredictions?.(actual); } catch(e){}
+    try { window.__settleAdaptiveDerivedRoads?.(actual); } catch(e){}
+    try { window.__settleAdaptiveOriginalDerivedRoads?.(actual); } catch(e){}
+    try { settleMainRoadFutureAccuracy(actual); } catch(e){}
+    try { settlePendingPrediction(actual); } catch(e){}
+    try { settleBotPrediction(actual); } catch(e){}
+
+    state.hands.push({
+      r: actual,
+      pp: !!state.pp,
+      bp: !!state.bp,
+      special: !!state.special,
+      ts: Date.now()
+    });
+    state.scanSnapshot = null;
+    state.pp = state.bp = state.special = false;
+    document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
+
+    try { armNextPrediction(); } catch(e){}
+    try { armBotPrediction(); } catch(e){}
+    try { persist(); } catch(e){}
+    safeRefresh();
+
+    try { window.__armVerifiedPredictions?.(); } catch(e){}
+    try { window.__armAdaptiveDerivedRoads?.(); } catch(e){}
+    try { window.__armAdaptiveOriginalDerivedRoads?.(); } catch(e){}
+    try { window.renderVerifiedAccuracy?.(); } catch(e){}
+    try { window.renderAdaptiveDerivedMain?.(); } catch(e){}
+  }
+
+  function install(){
+    document.querySelectorAll('[data-result]').forEach(btn=>{
+      if (btn.dataset.fix5Installed === '1') return;
+      btn.dataset.fix5Installed = '1';
+
+      let before = null;
+      const remember = ()=>{ before = Array.isArray(window.state?.hands) ? state.hands.length : null; };
+      btn.addEventListener('pointerdown', remember, {passive:true});
+      btn.addEventListener('touchstart', remember, {passive:true});
+
+      btn.addEventListener('click', ()=>{
+        const actual = btn.dataset.result;
+        const prior = before;
+        setTimeout(()=>{
+          try{
+            if (!['P','B','T'].includes(actual)) return;
+            const now = Array.isArray(window.state?.hands) ? state.hands.length : null;
+            // Existing handler worked: just force a safe visual refresh.
+            if (prior !== null && now !== null && now > prior) {
+              safeRefresh();
+              return;
+            }
+            // Existing handler did not register the hand: commit exactly once.
+            fallbackCommit(actual);
+          }catch(e){}
+        }, 0);
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', install, {once:true});
+  } else install();
+  setTimeout(install, 500);
+})();
+</script>
+
 </body>
 </html>
