@@ -9569,6 +9569,8 @@ renderLibraryBackupStatus();
   }
 
   function install(){
+    // PERF V58: core result handler is authoritative; legacy FIX5 fallback disabled.
+    return;
     document.querySelectorAll('[data-result]').forEach(btn=>{
       if (btn.dataset.fix5Installed === '1') return;
       btn.dataset.fix5Installed = '1';
@@ -10070,7 +10072,7 @@ window.__RUNTIME_CRASH_FIX_20260830__=true;
 
   // Capture phase = settle the previous pre-result locks before any result
   // handler mutates state.hands. The existing core settle is harmless afterward.
-  document.addEventListener('click',function(ev){
+  document.addEventListener('__v58_disabled_result_capture__',function(ev){
     const actual=resultFromTarget(ev.target);
     if(!actual) return;
     const before=seqLen();
@@ -10180,6 +10182,221 @@ window.__MOBILE_FREEZE_PERFORMANCE_FIX_V57__={
   predictionLogicChanged:false,
   sequenceV2Changed:false
 };
+</script>
+
+<script id="pb-input-fast-render-v58">
+/* V58 — Player/Banker input latency fix.
+   Prediction formulas unchanged. Sequence V2 unchanged.
+   Goal: commit the hand immediately, paint road/future first, then do heavy UI/storage work. */
+(function(){
+  'use strict';
+  if(window.__PB_INPUT_FAST_RENDER_V58__) return;
+
+  // Coalesce expensive localStorage serialization. Multiple AI modules may call persist()
+  // during one hand; only the last state needs to be written once after the paint.
+  try{
+    if(typeof persist==='function' && !persist.__v58Deferred){
+      const basePersist=persist;
+      let saveTimer=0;
+      const deferred=function(){
+        clearTimeout(saveTimer);
+        saveTimer=setTimeout(()=>{ try{ basePersist(); }catch(e){ console.error('[V58 persist]',e); } },140);
+      };
+      deferred.flush=function(){ clearTimeout(saveTimer); try{ basePersist(); }catch(e){} };
+      deferred.__v58Deferred=true;
+      persist=deferred;
+      window.persist=deferred;
+      window.addEventListener('pagehide',()=>deferred.flush(),{passive:true});
+      document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden') deferred.flush(); },{passive:true});
+    }
+  }catch(e){ console.error('[V58 persist install]',e); }
+
+  // Replace the giant synchronous render chain with a two-stage paint.
+  // Stage 1 is exactly what the user needs immediately after tapping P/B:
+  // Big Road + derived roads + preview + Main Road Future Test.
+  // Stage 2 runs the existing full render once, after the browser gets a chance to paint.
+  try{
+    if(typeof render==='function' && !render.__v58Fast){
+      const fullRender=render;
+      let fullTimer=0, inFull=false;
+      const safe=(fn)=>{try{ if(typeof fn==='function') fn(); }catch(e){}};
+      const fastRender=function(){
+        if(inFull) return;
+        safe(window.renderRoad || (typeof renderRoad==='function'?renderRoad:null));
+        safe(window.renderDerived || (typeof renderDerived==='function'?renderDerived:null));
+        safe(window.renderPreview || (typeof renderPreview==='function'?renderPreview:null));
+        safe(window.renderMainRoadFutureTest || (typeof renderMainRoadFutureTest==='function'?renderMainRoadFutureTest:null));
+        safe(window.renderMainRoadFutureAccuracy || (typeof renderMainRoadFutureAccuracy==='function'?renderMainRoadFutureAccuracy:null));
+
+        clearTimeout(fullTimer);
+        fullTimer=setTimeout(()=>{
+          try{
+            inFull=true;
+            fullRender();
+          }catch(e){ console.error('[V58 background render]',e); }
+          finally{ inFull=false; }
+        },35);
+      };
+      fastRender.__v58Fast=true;
+      fastRender.__fullRender=fullRender;
+      render=fastRender;
+      window.render=fastRender;
+    }
+  }catch(e){ console.error('[V58 render install]',e); }
+
+  // Prevent accidental double-taps while one result is being committed. This is not a delay:
+  // the button unlocks on the next animation frame.
+  document.addEventListener('click',function(ev){
+    const b=ev.target?.closest?.('[data-result]');
+    if(!b) return;
+    if(b.__v58Busy){ ev.preventDefault(); ev.stopImmediatePropagation(); return; }
+    b.__v58Busy=true;
+    requestAnimationFrame(()=>{ b.__v58Busy=false; });
+  },true);
+
+  window.__PB_INPUT_FAST_RENDER_V58__={version:58,duplicateResultLifecycleRemoved:true,deferredPersistence:true,roadFirstPaint:true,predictionLogicChanged:false};
+})();
+</script>
+
+<script id="pb-single-lifecycle-performance-v59">
+/* V59 — single authoritative P/B result lifecycle.
+   Goal: one settle, one hand commit, road-first paint, one AI arm pass,
+   one full render, one verified render, one persistence write per hand.
+   Prediction formulas unchanged. Sequence AI V2 unchanged. */
+(function(){
+  'use strict';
+  if(window.__PB_SINGLE_LIFECYCLE_V59__) return;
+
+  const safe=(fn)=>{try{return fn?.()}catch(e){console.error('[V59]',e);return undefined}};
+  let resultBusy=false, heavyTimer=0, saveTimer=0, lastHandledAt=0;
+
+  function paintRoadFirst(){
+    safe(window.renderRoad || (typeof renderRoad==='function'?renderRoad:null));
+    safe(window.renderDerived || (typeof renderDerived==='function'?renderDerived:null));
+    safe(window.renderPreview || (typeof renderPreview==='function'?renderPreview:null));
+    safe(window.renderMainRoadFutureTest || (typeof renderMainRoadFutureTest==='function'?renderMainRoadFutureTest:null));
+    safe(window.renderMainRoadFutureAccuracy || (typeof renderMainRoadFutureAccuracy==='function'?renderMainRoadFutureAccuracy:null));
+  }
+
+  function withUiAndSaveSuppressed(fn){
+    const oldPersist=window.persist || (typeof persist==='function'?persist:null);
+    const oldVerified=window.renderVerifiedAccuracy || (typeof renderVerifiedAccuracy==='function'?renderVerifiedAccuracy:null);
+    const oldAdaptive=window.renderAdaptiveDerivedMain;
+    try{
+      const noop=function(){};
+      if(typeof persist==='function') persist=noop;
+      window.persist=noop;
+      if(typeof renderVerifiedAccuracy==='function') renderVerifiedAccuracy=noop;
+      window.renderVerifiedAccuracy=noop;
+      if(typeof oldAdaptive==='function') window.renderAdaptiveDerivedMain=noop;
+      return fn();
+    }finally{
+      if(oldPersist){ persist=oldPersist; window.persist=oldPersist; }
+      if(oldVerified){ renderVerifiedAccuracy=oldVerified; window.renderVerifiedAccuracy=oldVerified; }
+      if(oldAdaptive) window.renderAdaptiveDerivedMain=oldAdaptive;
+    }
+  }
+
+  function scheduleOneSave(){
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>{
+      safe(()=>{
+        const p=window.persist || (typeof persist==='function'?persist:null);
+        if(typeof p==='function'){
+          if(typeof p.flush==='function') p.flush();
+          else p();
+        }
+      });
+    },220);
+  }
+
+  function runHeavyPostCommit(){
+    clearTimeout(heavyTimer);
+    heavyTimer=setTimeout(()=>{
+      withUiAndSaveSuppressed(()=>{
+        safe(()=>window.__armVerifiedPredictions?.());
+        safe(()=>window.__armAdaptiveDerivedRoads?.());
+        safe(()=>window.__armAdaptiveOriginalDerivedRoads?.());
+      });
+
+      // Run the pre-V58 full renderer exactly once. This preserves every legacy panel,
+      // but avoids calling it repeatedly during settle/arm/persist.
+      safe(()=>{
+        const r=window.render;
+        const full=(r && r.__fullRender) ? r.__fullRender : r;
+        if(typeof full==='function') full();
+      });
+      safe(()=>window.renderVerifiedAccuracy?.());
+      safe(()=>window.renderAdaptiveDerivedMain?.());
+
+      // Kaggle scoring is useful but non-essential to the first frame; keep it out of tap latency.
+      setTimeout(()=>safe(()=>{ if(state?.kaggleLibraryEnabled!==false && typeof scoreWithKaggle==='function') scoreWithKaggle(false); }),40);
+      scheduleOneSave();
+      resultBusy=false;
+    },85);
+  }
+
+  function commitResult(actual){
+    if(actual!=='P' && actual!=='B' && actual!=='T') return;
+
+    // Settle the just-finished hand before mutating state, but suppress the repeated
+    // storage writes and verified-grid rebuilds inside those legacy settle functions.
+    withUiAndSaveSuppressed(()=>{
+      safe(()=>window.__settleVerifiedPredictions?.(actual));
+      safe(()=>window.__settleAdaptiveDerivedRoads?.(actual));
+      safe(()=>window.__settleAdaptiveOriginalDerivedRoads?.(actual));
+      safe(()=>{ if(typeof settleMainRoadFutureAccuracy==='function') settleMainRoadFutureAccuracy(actual); });
+    });
+    safe(()=>{ if(typeof settlePendingPrediction==='function') settlePendingPrediction(actual); });
+    safe(()=>{ if(typeof settleBotPrediction==='function') settleBotPrediction(actual); });
+
+    state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
+    state.scanSnapshot=null;
+    state.pp=state.bp=state.special=false;
+    document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
+
+    // Keep the lightweight next-prediction state current, but do not force a full page render yet.
+    safe(()=>{ if(typeof armNextPrediction==='function') armNextPrediction(); });
+    safe(()=>{ if(typeof armBotPrediction==='function') armBotPrediction(); });
+
+    // Critical UX path: let the new road/future state paint before the expensive AI work.
+    paintRoadFirst();
+    requestAnimationFrame(()=>requestAnimationFrame(runHeavyPostCommit));
+  }
+
+  // Capture before the original button listeners. V59 is now the sole P/B/T result lifecycle.
+  document.addEventListener('click',function(ev){
+    const btn=ev.target?.closest?.('[data-result]');
+    if(!btn) return;
+    const actual=btn.getAttribute('data-result');
+    if(actual!=='P' && actual!=='B' && actual!=='T') return;
+
+    const now=performance.now();
+    if(resultBusy || now-lastHandledAt<70){
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      return;
+    }
+    resultBusy=true;
+    lastHandledAt=now;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    commitResult(actual);
+  },true);
+
+  window.__PB_SINGLE_LIFECYCLE_V59__={
+    version:59,
+    authoritativeCapture:true,
+    settlePassesPerHand:1,
+    armPassesPerHand:1,
+    fullRendersPerHand:1,
+    verifiedRendersPerHand:1,
+    persistenceWritesTarget:1,
+    roadFirstPaint:true,
+    predictionLogicChanged:false,
+    sequenceV2Changed:false
+  };
+})();
 </script>
 </body>
 </html>
