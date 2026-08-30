@@ -378,6 +378,14 @@
       <div class="future-score" id="futureBScore">50%</div>
     </div>
   </div>
+  <div id="futureAccuracyRow" style="margin-top:8px;padding:8px 10px;border:1px solid #303743;border-radius:10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <strong>Accuracy Verified:</strong>
+    <span id="futureAccuracyPct">—</span>
+    <span id="futureAccuracyWL">0W-0L</span>
+    <span id="futureAccuracyN">N=0</span>
+    <span id="futureAccuracyWait">WAIT=0</span>
+    <button id="resetFutureAccuracy" type="button" style="margin-left:auto;font-size:10px;padding:4px 7px">Reset score</button>
+  </div>
   <div class="future-final" id="futureFinal">Likely answer: WAIT — building evidence</div>
   <div class="future-note" id="futureNote">Tests both hypothetical next results without saving either one. It compares the projected Main Road with Big Eye Boy, Small Road, and Cockroach Road output, then discards both previews until the real hand is entered.</div>
 </div>
@@ -11894,6 +11902,138 @@ window.__V49_CONTROLLED_META__={version:49,architecture:'existing specialists ->
     }
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,60));else setTimeout(relabel,60);
+})();
+</script>
+
+
+<script id="main-road-future-v55-optimized-accuracy">
+/* V55 — MAIN ROAD FUTURE TEST OPTIMIZATION + VERIFIED ACCURACY
+   Primary test is current-shoe only: Main Road regime + current Big Eye/Small/Roach regimes.
+   Saved-shoe history remains a separate V54 confirmation layer for Derived Road AI.
+   Accuracy is pre-result verified: W/(W+L), ties skipped, WAIT excluded from N. */
+(function(){
+  const VERSION=55;
+  const clone=o=>{try{return JSON.parse(JSON.stringify(o))}catch(e){return o}};
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const pbSeq=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}};
+
+  // Cache V54 saved Main Road history lookups once per live state so the same historical
+  // search is not recomputed repeatedly by Eye/Small/Roach confirmation channels.
+  try{
+    const raw=window.mainRoadHistorySignal || (typeof mainRoadHistorySignal==='function'?mainRoadHistorySignal:null);
+    if(raw && !raw.__v55cached){
+      let cacheKey='', cache={};
+      const wrapped=function(key){
+        const seq=pbSeq().join('');
+        let color='none',libN=0;
+        try{color=state.currentShoeColor||'none';libN=activePatternLibrary().length}catch(e){}
+        const k=seq+'|'+color+'|'+libN;
+        if(k!==cacheKey){cacheKey=k;cache={}}
+        if(Object.prototype.hasOwnProperty.call(cache,key)) return clone(cache[key]);
+        const z=raw.apply(this,arguments);cache[key]=clone(z);return z;
+      };
+      wrapped.__v55cached=true;wrapped.__raw=raw;
+      window.mainRoadHistorySignal=wrapped;try{mainRoadHistorySignal=wrapped}catch(e){}
+    }
+  }catch(e){console.warn('V55 history cache',e)}
+
+  function currentMainRoadSignal(){
+    const seq=pbSeq();
+    if(seq.length<4) return {side:null,pPct:50,bPct:50,strength:0,regime:'INSUFFICIENT'};
+    const recent=seq.slice(-12),last=recent[recent.length-1];
+    let run=1;for(let i=recent.length-2;i>=0&&recent[i]===last;i--)run++;
+    let alts=0;for(let i=1;i<recent.length;i++)if(recent[i]!==recent[i-1])alts++;
+    const altRate=recent.length>1?alts/(recent.length-1):0;
+    let side=null,edge=0,regime='MIXED';
+    if(run>=3){side=last;edge=clamp(5+run*1.4,5,14);regime='RUN'}
+    else if(recent.length>=6&&altRate>=.72){side=last==='P'?'B':'P';edge=clamp(5+(altRate-.72)*20,5,11);regime='CHOP'}
+    else if(run===2){side=last;edge=4;regime='LEAN-RUN'}
+    else{
+      const p=recent.filter(x=>x==='P').length,b=recent.length-p;
+      if(Math.abs(p-b)>=3){side=p>b?'P':'B';edge=3;regime='BALANCE-LEAN'}
+    }
+    if(!side)return {side:null,pPct:50,bPct:50,strength:50,regime};
+    const leader=Math.round(50+edge), loser=100-leader;
+    return {side,pPct:side==='P'?leader:loser,bPct:side==='B'?leader:loser,strength:leader,regime,run,altRate};
+  }
+
+  function optimizedMainRoadFutureTest(){
+    const t0=(window.performance&&performance.now)?performance.now():Date.now();
+    const main=currentMainRoadSignal();
+    const roadDefs=[{label:'Eye',offset:1},{label:'Small',offset:2},{label:'Roach',offset:3}];
+    const roadSigs=roadDefs.map(d=>({ ...d, sig:derivedRoadNextSignal(d.offset) })); // current shoe only
+    const scoreSide=(side)=>{
+      let weighted=0,weight=0,readyRoads=0;
+      const mp=side==='P'?main.pPct:main.bPct;
+      if(main.side){weighted+=mp*2;weight+=2}
+      for(const r of roadSigs){
+        const z=r.sig||{};
+        if(z.pMark&&z.bMark&&z.pMark!==z.bMark&&z.side){
+          weighted+=(side==='P'?(z.pPct||50):(z.bPct||50));weight+=1;readyRoads++;
+        }
+      }
+      return {pct:weight?weighted/weight:50,weight,readyRoads};
+    };
+    const p=scoreSide('P'),b=scoreSide('B'),tot=(p.pct+b.pct)||100;
+    const pNorm=Math.round(100*p.pct/tot),bNorm=100-pNorm,edge=Math.abs(pNorm-bNorm),evidence=Math.max(p.weight,b.weight);
+    let side=null,label='WAIT';
+    if(evidence>0&&pNorm!==bNorm){side=pNorm>bNorm?'P':'B';label=edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN'}
+    const path=(k,n)=>{const marks=previewFor(k);return {side:k,norm:n,main:futureMainRoadDescription(k),marks,chips:futureRoadChip('Eye',marks.eye)+futureRoadChip('Small',marks.small)+futureRoadChip('Roach',marks.roach)}};
+    const elapsed=Math.max(0,Math.round(((window.performance&&performance.now)?performance.now():Date.now())-t0));
+    return {p:path('P',pNorm),b:path('B',bNorm),side,label,edge,evidence,main,roadSigs,elapsed,version:VERSION,sourceContract:'CURRENT_SHOE_MAIN_PLUS_3_ROADS_ONLY'};
+  }
+  window.mainRoadFutureTest=optimizedMainRoadFutureTest;try{mainRoadFutureTest=optimizedMainRoadFutureTest}catch(e){}
+
+  function accState(){
+    if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true){
+      if(!window.__V55_FUTURE_ACC_SIM__)window.__V55_FUTURE_ACC_SIM__={wins:0,losses:0,waits:0,ties:0,pending:null,ledger:[]};
+      return window.__V55_FUTURE_ACC_SIM__;
+    }
+    if(!state.futureTestAccuracyV55||typeof state.futureTestAccuracyV55!=='object')state.futureTestAccuracyV55={wins:0,losses:0,waits:0,ties:0,pending:null,ledger:[]};
+    const a=state.futureTestAccuracyV55;
+    for(const k of ['wins','losses','waits','ties'])if(!Number.isFinite(a[k]))a[k]=0;
+    if(!Array.isArray(a.ledger))a.ledger=[];
+    return a;
+  }
+  function armFuture(){
+    const a=accState(),handN=pbSeq().length;let x=null;try{x=optimizedMainRoadFutureTest()}catch(e){}
+    if(!x||!(x.side==='P'||x.side==='B')){a.pending=null;a.waits++;return}
+    a.pending={side:x.side,handN,edge:x.edge,p:x.p.norm,b:x.b.norm,armedAt:Date.now()};
+  }
+  function settleFuture(actual){
+    const a=accState();actual=actual==='P'||actual==='B'||actual==='T'?actual:null;
+    if(!actual)return;
+    const p=a.pending;a.pending=null;
+    if(actual==='T'){a.ties++;return}
+    if(!p)return;
+    const correct=p.side===actual;if(correct)a.wins++;else a.losses++;
+    a.ledger.push({...p,actual,correct,settledAt:Date.now()});if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600);
+    try{if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true&&typeof persist==='function')persist()}catch(e){}
+  }
+
+  const oa=window.__armVerifiedPredictions;
+  if(typeof oa==='function'&&!oa.__v55future){const w=function(){try{armFuture()}catch(e){console.warn('V55 future arm',e)}return oa.apply(this,arguments)};w.__v55future=true;window.__armVerifiedPredictions=w}
+  const os=window.__settleVerifiedPredictions;
+  if(typeof os==='function'&&!os.__v55future){const w=function(actual){let r;try{r=os.apply(this,arguments)}finally{try{settleFuture(actual)}catch(e){console.warn('V55 future settle',e)}}return r};w.__v55future=true;window.__settleVerifiedPredictions=w}
+
+  const oldRenderFuture=window.renderMainRoadFutureTest || (typeof renderMainRoadFutureTest==='function'?renderMainRoadFutureTest:null);
+  function renderAccuracy(){
+    const a=accState(),n=a.wins+a.losses,pct=n?(100*a.wins/n).toFixed(1)+'%':'—';
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('futureAccuracyPct',pct);set('futureAccuracyWL',`${a.wins}W-${a.losses}L`);set('futureAccuracyN',`N=${n}`);set('futureAccuracyWait',`WAIT=${a.waits}`);
+    const speed=document.getElementById('futureTestSpeed');if(speed){const x=optimizedMainRoadFutureTest();speed.textContent=`Automatic test • ${x.elapsed} ms • V55 current-shoe engine`}
+  }
+  function wrappedRenderFuture(){const r=oldRenderFuture?oldRenderFuture.apply(this,arguments):undefined;try{renderAccuracy()}catch(e){}return r}
+  window.renderMainRoadFutureTest=wrappedRenderFuture;try{renderMainRoadFutureTest=wrappedRenderFuture}catch(e){}
+
+  function bindReset(){const b=document.getElementById('resetFutureAccuracy');if(!b||b.__v55)return;b.__v55=true;b.addEventListener('click',()=>{if(!confirm('Reset only the Main Road Future Test verified accuracy score?'))return;const a=accState();a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.ledger=[];try{if(typeof persist==='function')persist()}catch(e){}renderAccuracy()})}
+  function relabel(){
+    const t=document.querySelector('#mainRoadFutureTest .future-test-title');if(t)t.textContent='⚡ Main Road Future Test V55 — P vs B + Accuracy Verified';
+    const note=document.getElementById('futureNote');if(note)note.textContent=(note.textContent||'')+' Primary P/B scoring is current-shoe Main Road + current Big Eye/Small/Roach only; saved shoes are not used inside this fast test.';
+    bindReset();renderAccuracy();
+  }
+  window.__mainRoadFutureV55={version:VERSION,test:optimizedMainRoadFutureTest,accuracy:accState,arm:armFuture,settle:settleFuture,currentShoeOnly:true,historyCached:true};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,100));else setTimeout(relabel,100);
 })();
 </script>
 
