@@ -1623,6 +1623,22 @@ function ensureAccuracy(){
     return state.accuracyVerified;
   }
 
+const modelDefs=[
+    ['seqv2','Sequence AI V2',()=>window.__slV10Signal?window.__slV10Signal('seqv2',sequenceAISignal()):sequenceAISignal()],
+    ['color','Color Pattern AI',()=>window.__slV10Signal?window.__slV10Signal('color',colorPatternAISignal()):colorPatternAISignal()],
+    ['roadpreview','Road Preview AI',()=>window.__slV10Signal?window.__slV10Signal('roadpreview',roadPreviewAISignal()):roadPreviewAISignal()],
+    ['derivedorig','Derived Road AI',()=>{const x=derivedRoadSequenceAI(),y={side:x.side,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('derivedorig',y):y}],
+    ['derivedmain','Adaptive Derived Roads — Main-Road Mode',()=>{const x=adaptiveDerivedMainSignal();return window.__slV10Signal?window.__slV10Signal('derivedmain',x):x}],
+    ['seqdup','Sequence AI V2 Duplicate',()=>{const x=sequenceAIDuplicateSignal();return window.__slV10Signal?window.__slV10Signal('seqdup',x):x}],
+    ['consensus','AI Consensus',()=>{const x=consensusSignal();return window.__slV10Signal?window.__slV10Signal('consensus',x):x}],
+    ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal(),y={side:x.qualified?x.side:null,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('bot',y):y}],
+    ['bestestimate','Best-Estimate Analyzer',()=>{const x=computeCombinedAnalyzer(),y={side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0};return window.__slV10Signal?window.__slV10Signal('bestestimate',y):y}],
+    ['specialistv20','RED / BLACK Specialist V20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['blackctxv22','BLACK Context Specialist V22',()=>{const z=window.__blackContextV22?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['metav23','Walk-Forward Meta Learner V23',()=>{const z=window.__metaWalkV23?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['focusv26','Focus AI V26',()=>{const z=window.__focusAIV26?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+  ];
+
 function armVerifiedPredictions(){
     const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join(''),ctx=verifiedContext();
     Object.entries(a.pending||{}).forEach(([k,p])=>{if(!p||Number(p.hand)!==hand)delete a.pending[k];});
@@ -1708,6 +1724,15 @@ function resetVerifiedAccuracy(){
     renderVerifiedAccuracy();
     setTimeout(armVerifiedPredictions,150);
   }
+
+/* === VERIFIED RUNTIME EXPORTS RESTORED === */
+window.__verifiedAccuracySummary=verifiedSummary;
+window.renderColorPatternAI=renderColorPatternAI;
+window.renderVerifiedAccuracy=renderVerifiedAccuracy;
+window.__settleVerifiedPredictions=settleVerifiedPredictions;
+window.__armVerifiedPredictions=armVerifiedPredictions;
+/* === END VERIFIED RUNTIME EXPORTS === */
+
 
 function colorPatternAISignal(){
     const cur=currentSequence();
@@ -4688,9 +4713,9 @@ function renderMasterBot(){
   const decision=document.getElementById('botDecision'); if(!decision)return;
   decision.textContent=b.qualified?(b.side==='P'?'PLAYER':'BANKER'):'WAIT';
   document.getElementById('botConfidence').textContent=b.confidence?b.confidence+'%':'—';
-  document.getElementById('botPhase').textContent=b.phase.label;
-  document.getElementById('botPhaseSamples').textContent=b.phaseHist.samples||0;
-  document.getElementById('botRoadSamples').textContent=b.roadMem.samples||0;
+  document.getElementById('botPhase').textContent=b.phase?.label || botPhaseInfo(currentSequence().length)?.label || '—';
+  document.getElementById('botPhaseSamples').textContent=b.phaseHist?.samples||0;
+  document.getElementById('botRoadSamples').textContent=b.roadMem?.samples||0;
   document.getElementById('botAccuracy').textContent=state.bot.predictions?`${Math.round(state.bot.wins*100/state.bot.predictions)}% (${state.bot.wins}/${state.bot.predictions})`:'—';
 
   const seq=b.seqV2||{}, dup=b.sequenceDuplicate||{}, road=b.roadPreview||{};
@@ -9489,6 +9514,68 @@ window.__VERIFIED_INFRA_DIRECT_RESTORE__={
   source:'SINGLE_TRUST_GATE_FIX_20260830',
   restored:['ensureAccuracy','armVerifiedPredictions','settleVerifiedPredictions','renderVerifiedAccuracy','verifiedSummary','verifiedContext','resetVerifiedAccuracy','colorPatternAISignal','renderColorPatternAI']
 };
+</script>
+
+
+<script id="runtime-ledger-governor-fix-v50">
+(function(){
+  'use strict';
+  function safe(fn){try{return fn()}catch(e){console.error('[V50 verified runtime]',e);return null}}
+
+  function refreshVerified(){
+    safe(()=>{ if(typeof ensureAccuracy==='function') ensureAccuracy(); });
+    safe(()=>{ if(typeof renderVerifiedAccuracy==='function') renderVerifiedAccuracy(); });
+  }
+
+  function armVerified(){
+    safe(()=>{ if(typeof window.__armVerifiedPredictions==='function') window.__armVerifiedPredictions(); });
+  }
+
+  function boot(){
+    refreshVerified();
+    armVerified();
+    refreshVerified();
+  }
+
+  function afterResult(){
+    // Original result handler settles first, mutates state, renders,
+    // and arms. This deferred refresh only verifies the visible ledger.
+    setTimeout(refreshVerified,0);
+  }
+
+  document.addEventListener('DOMContentLoaded',function(){
+    document.querySelectorAll('[data-result]').forEach(function(btn){
+      if(btn.__v50VerifiedBound)return;
+      btn.__v50VerifiedBound=true;
+      btn.addEventListener('click',afterResult,{passive:true});
+    });
+    setTimeout(boot,50);
+    setTimeout(refreshVerified,250);
+  });
+
+  if(document.readyState!=='loading'){
+    document.querySelectorAll('[data-result]').forEach(function(btn){
+      if(btn.__v50VerifiedBound)return;
+      btn.__v50VerifiedBound=true;
+      btn.addEventListener('click',afterResult,{passive:true});
+    });
+    boot();
+  }
+
+  window.__RUNTIME_LEDGER_GOVERNOR_FIX_V50__=true;
+})();
+</script>
+
+<script id="full-runtime-scan-fix-stamp">
+window.__FULL_RUNTIME_SCAN_FIX_20260830__=true;
+</script>
+
+<script id="runtime-hooks-fixed-stamp">
+window.__RUNTIME_HOOKS_FIXED_20260830__=true;
+</script>
+
+<script id="runtime-crash-fix-stamp">
+window.__RUNTIME_CRASH_FIX_20260830__=true;
 </script>
 
 </body>
