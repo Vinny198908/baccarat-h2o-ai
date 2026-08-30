@@ -254,6 +254,21 @@
 
 /* Removed from UI: obsolete manual card-rank and separate card-shoe controls */
 .card-entry,.dual-shoes{display:none !important;}
+
+  .future-test{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.025)}
+  .future-test-head{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+  .future-test-title{font-weight:900;font-size:13px;letter-spacing:.2px}
+  .future-test-speed{font-size:10px;color:var(--muted)}
+  .future-paths{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+  .future-path{border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}
+  .future-path strong{font-size:16px}
+  .future-main{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.35}
+  .future-roadmarks{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;font-size:10px}
+  .future-chip{border:1px solid var(--line);border-radius:999px;padding:3px 6px}
+  .future-score{font-size:22px;font-weight:900;margin-top:7px}
+  .future-final{margin-top:9px;border-top:1px solid var(--line);padding-top:9px;font-weight:900}
+  .future-note{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.35}
+  @media(max-width:560px){.future-paths{grid-template-columns:1fr}}
 </style>
 
 
@@ -343,6 +358,28 @@
 <span class="preview-symbol" id="bSmall">—</span>
 <span class="preview-symbol" id="bRoach">—</span>
 </div>
+</div>
+<div class="future-test" id="mainRoadFutureTest">
+  <div class="future-test-head">
+    <div class="future-test-title">⚡ Main Road Future Test — P vs B</div>
+    <div class="future-test-speed" id="futureTestSpeed">Automatic fast test</div>
+  </div>
+  <div class="future-paths">
+    <div class="future-path" id="futurePPath">
+      <strong>IF PLAYER NEXT</strong>
+      <div class="future-main" id="futurePMain">Building projected Main Road…</div>
+      <div class="future-roadmarks" id="futurePRoads"></div>
+      <div class="future-score" id="futurePScore">50%</div>
+    </div>
+    <div class="future-path" id="futureBPath">
+      <strong>IF BANKER NEXT</strong>
+      <div class="future-main" id="futureBMain">Building projected Main Road…</div>
+      <div class="future-roadmarks" id="futureBRoads"></div>
+      <div class="future-score" id="futureBScore">50%</div>
+    </div>
+  </div>
+  <div class="future-final" id="futureFinal">Likely answer: WAIT — building evidence</div>
+  <div class="future-note" id="futureNote">Tests both hypothetical next results without saving either one. It compares the projected Main Road with Big Eye Boy, Small Road, and Cockroach Road output, then discards both previews until the real hand is entered.</div>
 </div>
 <div class="derived-roads">
 <div class="mini">
@@ -1444,7 +1481,101 @@ function renderStats(){
   document.getElementById('nextTiePct').textContent=local.tPct==null?'—':local.tPct+'%';
 }
 
-function render(){renderRoad();renderDerived();renderPreview();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderSeparateShoes();renderCurrentShoeColor();}
+
+function futureMainRoadDescription(result){
+  const before=bigRoadPositions(state.hands);
+  const hypo=state.hands.concat([{r:result,pp:false,bp:false,special:false,ts:0}]);
+  const after=bigRoadPositions(hypo);
+  if(!after.length) return 'Starts the Main Road at column 1, row 1.';
+  const last=after[after.length-1];
+  const prev=before.length?before[before.length-1]:null;
+  const action=!prev?'starts the Main Road':(last.col===prev.col?'continues the current column':'starts a new column');
+  return `${action} → projected Main Road cell C${last.col+1}, R${last.row+1}.`;
+}
+
+function futureRoadChip(label,mark){
+  return `<span class="future-chip">${label}: ${mark?roadMarkLabel(mark):'—'}</span>`;
+}
+
+function mainRoadFutureTest(){
+  const t0=(window.performance&&performance.now)?performance.now():Date.now();
+  const main=sequenceAISignal();
+  const roadDefs=[
+    {label:'Eye',offset:1},
+    {label:'Small',offset:2},
+    {label:'Roach',offset:3}
+  ];
+  const roadSigs=roadDefs.map(d=>({ ...d, sig:derivedRoadSequencePatternSignal(d.offset) }));
+
+  const scoreSide=(side)=>{
+    let weighted=0, weight=0, readyRoads=0;
+    // Main Road gets 40% of the intended blend when it has usable evidence.
+    const mainPct=side==='P'?(main.pPct||0):(main.bPct||0);
+    if(mainPct>0){ weighted+=mainPct*2; weight+=2; }
+    // Each of the three roads contributes one equal unit when its hypothetical marks are ready.
+    for(const r of roadSigs){
+      const sig=r.sig||{};
+      if(sig.pMark && sig.bMark && sig.pMark!==sig.bMark){
+        const pct=side==='P'?(sig.pPct||50):(sig.bPct||50);
+        weighted+=pct; weight+=1; readyRoads++;
+      }
+    }
+    const pct=weight?weighted/weight:50;
+    return {pct,readyRoads,weight};
+  };
+
+  const p=scoreSide('P'), b=scoreSide('B');
+  // Normalize the two candidate scores into a clean P/B comparison.
+  const total=(p.pct+b.pct)||100;
+  const pNorm=Math.round(100*p.pct/total);
+  const bNorm=100-pNorm;
+  const edge=Math.abs(pNorm-bNorm);
+  const evidence=Math.max(p.weight,b.weight);
+  let side=null, label='WAIT';
+  if(evidence>0){
+    side=pNorm>bNorm?'P':bNorm>pNorm?'B':null;
+    if(side) label=edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN';
+  }
+
+  const path=(sideKey,norm)=>{
+    const marks=previewFor(sideKey);
+    return {
+      side:sideKey,
+      norm,
+      main:futureMainRoadDescription(sideKey),
+      marks,
+      chips:futureRoadChip('Eye',marks.eye)+futureRoadChip('Small',marks.small)+futureRoadChip('Roach',marks.roach)
+    };
+  };
+  const elapsed=Math.max(0,Math.round(((window.performance&&performance.now)?performance.now():Date.now())-t0));
+  return {p:path('P',pNorm),b:path('B',bNorm),side,label,edge,evidence,main,roadSigs,elapsed};
+}
+
+function renderMainRoadFutureTest(){
+  const x=mainRoadFutureTest();
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  const html=(id,v)=>{const e=document.getElementById(id);if(e)e.innerHTML=v};
+  set('futurePMain',x.p.main); set('futureBMain',x.b.main);
+  html('futurePRoads',x.p.chips); html('futureBRoads',x.b.chips);
+  set('futurePScore',x.p.norm+'%'); set('futureBScore',x.b.norm+'%');
+  set('futureTestSpeed',`Automatic test • ${x.elapsed} ms`);
+  if(!x.evidence){
+    set('futureFinal','Likely answer: WAIT — not enough Main Road / road evidence yet');
+    set('futureNote','Both futures were projected, but there is not enough verified Main Road or derived-road continuation evidence to favor one side.');
+    return;
+  }
+  if(!x.side){
+    set('futureFinal','Likely answer: WAIT — P and B paths are tied');
+  }else{
+    set('futureFinal',`Likely answer: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.label} • ${x.side==='P'?x.p.norm:x.b.norm}% vs ${x.side==='P'?x.b.norm:x.p.norm}%`);
+  }
+  const ready=x.roadSigs.filter(r=>r.sig&&r.sig.pMark&&r.sig.bMark&&r.sig.pMark!==r.sig.bMark).length;
+  const mainText=(x.main&&((x.main.pPct||0)+(x.main.bPct||0)>0))?`Main Road history P ${x.main.pPct||0}% / B ${x.main.bPct||0}%`:'Main Road history still building';
+  set('futureNote',`${mainText} • ${ready}/3 derived roads ready. This is a hypothetical preview only; neither P nor B is written into the shoe until the real result is entered.`);
+}
+
+function render(){renderRoad();renderDerived();renderPreview();renderMainRoadFutureTest();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderSeparateShoes();renderCurrentShoeColor();}
+
 
 
 
@@ -11448,5 +11579,323 @@ window.__V49_CONTROLLED_META__={version:49,architecture:'existing specialists ->
   window.__V50_SPLIT_POLICY__={version:50,rawLearning:true,qualifiedBotOnly:true,redBlackPoliciesSeparated:true,focusRedPriority:true,blackConservative:true,governorDiagnosticOnly:true,simulationStateIsolated:true,replayBatch:12,maxReplay:240};
 })();
 </script>
+
+<script id="v51-structure-proof-random-baseline">
+/* ============================================================
+   V51 — STRUCTURE PROOF / RANDOM-BASELINE GATE
+   Foundation:
+   1) Search aggressively for repeatable structure.
+   2) Record every candidate BEFORE the next result is known.
+   3) Trust structure only while its chronological, unseen results
+      beat a 50% no-pattern/random P/B baseline.
+   4) RED and BLACK evidence are isolated.
+   5) If proof weakens, final Bot falls back to WAIT.
+   This layer does NOT rewrite Sequence AI V2 or any specialist.
+   ============================================================ */
+(function(){
+  const VERSION=51, BASELINE=.50, MIN_N=24, ROLLING=120, CONTEXT_MIN_N=12;
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const sideOf=v=>{const q=String(v||'').toUpperCase();return q==='P'||q==='PLAYER'?'P':q==='B'||q==='BANKER'?'B':null};
+  const clone=x=>{try{return JSON.parse(JSON.stringify(x))}catch(e){return null}};
+  function pb(){try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B')}catch(e){return []}}
+  function color(){const q=String(state.currentShoeColor||state.shoeColor||'COMBINED').toUpperCase();return q.includes('RED')?'RED':q.includes('BLACK')?'BLACK':'COMBINED'}
+  function phase(){const n=pb().length;return n<18?'EARLY':n<36?'MIDDLE':'LATE'}
+  function blank(){return {version:VERSION,ledger:[],pending:null,deferred:null,audit:[],lastHandN:0,createdAt:Date.now()}}
+  let simWasActive=false;
+  function S(){
+    const sim=window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true;
+    if(sim){if(!simWasActive||!window.__V51_SIM_STATE__)window.__V51_SIM_STATE__=blank();simWasActive=true;return window.__V51_SIM_STATE__}
+    simWasActive=false;state.structureProofV51 ||= blank();const s=state.structureProofV51;s.version=VERSION;s.ledger||=[];s.audit||=[];return s;
+  }
+  function audit(type,msg,extra){const s=S();s.audit.push({at:Date.now(),type,msg,...(extra||{})});if(s.audit.length>100)s.audit.splice(0,s.audit.length-100)}
+  function rowsFor(c,p){
+    const all=S().ledger.filter(r=>r&&sideOf(r.actual)&&sideOf(r.candidate));
+    const col=all.filter(r=>r.color===c).slice(-ROLLING);
+    const ctx=col.filter(r=>r.phase===p).slice(-ROLLING);
+    return {col,ctx};
+  }
+  function stats(rows){
+    const n=rows.length,w=rows.reduce((a,r)=>a+(r.candidate===r.actual?1:0),0),rate=n?w/n:.5;
+    // Beta(6,6) shrinkage keeps small samples from looking stronger than they are.
+    const post=(w+6)/(n+12);
+    const se=Math.sqrt(Math.max(1e-9,post*(1-post)/(n+13)));
+    const lower90=post-1.282*se;
+    return {n,w,l:n-w,rate,post,lower90,edge:rate-BASELINE};
+  }
+  function proof(c=color(),p=phase()){
+    const {col,ctx}=rowsFor(c,p),g=stats(col),x=stats(ctx);
+    // Global color proof is mandatory. Context can strengthen or veto once it has enough evidence.
+    const globalPass=g.n>=MIN_N && g.rate>=.54 && g.post>=.515;
+    const contextKnown=x.n>=CONTEXT_MIN_N;
+    const contextPass=!contextKnown || (x.rate>=.48 && x.post>=.49);
+    const passed=globalPass&&contextPass;
+    let reason;
+    if(g.n<MIN_N)reason=`WAIT: ${c} structure proof is building (${g.n}/${MIN_N} unseen outcomes).`;
+    else if(!globalPass)reason=`WAIT: ${c} structure has not proved a durable edge over the 50% random baseline (${(g.rate*100).toFixed(1)}%, N=${g.n}).`;
+    else if(!contextPass)reason=`WAIT: ${c} ${p} phase is currently failing its context check (${(x.rate*100).toFixed(1)}%, N=${x.n}).`;
+    else reason=`PROVED: ${c} chronological unseen accuracy ${(g.rate*100).toFixed(1)}% (N=${g.n}); shrinkage-adjusted performance remains above the 50% random baseline.`;
+    return {passed,global:g,context:x,color:c,phase:p,baseline:BASELINE,reason};
+  }
+  function rawV50(){try{return window.__metaSelectorV50?.signal?.()||{}}catch(e){return {}}}
+  function signal(){
+    const z=rawV50(),pr=proof();
+    const candidate=sideOf(z.candidate)||sideOf(z.rawSide)||sideOf(z.side);
+    // BOTH layers must agree: V50 says qualified AND V51 proves repeatability vs random.
+    const qualified=!!candidate && z.qualified===true && pr.passed;
+    const conf=qualified?clamp(Number(z.confidence)||52,52,80):0;
+    return {...z,candidate,rawSide:candidate,side:qualified?candidate:null,qualified,confidence:conf,strength:conf,
+      v51Proof:pr,baselineQualified:pr.passed,predictionTier:qualified?'PROVED + QUALIFIED':'WAIT',
+      reason:qualified?`${pr.reason} V50 qualification also passed.`:`${pr.reason} ${z.reason||''}`,
+      fusion:'V51 structure-proof gate over V50 split selector'};
+  }
+  function arm(){
+    const s=S(),handN=pb().length,z=rawV50(),candidate=sideOf(z.candidate)||sideOf(z.rawSide)||sideOf(z.side);
+    s.lastHandN=handN;
+    s.pending=candidate?{handN,candidate,color:color(),phase:phase(),v50Qualified:z.qualified===true,armedAt:Date.now()}:null;
+    audit('ARM',candidate?'Pre-result V51 candidate stored':'No P/B candidate to store',{handN,candidate});
+  }
+  function finalize(p,actual){
+    if(!p||!sideOf(actual))return false;const now=pb(),handN=now.length;if(handN<=p.handN)return false;
+    const observed=sideOf(now[p.handN]);if(observed&&observed!==actual){audit('REJECT','Observed/result mismatch',{observed,actual});return true}
+    const s=S();s.ledger.push({...clone(p),actual,settledAt:Date.now()});if(s.ledger.length>600)s.ledger.splice(0,s.ledger.length-600);
+    audit('SETTLE','Unseen candidate graded',{actual,correct:p.candidate===actual,color:p.color,phase:p.phase,n:s.ledger.length});return true;
+  }
+  function settle(actual){const s=S(),p=s.pending;s.pending=null;if(!p||!sideOf(actual))return;if(finalize(p,actual))return;s.deferred={pending:p,actual,queuedAt:Date.now()}}
+  function flushDeferred(){const s=S();if(s.deferred){const d=s.deferred;if(finalize(d.pending,d.actual))s.deferred=null}}
+
+  // Wrap verified pre/post result cycle AFTER V50. This preserves chronological ordering.
+  const oa=window.__armVerifiedPredictions;
+  if(typeof oa==='function'&&!oa.__structureProofV51){const w=function(){try{flushDeferred();arm()}catch(e){console.warn('V51 arm',e)}return oa.apply(this,arguments)};w.__structureProofV51=true;window.__armVerifiedPredictions=w}
+  const os=window.__settleVerifiedPredictions;
+  if(typeof os==='function'&&!os.__structureProofV51){const w=function(actual){let r;try{r=os.apply(this,arguments)}finally{try{settle(actual)}catch(e){console.warn('V51 settle',e)}}return r};w.__structureProofV51=true;window.__settleVerifiedPredictions=w}
+
+  // Final Bot is gated here. Specialists remain untouched and visible.
+  window.masterBotSignal=signal;try{masterBotSignal=signal}catch(e){}
+  window.armBotPrediction=function(){try{if(typeof ensureBotState==='function')ensureBotState();const z=signal();if(state?.bot)state.bot.pending=z.qualified?{side:z.side,confidence:z.confidence,phase:z.v51Proof?.phase||'',hand:pb().length+1,color:state.currentShoeColor||'none',specialists:(z.sources||[]).map(x=>({name:x.name,side:x.side,strength:x.strength,reliability:x.score}))}:null}catch(e){try{if(state?.bot)state.bot.pending=null}catch(_){}}};try{armBotPrediction=window.armBotPrediction}catch(e){}
+  window.renderMasterBot=function(){try{if(typeof botHeartbeat==='function')botHeartbeat();if(typeof ensureBotState==='function')ensureBotState();const z=signal(),get=id=>document.getElementById(id),d=get('botDecision');if(!d)return;d.textContent=z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT';const c=get('botConfidence');if(c)c.textContent=z.qualified?`${Math.round(z.confidence*10)/10}%`:'—';const pe=get('botPhase');if(pe)pe.textContent=z.v51Proof?.phase||'—';const ps=get('botPhaseSamples');if(ps)ps.textContent=z.v51Proof?.context?.n||0;const rs=get('botRoadSamples');if(rs)rs.textContent=z.v51Proof?.global?.n||0;const note=get('botNote');if(note)note.textContent=z.reason||'';const tog=get('botLearningToggle');if(tog){tog.textContent='V51 PROOF GATE: ALWAYS ON';tog.disabled=true}}catch(e){console.warn('V51 render bot',e)}};try{renderMasterBot=window.renderMasterBot}catch(e){}
+
+  function panel(){
+    let p=document.getElementById('structureProofV51Panel');
+    if(!p){p=document.createElement('div');p.id='structureProofV51Panel';p.className='analyzer';p.style.borderColor='#7cc576';p.innerHTML=`<div class="analyzer-title">🧪 Structure Proof V51 — Random-Baseline Gate</div><div class="analyzer-sub">Historical structure is searched aggressively, but the final Bot can use it only after chronological pre-result predictions prove an edge over a 50% no-pattern baseline. RED and BLACK are verified separately.</div><div class="backtest-grid" style="margin-top:8px"><div class="bt-card"><strong id="sp51Status">WAIT</strong><span>Proof status</span></div><div class="bt-card"><strong id="sp51Rate">—</strong><span>Unseen accuracy</span></div><div class="bt-card"><strong id="sp51N">0</strong><span>Proof sample</span></div><div class="bt-card"><strong id="sp51Base">50.0%</strong><span>Random baseline</span></div></div><div class="analyzer-sub" id="sp51Reason" style="margin-top:8px"></div>`;const v50=document.getElementById('metaSelectorV50Panel');if(v50?.parentNode)v50.parentNode.insertBefore(p,v50.nextSibling);else document.body.appendChild(p)}
+    try{flushDeferred();const pr=proof(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('sp51Status',pr.passed?'PROVED':'WAIT');set('sp51Rate',pr.global.n?`${(pr.global.rate*100).toFixed(1)}%`:'—');set('sp51N',pr.global.n);set('sp51Base','50.0%');set('sp51Reason',pr.reason);const t=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(t)t.textContent='🤖 High-Powered Bot AI — V51 Proof-Gated Controller'}catch(e){}return p;
+  }
+  const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v51){const w=function(){const r=oldRender.apply(this,arguments);try{panel();window.renderMasterBot()}catch(e){}return r};w.__v51=true;w.__v51Original=oldRender;window.render=w;try{render=w}catch(e){}}
+  window.__structureProofV51={version:VERSION,signal,proof,arm,settle,state:S,baseline:BASELINE,minN:MIN_N,rolling:ROLLING,chronologicalPreResultOnly:true,redBlackSeparated:true,sequenceV2Untouched:true};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,180));else setTimeout(panel,180);setTimeout(()=>{try{window.__armVerifiedPredictions?.();panel()}catch(e){}},450);
+})();
+</script>
+
+
+<script id="derived-ai-future-path-v53">
+/* V53 — DERIVED ROAD AI FUTURE-PATH FOCUS
+   Primary job: compare the hypothetical PLAYER and BANKER next-hand futures.
+   Uses projected Main Road position + Big Eye + Small + Cockroach outcomes.
+   Does not commit either hypothetical hand. */
+(function(){
+  const oldDerived = window.derivedRoadSequenceAI || (typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI:null);
+
+  function futureFocusedDerivedRoadAI(){
+    let x=null;
+    try{x=mainRoadFutureTest();}catch(e){}
+    if(!x){
+      return oldDerived?oldDerived():{side:null,confidence:0,reason:'WAIT — future-path test unavailable.',roads:[],ready:0,qualifiedRoads:0,version:53};
+    }
+
+    const readyRoads=(x.roadSigs||[]).filter(r=>{
+      const s=r.sig||{};
+      return s.pMark&&s.bMark&&s.pMark!==s.bMark;
+    }).length;
+    const mainReady=!!(x.main&&((Number(x.main.pPct)||0)+(Number(x.main.bPct)||0)>0));
+    const winner=x.side;
+    const winnerPct=winner==='P'?x.p.norm:winner==='B'?x.b.norm:50;
+    const loserPct=winner==='P'?x.b.norm:winner==='B'?x.p.norm:50;
+    const edge=Math.abs((Number(x.p.norm)||50)-(Number(x.b.norm)||50));
+
+    // Require useful road projection. Main Road is supporting context, not a forced selector.
+    let qualified=!!winner && readyRoads>=2 && edge>=4 && winnerPct>=52;
+    if(readyRoads===1) qualified=!!winner && mainReady && edge>=8 && winnerPct>=54;
+    if(readyRoads===0) qualified=false;
+
+    // Confidence describes evidence separation, not a guaranteed win probability.
+    let confidence=0;
+    if(qualified){
+      confidence=Math.min(88,Math.round(50 + edge*1.35 + readyRoads*2 + (mainReady?2:0)));
+    }
+
+    const roadDetails=(x.roadSigs||[]).map(r=>{
+      const s=r.sig||{};
+      const chosenMark=winner==='P'?s.pMark:winner==='B'?s.bMark:null;
+      return {
+        key:r.label==='Eye'?'eye':r.label==='Small'?'small':'roach',
+        name:r.label,
+        offset:r.offset,
+        pMark:s.pMark||null,bMark:s.bMark||null,
+        chosenMark,
+        pPct:Number(s.pPct)||50,bPct:Number(s.bPct)||50,
+        similarityScore:Number(s.similarityScore)||0,
+        strength:Number(s.strength)||0,
+        matches:Number(s.matches)||0,
+        side:winner||null
+      };
+    });
+
+    const reason=qualified
+      ? `FUTURE-PATH PICK — ${winner==='P'?'PLAYER':'BANKER'} produces the better projected Main Road + 3-road structure (${winnerPct}% vs ${loserPct}%, ${readyRoads}/3 roads ready, ${edge}% separation).`
+      : `WAIT — future-path comparison is not separated enough (${x.p.norm}% P vs ${x.b.norm}% B, ${readyRoads}/3 roads ready).`;
+
+    return {
+      side:qualified?winner:null,
+      confidence,
+      pVotes:(x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='P').length,
+      bVotes:(x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='B').length,
+      winner:Math.max((x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='P').length,(x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='B').length),
+      edge:edge/100,
+      roads:roadDetails,
+      ready:readyRoads,
+      qualifiedRoads:readyRoads,
+      phase:(currentSequence().filter(v=>v==='P'||v==='B').length<18?'early':currentSequence().filter(v=>v==='P'||v==='B').length<36?'middle':'late'),
+      rhythm:'future-path',
+      reason,
+      adaptive:true,
+      version:53,
+      futurePath:{
+        playerScore:x.p.norm,bankerScore:x.b.norm,
+        likely:winner,qualified,edge,readyRoads,mainReady,
+        playerMain:x.p.main,bankerMain:x.b.main,
+        elapsed:x.elapsed
+      }
+    };
+  }
+
+  try{window.derivedRoadSequenceAI=futureFocusedDerivedRoadAI;}catch(e){}
+  try{globalThis.derivedRoadSequenceAI=futureFocusedDerivedRoadAI;}catch(e){}
+
+  function relabel(){
+    const title=document.querySelector('.road-predict-title');
+    if(title) title.textContent='Derived Road AI V53 — Two-Path Future Outcome Engine';
+    const card=document.getElementById('derivedRoadPick');
+    const panel=card&&card.closest('.road-predict');
+    if(panel){
+      const sub=panel.querySelector('div[style*="margin-top:7px"]');
+      if(sub) sub.innerHTML='Primary focus: before the real next hand, the AI tests <b>PLAYER next</b> versus <b>BANKER next</b>, projects the Main Road position plus Big Eye Boy, Small Road, and Cockroach Road for both futures, then chooses the better-supported path. Neither hypothetical hand is saved. WAIT is used when the two futures are too close or too few roads are ready.';
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,50));else setTimeout(relabel,50);
+})();
+</script>
+
+
+<script id="derived-ai-history-confirm-v54">
+/* V54 — DERIVED ROAD AI + VERIFIED PAST-SHOE CONFIRMATION
+   Primary: V53 two-path future projection (Main Road + 3 derived roads).
+   Secondary only: saved-shoe MAIN ROAD P/B continuation history.
+   Historical evidence may strengthen, weaken, or veto into WAIT; it never creates
+   a pick when the live two-path engine itself is unqualified. Saved derived-road
+   histories are intentionally not read by this layer. */
+(function(){
+  const primaryDerived = window.derivedRoadSequenceAI || (typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI:null);
+
+  function historyConfirmation(){
+    let sigs=[];
+    try{
+      ['eye','small','roach'].forEach(k=>{
+        const z=mainRoadHistorySignal(k)||{};
+        if(z.side==='P'||z.side==='B') sigs.push({key:k,...z});
+      });
+    }catch(e){}
+    if(!sigs.length){
+      return {side:null,qualified:false,strength:0,pPct:50,bPct:50,matches:0,bestLen:0,quality:0,agreement:0,channels:0,source:'SAVED_MAIN_ROAD_ONLY'};
+    }
+    let p=0,b=0,w=0,matches=0,bestLen=0,qsum=0;
+    for(const z of sigs){
+      const q=Math.max(0,Math.min(100,Number(z.quality)||0));
+      const st=Math.max(0,Math.min(100,Number(z.strength)||0));
+      const wt=.55 + q/100 + st/180;
+      w+=wt; qsum+=q; matches+=Number(z.matches)||0; bestLen=Math.max(bestLen,Number(z.bestLen)||0);
+      if(z.side==='P') p+=wt; else b+=wt;
+    }
+    const side=p===b?null:(p>b?'P':'B');
+    const leader=Math.max(p,b), loser=Math.min(p,b);
+    const agreement=w?leader/w:0;
+    const avgQ=sigs.length?qsum/sigs.length:0;
+    const edge=w?(leader-loser)/w:0;
+    const qualified=!!side && sigs.length>=2 && matches>=3 && agreement>=.60 && (avgQ>=48 || bestLen>=7);
+    const strength=qualified?Math.min(88,Math.round(48 + edge*24 + Math.max(0,avgQ-45)*.35 + Math.min(7,matches)*.6)):0;
+    const leaderPct=Math.round(50+Math.min(.36,edge)*50);
+    return {
+      side:qualified?side:null,rawSide:side,qualified,strength,
+      pPct:side==='P'?leaderPct:side==='B'?100-leaderPct:50,
+      bPct:side==='B'?leaderPct:side==='P'?100-leaderPct:50,
+      matches,bestLen,quality:Math.round(avgQ),agreement:Math.round(agreement*100),channels:sigs.length,
+      source:'SAVED_MAIN_ROAD_ONLY',details:sigs
+    };
+  }
+
+  function v54DerivedRoadAI(){
+    const live=primaryDerived?primaryDerived():null;
+    if(!live) return {side:null,confidence:0,reason:'WAIT — live future-path engine unavailable.',version:54};
+    const hist=historyConfirmation();
+
+    // History is secondary. It cannot manufacture a pick if V53 did not qualify one.
+    if(!(live.side==='P'||live.side==='B')){
+      return {...live,version:54,historyConfirmation:hist,
+        reason:(live.reason||'WAIT — live two-path future is not qualified.') + (hist.qualified?` Historical Main Road leans ${hist.side==='P'?'PLAYER':'BANKER'}, but history cannot create the pick by itself.`:' Historical confirmation is not qualified yet.')};
+    }
+
+    let side=live.side;
+    let confidence=Number(live.confidence)||0;
+    let qualified=true;
+    let historyEffect='NEUTRAL';
+
+    if(hist.qualified && hist.side===side){
+      // Agreement adds only a modest confirmation bonus; live projection remains dominant.
+      confidence=Math.min(92,Math.round(confidence + 3 + Math.max(0,hist.strength-50)*.10));
+      historyEffect='CONFIRMED';
+    }else if(hist.qualified && hist.side!==side){
+      // Strong independent contradiction is a reason to become selective, not to flip sides.
+      const liveEdge=Math.abs(Number(live.futurePath?.edge)||0);
+      const strongConflict=hist.strength>=62 && hist.agreement>=67;
+      if(strongConflict && liveEdge<12){
+        qualified=false; side=null; confidence=0; historyEffect='CONFLICT_WAIT';
+      }else{
+        confidence=Math.max(0,Math.round(confidence-7));
+        historyEffect='CONFLICT_REDUCED';
+      }
+    }
+
+    const liveName=live.side==='P'?'PLAYER':'BANKER';
+    let reason;
+    if(!hist.qualified){
+      reason=`FUTURE-PATH PICK — ${liveName}. Past-shoe Main Road confirmation is still too weak, so it adds no influence.`;
+    }else if(historyEffect==='CONFIRMED'){
+      reason=`FUTURE + HISTORY CONFIRMED — ${liveName}. The live Main Road + 3-road future path leads, and saved Main Road continuations independently agree (${hist.agreement}% agreement, ${hist.matches} matches).`;
+    }else if(historyEffect==='CONFLICT_WAIT'){
+      reason=`WAIT — live future path favored ${liveName}, but strong saved-shoe Main Road history points the other way (${hist.agreement}% agreement, ${hist.matches} matches). History does not flip the pick; the conflict cancels it.`;
+    }else{
+      reason=`FUTURE-PATH PICK — ${liveName}, but confidence is reduced because saved-shoe Main Road history disagrees (${hist.agreement}% agreement, ${hist.matches} matches).`;
+    }
+
+    return {...live,side:qualified?side:null,confidence,reason,version:54,historyConfirmation:hist,historyEffect,
+      sourceContract:{primary:'LIVE_TWO_PATH_MAIN_PLUS_3_ROADS',secondary:'SAVED_MAIN_ROAD_PB_ONLY',savedDerivedRoadHistory:false,historyCanCreatePick:false}};
+  }
+
+  try{window.derivedRoadSequenceAI=v54DerivedRoadAI;}catch(e){}
+  try{globalThis.derivedRoadSequenceAI=v54DerivedRoadAI;}catch(e){}
+  try{window.__derivedHistoryConfirmV54={version:54,historyConfirmation,source:'SAVED_MAIN_ROAD_ONLY'};}catch(e){}
+
+  function relabel(){
+    const title=document.querySelector('.road-predict-title');
+    if(title) title.textContent='Derived Road AI V54 — Future Path + Past-Shoe Confirmation';
+    const card=document.getElementById('derivedRoadPick');
+    const panel=card&&card.closest('.road-predict');
+    if(panel){
+      const sub=panel.querySelector('div[style*="margin-top:7px"]');
+      if(sub) sub.innerHTML='Primary: live <b>PLAYER-next vs BANKER-next</b> projection across the Main Road + Big Eye Boy + Small Road + Cockroach Road. Secondary: saved-shoe <b>Main Road P/B continuation history only</b>. History can raise confidence, lower confidence, or force WAIT on a strong conflict, but it cannot create or flip a pick by itself. Saved derived-road history is excluded from this confirmation layer.';
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,60));else setTimeout(relabel,60);
+})();
+</script>
+
 </body>
 </html>
