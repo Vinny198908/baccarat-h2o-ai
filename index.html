@@ -274,7 +274,7 @@
 </div>
 <div class="analyzer" id="sequenceAiPanel">
 <div class="analyzer-title">Sequence AI V2 Analyzer</div>
-<div class="analyzer-sub">Adaptive saved-shoe P/B/T similarity engine. It compares short, medium, and long rolling endings against the front, middle, and end of historical shoes, limits duplicate influence from any one shoe, rewards persistent matches as the current shoe grows, and uses a stronger WAIT gate when continuations conflict. Sequence AI V2 uses saved P/B/T shoe history only.</div>
+<div class="analyzer-sub">High-selectivity saved-shoe P/B/T similarity engine. It gives substantially more weight to persistent long matches, mutes ambiguous historical continuations, and uses strict color-calibrated confidence gates (strictest on BLACK) to reject weak/conflicting bets. Expect substantially more WAIT calls; this profile is designed to prioritize historical precision over prediction frequency. Sequence AI V2 uses saved P/B/T shoe history only.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">WAIT</strong></div>
 <div class="analyzer-card"><span>Sequence confidence</span><strong id="seqAiStrength">—</strong></div>
@@ -682,7 +682,7 @@
 <input accept=".json,application/json" class="import-file" id="restoreFullBackupInput" type="file"/>
 <button class="tiny-btn" id="recoverLocalBackupBtn">Recover On-Device Backup</button>
 <button class="tiny-btn" id="verifyBackupBtn">Verify Backup</button>
-<button class="tiny-btn" id="scanCleanDuplicatesBtn">Scan / Clean Duplicates</button>
+<button class="tiny-btn" id="scanCleanDuplicatesBtn">Scan / Review Duplicates</button>
 <button class="tiny-btn" id="deleteLocalBackupBtn" style="border-color:#8b3434;color:#ffb3b3">Delete On-Device Backup</button>
 </div>
 </div>
@@ -749,12 +749,12 @@
     Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. Displayed percentages are analysis signals only and do not guarantee a future result.
   </div>
 <div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
-<div class="analyzer-title">🤖 High-Powered Bot AI — 4-Signal Fusion</div>
+<div class="analyzer-title">🤖 High-Powered Bot AI — 3-Signal Core Fusion</div>
 <div class="bot-live-strip" id="botLiveStrip">
 <div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
 <div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
 </div>
-<div class="analyzer-sub">Combines three independent signals: Sequence AI V2, the live-rhythm Sequence Duplicate, and Road Preview AI. The Bot dynamically weights evidence quality, requires meaningful agreement, and returns WAIT when the sources conflict or the Duplicate detects an unstable rhythm transition.</div>
+<div class="analyzer-sub">Combines the three retained core signals: Sequence AI V2, Sequence Duplicate, and Road Preview AI. The Bot dynamically weights evidence quality and returns WAIT when the retained sources conflict.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Bot decision</span><strong id="botDecision">WAIT</strong></div>
 <div class="analyzer-card"><span>Bot confidence</span><strong id="botConfidence">—</strong></div>
@@ -765,7 +765,7 @@
 <div class="analyzer-card"><span>Road Preview matches</span><strong id="botRoadSamples">0</strong></div>
 <div class="analyzer-card"><span>Bot verified accuracy</span><strong id="botAccuracy">—</strong></div>
 </div>
-<div class="analyzer-sub" id="botNote" style="margin-top:8px">Enter hands to activate Sequence AI V2 + Sequence Duplicate + Road Preview AI + Kaggle fusion.</div>
+<div class="analyzer-sub" id="botNote" style="margin-top:8px">Enter hands to activate Sequence AI V2 + Sequence Duplicate + Road Preview AI fusion.</div>
 <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
 <button class="tiny-btn" id="botLearningToggle">Learning: ON</button>
 <button class="tiny-btn" id="botResetStats">Reset Bot Stats</button>
@@ -897,7 +897,7 @@ function renderLibraryBackupStatus(){
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = (location.protocol==='https:' || location.protocol==='http:') ? (location.origin + '/score') : '';
 const DEFAULT_DEEPSEEK_SCORE_URL = ''; // DeepSeek removed; legacy compatibility only
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, predictionLibraryMode:'selected', activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:true,kaggle:{last:null,error:''}, bot:{learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}}, ultimate:{last:null,pendingId:null,error:'',connected:false}};
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, predictionLibraryMode:'selected', activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:true, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:false,kaggle:{last:null,error:''}, bot:{learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}}, ultimate:{last:null,pendingId:null,error:'',connected:false}};
 
 function load(){
   try{
@@ -970,7 +970,7 @@ window.addEventListener('storage',e=>{
   }catch(err){}
 });
 function persist(opts={}){
-  const allowLibraryShrink=opts===true || !!opts?.allowLibraryShrink;
+  const allowLibraryShrink=opts===true || !!opts?.allowLibraryShrink || window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true;
   let payload=state;
   if(!allowLibraryShrink){
     try{
@@ -1502,45 +1502,119 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
   return true;
 }
 
-function duplicateReportForLibrary(lib){
-  const seen=new Map(), duplicates=[];
-  (Array.isArray(lib)?lib:[]).forEach((x,i)=>{
-    const seq=String(x?.sequence||'');
-    if(!seq)return;
-    if(seen.has(seq)) duplicates.push({index:i,firstIndex:seen.get(seq),sequence:seq});
-    else seen.set(seq,i);
+function duplicateNormalizeSequence(seq,ignoreTies=false){
+  let s=String(seq||'').toUpperCase().replace(/[^PBT]/g,'');
+  if(ignoreTies)s=s.replace(/T/g,'');
+  return s;
+}
+function duplicateSimilarity(a,b){
+  a=duplicateNormalizeSequence(a,false);b=duplicateNormalizeSequence(b,false);
+  if(!a||!b)return 0;
+  // Bounded Levenshtein similarity. Library shoes are short enough for this scan,
+  // and this catches one/multiple insertions, deletions, or substitutions.
+  const prev=Array(b.length+1).fill(0).map((_,i)=>i),cur=Array(b.length+1).fill(0);
+  for(let i=1;i<=a.length;i++){
+    cur[0]=i;
+    for(let j=1;j<=b.length;j++){
+      const cost=a[i-1]===b[j-1]?0:1;
+      cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+cost);
+    }
+    for(let j=0;j<=b.length;j++)prev[j]=cur[j];
+  }
+  return 1-prev[b.length]/Math.max(a.length,b.length,1);
+}
+function duplicateLibraryAudit(lib,color){
+  const arr=Array.isArray(lib)?lib:[];
+  const exact=[],tieIgnored=[],near=[];
+  const seenExact=new Map(),seenPB=new Map();
+  arr.forEach((x,i)=>{
+    const seq=duplicateNormalizeSequence(x?.sequence,false);if(!seq)return;
+    if(seenExact.has(seq))exact.push({a:seenExact.get(seq),b:i,score:1});else seenExact.set(seq,i);
+    const pb=duplicateNormalizeSequence(seq,true);
+    if(pb){
+      if(seenPB.has(pb)){
+        const first=seenPB.get(pb);
+        if(duplicateNormalizeSequence(arr[first]?.sequence,false)!==seq) tieIgnored.push({a:first,b:i});
+      }else seenPB.set(pb,i);
+    }
   });
-  return duplicates;
+  // Near-duplicate scan is review-only. Exclude exact and tie-only matches.
+  const exactPairs=new Set(exact.map(x=>`${Math.min(x.a,x.b)}:${Math.max(x.a,x.b)}`));
+  const tiePairs=new Set(tieIgnored.map(x=>`${Math.min(x.a,x.b)}:${Math.max(x.a,x.b)}`));
+  for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++){
+    const key=`${i}:${j}`;if(exactPairs.has(key)||tiePairs.has(key))continue;
+    const a=duplicateNormalizeSequence(arr[i]?.sequence,false),b=duplicateNormalizeSequence(arr[j]?.sequence,false);
+    if(!a||!b)continue;
+    // Avoid calling short partial shoes "duplicates" just because of a few common hands.
+    if(Math.min(a.length,b.length)<12)continue;
+    const ratio=Math.min(a.length,b.length)/Math.max(a.length,b.length);
+    if(ratio<.88)continue;
+    const score=duplicateSimilarity(a,b);
+    if(score>=.94)near.push({a:i,b:j,score});
+  }
+  near.sort((x,y)=>y.score-x.score);
+  return {color,count:arr.length,exact,tieIgnored,near};
+}
+function duplicatePairLines(title,list,limit=8,withScore=false){
+  if(!list.length)return `${title}: 0`;
+  const shown=list.slice(0,limit).map(x=>`#${x.a+1} ↔ #${x.b+1}${withScore?` (${Math.round(x.score*100)}%)`:''}`).join(', ');
+  return `${title}: ${list.length}\n${shown}${list.length>limit?`\n+${list.length-limit} more`:''}`;
 }
 function cleanExactLibraryDuplicates(){
-  const red=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[];
-  const black=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[];
-  const redDup=duplicateReportForLibrary(red), blackDup=duplicateReportForLibrary(black);
-  const total=redDup.length+blackDup.length;
-  if(!total){
-    alert(`DUPLICATE SCAN COMPLETE\n\nNo exact duplicate shoes were found.\nRED: ${red.length} shoes\nBLACK: ${black.length} shoes`);
-    return;
+  const btn=document.getElementById('scanCleanDuplicatesBtn');
+  const status=document.getElementById('libraryBackupStatus');
+  const oldText=btn?.textContent||'Scan / Clean Duplicates';
+  if(btn){btn.disabled=true;btn.textContent='Scanning library…';}
+  if(status)status.textContent='SCANNING DUPLICATES…';
+  try{
+    const red=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[];
+    const black=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[];
+    const R=duplicateLibraryAudit(red,'RED'),B=duplicateLibraryAudit(black,'BLACK');
+    const exactTotal=R.exact.length+B.exact.length;
+    const tieTotal=R.tieIgnored.length+B.tieIgnored.length;
+    const nearTotal=R.near.length+B.near.length;
+    const report=[
+      'DUPLICATE LIBRARY SCAN COMPLETE',
+      '',`RED LIBRARY — ${R.count} shoes`,
+      duplicatePairLines('Exact duplicates',R.exact),
+      duplicatePairLines('Same P/B when Ties ignored',R.tieIgnored),
+      duplicatePairLines('Near-duplicates ≥94%',R.near,8,true),
+      '',`BLACK LIBRARY — ${B.count} shoes`,
+      duplicatePairLines('Exact duplicates',B.exact),
+      duplicatePairLines('Same P/B when Ties ignored',B.tieIgnored),
+      duplicatePairLines('Near-duplicates ≥94%',B.near,8,true),
+      '',`TOTALS — exact ${exactTotal} • tie-ignored ${tieTotal} • near ${nearTotal}`,
+      '', 'Only 100% exact full-sequence duplicates are eligible for automatic removal. Tie-ignored and near-duplicate matches are report-only so the scanner cannot erase a legitimate different shoe.'
+    ].join('\n');
+    if(status)status.textContent=`SCAN: ${exactTotal} exact • ${tieTotal} tie-ignored • ${nearTotal} near`;
+    if(!exactTotal){alert(report);return;}
+    const ok=confirm(report+`\n\nREMOVE THE ${exactTotal} EXACT EXTRA COP${exactTotal===1?'Y':'IES'} NOW? One original full sequence will be kept.`);
+    if(!ok)return;
+    saveLocalLibraryBackup('pre_duplicate_cleanup');
+    const dedupe=lib=>{
+      const seen=new Set();
+      return (Array.isArray(lib)?lib:[]).filter(x=>{
+        const seq=duplicateNormalizeSequence(x?.sequence,false);
+        if(!seq||seen.has(seq))return false;
+        seen.add(seq);return true;
+      });
+    };
+    state.redPatternLibrary=dedupe(red);
+    state.blackPatternLibrary=dedupe(black);
+    persist({allowLibraryShrink:true});
+    localStorage.removeItem(LIBRARY_BACKUP_KEY);
+    localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);
+    saveLocalLibraryBackup('post_duplicate_cleanup_clean');
+    render();
+    if(status)status.textContent=`CLEANED ${exactTotal} EXACT DUPLICATE${exactTotal===1?'':'S'}`;
+    alert(`CLEANUP COMPLETE\n\nRemoved ${exactTotal} exact duplicate shoe${exactTotal===1?'':'s'}.\nRED: ${state.redPatternLibrary.length} kept\nBLACK: ${state.blackPatternLibrary.length} kept\n\nTie-ignored and near-duplicate matches were NOT deleted. A new clean on-device backup was created.`);
+  }catch(err){
+    console.error('Duplicate library scan failed',err);
+    if(status)status.textContent='DUPLICATE SCAN ERROR';
+    alert('Duplicate scan failed: '+String(err?.message||err));
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=oldText;}
   }
-  const ok=confirm(`DUPLICATE SCAN FOUND ${total} EXTRA COP${total===1?'Y':'IES'}\n\nRED duplicates: ${redDup.length}\nBLACK duplicates: ${blackDup.length}\n\nClean them now? One original copy of every exact shoe will be kept.`);
-  if(!ok)return;
-  // Preserve one pre-clean snapshot first, then replace on-device backups with a clean snapshot.
-  saveLocalLibraryBackup('pre_duplicate_cleanup');
-  const dedupe=lib=>{
-    const seen=new Set();
-    return (Array.isArray(lib)?lib:[]).filter(x=>{
-      const seq=String(x?.sequence||'');
-      if(!seq || seen.has(seq)) return false;
-      seen.add(seq);return true;
-    });
-  };
-  state.redPatternLibrary=dedupe(red);
-  state.blackPatternLibrary=dedupe(black);
-  persist({allowLibraryShrink:true});
-  localStorage.removeItem(LIBRARY_BACKUP_KEY);
-  localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);
-  saveLocalLibraryBackup('post_duplicate_cleanup_clean');
-  render();
-  alert(`CLEANUP COMPLETE\n\nRemoved ${total} duplicate shoe${total===1?'':'s'}.\nRED: ${state.redPatternLibrary.length} kept\nBLACK: ${state.blackPatternLibrary.length} kept\n\nA new clean on-device backup was created.`);
 }
 function deleteOnDeviceLibraryBackups(){
   const b=readBestLocalLibraryBackup(),c=libraryBackupCounts(b);
@@ -2632,13 +2706,19 @@ function renderRoadPreviewAI(){
 
 function sequenceAISignal(){
   const cur=currentSequence();
-  // Sequence AI V2 stays isolated: selected/combined saved P/B/T shoe history only.
-  // No Kaggle, H2O, derived roads, Bot AI, or card composition.
   const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(cur.length<4 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus saved historical shoe evidence.'};
 
-  // Adaptive windows: short, medium and long endings become available as the shoe grows.
-  const maxK=Math.min(24,cur.length);
+  // V2 HIGH-SELECTIVITY CALIBRATION: favor persistent long matches and demand substantially more proof
+  // from the weaker BLACK historical pool. COMBINED uses the middle gate.
+  const colorMode=state.predictionLibraryMode==='combined'?'combined':(state.currentShoeColor||'combined');
+  const gate=colorMode==='black'
+    ? {sim:80,agree:.72,edge:24,minRaw:5,minLong:9}
+    : colorMode==='red'
+      ? {sim:80,agree:.72,edge:22,minRaw:5,minLong:9}
+      : {sim:80,agree:.72,edge:20,minRaw:5,minLong:9};
+
+  const maxK=Math.min(28,cur.length);
   const lengths=[];
   for(let k=maxK;k>=3;k--){
     if(k<=8 || k%2===0 || k===maxK) lengths.push(k);
@@ -2647,54 +2727,56 @@ function sequenceAISignal(){
   let windows=[], rawMatches=0, bestLen=0;
   lengths.forEach(k=>{
     const pattern=cur.slice(-k).join('');
-    let p=0,b=0,t=0,total=0;
     const shoeVotes=[];
     lib.forEach((shoe,shoeIndex)=>{
       const ss=shoe.sequence||'';
-      let sp=0,sb=0,st=0,hits=0,bestPosition='';
+      let sp=0,sb=0,st=0,hits=0;
       for(let i=0;i+k<ss.length;i++){
         if(ss.slice(i,i+k)!==pattern) continue;
         const nxt=ss[i+k];
         if(nxt==='P')sp++; else if(nxt==='B')sb++; else if(nxt==='T')st++;
         hits++;
-        const frac=i/Math.max(1,ss.length-k);
-        bestPosition=frac<.33?'front':frac<.67?'middle':'end';
       }
       if(hits){
-        // Duplicate-match control: each historical shoe contributes one normalized vote per window.
         const z=sp+sb+st||1;
-        shoeVotes.push({shoeIndex,p:sp/z,b:sb/z,t:st/z,hits,position:bestPosition});
+        const purity=Math.max(sp,sb,st)/z;
+        // One shoe still cannot dominate a window, but ambiguous continuations are muted.
+        const voteQuality=.45+.55*purity;
+        shoeVotes.push({shoeIndex,p:sp/z,b:sb/z,t:st/z,hits,purity,voteQuality});
       }
     });
     if(!shoeVotes.length) return;
-    const pAvg=shoeVotes.reduce((a,x)=>a+x.p,0)/shoeVotes.length;
-    const bAvg=shoeVotes.reduce((a,x)=>a+x.b,0)/shoeVotes.length;
-    const tAvg=shoeVotes.reduce((a,x)=>a+x.t,0)/shoeVotes.length;
+    const qsum=shoeVotes.reduce((a,x)=>a+x.voteQuality,0)||1;
+    const pAvg=shoeVotes.reduce((a,x)=>a+x.p*x.voteQuality,0)/qsum;
+    const bAvg=shoeVotes.reduce((a,x)=>a+x.b*x.voteQuality,0)/qsum;
+    const tAvg=shoeVotes.reduce((a,x)=>a+x.t*x.voteQuality,0)/qsum;
     const leader=pAvg>=bAvg&&pAvg>=tAvg?'P':bAvg>=pAvg&&bAvg>=tAvg?'B':'T';
-    const edge=Math.max(pAvg,bAvg,tAvg)-[pAvg,bAvg,tAvg].sort((a,b)=>b-a)[1];
+    const vals=[pAvg,bAvg,tAvg].sort((a,b)=>b-a);
+    const edge=vals[0]-vals[1];
     const sampleQuality=Math.min(1,shoeVotes.length/8);
-    const lengthQuality=Math.min(1,k/16);
-    const persistence=Math.min(1,k/Math.max(6,cur.length));
-    const weight=(.45+.55*sampleQuality)*(1+.9*lengthQuality)*(1+.35*persistence);
+    const lengthQuality=Math.min(1,k/18);
+    const longBoost=1+1.45*Math.pow(lengthQuality,1.7);
+    const purityQuality=shoeVotes.reduce((a,x)=>a+x.purity,0)/shoeVotes.length;
+    const weight=(.38+.62*sampleQuality)*longBoost*(.72+.28*purityQuality)*(1+.45*edge);
     rawMatches+=shoeVotes.length;
     bestLen=Math.max(bestLen,k);
-    windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,edge,samples:shoeVotes.length,weight});
+    windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,edge,samples:shoeVotes.length,weight,purity:purityQuality});
   });
 
   if(!windows.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable saved-shoe sequence found yet.'};
 
-  // Determine persistent leader first; conflicting windows are deliberately penalized.
   const leaderWeights={P:0,B:0,T:0};
   windows.forEach(w=>leaderWeights[w.leader]+=w.weight);
   const leader=Object.entries(leaderWeights).sort((a,b)=>b[1]-a[1])[0][0];
+  const agreeingWeight=windows.filter(w=>w.leader===leader).reduce((a,w)=>a+w.weight,0);
+  const allWeight=windows.reduce((a,w)=>a+w.weight,0)||1;
+  const weightedAgreement=agreeingWeight/allWeight;
   const agreeWindows=windows.filter(w=>w.leader===leader).length;
   const totalWindows=windows.length;
-  const agreement=agreeWindows/totalWindows;
 
   let ap=0,ab=0,at=0,aw=0;
   windows.forEach(w=>{
-    // Persistent longer matches get more influence; disagreeing windows are muted.
-    const persistenceBoost=w.leader===leader ? (1+.35*agreement) : .55;
+    const persistenceBoost=w.leader===leader ? (1+.60*weightedAgreement) : .32;
     const ww=w.weight*persistenceBoost;
     ap+=w.p*ww; ab+=w.b*ww; at+=w.t*ww; aw+=ww;
   });
@@ -2703,26 +2785,25 @@ function sequenceAISignal(){
   const nonTieTotal=pr+br||1;
   const nonTieEdge=Math.abs(pr-br)/nonTieTotal*100;
   const avgSamples=windows.reduce((a,w)=>a+Math.min(1,w.samples/8),0)/totalWindows;
-  const lengthQuality=Math.min(1,bestLen/16);
-  const similarityScore=Math.round(100*(.48*agreement+.30*avgSamples+.22*lengthQuality));
-  const grade=similarityScore>=84&&agreement>=.72?'VERY STRONG':similarityScore>=70&&agreement>=.62?'STRONG':similarityScore>=55?'MODERATE':'LOW';
+  const avgPurity=windows.reduce((a,w)=>a+w.purity,0)/totalWindows;
+  const lengthQuality=Math.min(1,bestLen/18);
+  const similarityScore=Math.round(100*(.43*weightedAgreement+.22*avgSamples+.23*lengthQuality+.12*avgPurity));
+  const grade=similarityScore>=86&&weightedAgreement>=.76?'VERY STRONG':similarityScore>=74&&weightedAgreement>=.68?'STRONG':similarityScore>=60?'MODERATE':'LOW';
   const candidate=pr>=br?'P':'B';
   const tieLedHistory=leader==='T';
+  const insufficientDepth=(rawMatches<gate.minRaw && bestLen<gate.minLong);
 
-  // Stronger WAIT gate: do not manufacture confidence from weak/conflicting history.
-  // Sequence AI V2 is a P/B next-winner signal; tie-led historical windows are
-  // treated as insufficient P/B evidence instead of being counted as P/B agreement.
-  if(tieLedHistory || similarityScore<55 || agreement<.58 || nonTieEdge<6 || (rawMatches<3 && bestLen<8)){
+  if(tieLedHistory || similarityScore<gate.sim || weightedAgreement<gate.agree || nonTieEdge<gate.edge || insufficientDepth){
     const reason=tieLedHistory
       ? `WAIT: historical windows are led by T (${tr}%), so there is no qualified P/B continuation.`
-      : `WAIT: ${similarityScore}% similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge.`;
+      : `WAIT: ${similarityScore}% quality • ${Math.round(weightedAgreement*100)}% weighted agreement • ${Math.round(nonTieEdge)}-point P/B edge • ${colorMode.toUpperCase()} selective gate.`;
     return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:reason};
   }
 
   const sampleFactor=Math.min(1,rawMatches/24);
-  const persistenceFactor=Math.min(1,bestLen/16);
-  const strength=Math.min(88,Math.round(48 + nonTieEdge*.20 + Math.max(0,similarityScore-50)*.38 + sampleFactor*5 + persistenceFactor*4));
-  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources:[{name:'saved-shoes-v2'}]};
+  const persistenceFactor=Math.min(1,bestLen/18);
+  const strength=Math.min(90,Math.round(46 + nonTieEdge*.22 + Math.max(0,similarityScore-50)*.40 + sampleFactor*4 + persistenceFactor*6));
+  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources:[{name:'saved-shoes-v2-selective'}]};
 }
 function renderSequenceAI(){
   const s=window.__slV10Signal?window.__slV10Signal('seqv2',sequenceAISignal()):sequenceAISignal();
@@ -4893,6 +4974,7 @@ renderLibraryBackupStatus();
   }
   function armVerifiedPredictions(){
     const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join(''),ctx=verifiedContext();
+    Object.entries(a.pending||{}).forEach(([k,p])=>{if(!p||Number(p.hand)!==hand)delete a.pending[k];});
     modelDefs.forEach(([key,name,get])=>{
       let x=null;try{x=get()}catch(e){}
       const side=x?.side;
@@ -4908,8 +4990,10 @@ renderLibraryBackupStatus();
   function settleVerifiedPredictions(actual){
     const a=ensureAccuracy(); if(actual==='T'){a.ties=(a.ties||0)+1;persist();return;}
     if(actual!=='P'&&actual!=='B')return;
+    const settlingHand=currentSequence().length+1;
     modelDefs.forEach(([key,name])=>{
       const p=a.pending[key]; if(!p)return;
+      if(Number(p.hand)!==settlingHand){delete a.pending[key];return;}
       const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
       m.splits ||= {};
       const win=p.side===actual; m.predictions++; if(win)m.wins++;else m.losses++;
@@ -4939,10 +5023,18 @@ renderLibraryBackupStatus();
       const rate=m.predictions?Math.round(m.wins*100/m.predictions):null;
       const recent=(arr)=>arr?.length?Math.round(arr.reduce((x,y)=>x+y,0)*100/arr.length)+'%':'—';
       const d=document.createElement('div');d.className='analyzer-card';d.style.textAlign='left';
-      d.innerHTML=`<span style="font-size:10px">${name}</span><strong style="font-size:18px">${rate==null?'—':rate+'%'}</strong><small style="display:block;color:var(--muted);margin-top:3px">Verified ${m.wins||0}W–${m.losses||0}L • N=${m.predictions||0} • WAIT=${m.waits||0}<br>Last 10 ${recent(m.last10)} • 25 ${recent(m.last25)} • 50 ${recent(m.last50)}<br>${p?`LOCKED ${p.side} for hand #${p.hand}`:'No qualified prediction locked'}</small>`;
+      d.innerHTML=`<span style="font-size:10px">${name}</span><strong style="font-size:18px">${rate==null?'—':rate+'%'}</strong><small style="display:block;color:var(--muted);margin-top:3px">Verified ${m.wins||0}W–${m.losses||0}L • N=${m.predictions||0} • WAIT=${m.waits||0}<br>Last 10 ${recent(m.last10)} • 25 ${recent(m.last25)} • 50 ${recent(m.last50)}<br>${m.last?`Last settled #${m.last.hand}: ${m.last.predicted} → ${m.last.actual} ${m.last.win?'✓':'✗'}<br>`:''}${p?`LOCKED ${p.side} for hand #${p.hand}`:'No qualified prediction locked'}</small>`;
       g.appendChild(d);
     });
-    const n=document.getElementById('verifiedAccuracyNote');if(n)n.textContent=`Only pre-result P/B locks are scored. ${a.ties||0} tie result(s) observed while verification was active; ties do not become wins or losses.`;
+    const n=document.getElementById('verifiedAccuracyNote');
+    if(n){
+      const nextHand=currentSequence().length+1;
+      const pending=Object.values(a.pending||{}).filter(Boolean);
+      const stale=pending.filter(p=>Number(p.hand)!==nextHand);
+      const armed=pending.filter(p=>Number(p.hand)===nextHand).length;
+      const health=stale.length?`⚠ LEDGER CHECK: ${stale.length} stale lock(s) detected — re-arm required.`:`✅ LEDGER HEALTHY: ${armed} model lock(s) armed for hand #${nextHand}.`;
+      n.textContent=`${health} Only pre-result P/B locks are scored. ${a.ties||0} tie result(s) observed; ties do not become wins or losses.`;
+    }
   }
   function verifiedSummary(key){
     const m=ensureAccuracy().models[key]||{wins:0,losses:0,predictions:0,waits:0,splits:{}};
@@ -5061,7 +5153,7 @@ renderLibraryBackupStatus();
       const liveW=Math.min(.88,weightedN/(weightedN+20));
       reliability=reliability*liveW+priorRate*(1-liveW);
     }
-    return {reliability,n:weightedN+priorN,phase,band,agree,exactN:exact.n,libraryPrior:lp||null};
+    return {reliability,n:weightedN+priorN,liveN:weightedN,effectiveN:weightedN+priorN,priorN,phase,band,agree,exactN:exact.n,libraryPrior:lp||null};
   }
   function slRecordModel(key,p,actual){
     if(!p || (actual!=='P'&&actual!=='B'))return;
@@ -5378,6 +5470,9 @@ renderLibraryBackupStatus();
       selfLearning:true,
       selfLearnRate:r.reliability,
       selfLearnN:r.n,
+      selfLearnLiveN:Number(state.accuracyVerified?.models?.[key]?.predictions)||0,
+      selfLearnEffectiveN:r.effectiveN??r.n,
+      selfLearnPriorN:r.priorN||0,
       selfLearnPhase:r.phase,
       selfLearnBand:r.band,
       selfLearnAgreement:r.agree,
@@ -5440,16 +5535,22 @@ renderLibraryBackupStatus();
       let raw=currentRaw(key);
       let y=raw?learned(key,raw):null;
       let r=y?.selfLearnN?{rate:y.selfLearnRate,n:y.selfLearnN}:ledgerTrust(key);
+      const liveModel=state.accuracyVerified?.models?.[key];
+      const liveN=Number(liveModel?.predictions)||0;
+      const hist=state.selfLearning?.libraryPriors?.[key];
+      const histN=Number(hist?.n)||0;
       const card=document.createElement('div');
       card.className='analyzer-card';
-      const trust=r?`${Math.round(r.rate*100)}% • N=${r.n}`:'BUILDING';
+      const trust=r?`${Math.round(r.rate*100)}% • LIVE N=${liveN}`:'BUILDING • LIVE N=0';
       const action=y?(y.side==='P'?'PLAYER':y.side==='B'?'BANKER':'WAIT'):'LEARNING';
-      card.innerHTML=`<span>${NAMES[key]}</span><strong>${trust}</strong><small style="display:block;margin-top:3px;opacity:.72">Learned action: ${action}</small>`;
+      const histText=histN?`Historical prior ${Math.round(Number(hist.rate||0)*100)}% • HIST N=${histN}`:'Historical prior not loaded';
+      card.innerHTML=`<span>${NAMES[key]}</span><strong>${trust}</strong><small style="display:block;margin-top:3px;opacity:.72">${histText}<br>Learned action: ${action}</small>`;
       rows.appendChild(card);
     });
     const total=state.selfLearning?.totalUpdates||0;
+    const liveTotal=Object.values(state.accuracyVerified?.models||{}).reduce((s,m)=>s+(Number(m?.predictions)||0),0);
     document.getElementById('allAiLearningNote').textContent=
-      `${total} verified learning updates stored. Learning persists across shoes; no Tie is scored as a P/B win or loss.`;
+      `${total} learning-context updates stored • ${liveTotal} total live verified model grades. LIVE N counts actual pre-result P/B grades only; historical library priors are shown separately.`;
   }
 
   const oldRender=window.render;
@@ -5475,7 +5576,7 @@ renderLibraryBackupStatus();
   const KEYS=[
     ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
     ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
-    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer'],['specialistv20','RED / BLACK Specialist V20'],['blackctxv22','BLACK Context Specialist V22'],['metav23','Walk-Forward Meta Learner V23']
+    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer']
   ];
   const clone=x=>JSON.parse(JSON.stringify(x));
   const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
@@ -5503,7 +5604,7 @@ renderLibraryBackupStatus();
     if(p)return p;
     p=document.createElement('div');p.id='fullLibraryBacktestPanel';p.className='analyzer';p.style.borderColor='#2f855a';
     p.innerHTML=`<div class="analyzer-title">🧪 Full Library AI Simulation</div>
-      <div class="analyzer-sub" style="color:#c4b5fd"><b>V23:</b> Backtest also scores Walk-Forward Meta Learner V23; V20 remains the benchmark.</div>
+      <div class="analyzer-sub" style="color:#c4b5fd"><b>LEAN CORE V28:</b> Simulation scores only the active core prediction engines.</div>
       <div class="analyzer-sub">Chronological, pre-result replay. Each shoe is hidden from the library until its replay finishes. Your live state is restored after the test.</div>
       <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
         <button class="tiny-btn" id="runFullLibraryBacktest">Run Full Library Simulation</button>
@@ -5527,6 +5628,7 @@ renderLibraryBackupStatus();
   }
   async function run(){
     const btn=document.getElementById('runFullLibraryBacktest'),status=document.getElementById('fullBacktestStatus');
+    window.__FULL_LIBRARY_SIMULATION_ACTIVE__=true;
     if(btn.disabled)return;btn.disabled=true;
     const savedState=clone(state), savedStorage=localStorage.getItem(KEY), savedBackup=localStorage.getItem(LIBRARY_BACKUP_KEY), savedHist=localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY);
     const all=[...(savedState.redPatternLibrary||[]).map(x=>({...clone(x),__color:'red'})),...(savedState.blackPatternLibrary||[]).map(x=>({...clone(x),__color:'black'}))]
@@ -5564,6 +5666,7 @@ renderLibraryBackupStatus();
       status.textContent=`COMPLETE • ${all.length} SHOES • live state restored`;
     }catch(e){status.textContent='SIMULATION ERROR: '+(e?.message||e);console.error(e);}
     finally{
+      window.__FULL_LIBRARY_SIMULATION_ACTIVE__=false;
       state=savedState;
       if(savedStorage==null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,savedStorage);
       if(savedBackup==null)localStorage.removeItem(LIBRARY_BACKUP_KEY);else localStorage.setItem(LIBRARY_BACKUP_KEY,savedBackup);
@@ -5877,9 +5980,12 @@ renderLibraryBackupStatus();
           sequence:seq.examples,rhythm:rh.examples,eye:eye.examples,small:small.examples,roach:roach.examples
         }
       };
+      try{ if(window.__libraryKnowledgeV25?.build) window.__libraryKnowledgeV25.build(S); }catch(e){ console.warn('Library Knowledge V25 build failed',e); }
+      try{ window.__recurrentSequenceV32?.train?.(true); }catch(e){ console.warn('Recurrent Sequence V32 retrain failed',e); }
       persist();
       await v17Yield();
       renderV15();
+      try{ window.__libraryKnowledgeV25?.refreshPanel?.(); }catch(e){}
       try{window.__selfLearningV9?.render?.()}catch(e){}
       const ms=Math.round(performance.now()-started);
       if(st)st.textContent=`✅ COMPLETE — ${S.length} UNIQUE SHOES • ${state.fastLibraryLearning.hands} P/B HANDS • ${(ms/1000).toFixed(1)} sec`;
@@ -5901,7 +6007,7 @@ renderLibraryBackupStatus();
       return;
     }
     grid.innerHTML=Object.entries(f.priors||{}).map(([k,v])=>
-      `<div class="analyzer-card"><span>${MODEL_NAMES[k]||k}</span><strong>${pct(v)} • N=${v.n||0}</strong></div>`
+      `<div class="analyzer-card"><span>${MODEL_NAMES[k]||k}</span><strong>${pct(v)} • HIST N=${v.n||0}</strong><small style="display:block;margin-top:3px;opacity:.72">Historical prior — changes when Deep Learn is rerun</small></div>`
     ).join('');
     if(note)note.textContent=
       `Deep leave-one-shoe-out learning: ${f.redShoes} red + ${f.blackShoes} black unique shoes, ${f.hands} P/B hands. `+
@@ -8431,5 +8537,1196 @@ renderLibraryBackupStatus();
   };
 })();
 </script>
+
+<script id="library-knowledge-v25">
+/* ============================================================
+   LIBRARY KNOWLEDGE V25 — REAL TRAINED PATTERN INDEX
+   2026-08-29
+   - Builds separate RED and BLACK continuation indexes.
+   - Extracts exact suffix continuations by length + shoe phase.
+   - Stores compact learned P/B/T counts instead of rescanning every
+     historical shoe on every prediction.
+   - Feeds learned evidence into Sequence V2, Sequence Duplicate,
+     Road Preview, both Derived models, Consensus, High-Powered Bot,
+     Best Estimate and Color Pattern through conservative augmentation.
+   - Never flips a strong source model blindly and never turns a raw
+     WAIT into a bet. Conflicting learned evidence can reduce trust/WAIT.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+  const phaseAt=i=>i<=20?'EARLY':i<=40?'MID':'LATE';
+  const colorOf=shoe=>{
+    const c=String(shoe?.__scanColor||shoe?.shoeColor||shoe?.color||'').toLowerCase();
+    return c==='black'?'black':'red';
+  };
+  function emptyColor(){return {exact:{},phase:{EARLY:{},MID:{},LATE:{}},contexts:0,hands:0,shoes:0};}
+  function add(bucket,k,tail,next){
+    if(!bucket[k])bucket[k]={};
+    const r=bucket[k][tail]||(bucket[k][tail]={p:0,b:0,t:0,n:0});
+    if(next==='P')r.p++; else if(next==='B')r.b++; else if(next==='T')r.t++;
+    r.n++;
+  }
+  function build(S){
+    const colors={red:emptyColor(),black:emptyColor()};
+    let totalHands=0,totalContexts=0;
+    (Array.isArray(S)?S:[]).forEach(shoe=>{
+      const color=colorOf(shoe), seq=clean(shoe?.sequence);
+      if(!seq.length)return;
+      const c=colors[color]; c.shoes++; c.hands+=seq.filter(x=>x==='P'||x==='B').length;
+      totalHands+=seq.filter(x=>x==='P'||x==='B').length;
+      for(let i=3;i<seq.length;i++){
+        const next=seq[i], ph=phaseAt(i+1);
+        const maxK=Math.min(14,i);
+        for(let k=3;k<=maxK;k++){
+          const tail=seq.slice(i-k,i);
+          add(c.exact,k,tail,next);
+          add(c.phase[ph],k,tail,next);
+          totalContexts++;
+        }
+      }
+    });
+    const countKeys=b=>Object.values(b||{}).reduce((n,m)=>n+Object.keys(m||{}).length,0);
+    const stats={
+      redShoes:colors.red.shoes,blackShoes:colors.black.shoes,totalHands,totalContexts,
+      redExactKeys:countKeys(colors.red.exact),blackExactKeys:countKeys(colors.black.exact),
+      redPhaseKeys:Object.values(colors.red.phase).reduce((n,b)=>n+countKeys(b),0),
+      blackPhaseKeys:Object.values(colors.black.phase).reduce((n,b)=>n+countKeys(b),0)
+    };
+    state.fastLibraryLearning=state.fastLibraryLearning&&typeof state.fastLibraryLearning==='object'?state.fastLibraryLearning:{};
+    state.fastLibraryLearning.patternKnowledge={version:25,builtAt:new Date().toISOString(),colors,stats};
+    refreshPanel();
+    return state.fastLibraryLearning.patternKnowledge;
+  }
+  function ensureKnowledge(){
+    const pk=state.fastLibraryLearning?.patternKnowledge;
+    if(pk?.version===25)return pk;
+    return null;
+  }
+  function mergeRows(rows){
+    let p=0,b=0,t=0,n=0;
+    rows.forEach(({row,w})=>{if(!row||!w)return;p+=(row.p||0)*w;b+=(row.b||0)*w;t+=(row.t||0)*w;n+=(row.n||0)*w;});
+    return {p,b,t,n};
+  }
+  function signal(){
+    const pk=ensureKnowledge();
+    const cur=clean(typeof currentSequence==='function'?currentSequence().join(''):'');
+    if(!pk||cur.length<3)return {ready:false,side:null,strength:0,edge:0,evidence:0,bestLen:0,reason:'trained index not ready'};
+    const mode=state.predictionLibraryMode==='combined'?'combined':String(state.currentShoeColor||'red').toLowerCase();
+    const colors=mode==='combined'?['red','black']:[mode==='black'?'black':'red'];
+    const ph=phaseAt(cur.length+1), rows=[];
+    let bestLen=0, rawN=0, matchedKeys=0;
+    for(let k=Math.min(14,cur.length);k>=3;k--){
+      const tail=cur.slice(-k);
+      colors.forEach(color=>{
+        const c=pk.colors?.[color]; if(!c)return;
+        const ex=c.exact?.[k]?.[tail];
+        const px=c.phase?.[ph]?.[k]?.[tail];
+        if(ex?.n>=2){
+          const longW=Math.pow(k/3,1.55);
+          const sampleW=.70+.30*Math.min(1,ex.n/8);
+          rows.push({row:ex,w:longW*sampleW}); rawN+=ex.n; matchedKeys++; bestLen=Math.max(bestLen,k);
+        }
+        if(px?.n>=2){
+          const longW=Math.pow(k/3,1.55);
+          const sampleW=.70+.30*Math.min(1,px.n/6);
+          rows.push({row:px,w:1.22*longW*sampleW}); rawN+=px.n; matchedKeys++; bestLen=Math.max(bestLen,k);
+        }
+      });
+    }
+    if(!rows.length)return {ready:true,side:null,strength:0,edge:0,evidence:0,bestLen:0,phase:ph,mode,reason:'no trained continuation match'};
+    const m=mergeRows(rows), nonTie=m.p+m.b;
+    if(nonTie<=0)return {ready:true,side:null,strength:0,edge:0,evidence:rawN,bestLen,phase:ph,mode,reason:'trained matches are tie-only'};
+    const p=m.p/nonTie,b=m.b/nonTie, side=p>b?'P':b>p?'B':null, edge=Math.abs(p-b);
+    const evidence=Math.min(100,Math.round(100*(1-Math.exp(-rawN/18))));
+    const depth=Math.min(100,Math.round(bestLen/14*100));
+    const strength=Math.round(clamp(50 + edge*30 + evidence*.10 + depth*.08,50,88));
+    return {ready:true,side,strength,edge,evidence:rawN,evidenceScore:evidence,bestLen,phase:ph,mode,matchedKeys,
+      pPct:Math.round(p*100),bPct:Math.round(b*100),reason:`trained ${mode.toUpperCase()} ${ph} index`};
+  }
+  const MODEL_WEIGHT={
+    seqv2:.34,seqdup:.34,color:.22,roadpreview:.24,derivedorig:.18,derivedmain:.20,
+    consensus:.23,bot:.28,bestestimate:.28,specialistv20:.20,blackctxv22:.24,metav23:.22
+  };
+  function augment(key,x){
+    if(!x||x.libraryKnowledgeApplied)return x;
+    const side=x.side==='P'||x.side==='B'?x.side:null;
+    const lk=signal();
+    const wt=MODEL_WEIGHT[key]??.18;
+    if(!lk.ready||!lk.side||lk.evidence<4||lk.bestLen<4){return {...x,libraryKnowledgeApplied:true,libraryKnowledge:lk};}
+    if(!side){
+      // Knowledge informs WAIT but does not manufacture a pick from a source model that abstained.
+      return {...x,libraryKnowledgeApplied:true,libraryKnowledge:lk};
+    }
+    const raw=Number(x.strength??x.confidence??x.top)||0;
+    const quality=clamp((lk.edge-.08)/.32,0,1)*clamp(lk.evidence/18,0,1)*clamp(lk.bestLen/10,0,1);
+    let adjusted=raw, outSide=side, reason=x.reason||x.waitReason||'';
+    if(side===lk.side){
+      adjusted=clamp(Math.round(raw + wt*(3+8*quality)),50,90);
+      reason=(reason?reason+' • ':'')+`Library-trained ${lk.mode.toUpperCase()} index confirms ${lk.side} (${lk.pPct}% P / ${lk.bPct}% B, best ${lk.bestLen}, N≈${lk.evidence}).`;
+    }else{
+      const penalty=wt*(4+11*quality);
+      adjusted=clamp(Math.round(raw-penalty),0,90);
+      if(quality>=.62 && raw<66){
+        outSide=null; adjusted=0;
+        reason=`WAIT — source signal conflicts with strong library-trained ${lk.mode.toUpperCase()} ${lk.phase} continuation (${lk.pPct}% P / ${lk.bPct}% B, best ${lk.bestLen}, N≈${lk.evidence}).`;
+      }else{
+        reason=(reason?reason+' • ':'')+`Library-trained index conflicts; confidence reduced.`;
+      }
+    }
+    return {...x,side:outSide,
+      strength:('strength'in x)||!('confidence'in x)&&!('top'in x)?adjusted:x.strength,
+      confidence:('confidence'in x)?adjusted:x.confidence,
+      top:('top'in x)?adjusted:x.top,
+      libraryKnowledgeApplied:true,libraryKnowledge:lk,reason,waitReason:outSide?x.waitReason:reason};
+  }
+  function wrapSignal(name,key,shape){
+    const fn=window[name]||globalThis[name];
+    if(typeof fn!=='function'||fn.__libraryKnowledgeV25Wrapped)return;
+    const wrapped=function(){
+      const raw=fn.apply(this,arguments)||{};
+      if(shape==='derived'){
+        const y=augment(key,{...raw,strength:Number(raw.confidence)||0});
+        return {...raw,...y,confidence:Number(y.strength)||0};
+      }
+      if(shape==='bot'){
+        const y=augment(key,{...raw,side:raw.qualified?raw.side:null,strength:Number(raw.confidence)||0});
+        return {...raw,...y,qualified:!!y.side,confidence:Number(y.strength)||0};
+      }
+      if(shape==='best'){
+        const y=augment(key,{...raw,side:raw.qualified?raw.side:null,strength:Number(raw.top)||0});
+        return {...raw,...y,qualified:!!y.side,top:Number(y.strength)||0};
+      }
+      return augment(key,raw);
+    };
+    wrapped.__libraryKnowledgeV25Wrapped=true;
+    try{window[name]=wrapped;}catch(e){}
+    try{globalThis[name]=wrapped;}catch(e){}
+  }
+  function install(){
+    wrapSignal('sequenceAISignal','seqv2');
+    wrapSignal('sequenceAIDuplicateSignal','seqdup');
+    wrapSignal('roadPreviewAISignal','roadpreview');
+    wrapSignal('derivedRoadSequenceAI','derivedorig','derived');
+    wrapSignal('adaptiveDerivedMainSignal','derivedmain');
+    wrapSignal('consensusSignal','consensus');
+    wrapSignal('masterBotSignal','bot','bot');
+    wrapSignal('computeCombinedAnalyzer','bestestimate','best');
+    if(typeof window.colorPatternAISignal==='function')wrapSignal('colorPatternAISignal','color');
+
+    // Final learning wrapper also sees the knowledge signal, covering call paths
+    // that bypass the directly wrapped model functions.
+    const prev=window.__slV10Signal;
+    if(typeof prev==='function'&&!prev.__libraryKnowledgeV25Wrapped){
+      const w=function(key,x){return augment(key,prev(key,x));};
+      w.__libraryKnowledgeV25Wrapped=true; window.__slV10Signal=w;
+    }
+    refreshPanel();
+  }
+  function refreshPanel(){
+    try{
+      const pk=ensureKnowledge(), note=document.getElementById('instantLibraryLearnNote');
+      if(!pk||!note)return;
+      const s=pk.stats||{};
+      const keys=(s.redExactKeys||0)+(s.blackExactKeys||0)+(s.redPhaseKeys||0)+(s.blackPhaseKeys||0);
+      note.textContent=`TRAINED INDEX ACTIVE — ${s.redShoes||0} RED + ${s.blackShoes||0} BLACK shoes • ${s.totalHands||0} P/B hands • ${keys} learned continuation contexts. RED and BLACK knowledge are stored separately; current shoe color selects its own learned index. Historical scores remain validation metrics, not guaranteed live win rates.`;
+    }catch(e){}
+  }
+  window.__libraryKnowledgeV25={build,signal,augment,install,refreshPanel};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,900));
+  else setTimeout(install,900);
+})();
+</script>
+
+
+<!-- Removed in LEAN CORE V28: CONTEXTUAL META LEARNER V26 -->
+
+
+
+<script id="baccarat-knowledge-engine-v27">
+/* ============================================================
+   BACCARAT KNOWLEDGE ENGINE V27 — 2026-08-29
+   Central deterministic/contextual knowledge layer.
+   PURPOSE:
+   - Encode exact baccarat drawing/total knowledge as rules, not predictions.
+   - Understand Big Road regime and all three derived-road mechanics.
+   - Simulate BOTH hypothetical next P and next B before every AI decision.
+   - Measure whether either hypothetical result preserves/breaks current road structure.
+   - Evaluate evidence quality and conflict; weak evidence can reduce confidence/force WAIT.
+   - Never treats derived-road RED/BLUE as Player/Banker.
+   - Never manufactures a P/B call from deterministic game rules alone.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const MODEL_LABELS={
+    seqv2:'Sequence AI V2', seqdup:'Sequence Duplicate', roadpreview:'Road Preview AI',
+    derivedorig:'Derived Road AI', derivedmain:'Adaptive Derived Roads', consensus:'AI Consensus',
+    bot:'High-Powered Bot AI'
+  };
+
+  const RULES={
+    naturals:'Natural 8 or 9 ends normal drawing immediately.',
+    player:'Player draws on totals 0–5 and stands on 6–7, unless a natural has already ended drawing.',
+    banker:'Banker drawing on 0–2 is automatic; 3–6 follows the official third-card table when Player draws; 7 stands.',
+    tie:'Tie is a completed outcome but is not converted into Player or Banker for P/B accuracy grading.',
+    roads:'Big Eye, Small Road and Cockroach Road are structural consistency roads. Their red/blue marks are never direct Player/Banker labels.'
+  };
+
+  function pb(){try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}}
+  function phase(n){return n<18?'EARLY':n<36?'MID':'LATE'}
+  function bigRoadRegime(a){
+    const r=a.slice(-14); if(r.length<4)return {type:'BUILDING',preferred:null,clarity:0,switchRate:.5,run:0};
+    let sw=0; for(let i=1;i<r.length;i++)if(r[i]!==r[i-1])sw++;
+    const switchRate=sw/(r.length-1),last=r[r.length-1]; let run=1;
+    for(let i=r.length-2;i>=0&&r[i]===last;i--)run++;
+    if(run>=4)return {type:'RUN',preferred:last,clarity:clamp(.56+(run-4)*.08,0,1),switchRate,run};
+    if(switchRate>=.72)return {type:'CHOP',preferred:last==='P'?'B':'P',clarity:clamp(.55+(switchRate-.72)*1.1,0,1),switchRate,run};
+    if(run===3)return {type:'LEAN-RUN',preferred:last,clarity:.38,switchRate,run};
+    if(switchRate>=.60)return {type:'LEAN-CHOP',preferred:last==='P'?'B':'P',clarity:.34,switchRate,run};
+    return {type:'MIXED',preferred:null,clarity:.14,switchRate,run};
+  }
+  function handObj(side){return {r:side,pp:false,bp:false,special:false,ts:Date.now()}}
+  function derivedSnapshot(hands,offset){
+    const marks=deriveRoad(hands,offset)||[];
+    const regime=analyzeRoadRegime(marks);
+    return {marks,regime,last:marks.length?marks[marks.length-1]:null};
+  }
+  function hypothetical(side){
+    const base=Array.isArray(state.hands)?state.hands:[];
+    const next=base.concat([handObj(side)]);
+    const parts=[]; let support=0,possible=0,conflict=0;
+    [1,2,3].forEach((offset,i)=>{
+      const before=derivedSnapshot(base,offset), after=derivedSnapshot(next,offset);
+      const newMark=after.last;
+      let aligned=null;
+      if(before.regime?.preferred&&newMark){
+        aligned=newMark===before.regime.preferred;
+        const w=[1,.86,.72][i]*(Number(before.regime.clarity)||.2);
+        possible+=w; if(aligned)support+=w;else conflict+=w;
+      }
+      parts.push({offset,name:['Big Eye','Small Road','Cockroach'][i],newMark,expected:before.regime?.preferred||null,
+        regime:before.regime?.type||'BUILDING',clarity:Number(before.regime?.clarity)||0,aligned});
+    });
+    const consistency=possible?support/possible:.5;
+    return {side,parts,consistency,possible,support,conflict};
+  }
+  function evidence(){
+    const a=pb(), big=bigRoadRegime(a), p=hypothetical('P'), b=hypothetical('B');
+    let pScore=0,bScore=0,total=0,components=[];
+    // Big Road behavior is context only, with deliberately limited influence.
+    if(big.preferred&&big.clarity>0){
+      const w=.80*big.clarity; total+=w; if(big.preferred==='P')pScore+=w;else bScore+=w;
+      components.push(`Big Road ${big.type} ${Math.round(big.clarity*100)}% clarity`);
+    }
+    // Derived roads measure structural continuation under each hypothetical side.
+    if(p.possible||b.possible){
+      const dp=(p.consistency-.5)*2, db=(b.consistency-.5)*2;
+      const pw=Math.max(0,dp)*1.15, bw=Math.max(0,db)*1.15;
+      pScore+=pw;bScore+=bw;total+=pw+bw;
+      components.push(`Road hypotheticals P ${Math.round(p.consistency*100)}% / B ${Math.round(b.consistency*100)}% structural fit`);
+    }
+    // Trained library knowledge is corroboration only; it cannot define the game rules.
+    let lib=null;
+    try{lib=window.__libraryKnowledgeV25?.signal?.()||null}catch(e){}
+    if(lib?.side&&Number(lib.strength)>=55&&Number(lib.samples)>=3){
+      const q=clamp(((Number(lib.strength)-50)/35)*Math.min(1,Number(lib.samples)/18),0,.85);
+      total+=q; if(lib.side==='P')pScore+=q;else bScore+=q;
+      components.push(`Trained ${String(state.currentShoeColor||'').toUpperCase()||'selected'} library ${lib.side} ${Math.round(Number(lib.strength))}%`);
+    }
+    const denom=pScore+bScore;
+    const rawSide=denom?(pScore>bScore?'P':bScore>pScore?'B':null):null;
+    const agreement=denom?Math.max(pScore,bScore)/denom:.5;
+    const edge=denom?Math.abs(pScore-bScore)/denom:0;
+    const roadsReady=[...p.parts].filter(x=>x.expected).length;
+    const quality=clamp(.28*Math.min(1,a.length/18)+.34*Math.min(1,roadsReady/3)+.23*Math.min(1,total/1.5)+.15*(lib?.samples?Math.min(1,Number(lib.samples)/12):0),0,1);
+    const qualified=!!rawSide && a.length>=6 && quality>=.34 && edge>=.12 && agreement>=.56;
+    return {rawSide,side:qualified?rawSide:null,qualified,agreement,edge,quality,big,p,b,lib,components,
+      phase:phase(a.length),hands:a.length,
+      reason:qualified?`Knowledge context leans ${rawSide}: ${Math.round(agreement*100)}% structural/evidence agreement.`:`Knowledge context is not strong enough to choose a side.`};
+  }
+  function adjust(key,base){
+    if(!base||typeof base!=='object')return base;
+    const out={...base}; let k; try{k=evidence()}catch(e){return out}
+    out.knowledgeV27=k;
+    const side=(out.side==='P'||out.side==='B')?out.side:null;
+    if(!side)return out; // Knowledge NEVER invents a prediction from a model WAIT.
+    const strength=Number(out.strength??out.confidence??0)||0;
+    if(!k.qualified){
+      // If deterministic/context knowledge is immature, leave a mature base model alone.
+      if(k.quality<.28)return out;
+      // If several road contexts are present yet remain conflicted, trim overconfidence.
+      const trimmed=Math.max(50,Math.round(strength-3));
+      if('strength'in out)out.strength=trimmed;
+      if('confidence'in out)out.confidence=trimmed;
+      out.knowledgeNote='V27 context conflicted — confidence trimmed; base side preserved.';
+      return out;
+    }
+    if(k.side===side){
+      const boost=Math.round(2+6*k.edge*k.quality);
+      const revised=clamp(strength+boost,50,92);
+      if('strength'in out)out.strength=revised;
+      if('confidence'in out)out.confidence=revised;
+      out.knowledgeNote=`V27 confirms ${side}; +${boost} context points.`;
+      return out;
+    }
+    // Knowledge is a guard, not a side-flipper. Strong conflict can force WAIT.
+    if(k.edge>=.28&&k.quality>=.48&&k.agreement>=.64){
+      out.side=null;
+      if('strength'in out)out.strength=0;
+      if('confidence'in out)out.confidence=0;
+      out.waitReason=`WAIT: ${MODEL_LABELS[key]||key} conflicts with Baccarat Knowledge V27 (${Math.round(k.agreement*100)}% context agreement for ${k.rawSide}).`;
+      out.reason=out.waitReason;
+      out.knowledgeNote=out.waitReason;
+      return out;
+    }
+    const revised=clamp(strength-5,50,92);
+    if('strength'in out)out.strength=revised;
+    if('confidence'in out)out.confidence=revised;
+    out.knowledgeNote=`V27 mildly conflicts; confidence reduced without flipping the side.`;
+    return out;
+  }
+
+  function wrap(name,key){
+    let fn=globalThis[name]; if(typeof fn!=='function'||fn.__baccaratKnowledgeV27)return;
+    const base=fn; const w=function(){return adjust(key,base.apply(this,arguments));};
+    w.__baccaratKnowledgeV27=true; w.__base=base;
+    try{globalThis[name]=w;window[name]=w}catch(e){}
+  }
+  function install(){
+    // LEAN CORE V28: V27 is retained as deterministic game/road knowledge and diagnostics.
+    // Held-out simulation did not justify allowing it to rewrite prediction sides/confidence.
+    panel();
+  }
+  function panel(){
+    try{
+      let el=document.getElementById('baccaratKnowledgeV27Panel');
+      if(!el){
+        el=document.createElement('div');el.id='baccaratKnowledgeV27Panel';el.className='analyzer';el.style.borderColor='#0ea5e9';
+        el.innerHTML=`<div class="analyzer-title">🎓 Baccarat Knowledge Engine V27</div>
+          <div class="analyzer-sub">Central game-knowledge layer used by the major AIs. Exact drawing/road rules are deterministic knowledge; only structural + historical evidence can influence prediction confidence. The engine simulates both hypothetical next outcomes and never treats derived-road red/blue as Player/Banker.</div>
+          <div class="analyzer-grid" style="margin-top:8px">
+            <div class="analyzer-card"><span>GAME STATE</span><strong id="bk27State">—</strong></div>
+            <div class="analyzer-card"><span>PLAYER HYPOTHESIS</span><strong id="bk27P">—</strong></div>
+            <div class="analyzer-card"><span>BANKER HYPOTHESIS</span><strong id="bk27B">—</strong></div>
+            <div class="analyzer-card"><span>KNOWLEDGE LEAN</span><strong id="bk27Lean">—</strong></div>
+          </div>
+          <div class="analyzer-sub" id="bk27Rules" style="margin-top:7px"></div>
+          <div class="analyzer-sub" id="bk27Detail" style="margin-top:5px"></div>`;
+        const meta=document.getElementById('contextMetaV26Panel');
+        if(meta?.parentNode)meta.parentNode.insertBefore(el,meta);else document.body.appendChild(el);
+      }
+      const k=evidence(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+      set('bk27State',`${k.phase} • Big Road ${k.big.type}`);
+      set('bk27P',`${Math.round(k.p.consistency*100)}% road fit`);
+      set('bk27B',`${Math.round(k.b.consistency*100)}% road fit`);
+      set('bk27Lean',k.qualified?`${k.side==='P'?'PLAYER':'BANKER'} • ${Math.round(k.agreement*100)}% agree`:'WAIT / CONFLICT');
+      set('bk27Rules','Rules loaded: naturals • Player draw/stand • Banker third-card table • tie handling • exact derived-road semantics.');
+      set('bk27Detail',`${k.reason} ${k.components.join(' • ')}`);
+    }catch(e){}
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__baccaratKnowledgeV27){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(panel,0);return r};w.__baccaratKnowledgeV27=true;window.render=w;}
+  window.__baccaratKnowledgeV27={RULES,evidence,hypothetical,adjust,install,panel};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1500));else setTimeout(install,1500);
+})();
+</script>
+
+<script id="lean-core-v28-cleanup">
+/* LEAN CORE V28 — removes redundant/external runtime paths without touching saved libraries. */
+(function(){
+  try{
+    if(state){
+      state.kaggleLibraryEnabled=false;
+      if(state.kaggle){state.kaggle.last=null;state.kaggle.error='Disabled in Lean Core V28';}
+      if(state.h2o){state.h2o.last=null;state.h2o.connected=false;state.h2o.url='';state.h2o.error='Disabled in Lean Core V28';}
+      if(state.deepseek){state.deepseek.last=null;state.deepseek.connected=false;state.deepseek.url='';state.deepseek.error='Disabled in Lean Core V28';}
+    }
+  }catch(e){}
+  // External/legacy evidence is disabled. Core AIs remain local and library/road based.
+  try{window.currentKaggleSignal=()=>({side:null,strength:0,pPct:0,bPct:0,tPct:0});}catch(e){}
+  try{window.scoreWithKaggle=async()=>null;}catch(e){}
+  try{window.currentH2OSignal=()=>({side:null,strength:0,p:null,b:null,t:null});}catch(e){}
+  try{window.scoreWithH2O=async()=>null;window.trainH2O=async()=>null;}catch(e){}
+  try{window.currentDeepSeekSignal=()=>({side:null,strength:0,p:null,b:null,t:null,confidence:0});window.scoreWithDeepSeek=async()=>null;}catch(e){}
+  function hide(id,whole){
+    const e=document.getElementById(id); if(!e)return;
+    const t=whole?(e.closest('.analyzer')||e):e; t.style.display='none';
+  }
+  setTimeout(()=>{
+    try{
+      const kt=document.getElementById('kaggleLibraryToggle'); if(kt){kt.checked=false; const lab=kt.closest('label'); if(lab)lab.parentElement.style.display='none';}
+      const kn=document.getElementById('kaggleLibraryNote'); if(kn)kn.style.display='none';
+      const hs=document.getElementById('h2oScore'); if(hs){const line=hs.closest('.signal-line'); if(line)line.style.display='none';}
+      ['contextMetaV26Panel','redBlackSpecialistV20Panel','blackContextV22Panel','metaWalkV23Panel'].forEach(id=>hide(id,true));
+      const p=document.getElementById('baccaratKnowledgeV27Panel');
+      if(p){const sub=p.querySelector('.analyzer-sub'); if(sub)sub.textContent='Deterministic baccarat + road-structure knowledge monitor. In Lean Core V28 it explains game context but does not override a core AI prediction unless future held-out testing proves that improves accuracy.';}
+    }catch(e){}
+  },1200);
+})();
+</script>
+
+<script>
+/* SHADOW LEARNING V29 — FIXED
+   Grades the exact same core AI outputs used by the verified ledger.
+   Advisory only: never overrides a prediction. */
+(function(){
+  const MODELS = [
+    ["seqv2","Sequence AI V2",()=>{
+      const x=sequenceAISignal();
+      return window.__slV10Signal?window.__slV10Signal("seqv2",x):x;
+    }],
+    ["color","Color Pattern AI",()=>{
+      const x=colorPatternAISignal();
+      return window.__slV10Signal?window.__slV10Signal("color",x):x;
+    }],
+    ["roadpreview","Road Preview AI",()=>{
+      const x=roadPreviewAISignal();
+      return window.__slV10Signal?window.__slV10Signal("roadpreview",x):x;
+    }],
+    ["derivedorig","Derived Road AI",()=>{
+      const x=derivedRoadSequenceAI(), y={side:x?.side||null,strength:Number(x?.confidence)||0};
+      return window.__slV10Signal?window.__slV10Signal("derivedorig",y):y;
+    }],
+    ["derivedmain","Adaptive Derived Roads",()=>{
+      const x=adaptiveDerivedMainSignal();
+      return window.__slV10Signal?window.__slV10Signal("derivedmain",x):x;
+    }],
+    ["seqdup","Sequence AI V2 Duplicate",()=>{
+      const x=sequenceAIDuplicateSignal();
+      return window.__slV10Signal?window.__slV10Signal("seqdup",x):x;
+    }],
+    ["consensus","AI Consensus",()=>{
+      const x=consensusSignal();
+      return window.__slV10Signal?window.__slV10Signal("consensus",x):x;
+    }],
+    ["bot","High-Powered Bot AI",()=>{
+      const x=masterBotSignal();
+      const y={side:x?.qualified?x.side:null,strength:x?.qualified?(Number(x.confidence)||0):0};
+      return window.__slV10Signal?window.__slV10Signal("bot",y):y;
+    }],
+    ["bestestimate","Best-Estimate Analyzer",()=>{
+      const x=computeCombinedAnalyzer();
+      const y={side:x?.qualified?x.side:null,strength:x?.qualified?(Number(x.top)||0):0};
+      return window.__slV10Signal?window.__slV10Signal("bestestimate",y):y;
+    }]
+  ];
+
+  const DECAY=.985, MIN_TRUST_N=12;
+  function S(){ return window.state || (typeof state!=="undefined"?state:{}); }
+  function pbSequence(){
+    try{
+      return (typeof currentSequence==="function"?currentSequence():[])
+        .filter(x=>x==="P"||x==="B");
+    }catch(e){ return []; }
+  }
+  function color(){
+    const s=S();
+    const x=String(s.currentShoeColor||"combined").toUpperCase();
+    return x.includes("RED")?"RED":x.includes("BLACK")?"BLACK":"COMBINED";
+  }
+  function phase(a){ return a.length<18?"EARLY":a.length<36?"MID":"LATE"; }
+  function regime(a){
+    const x=a.slice(-12);
+    if(x.length<5) return "MIXED";
+    let run=1;
+    for(let i=x.length-2;i>=0&&x[i]===x[x.length-1];i--) run++;
+    let sw=0;
+    for(let i=1;i<x.length;i++) if(x[i]!==x[i-1]) sw++;
+    const sr=sw/Math.max(1,x.length-1);
+    if(run>=3) return "RUN";
+    if(sr>=.68) return "CHOP";
+    return "MIXED";
+  }
+  function store(){
+    const s=S();
+    s.shadowLearningV29 ||= {version:29,stats:{},pending:null,last:null};
+    s.shadowLearningV29.stats ||= {};
+    return s.shadowLearningV29;
+  }
+  function key(model,c,p,r){ return [model,c,p,r].join("|"); }
+  function norm(sig){
+    if(!sig) return null;
+    const side=String(sig.side||"").toUpperCase();
+    if(side!=="P"&&side!=="B") return null;
+    const conf=Number(sig.strength ?? sig.confidence ?? sig.conf ?? 50);
+    return {side,confidence:Number.isFinite(conf)?conf:50};
+  }
+  function safePersist(){
+    try{ if(typeof persist==="function") persist(); }catch(e){}
+  }
+  function arm(){
+    const st=store(), a=pbSequence();
+    const hand=a.length+1;
+    if(st.pending && st.pending.hand===hand) return st.pending;
+
+    const c=color(), p=phase(a), r=regime(a), picks={};
+    MODELS.forEach(([id,label,get])=>{
+      try{
+        const z=norm(get());
+        if(z) picks[id]=z;
+      }catch(e){}
+    });
+
+    st.pending={hand,color:c,phase:p,regime:r,picks,armedAt:Date.now()};
+    safePersist(); // important: preserve the pre-result lock immediately
+    render();
+    return st.pending;
+  }
+  function update(k,win){
+    const st=store(), x=st.stats[k]||(st.stats[k]={w:0,l:0,n:0});
+    x.w*=DECAY; x.l*=DECAY; x.n*=DECAY;
+    x.n+=1;
+    if(win)x.w+=1; else x.l+=1;
+  }
+  function grade(actual){
+    actual=String(actual||"").toUpperCase();
+    if(actual==="T") return; // tie is unscored
+    if(actual!=="P"&&actual!=="B") return;
+
+    const st=store(), q=st.pending;
+    if(!q) return;
+
+    Object.entries(q.picks||{}).forEach(([id,z])=>{
+      const win=z.side===actual;
+      update(key(id,q.color,q.phase,q.regime),win);
+      update(key(id,q.color,q.phase,"ANY"),win);
+      update(key(id,q.color,"ANY","ANY"),win);
+      update(key(id,"ANY","ANY","ANY"),win);
+    });
+
+    st.last={...q,actual,settledAt:Date.now()};
+    st.pending=null;
+    safePersist();
+    render();
+  }
+  function stat(id,c,p,r){
+    const st=store();
+    const levels=[[c,p,r],[c,p,"ANY"],[c,"ANY","ANY"],["ANY","ANY","ANY"]];
+    for(const q of levels){
+      const x=st.stats[key(id,...q)];
+      if(x&&x.n>=MIN_TRUST_N){
+        return {n:x.n,acc:(x.w+2)/(x.n+4),level:q.join("/")};
+      }
+    }
+    return null;
+  }
+  function trust(){
+    const a=pbSequence(), c=color(), p=phase(a), r=regime(a);
+    return MODELS.map(([id,label])=>({id,label,s:stat(id,c,p,r)}))
+      .filter(x=>x.s).sort((a,b)=>b.s.acc-a.s.acc);
+  }
+  function render(){
+    const el=document.getElementById("shadowLearningV29Panel");
+    if(!el) return;
+    const a=pbSequence(), c=color(), p=phase(a), r=regime(a), st=store(), t=trust();
+    const armed=st.pending?Object.keys(st.pending.picks||{}).length:0;
+    const top=t.slice(0,3).map(x=>`${x.label}: ${(x.s.acc*100).toFixed(1)}% (N≈${Math.round(x.s.n)})`).join("<br>");
+    el.innerHTML=`<div style="font-weight:700">👁 Shadow Learning V29 — Advisory</div>
+      <div style="margin-top:4px">Context: ${c} • ${p} • ${r}</div>
+      <div style="margin-top:4px">Currently shadow-locked: ${armed}/${MODELS.length} active AI predictions</div>
+      <div style="margin-top:4px">${top||"Building verified context-specific grades…"}</div>
+      <div style="margin-top:4px;font-size:12px;opacity:.8">Uses the same qualified core outputs as the verified ledger. Ties are not scored. Trust requires ${MIN_TRUST_N}+ decayed samples and never overrides predictions.</div>`;
+  }
+
+  window.__shadowV29={arm,grade,trust,render};
+
+  if(typeof window.__armVerifiedPredictions==="function" && !window.__shadowV29ArmWrapped){
+    const old=window.__armVerifiedPredictions;
+    window.__armVerifiedPredictions=function(){
+      const v=old.apply(this,arguments);
+      try{arm();}catch(e){}
+      return v;
+    };
+    window.__shadowV29ArmWrapped=true;
+  }
+
+  if(typeof window.__settleVerifiedPredictions==="function" && !window.__shadowV29SettleWrapped){
+    const old=window.__settleVerifiedPredictions;
+    window.__settleVerifiedPredictions=function(actual){
+      const v=old.apply(this,arguments);
+      try{grade(actual);}catch(e){}
+      return v;
+    };
+    window.__shadowV29SettleWrapped=true;
+  }
+
+  let panel=document.getElementById("shadowLearningV29Panel");
+  if(!panel){
+    panel=document.createElement("div");
+    panel.id="shadowLearningV29Panel";
+    panel.style.cssText="margin:12px 0;padding:12px;border:1px solid rgba(127,127,127,.35);border-radius:10px;";
+    (document.querySelector("main")||document.body).appendChild(panel);
+  }
+  render();
+  try{arm();}catch(e){}
+})();
+</script>
+
+
+<script>
+/* SEQUENCE DUPLICATE V30
+   Base prediction = exact Sequence AI V2 signal.
+   Experimental additions apply ONLY to Sequence Duplicate:
+   - RED/BLACK separated learned continuation evidence
+   - live phase/regime context
+   - run/transition context
+   - conservative confidence gating
+   It never alters Sequence AI V2 itself. */
+(function(){
+  if(typeof window.sequenceAISignal!=="function") return;
+
+  const baseSequenceV2 = window.sequenceAISignal;
+  const priorDuplicate = typeof window.sequenceAIDuplicateSignal==="function"
+    ? window.sequenceAIDuplicateSignal : null;
+
+  function S(){ return window.state || (typeof state!=="undefined"?state:{}); }
+
+  function pbSeq(){
+    try{
+      return (typeof window.currentSequence==="function" ? window.currentSequence() : [])
+        .filter(x=>x==="P"||x==="B");
+    }catch(e){ return []; }
+  }
+
+  function shoeColor(){
+    const s=S();
+    const x=String(s.currentShoeColor||s.shoeColor||"COMBINED").toUpperCase();
+    return x.includes("RED")?"RED":x.includes("BLACK")?"BLACK":"COMBINED";
+  }
+
+  function phase(a){
+    return a.length<18?"EARLY":a.length<36?"MID":"LATE";
+  }
+
+  function regime(a){
+    const x=a.slice(-14);
+    if(x.length<5) return "MIXED";
+    let run=1;
+    for(let i=x.length-2;i>=0&&x[i]===x[x.length-1];i--) run++;
+    let switches=0;
+    for(let i=1;i<x.length;i++) if(x[i]!==x[i-1]) switches++;
+    const sr=switches/Math.max(1,x.length-1);
+    if(run>=3) return "RUN";
+    if(sr>=.68) return "CHOP";
+    return "MIXED";
+  }
+
+  function transitionStats(a){
+    const x=a.slice(-20);
+    let pp=0,pb=0,bp=0,bb=0;
+    for(let i=1;i<x.length;i++){
+      const pair=x[i-1]+x[i];
+      if(pair==="PP")pp++;
+      else if(pair==="PB")pb++;
+      else if(pair==="BP")bp++;
+      else if(pair==="BB")bb++;
+    }
+    const last=x[x.length-1];
+    if(last==="P"){
+      const n=pp+pb;
+      if(n>=4) return {side:pp>=pb?"P":"B", strength:Math.abs(pp-pb)/n, n};
+    }
+    if(last==="B"){
+      const n=bp+bb;
+      if(n>=4) return {side:bb>=bp?"B":"P", strength:Math.abs(bb-bp)/n, n};
+    }
+    return null;
+  }
+
+  function libraryEvidence(base){
+    try{
+      const k=window.__libraryKnowledgeV25;
+      if(!k || typeof k.signal!=="function") return null;
+      const z=k.signal();
+      if(!z) return null;
+      const side=String(z.side||z.prediction||"").toUpperCase();
+      if(side!=="P"&&side!=="B") return null;
+      const strength=Number(z.strength ?? z.confidence ?? 0);
+      const samples=Number(z.samples ?? z.n ?? z.count ?? 0);
+      return {side,strength:Number.isFinite(strength)?strength:0,samples:Number.isFinite(samples)?samples:0};
+    }catch(e){ return null; }
+  }
+
+  function normalize(x){
+    if(!x) return {side:null,strength:0,qualified:false};
+    const side=String(x.side||x.prediction||x.pick||"").toUpperCase();
+    const strength=Number(x.strength ?? x.confidence ?? x.conf ?? 0);
+    return {
+      ...x,
+      side:(side==="P"||side==="B")?side:null,
+      strength:Number.isFinite(strength)?strength:0,
+      qualified:(side==="P"||side==="B")
+    };
+  }
+
+  function duplicateV30(){
+    // Exact Sequence V2 starting point.
+    const base=normalize(baseSequenceV2());
+    if(!base.side) return {...base, v30:true, v30Reason:"Sequence V2 WAIT"};
+
+    const a=pbSeq();
+    const c=shoeColor();
+    const p=phase(a);
+    const r=regime(a);
+    const lib=libraryEvidence(base);
+    const tr=transitionStats(a);
+
+    let support=0, conflict=0, evidence=0;
+    const reasons=[];
+
+    // Trained same-color library evidence.
+    if(lib && lib.strength>=55 && lib.samples>=4){
+      const q=Math.min(1, Math.max(0,(lib.strength-50)/28)) * Math.min(1,lib.samples/18);
+      evidence+=q;
+      if(lib.side===base.side){
+        support+=q;
+        reasons.push("library agrees");
+      }else{
+        conflict+=q;
+        reasons.push("library conflicts");
+      }
+    }
+
+    // Recent transition behavior: deliberately lower weight than historical evidence.
+    if(tr && tr.n>=4 && tr.strength>=.20){
+      const q=Math.min(.55,tr.strength*.65);
+      evidence+=q;
+      if(tr.side===base.side){
+        support+=q;
+        reasons.push("live transition agrees");
+      }else{
+        conflict+=q;
+        reasons.push("live transition conflicts");
+      }
+    }
+
+    // Regime maturity changes only how strict Duplicate is, not the side by itself.
+    let gate=.34;
+    if(r==="MIXED") gate=.40;
+    if(c==="BLACK") gate+=.06; // BLACK has been weaker in held-out testing.
+    if(p==="LATE") gate-=.03;
+
+    const net=support-conflict;
+    let strength=base.strength;
+
+    if(evidence>0){
+      if(net>0) strength=Math.min(99, strength + Math.min(10,net*9));
+      else strength=Math.max(0, strength - Math.min(14,Math.abs(net)*11));
+    }
+
+    // Strong conflict -> WAIT instead of flipping V2.
+    if(conflict>=gate && conflict>support*1.20){
+      return {
+        ...base,
+        side:null,
+        strength:0,
+        qualified:false,
+        v30:true,
+        v30BaseSide:base.side,
+        v30Color:c,
+        v30Phase:p,
+        v30Regime:r,
+        v30Support:support,
+        v30Conflict:conflict,
+        v30Reason:"V2 base blocked by learned-context conflict"
+      };
+    }
+
+    return {
+      ...base,
+      strength,
+      qualified:true,
+      v30:true,
+      v30BaseSide:base.side,
+      v30Color:c,
+      v30Phase:p,
+      v30Regime:r,
+      v30Support:support,
+      v30Conflict:conflict,
+      v30Reason:reasons.join(", ")||"Sequence V2 base only"
+    };
+  }
+
+  // Replace Duplicate only. Sequence AI V2 remains the original function.
+  window.sequenceAIDuplicateSignal = duplicateV30;
+
+  // Expose diagnostics for testing/UI.
+  window.__sequenceDuplicateV30 = {
+    signal: duplicateV30,
+    baseSequenceV2,
+    priorDuplicate
+  };
+})();
+</script>
+
+
+
+
+
+
+
+
+<script>
+/* RECURRENT SEQUENCE AI V32
+   Genuine recurrent neural sequence model (Elman RNN with truncated BPTT).
+   - Sequence AI V2 is untouched.
+   - RED and BLACK train separately.
+   - Reads ordered history up to 32 prior P/B results.
+   - Context inputs: phase, run length, switch rate, recent P balance.
+   - Sequence Duplicate starts from raw Sequence V2, then recurrent evidence
+     can strengthen, weaken, or force WAIT. It never flips V2 by itself.
+*/
+(function(){
+  const VERSION="32.0";
+  const STEP_INPUTS=5;       // outcome + 4 context values
+  const HIDDEN=20;
+  const MAX_STEPS=32;
+  const LR=.018;
+  const EPOCHS=10;
+  const MAX_ROWS_PER_COLOR=3600;
+  const CLIP=2.5;
+
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const sigmoid=x=>1/(1+Math.exp(-Math.max(-18,Math.min(18,x))));
+  const tanh=Math.tanh;
+
+  function S(){ return window.state || (typeof state!=="undefined"?state:{}); }
+
+  function rng(seed){
+    let x=(seed|0)||123456789;
+    return ()=>{
+      x^=x<<13; x^=x>>>17; x^=x<<5;
+      return ((x>>>0)%1000000)/1000000;
+    };
+  }
+
+  function mat(rows,cols,r,scale=.12){
+    return Array.from({length:rows},()=>Array.from({length:cols},()=> (r()-.5)*2*scale));
+  }
+  function vec(n,r,scale=.08){
+    return Array.from({length:n},()=> (r()-.5)*2*scale);
+  }
+
+  function initNet(seed){
+    const r=rng(seed);
+    return {
+      Wxh:mat(HIDDEN,STEP_INPUTS,r,.11),
+      Whh:mat(HIDDEN,HIDDEN,r,.07),
+      bh:vec(HIDDEN,r,.03),
+      Why:vec(HIDDEN,r,.10),
+      by:(r()-.5)*.05,
+      version:VERSION,
+      trainedN:0,
+      loss:null
+    };
+  }
+
+  function pb(a){ return (a||[]).filter(v=>v==="P"||v==="B"); }
+
+  function stepFeatures(prefix, idx){
+    const upto=prefix.slice(0,idx+1);
+    const cur=prefix[idx];
+    const n=upto.length;
+
+    let run=1;
+    for(let i=n-2;i>=0&&upto[i]===cur;i--) run++;
+
+    const recent=upto.slice(-12);
+    let sw=0;
+    for(let i=1;i<recent.length;i++) if(recent[i]!==recent[i-1]) sw++;
+
+    const pbal=recent.length ? recent.filter(v=>v==="P").length/recent.length : .5;
+
+    return [
+      cur==="P"?1:-1,
+      clamp(n/60,0,1),
+      clamp(run/8,0,1),
+      recent.length>1 ? sw/(recent.length-1) : .5,
+      pbal
+    ];
+  }
+
+  function sequenceFeatures(hist){
+    const x=pb(hist).slice(-MAX_STEPS);
+    return x.map((_,i)=>stepFeatures(x,i));
+  }
+
+  function forward(net, steps){
+    let h=Array(HIDDEN).fill(0);
+    const hs=[h.slice()];
+    for(const x of steps){
+      const nh=new Array(HIDDEN);
+      for(let j=0;j<HIDDEN;j++){
+        let z=net.bh[j];
+        for(let i=0;i<STEP_INPUTS;i++) z+=net.Wxh[j][i]*x[i];
+        for(let k=0;k<HIDDEN;k++) z+=net.Whh[j][k]*h[k];
+        nh[j]=tanh(z);
+      }
+      h=nh;
+      hs.push(h.slice());
+    }
+    let z=net.by;
+    for(let j=0;j<HIDDEN;j++) z+=net.Why[j]*h[j];
+    return {p:sigmoid(z), hs};
+  }
+
+  function trainRow(net, steps, y){
+    if(!steps.length) return 0;
+    const {p,hs}=forward(net,steps);
+    const pp=clamp(p,1e-6,1-1e-6);
+    const dz=p-y;
+
+    const dWhy=new Array(HIDDEN).fill(0);
+    for(let j=0;j<HIDDEN;j++) dWhy[j]=dz*hs[hs.length-1][j];
+    const dby=dz;
+
+    const dWxh=Array.from({length:HIDDEN},()=>Array(STEP_INPUTS).fill(0));
+    const dWhh=Array.from({length:HIDDEN},()=>Array(HIDDEN).fill(0));
+    const dbh=new Array(HIDDEN).fill(0);
+
+    let dh=net.Why.map(w=>dz*w);
+
+    // Truncated BPTT through all supplied steps (max 32).
+    for(let t=steps.length-1;t>=0;t--){
+      const h=hs[t+1], hp=hs[t], x=steps[t];
+      const dz_h=new Array(HIDDEN);
+      for(let j=0;j<HIDDEN;j++){
+        dz_h[j]=dh[j]*(1-h[j]*h[j]);
+        dbh[j]+=dz_h[j];
+        for(let i=0;i<STEP_INPUTS;i++) dWxh[j][i]+=dz_h[j]*x[i];
+        for(let k=0;k<HIDDEN;k++) dWhh[j][k]+=dz_h[j]*hp[k];
+      }
+      const ndh=new Array(HIDDEN).fill(0);
+      for(let k=0;k<HIDDEN;k++){
+        let v=0;
+        for(let j=0;j<HIDDEN;j++) v+=net.Whh[j][k]*dz_h[j];
+        ndh[k]=clamp(v,-CLIP,CLIP);
+      }
+      dh=ndh;
+    }
+
+    for(let j=0;j<HIDDEN;j++){
+      net.Why[j]-=LR*clamp(dWhy[j],-CLIP,CLIP);
+      net.bh[j]-=LR*clamp(dbh[j],-CLIP,CLIP);
+      for(let i=0;i<STEP_INPUTS;i++)
+        net.Wxh[j][i]-=LR*clamp(dWxh[j][i],-CLIP,CLIP);
+      for(let k=0;k<HIDDEN;k++)
+        net.Whh[j][k]-=LR*clamp(dWhh[j][k],-CLIP,CLIP);
+    }
+    net.by-=LR*clamp(dby,-CLIP,CLIP);
+
+    return -(y*Math.log(pp)+(1-y)*Math.log(1-pp));
+  }
+
+  function shoeSeq(sh){
+    return String(sh?.sequence||"").toUpperCase().split("").filter(c=>c==="P"||c==="B");
+  }
+
+  function rowsFrom(shoes){
+    const rows=[];
+    for(const sh of (shoes||[])){
+      const s=shoeSeq(sh);
+      for(let i=6;i<s.length;i++){
+        rows.push([sequenceFeatures(s.slice(Math.max(0,i-MAX_STEPS),i)), s[i]==="P"?1:0]);
+        if(rows.length>=MAX_ROWS_PER_COLOR) return rows;
+      }
+    }
+    return rows;
+  }
+
+  function shuffle(rows,r){
+    for(let i=rows.length-1;i>0;i--){
+      const j=Math.floor(r()*(i+1));
+      [rows[i],rows[j]]=[rows[j],rows[i]];
+    }
+  }
+
+  function trainColor(shoes,seed){
+    const rows=rowsFrom(shoes), net=initNet(seed);
+    if(rows.length<40) return net;
+    const r=rng(seed+991);
+    let loss=0;
+    for(let e=0;e<EPOCHS;e++){
+      shuffle(rows,r);
+      loss=0;
+      for(const [steps,y] of rows) loss+=trainRow(net,steps,y);
+      loss/=rows.length;
+    }
+    net.trainedN=rows.length;
+    net.loss=loss;
+    return net;
+  }
+
+  function fingerprintList(list){
+    let h=2166136261>>>0;
+    for(const sh of (list||[])){
+      const text=String(sh?.id||"")+"|"+String(sh?.sequence||"");
+      for(let i=0;i<text.length;i++){
+        h^=text.charCodeAt(i);
+        h=Math.imul(h,16777619)>>>0;
+      }
+    }
+    return h.toString(16);
+  }
+
+  function sourceFingerprint(){
+    const s=S();
+    return "R:"+fingerprintList(s.redPatternLibrary||[])+"|B:"+fingerprintList(s.blackPatternLibrary||[]);
+  }
+
+  function ensureStore(){
+    const s=S();
+    if(!s.recurrentSequenceV32 || s.recurrentSequenceV32.version!==VERSION){
+      s.recurrentSequenceV32={
+        version:VERSION,red:null,black:null,lastTrainedAt:null,sourceFingerprint:null
+      };
+    }
+    return s.recurrentSequenceV32;
+  }
+
+  function trainAll(force=false){
+    const s=S(), st=ensureStore(), fp=sourceFingerprint();
+    if(!force && st.sourceFingerprint===fp && st.red && st.black) return st;
+
+    st.red=trainColor(s.redPatternLibrary||[],320031);
+    st.black=trainColor(s.blackPatternLibrary||[],320032);
+    st.lastTrainedAt=Date.now();
+    st.sourceFingerprint=fp;
+
+    try{
+      if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true && typeof persist==="function") persist();
+    }catch(e){}
+    return st;
+  }
+
+  function currentColor(){
+    const x=String(S().currentShoeColor||"COMBINED").toUpperCase();
+    return x.includes("RED")?"RED":x.includes("BLACK")?"BLACK":"COMBINED";
+  }
+
+  function currentPB(){
+    try{return pb(typeof currentSequence==="function"?currentSequence():[]);}
+    catch(e){return [];}
+  }
+
+  function predict(){
+    const st=trainAll(false), c=currentColor(), steps=sequenceFeatures(currentPB());
+    let nets=[];
+    if(c==="RED"&&st.red?.trainedN) nets=[st.red];
+    else if(c==="BLACK"&&st.black?.trainedN) nets=[st.black];
+    else{
+      if(st.red?.trainedN) nets.push(st.red);
+      if(st.black?.trainedN) nets.push(st.black);
+    }
+
+    if(!nets.length || !steps.length){
+      return {side:null,strength:0,qualified:false,color:c,reason:"Recurrent model not trained"};
+    }
+
+    const probs=nets.map(n=>forward(n,steps).p);
+    const p=probs.reduce((a,b)=>a+b,0)/probs.length;
+    const rawSide=p>=.5?"P":"B";
+    const confidence=50+Math.abs(p-.5)*100;
+    const trainedN=nets.reduce((a,n)=>a+(n.trainedN||0),0);
+
+    // Require more margin than V31 because recurrent nets can overfit small libraries.
+    const qualified=trainedN>=120 && confidence>=57.5;
+
+    return {
+      side:qualified?rawSide:null,
+      rawSide,
+      strength:qualified?confidence:0,
+      qualified,
+      rawProbabilityP:p,
+      trainedN,
+      color:c,
+      steps:steps.length
+    };
+  }
+
+  const rawSequenceV2 =
+    window.__sequenceDuplicateV30?.baseSequenceV2 ||
+    window.__sequenceDuplicateV31?.rawSequenceV2 ||
+    window.sequenceAISignal;
+
+  function duplicateV32(){
+    let b={};
+    try{b=rawSequenceV2?.()||{};}catch(e){}
+    const baseSide=String(b?.side||"").toUpperCase();
+
+    if(baseSide!=="P"&&baseSide!=="B"){
+      return {
+        ...b,side:null,qualified:false,
+        recurrentV32:predict(),
+        v32Reason:"Sequence V2 WAIT"
+      };
+    }
+
+    let strength=Number(b?.strength ?? b?.confidence ?? 0);
+    if(!Number.isFinite(strength)) strength=0;
+
+    const n=predict();
+    if(n.qualified&&n.side){
+      if(n.side===baseSide){
+        strength+=clamp((n.strength-56)*.42,0,7);
+      }else if(n.strength>=65){
+        return {
+          ...b,side:null,strength:0,qualified:false,
+          recurrentV32:n,
+          v32Reason:"Strong recurrent conflict — WAIT"
+        };
+      }else{
+        strength-=clamp((n.strength-56)*.50,0,5);
+      }
+    }
+
+    return {
+      ...b,
+      side:baseSide,
+      strength:clamp(strength,0,99),
+      qualified:true,
+      recurrentV32:n,
+      v32Reason:n.qualified
+        ? (n.side===baseSide?"Recurrent sequence agrees":"Recurrent sequence mild conflict")
+        : "Sequence V2 base; recurrent model below gate"
+    };
+  }
+
+  window.__recurrentSequenceV32={
+    train:trainAll,
+    predict,
+    sequenceFeatures,
+    sourceFingerprint,
+    version:VERSION,
+    selfTest:function(){
+      const f=sequenceFeatures(["P","B","P","P","B","B","P","P"]);
+      const st=trainAll(false);
+      const ok=
+        f.length>0 &&
+        f.every(x=>x.length===STEP_INPUTS) &&
+        Array.isArray(st.red?.Whh) && st.red.Whh.length===HIDDEN &&
+        Array.isArray(st.black?.Whh) && st.black.Whh.length===HIDDEN;
+      return {
+        ok,
+        steps:f.length,
+        stepInputs:STEP_INPUTS,
+        hidden:HIDDEN,
+        maxSteps:MAX_STEPS,
+        redN:st.red?.trainedN||0,
+        blackN:st.black?.trainedN||0,
+        redLoss:st.red?.loss??null,
+        blackLoss:st.black?.loss??null,
+        fingerprint:st.sourceFingerprint
+      };
+    }
+  };
+
+  window.sequenceAIDuplicateSignal=duplicateV32;
+  window.__sequenceDuplicateV32={signal:duplicateV32,rawSequenceV2};
+
+  try{trainAll(false);}catch(e){}
+})();
+</script>
+
 </body>
 </html>
