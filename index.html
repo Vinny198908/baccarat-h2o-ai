@@ -1730,6 +1730,8 @@ window.__verifiedAccuracySummary=verifiedSummary;
 window.renderColorPatternAI=renderColorPatternAI;
 window.renderVerifiedAccuracy=renderVerifiedAccuracy;
 window.__settleVerifiedPredictions=settleVerifiedPredictions;
+// FINAL SCAN FIX: the button existed but had no listener wired.
+document.getElementById('resetVerifiedAccuracyBtn')?.addEventListener('click',resetVerifiedAccuracy);
 window.__armVerifiedPredictions=armVerifiedPredictions;
 /* === END VERIFIED RUNTIME EXPORTS === */
 
@@ -5779,30 +5781,18 @@ renderLibraryBackupStatus();
    Read-only chronological replay. Restores live state/localStorage.
    ============================================================ */
 (function(){
-  const KEYS=[
-    ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
-    ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
-    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer']
-  ];
+  // FULL-AI REGISTRY: use the exact same registered model definitions as live verified scoring.
+  // This prevents the simulation from silently omitting newer AIs or calling a different/older signal path.
+  const KEYS=(Array.isArray(modelDefs)?modelDefs:[]).map(([key,name])=>[key,name]);
+  const SIM_MODEL_GETTERS=new Map((Array.isArray(modelDefs)?modelDefs:[]).map(([key,name,get])=>[key,{name,get}]));
   const clone=x=>JSON.parse(JSON.stringify(x));
   const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
   function getSignal(key){
     try{
-      let x=null;
-      if(key==='seqv2') x=sequenceAISignal();
-      else if(key==='color') x=window.colorPatternAISignal?.();
-      else if(key==='roadpreview') x=roadPreviewAISignal();
-      else if(key==='derivedorig'){const z=derivedRoadSequenceAI();x={side:z.side,strength:z.confidence||0};}
-      else if(key==='derivedmain') x=adaptiveDerivedMainSignal();
-      else if(key==='seqdup') x=sequenceAIDuplicateSignal();
-      else if(key==='consensus') x=consensusSignal();
-      else if(key==='bot'){const z=masterBotSignal();x={side:z.qualified?z.side:null,strength:z.confidence||0};}
-      else if(key==='bestestimate'){const z=computeCombinedAnalyzer();x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0};}
-       else if(key==='specialistv20'){const z=window.__redBlackSpecialistV20?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
-       else if(key==='blackctxv22'){const z=window.__blackContextV22?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
-       else if(key==='metav23'){const z=window.__metaWalkV23?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
-      if(x && window.__slV10Signal) x=window.__slV10Signal(key,x);
-      return x||{};
+      const def=SIM_MODEL_GETTERS.get(key);
+      if(!def || typeof def.get!=='function') return {side:null,error:'No registered getter for '+key};
+      const x=def.get()||{};
+      return x;
     }catch(e){ return {side:null,error:String(e)}; }
   }
   function ensurePanel(){
@@ -5810,7 +5800,7 @@ renderLibraryBackupStatus();
     if(p)return p;
     p=document.createElement('div');p.id='fullLibraryBacktestPanel';p.className='analyzer';p.style.borderColor='#2f855a';
     p.innerHTML=`<div class="analyzer-title">🧪 Full Library AI Simulation</div>
-      <div class="analyzer-sub" style="color:#c4b5fd"><b>LEAN CORE V28:</b> Simulation scores only the active core prediction engines.</div>
+      <div class="analyzer-sub" style="color:#c4b5fd"><b>FULL AI REGISTRY:</b> Simulation scores every AI registered in live verified scoring, including Walk-Forward and specialist/focus engines.</div>
       <div class="analyzer-sub">Chronological, pre-result replay. Each shoe is hidden from the library until its replay finishes. Your live state is restored after the test.</div>
       <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
         <button class="tiny-btn" id="runFullLibraryBacktest">Run Full Library Simulation</button>
@@ -5834,8 +5824,9 @@ renderLibraryBackupStatus();
   }
   async function run(){
     const btn=document.getElementById('runFullLibraryBacktest'),status=document.getElementById('fullBacktestStatus');
+    if(!btn || btn.disabled)return;
     window.__FULL_LIBRARY_SIMULATION_ACTIVE__=true;
-    if(btn.disabled)return;btn.disabled=true;
+    btn.disabled=true;
     const savedState=clone(state), savedStorage=localStorage.getItem(KEY), savedBackup=localStorage.getItem(LIBRARY_BACKUP_KEY), savedHist=localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY);
     const all=[...(savedState.redPatternLibrary||[]).map(x=>({...clone(x),__color:'red'})),...(savedState.blackPatternLibrary||[]).map(x=>({...clone(x),__color:'black'}))]
       .sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||'')));
@@ -9578,5 +9569,291 @@ window.__RUNTIME_HOOKS_FIXED_20260830__=true;
 window.__RUNTIME_CRASH_FIX_20260830__=true;
 </script>
 
+
+<script id="adaptive-derived-67-profile-final">
+/* ============================================================
+   ADAPTIVE DERIVED ROADS — 67-PROFILE DECISION CORE
+   Final decision wrapper only. Preserves Adaptive Derived road
+   generation, verified-live reliability, self-learning, awareness,
+   toggles, and grading. Sequence AI V2 is untouched.
+   ============================================================ */
+(function(){
+  if(typeof adaptiveDerivedMainSignal!=='function') return;
+  const __adaptiveDerived67Base = adaptiveDerivedMainSignal;
+  adaptiveDerivedMainSignal = function(){
+    const out = __adaptiveDerived67Base.apply(this, arguments) || {};
+    const roads = Array.isArray(out.roads) ? out.roads : [];
+    const qualified = roads.filter(r => r && r.enabled!==false && (r.side==='P'||r.side==='B'));
+
+    let p=0,b=0,total=0;
+    qualified.forEach(r=>{
+      // Keep Adaptive Derived's learned live reliability/quality weight,
+      // but use the restored 67-profile's final separation logic.
+      const w = Number.isFinite(Number(r.weight)) ? Math.max(0,Number(r.weight)) : 1;
+      total += w;
+      if(r.side==='P') p += w; else b += w;
+    });
+
+    const edge = total ? Math.abs(p-b)/total : 0;
+    const pVotes = qualified.filter(r=>r.side==='P').length;
+    const bVotes = qualified.filter(r=>r.side==='B').length;
+    const leader = p>b ? 'P' : b>p ? 'B' : null;
+    const support = leader ? qualified.filter(r=>r.side===leader) : [];
+    const avg=(arr,fn)=>arr.length?arr.reduce((a,x)=>a+fn(x),0)/arr.length:0;
+
+    // Adaptive Main-Road channels expose bestSimilarity/windowAgreement;
+    // these are the direct equivalents of the original 67-profile's
+    // similarityScore/agreeWindows evidence.
+    const sim = avg(support,r=>Number(r.similarityScore ?? r.bestSimilarity ?? 0)||0);
+    const strength = avg(support,r=>Number(r.strength)||0);
+    const agreement = avg(support,r=>{
+      if(Number.isFinite(Number(r.windowAgreement))) return Number(r.windowAgreement);
+      const tw=Math.max(1,Number(r.totalWindows)||1);
+      return (Number(r.agreeWindows)||0)/tw;
+    });
+    const matches = support.reduce((a,r)=>a+(Number(r.matches)||0),0);
+
+    const voteOK = !!leader && support.length>=2 && Math.max(pVotes,bVotes)>=2;
+    const strongGate = voteOK && edge>=0.15 && sim>=60 && strength>=56 && agreement>=0.56 && matches>=4;
+
+    let pbHands=0;
+    try{
+      const seq=(typeof currentSequence==='function'?currentSequence():'');
+      pbHands=String(seq||'').replace(/T/g,'').replace(/[^PB]/g,'').length;
+    }catch(e){}
+    const late = pbHands>=35;
+
+    if(!strongGate || late){
+      out.side=null;
+      out.confidence=0;
+      out.strength=0;
+      out.waitReason = late
+        ? 'WAIT — Adaptive Derived 67-profile is restricted to beginning/middle shoe; hand 35+ is gated.'
+        : `WAIT — Adaptive 67-profile strong gate: ${Math.round(edge*100)}% separation • ${support.length}/3 supporting roads • ${Math.round(sim)} similarity • ${Math.round(strength)} strength.`;
+      out.reason=out.waitReason;
+      if(late) out.phaseGuard='late-wait';
+    }else{
+      const q=Math.min(96,Math.round(55 + edge*55 + Math.max(0,sim-60)*0.18 + Math.max(0,strength-56)*0.15));
+      out.side=leader;
+      out.confidence=q;
+      out.strength=q;
+      out.waitReason='';
+      out.reason=`QUALIFIED — Adaptive Derived restored 67-profile: ${support.length}/3 roads support ${leader}; ${Math.round(edge*100)}% weighted separation.`;
+    }
+
+    out.edge=edge;
+    out.pVotes=pVotes;
+    out.bVotes=bVotes;
+    out.adaptiveDerivedProfile='67-strong-gate-adaptive';
+    out.profileEvidence={similarity:sim,strength,agreement,matches,pbHands};
+    return out;
+  };
+
+  function relabel(){
+    const box=document.getElementById('adaptiveMainDerivedFinal');
+    if(box){
+      const head=box.querySelector('div[style*="font-weight:800"]');
+      if(head) head.textContent='ADAPTIVE DERIVED ROADS — 67-PROFILE ADAPTIVE MODE';
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',relabel); else relabel();
+  const oldRender=window.render;
+  if(typeof oldRender==='function') window.render=function(){const r=oldRender.apply(this,arguments);try{relabel()}catch(e){}return r;};
+  window.__ADAPTIVE_DERIVED_67_PROFILE_20260830__=true;
+})();
+</script>
+
+
+
+<script id="walk-forward-v23-restored-runtime-fix-v51">
+/* ============================================================
+   WALK-FORWARD V23 RESTORED CORE + RUNTIME FIX V51
+   - Restores the broader original V23 evidence family without the
+     later overly narrow 5-source V31 bottleneck.
+   - Uses currentSequence() for hand counts/results (fixes old x.r bug).
+   - Keeps strictly pre-result learning: pending calls are graded only
+     after the next P/B result is committed.
+   - Avoids bot / best-estimate sources here because the current V48
+     meta-selector can depend on Walk-Forward, which would recurse.
+   - Sequence AI V2 core is not modified.
+   ============================================================ */
+(function(){
+  'use strict';
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const SOURCE_DEFS=[
+    ['seqv2','Sequence AI V2',()=>typeof sequenceAISignal==='function'?sequenceAISignal():{}],
+    ['color','Color Pattern AI',()=>window.colorPatternAISignal?.()||{}],
+    ['roadpreview','Road Preview AI',()=>typeof roadPreviewAISignal==='function'?roadPreviewAISignal():{}],
+    ['derivedorig','Derived Road AI',()=>{const z=typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI():{};return {side:z.side,strength:z.confidence||z.strength||0}}],
+    ['derivedmain','Adaptive Derived Roads',()=>typeof adaptiveDerivedMainSignal==='function'?adaptiveDerivedMainSignal():{}],
+    ['seqdup','Sequence AI V2 Duplicate',()=>typeof sequenceAIDuplicateSignal==='function'?sequenceAIDuplicateSignal():{}],
+    ['consensus','AI Consensus',()=>typeof consensusSignal==='function'?consensusSignal():{}],
+    ['specialistv20','RED / BLACK Specialist V20',()=>window.__redBlackSpecialistV20?.signal?.()||{}]
+  ];
+  function pb(){try{return (currentSequence?.()||[]).filter(x=>x==='P'||x==='B')}catch(e){return []}}
+  function shoeColor(){
+    const raw=String(state?.currentShoeColor||state?.shoeColor||'').toLowerCase();
+    if(raw.includes('black'))return 'black'; if(raw.includes('red'))return 'red'; return 'combined';
+  }
+  function context(){
+    const a=pb(),n=a.length,r=a.slice(-10);let sw=0,st=0,last=n?a[n-1]:null;
+    for(let i=1;i<r.length;i++)if(r[i]!==r[i-1])sw++;
+    for(let i=n-1;i>=0&&a[i]===last;i--)st++;
+    const chop=r.length>=6?sw/Math.max(1,r.length-1):.5;
+    return {color:shoeColor(),phase:n<18?'early':n<36?'middle':'late',rhythm:chop>=.68?'chop':chop<=.35?'run':'mixed',streak:st,n};
+  }
+  function bucket(){const c=context();return `${c.color}|${c.phase}|${c.rhythm}`}
+  function store(){
+    if(!state.walkForwardV23Fixed||typeof state.walkForwardV23Fixed!=='object')state.walkForwardV23Fixed={version:51,totalUpdates:0,buckets:{},pending:null};
+    state.walkForwardV23Fixed.buckets||={}; return state.walkForwardV23Fixed;
+  }
+  function rec(id,key){const s=store();s.buckets[id]||={};s.buckets[id][key]||={w:0,l:0,n:0};return s.buckets[id][key]}
+  function trust(id,key){
+    const z=rec(id,key),rate=(z.w+5)/(z.n+10),maturity=Math.min(1,z.n/30);
+    return {rate,n:z.n,score:.5+(rate-.5)*maturity};
+  }
+  function rawSources(){
+    const out=[];
+    for(const [key,name,get] of SOURCE_DEFS){
+      let z={};try{z=get()||{}}catch(e){continue}
+      const side=z.side==='P'||z.side==='B'?z.side:null;if(!side||z.qualified===false)continue;
+      const strength=clamp(Number(z.strength??z.confidence??z.top)||50,50,88);
+      out.push({key,name,side,strength});
+    }
+    return out;
+  }
+  function learnCycle(){
+    const s=store(),a=pb(),n=a.length;
+    if(s.pending&&n>s.pending.handN){
+      const actual=a[s.pending.handN];
+      if(actual==='P'||actual==='B'){
+        for(const q of s.pending.signals){const z=rec(s.pending.bucket,q.key);z.n++;q.side===actual?z.w++:z.l++;}
+        s.totalUpdates++;
+      }
+      s.pending=null;try{persist?.()}catch(e){}
+    }
+    if(!s.pending){
+      const sig=rawSources();
+      if(sig.length)s.pending={handN:n,bucket:bucket(),signals:sig.map(x=>({key:x.key,side:x.side}))};
+    }
+  }
+  function signal(){
+    learnCycle();
+    const id=bucket(),ss=rawSources();
+    if(ss.length<3)return {side:null,qualified:false,confidence:0,bucket:id,signals:ss,reason:`WAIT — Walk-Forward has only ${ss.length} live source signal${ss.length===1?'':'s'}; needs 3.` ,runtimeFixV51:true};
+    let p=0,b=0,total=0,learned=0;const details=[];
+    for(const s of ss){
+      const q=trust(id,s.key);if(q.n>=8)learned++;
+      let w=.82+(q.score-.5)*7;
+      w*=clamp(.86+(s.strength-50)/100,.82,1.15);
+      if(s.key==='specialistv20')w*=1.08;
+      w=clamp(w,.48,1.48);total+=w;s.side==='P'?p+=w:b+=w;
+      details.push({...s,weight:w,learnedRate:q.rate,learnedN:q.n});
+    }
+    const cand=p>=b?'P':'B',margin=total?Math.abs(p-b)/total:0,supporters=details.filter(x=>x.side===cand);
+    const matureSupport=supporters.filter(x=>x.learnedN>=8&&x.learnedRate>.5).length;
+    const minMargin=learned>=4?.075:.095;
+    const qualified=supporters.length>=3&&margin>=minMargin&&(learned<4||matureSupport>=1);
+    const confidence=qualified?Math.round(Math.min(78,50+margin*62+Math.min(4,matureSupport)*1.2)):0;
+    return {side:qualified?cand:null,candidate:cand,qualified,confidence,margin,bucket:id,learnedModels:learned,matureSupport,details,signals:ss,runtimeFixV51:true,
+      reason:qualified?`Walk-forward ${id}: ${supporters.length}/${details.length} weighted signals support ${cand==='P'?'PLAYER':'BANKER'}.`:`WAIT — walk-forward ${id} has ${supporters.length}/${details.length} support but insufficient learned edge (${Math.round(margin*100)}%).`};
+  }
+  function renderFixed(){
+    try{
+      const z=signal(),s=store(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+      const panel=document.getElementById('metaWalkV23');
+      if(panel){const title=panel.querySelector('.analyzer-title');if(title)title.textContent='🧠 Walk-Forward Meta Learner V23 — Restored Core';}
+      set('v23Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');
+      set('v23Conf',z.qualified?`${z.confidence}%`:'—');set('v23Bucket',z.bucket||'—');set('v23N',s.totalUpdates||0);set('v23Reason',z.reason||'');
+      if(panel){let badge=panel.querySelector('.wfV51Badge');if(!badge){badge=document.createElement('div');badge.className='analyzer-sub wfV51Badge';badge.style.marginTop='6px';badge.style.color='#8ff0b3';panel.appendChild(badge);}badge.textContent=`Runtime fixed • ${z.signals?.length||0} live sources • pre-result learning synced to currentSequence()`;}
+    }catch(e){console.error('[WalkForward V51]',e)}
+  }
+  if(!window.__metaWalkV23)window.__metaWalkV23={};
+  window.__metaWalkV23.signal=signal;window.__metaWalkV23.learnCycle=learnCycle;window.__metaWalkV23.render=renderFixed;
+  window.__metaWalkV23.runtimeFixV51=true;
+  const oldRender=window.render;
+  if(typeof oldRender==='function')window.render=function(){const r=oldRender.apply(this,arguments);try{renderFixed()}catch(e){}return r};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(renderFixed,0));else setTimeout(renderFixed,0);
+  setTimeout(renderFixed,800);
+  window.__WALK_FORWARD_V23_RUNTIME_FIX_V51__={version:51,restoredCore:true,currentSequenceSync:true,sourceCount:SOURCE_DEFS.length};
+})();
+</script>
+
+<script id="best-estimate-balanced-coverage-v29">
+/* BEST-ESTIMATE BALANCED COVERAGE V29
+   Purpose: remove stacked over-conservative vetoes without forcing predictions.
+   - Adaptive Derived is supportive/conflict evidence, not a mandatory permission gate.
+   - Lack of self-learning sample size alone cannot veto a qualified call.
+   - Strong contradictions and demonstrably poor learned contexts still WAIT.
+   - Sequence AI V2 core logic is not modified. */
+(function(){
+  if(typeof computeCombinedAnalyzer!=='function') return;
+  const __bestBeforeBalancedV29 = computeCombinedAnalyzer;
+  computeCombinedAnalyzer = function(){
+    const r = __bestBeforeBalancedV29.apply(this, arguments) || {};
+    try{
+      const nonTieCount = (state?.hands||[]).filter(h=>h && h.r!=='T').length;
+      const families = Array.isArray(r.families) ? r.families.filter(f=>f && (f.side==='P'||f.side==='B') && Number(f.strength)>50) : [];
+      const side = r.side;
+      const top = Number(r.top)||0;
+      const agreement = Number(r.independentAgreement)||0;
+      const contradiction = !!r.contradiction;
+      const seq = r.seqAI || (typeof sequenceAISignal==='function' ? sequenceAISignal() : {});
+      const road = r.roadAI || (typeof roadPreviewAISignal==='function' ? roadPreviewAISignal() : {});
+      const ad = r.selectiveRoads || (typeof adaptiveDerivedMainSignal==='function' ? adaptiveDerivedMainSignal() : {});
+      const learnedN = Number(r.selfLearnN)||0;
+      const learnedRate = Number(r.selfLearnRate);
+
+      // Core balanced gate: still requires real multi-family evidence and a measurable edge.
+      let qualified = (side==='P'||side==='B') &&
+                      nonTieCount>=8 &&
+                      families.length>=2 &&
+                      agreement>=0.60 &&
+                      top>=54 &&
+                      !contradiction &&
+                      ((Number(seq?.similarityScore)||0)>=45 || (road?.side==='P'||road?.side==='B') || families.length>=3);
+      let reason = '';
+
+      if(!qualified){
+        if(nonTieCount<8) reason=`Need more current-shoe data (${nonTieCount}/8 non-tie hands).`;
+        else if(families.length<2) reason='Need at least 2 independent evidence families.';
+        else if(contradiction) reason='WAIT: strong independent evidence contradiction.';
+        else if(agreement<0.60) reason='WAIT: independent evidence agreement is too weak.';
+        else if(top<54) reason='WAIT: combined edge is too small.';
+        else reason='WAIT: no qualified historical or road anchor.';
+      }
+
+      // Learned history may veto only after there is a meaningful sample AND it is actually poor.
+      if(qualified && learnedN>=15 && Number.isFinite(learnedRate) && learnedRate<0.47){
+        qualified=false;
+        reason=`WAIT: this verified context is underperforming (${Math.round(learnedRate*100)}% over ${learnedN} graded calls).`;
+      }
+
+      // A strong Sequence V2 opposition still matters, but ordinary disagreement does not automatically kill coverage.
+      const seqHas = seq?.side==='P'||seq?.side==='B';
+      const seqOpposes = seqHas && seq.side!==side;
+      if(qualified && seqOpposes && (Number(seq.strength)||0)>=68 && top<62){
+        qualified=false;
+        reason='WAIT: strong Sequence AI V2 opposition requires a larger combined edge.';
+      }
+
+      // Adaptive Derived is now confirmation/conflict evidence, not mandatory permission.
+      // WAIT from Adaptive Derived does NOT automatically force Best-Estimate to WAIT.
+      const adHas = ad?.side==='P'||ad?.side==='B';
+      const adStrength = Number(ad?.strength||ad?.confidence)||0;
+      if(qualified && adHas && ad.side!==side && adStrength>=65 && top<61){
+        qualified=false;
+        reason='WAIT: strong Adaptive Derived conflict requires a larger combined edge.';
+      }
+
+      r.qualified = qualified;
+      r.gateReason = qualified ? '' : reason;
+      r.balancedCoverageV29 = true;
+      r.adaptiveConfirmationMode = 'supportive-not-mandatory';
+      return r;
+    }catch(e){ return r; }
+  };
+})();
+</script>
 </body>
 </html>
