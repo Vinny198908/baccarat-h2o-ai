@@ -3360,7 +3360,8 @@ function sequenceH2OSignal(){
   };
 }
 function renderSequenceH2O(){
-  const x=sequenceAIDuplicateSignal();
+  const raw=sequenceAIDuplicateSignal();
+  const x=window.__slV10Signal?window.__slV10Signal('seqdup',raw):raw;
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   const side=x?.side==='P'?'Player':x?.side==='B'?'Banker':'WAIT';
   set('seqDupSide',side); set('seqDupStrength',x?.side?(x.strength||0)+'%':'WAIT');
@@ -4066,7 +4067,9 @@ function formatDerivedTestScore(key){
   return `Test score: ${m.rate}% • ${m.wins}W–${m.losses}L • N=${m.n}${r==null?'':` • last 10 ${r}%`}`;
 }
 function renderAdaptiveDerivedMain(){
-  const x=adaptiveDerivedMainSignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  const raw=adaptiveDerivedMainSignal();
+  const x=window.__slV10Signal?window.__slV10Signal('derivedmain',raw):raw;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
 
   ['eye','small','roach'].forEach(k=>{
     const id=k==='eye'?'adaptiveRoadEyeToggle':k==='small'?'adaptiveRoadSmallToggle':'adaptiveRoadRoachToggle';
@@ -4575,7 +4578,10 @@ function renderAnalyzer(){
   renderSequenceAI();
   renderSequenceH2O();
   renderConsensus();
-  const a=computeCombinedAnalyzer();
+  const a0=computeCombinedAnalyzer();
+  const ay={...a0,side:a0.qualified?a0.side:null,strength:a0.qualified?(Number(a0.top)||0):0};
+  const af=window.__slV10Signal?window.__slV10Signal('bestestimate',ay):ay;
+  const a={...a0,side:af.side,qualified:af.side==='P'||af.side==='B',top:af.side?(Number(af.strength)||Number(a0.top)||0):0};
   document.getElementById('bestSide').textContent=a.qualified?(a.side==='P'?'Player':'Banker'):'WAIT';
   document.getElementById('bestScore').textContent=a.qualified?a.top+'%':'WAIT';
   document.getElementById('libraryInfluence').textContent=a.libraryWeight+'%';
@@ -8279,7 +8285,7 @@ renderLibraryBackupStatus();
   function modelSignal(m){
     let side=normSide(text(m.side)),conf=pct(text(m.conf));
     if(m.key==='focus'&&window.__focusAIV26?.signal){try{const z=window.__focusAIV26.signal()||{};side=z.qualified?z.side:null;conf=Number(z.confidence)||conf}catch(e){}}
-    if(m.key==='adaptive'&&window.__selectiveLiveV13A?.signal){try{const z=window.__selectiveLiveV13A.signal()||{};if(z.side==='P'||z.side==='B'){side=z.side;conf=Number(z.confidence)||conf}}catch(e){}}
+    // Governor uses the exact displayed live prediction; no second Adaptive calculation.
     return {side,conf};
   }
   function rec(k){return g.models[k]||(g.models[k]={w:0,l:0,n:0,recent:[]})}
@@ -8623,6 +8629,9 @@ renderLibraryBackupStatus();
       else if(key==='blackctxv22'){const q=window.__blackContextV22?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
       else if(key==='metav23'){const q=window.__metaWalkV23?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
       else if(key==='focusv26'){const q=window.__focusAIV26?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      if(['seqv2','color','roadpreview','derivedorig','derivedmain','seqdup','consensus','bot','bestestimate'].includes(key)){
+        return window.__slV10Signal?window.__slV10Signal(key,z):apply(key,z);
+      }
       return apply(key,z);
     }catch(e){return {side:null,strength:0,error:String(e)}}
   }
@@ -9479,6 +9488,14 @@ renderLibraryBackupStatus();
   } else install();
   setTimeout(install, 500);
 })();
+</script>
+
+<script id="prediction-ledger-sync-fix">
+window.__PREDICTION_LEDGER_SYNC_FIX__={
+  version:1,
+  rule:'one final live prediction -> display -> verified lock -> governor',
+  fixed:['derivedmain','seqdup','bestestimate','governor-adaptive','v39-audit']
+};
 </script>
 
 </body>
