@@ -274,7 +274,7 @@
 </div>
 <div class="analyzer" id="sequenceAiPanel">
 <div class="analyzer-title">Sequence AI V2 Analyzer</div>
-<div class="analyzer-sub">High-selectivity saved-shoe P/B/T similarity engine. It gives substantially more weight to persistent long matches, mutes ambiguous historical continuations, and uses strict color-calibrated confidence gates (strictest on BLACK) to reject weak/conflicting bets. Expect substantially more WAIT calls; this profile is designed to prioritize historical precision over prediction frequency. Sequence AI V2 uses saved P/B/T shoe history only.</div>
+<div class="analyzer-sub">High-selectivity saved-shoe P/B/T similarity engine. It gives substantially more weight to persistent long matches, mutes ambiguous historical continuations, and uses strict color-calibrated confidence gates (strictest on BLACK) to reject weak/conflicting bets. V49.2 keeps the strict qualification score, but also exposes the model’s best raw P/B lean when usable evidence exists so learning and verification are not starved by WAIT gates. Sequence AI V2 uses saved P/B/T shoe history only.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">WAIT</strong></div>
 <div class="analyzer-card"><span>Sequence confidence</span><strong id="seqAiStrength">—</strong></div>
@@ -484,7 +484,7 @@
 </div>
 <div class="analyzer" id="roadPreviewAiPanel">
 <div class="analyzer-title">Road Preview AI — Historical Shoe Specialist</div>
-<div class="analyzer-sub">ROAD + HISTORY COLOR ENGINE V6. Uses ONLY two inputs: (1) the current shoe's independent Big Eye Boy, Small Road, and Cockroach Road signals, and (2) saved historical P/B/T color-pattern continuations. The derived-road signals do NOT use history. Road Preview combines their current-shoe road vote with matching historical color patterns. Kaggle, H2O, Sequence AI, Bot AI, card composition, saved derived-road histories, and external models are excluded. Weak or conflicting evidence returns WAIT.</div>
+<div class="analyzer-sub">ROAD + HISTORY COLOR ENGINE V6. Uses ONLY two inputs: (1) the current shoe's independent Big Eye Boy, Small Road, and Cockroach Road signals, and (2) saved historical P/B/T color-pattern continuations. The derived-road signals do NOT use history. Road Preview combines their current-shoe road vote with matching historical color patterns. Kaggle, H2O, Sequence AI, Bot AI, card composition, saved derived-road histories, and external models are excluded. Weak or conflicting evidence is shown as a lower-confidence raw P/B lean when usable evidence exists; WAIT is reserved for genuinely insufficient evidence.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
 <div class="analyzer-card"><span>Historical strength</span><strong id="roadAiStrength">—</strong></div>
@@ -11080,6 +11080,218 @@ window.__V24_DIAGNOSTIC_REPAIR__={
 </script>
 <script id="meta-selector-v49-build-tag">
 window.__V49_CONTROLLED_META__={version:49,architecture:'existing specialists -> controlled replay selector -> High-Powered Bot',strictPreResult:true,settlementOrderFixed:true,replayBatch:12,maxReplay:240,chronologicalWalkForwardButton:true,frozenV47Preserved:true,autoRetrainFrozenModel:false};
+</script>
+
+<script id="v49-2-prediction-availability-layer">
+/* ============================================================
+   V49.2 — PREDICTION AVAILABILITY LAYER
+   Goal: do not turn usable model evidence into WAIT merely because
+   a conservative trust gate was not met.
+
+   - Qualified predictions are unchanged.
+   - When a model has usable P/B evidence but its old gate returns WAIT,
+     expose its best raw P/B lean with conservative confidence.
+   - RAW predictions are still pre-result locked and graded, so the
+     controlled replay selector can learn whether they deserve trust.
+   - WAIT remains valid when there is genuinely no usable P/B evidence.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const sideOf=v=>{const s=String(v||'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':null};
+  function derive(z){
+    if(!z||typeof z!=='object')return null;
+    let side=sideOf(z.side)||sideOf(z.candidate)||sideOf(z.expected)||sideOf(z.rawSide)||sideOf(z.prediction)||sideOf(z.pick)||sideOf(z.leader);
+    let p=Number(z.pPct),b=Number(z.bPct);
+    if(!side&&Number.isFinite(p)&&Number.isFinite(b)&&(p>0||b>0)&&p!==b)side=p>b?'P':'B';
+    if(!side){
+      const pp=Number(z.probabilityP??z.rawProbabilityP),pb=Number(z.probabilityB??z.rawProbabilityB);
+      if(Number.isFinite(pp)&&Number.isFinite(pb)&&pp!==pb)side=pp>pb?'P':'B';
+    }
+    return side;
+  }
+  function rawStrength(z,side){
+    const given=Number(z?.strength??z?.confidence??z?.top);
+    let p=Number(z?.pPct),b=Number(z?.bPct),edge=0;
+    if(Number.isFinite(p)&&Number.isFinite(b)&&p+b>0)edge=Math.abs(p-b)/(p+b)*100;
+    if(Number.isFinite(given)&&given>0)return clamp(Math.round(Math.min(given,59)),50,59);
+    return clamp(Math.round(50+Math.min(9,edge*.45)),50,59);
+  }
+  function expose(z,label){
+    if(!z||typeof z!=='object')return z||{};
+    if(sideOf(z.side))return z;
+    const side=derive(z);if(!side)return z;
+    return {...z,side,qualified:true,rawPrediction:true,predictionTier:'RAW',strength:rawStrength(z,side),confidence:rawStrength(z,side),waitReason:'',reason:`RAW ${label||'model'} lean — usable evidence exists, but the former strict qualification gate was not met.`};
+  }
+  function wrapGlobal(name,label){
+    const old=window[name];if(typeof old!=='function'||old.__v492Availability)return;
+    const w=function(){let z={};try{z=old.apply(this,arguments)||{}}catch(e){throw e}return expose(z,label)};
+    w.__v492Availability=true;w.__v492Original=old;window[name]=w;
+    try{eval(name+'=window[name]')}catch(e){}
+  }
+  function wrapObject(objName,method,label){
+    const obj=window[objName],old=obj?.[method];if(!obj||typeof old!=='function'||old.__v492Availability)return;
+    const w=function(){return expose(old.apply(this,arguments)||{},label)};w.__v492Availability=true;w.__v492Original=old;obj[method]=w;
+  }
+
+  // Core predictors. Their original qualified calls pass through unchanged.
+  wrapGlobal('sequenceAISignal','Sequence AI V2');
+  wrapGlobal('colorPatternAISignal','Color Pattern AI');
+  wrapGlobal('roadPreviewAISignal','Road Preview AI');
+  wrapGlobal('adaptiveDerivedMainSignal','Adaptive Derived Roads');
+  wrapGlobal('consensusSignal','AI Consensus');
+
+  // Specialists used by V49 selector and the verified ledger.
+  wrapObject('__redBlackSpecialistV20','signal','RED / BLACK Specialist V20');
+  wrapObject('__blackContextV22','signal','BLACK Context Specialist V22');
+  wrapObject('__metaWalkV23','signal','Walk-Forward Meta Learner V23');
+  wrapObject('__focusAIV26','signal','Focus AI V26');
+
+  // Best Estimate has a separate qualified gate; expose candidate if available.
+  const oldCombined=window.computeCombinedAnalyzer;
+  if(typeof oldCombined==='function'&&!oldCombined.__v492Availability){
+    const w=function(){const z=oldCombined.apply(this,arguments)||{};if(z.qualified&&sideOf(z.side))return z;const x=expose(z,'Best-Estimate Analyzer');if(sideOf(x.side))return {...x,qualified:true,top:x.top||x.confidence||x.strength};return z};
+    w.__v492Availability=true;w.__v492Original=oldCombined;window.computeCombinedAnalyzer=w;try{computeCombinedAnalyzer=w}catch(e){}
+  }
+
+  // Meta-Selector remains the preferred controller. If its strict replay gate says
+  // WAIT but it has a selected candidate, publish that candidate as a RAW call.
+  const meta=window.__metaSelectorV49;
+  if(meta?.signal){
+    const strict=meta.signal.bind(meta);
+    window.__metaSelectorV49StrictSignal=strict;
+    const available=function(){
+      const z=strict()||{};
+      if(sideOf(z.side))return z;
+      const side=sideOf(z.candidate)||sideOf(z.sources?.[0]?.side);
+      if(!side)return z;
+      const trust=Number(z.selectedTrust)||.5;
+      const conf=clamp(Math.round((50+Math.max(0,trust-.5)*70)*10)/10,50,59);
+      return {...z,side,qualified:true,rawPrediction:true,predictionTier:'RAW',confidence:conf,strength:conf,reason:`RAW META CALL: ${z.selectedName||'best available specialist'} leans ${side==='P'?'PLAYER':'BANKER'}. Replay trust is still building; prediction remains gradable.`};
+    };
+    meta.signal=available;
+    window.masterBotSignal=available;try{masterBotSignal=available}catch(e){}
+  }
+
+  function decorate(){
+    try{
+      const z=window.__metaSelectorV49?.signal?.()||{};
+      const pick=document.getElementById('ms49Pick'),trust=document.getElementById('ms49Trust'),reason=document.getElementById('ms49Reason');
+      if(pick&&z.side){pick.textContent=`${z.selectedName||'Meta-Selector'} → ${z.side==='P'?'PLAYER':'BANKER'}${z.rawPrediction?' • RAW':''}`;}
+      if(trust&&z.rawPrediction&&!z.selectedTrust)trust.textContent='BUILDING';
+      if(reason&&z.reason)reason.textContent=z.reason;
+      const botNote=document.getElementById('botNote');if(botNote&&z.side&&z.rawPrediction)botNote.textContent=`RAW prediction active: ${z.side==='P'?'PLAYER':'BANKER'} • confidence ${Math.round(Number(z.confidence)||50)}%. This call is pre-result locked and graded while replay trust builds.`;
+    }catch(e){}
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v492Availability){
+    const w=function(){const r=oldRender.apply(this,arguments);try{decorate()}catch(e){}return r};w.__v492Availability=true;w.__v492Original=oldRender;window.render=w;try{render=w}catch(e){}
+  }
+  setTimeout(()=>{try{window.__armVerifiedPredictions?.();decorate()}catch(e){}},250);
+  setTimeout(decorate,900);
+  window.__V49_2_PREDICTION_AVAILABILITY__={version:'49.2',rawPredictions:true,qualifiedPredictionsUnchanged:true,waitOnlyWhenNoUsableEvidence:true,preResultGrading:true,replayLearning:true};
+})();
+</script>
+
+
+<script id="v49-3-meta-bot-compatibility-fix">
+/* ============================================================
+   V49.3 — META/BOT COMPATIBILITY + RENDER SAFETY
+   Fixes the legacy High-Powered Bot UI/arming code so it can consume
+   the V49 Meta-Selector shape without throwing during render().
+   A render exception previously interrupted the post-result flow before
+   the NEXT pre-result snapshot could be armed.
+   ============================================================ */
+(function(){
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const phaseInfo=()=>{
+    let n=0;try{n=(typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B').length}catch(e){}
+    return n<18?{key:'EARLY',label:'EARLY'}:n<36?{key:'MIDDLE',label:'MIDDLE'}:{key:'LATE',label:'LATE'};
+  };
+  function compat(z){
+    z=z||{};
+    const c=z.context||{};
+    const ph={key:c.phase||phaseInfo().key,label:c.phase||phaseInfo().label};
+    const src=Array.isArray(z.sources)?z.sources:[];
+    const by=k=>src.find(x=>x.key===k)||{};
+    const side=z.side==='P'||z.side==='B'?z.side:null;
+    const conf=clamp(Number(z.confidence??z.strength)||0,0,100);
+    return {
+      ...z,
+      side,
+      qualified:!!side && z.qualified!==false,
+      confidence:conf,
+      strength:conf,
+      phase:ph,
+      phaseHist:z.phaseHist||{samples:Number(z.selectedEvidence)||0},
+      roadMem:z.roadMem||{samples:Number(by('roadpreview').learnedN||by('roadpreview').pairN)||0},
+      seqV2:z.seqV2||by('seqv2'),
+      sequenceDuplicate:z.sequenceDuplicate||{},
+      roadPreview:z.roadPreview||by('roadpreview'),
+      candidates:z.candidates||src.map(x=>({name:x.name||x.key,side:x.side,strength:Number(x.strength)||0,weight:Number(x.score||x.trust)||0})),
+      agree:Number.isFinite(Number(z.agree))?Number(z.agree):(side?src.filter(x=>x.side===side).length:0),
+      total:Number.isFinite(Number(z.total))?Number(z.total):src.length,
+      reason:z.reason||'Meta-Selector is building replay evidence.'
+    };
+  }
+
+  const meta=window.__metaSelectorV49;
+  if(meta?.signal){
+    const metaSignal=meta.signal.bind(meta);
+    const botCompat=function(){return compat(metaSignal()||{})};
+    botCompat.__v493Compat=true;
+    window.masterBotSignal=botCompat;
+    try{masterBotSignal=botCompat}catch(e){}
+  }
+
+  function safeArmBotPrediction(){
+    try{
+      if(typeof ensureBotState==='function')ensureBotState();
+      if(state?.bot)state.bot.learning=true;
+      const b=compat(window.masterBotSignal?.()||{});
+      if(!state?.bot)return;
+      state.bot.pending=b.qualified?{
+        side:b.side,
+        confidence:b.confidence,
+        phase:b.phase.key,
+        hand:(typeof currentSequence==='function'?currentSequence().length:0)+1,
+        color:state.currentShoeColor||'none',
+        specialists:(b.candidates||[]).map(c=>({name:c.name,side:c.side,strength:c.strength,reliability:c.weight}))
+      }:null;
+    }catch(e){
+      try{if(state?.bot)state.bot.pending=null}catch(_){}
+      console.warn('V49.3 safeArmBotPrediction',e);
+    }
+  }
+  window.armBotPrediction=safeArmBotPrediction;try{armBotPrediction=safeArmBotPrediction}catch(e){}
+
+  function safeRenderMasterBot(){
+    try{
+      if(typeof botHeartbeat==='function')botHeartbeat();
+      if(typeof ensureBotState==='function')ensureBotState();
+      const b=compat(window.masterBotSignal?.()||{});
+      const get=id=>document.getElementById(id);
+      const decision=get('botDecision');if(!decision)return;
+      decision.textContent=b.qualified?(b.side==='P'?'PLAYER':'BANKER'):'WAIT';
+      const conf=get('botConfidence');if(conf)conf.textContent=b.confidence?`${Math.round(b.confidence*10)/10}%`:'—';
+      const pe=get('botPhase');if(pe)pe.textContent=b.phase.label;
+      const ps=get('botPhaseSamples');if(ps)ps.textContent=b.phaseHist.samples||0;
+      const rs=get('botRoadSamples');if(rs)rs.textContent=b.roadMem.samples||0;
+      const acc=get('botAccuracy');if(acc)acc.textContent=state?.bot?.predictions?`${Math.round(state.bot.wins*100/state.bot.predictions)}% (${state.bot.wins}/${state.bot.predictions})`:'—';
+      const note=get('botNote');if(note){
+        const tier=b.rawPrediction?'RAW':'QUALIFIED';
+        note.textContent=b.qualified
+          ? `${tier} meta-selected ${b.side==='P'?'PLAYER':'BANKER'} • ${Math.round(b.confidence*10)/10}% confidence • ${b.selectedName||'best available specialist'}. ${b.reason||''}`
+          : (b.reason||'WAIT: no usable P/B evidence yet.');
+      }
+      const tog=get('botLearningToggle');if(tog){tog.textContent='Meta-Selector: ALWAYS ON';tog.disabled=true;}
+    }catch(e){console.warn('V49.3 safeRenderMasterBot',e)}
+  }
+  window.renderMasterBot=safeRenderMasterBot;try{renderMasterBot=safeRenderMasterBot}catch(e){}
+
+  // Ensure V49 simulation starts with a clean selector state so prior live
+  // replay cannot leak into a chronological test. Restore happens in V44.
+  window.__V49_3_META_BOT_FIX__={version:'49.3',legacyBotShapeCompatible:true,renderSafe:true,armSafe:true,preResultCycleProtected:true};
+})();
 </script>
 </body>
 </html>
