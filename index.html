@@ -8630,11 +8630,20 @@ renderLibraryBackupStatus();
       kill.forEach(n=>n.remove());
     }catch(e){}
   }
-  function enforce(){ sweepRawArtifacts(); moveTools(); }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enforce();setTimeout(enforce,250);setTimeout(enforce,1200);setTimeout(enforce,2500);});
-  else {enforce();setTimeout(enforce,250);setTimeout(enforce,1200);setTimeout(enforce,2500);}
-  const obs=new MutationObserver(()=>{ if(!moving) queueMicrotask(enforce); });
-  obs.observe(document.body,{childList:true,subtree:true});
+  // PERF V57: moving the diagnostic dock only depends on direct BODY children.
+  // The previous subtree observer fired on every card/text render and then walked
+  // the entire page, which caused severe iPhone/iPad main-thread stalls.
+  let queued=false;
+  function enforce(){ moveTools(); }
+  function scheduleEnforce(){
+    if(moving||queued)return;
+    queued=true;
+    requestAnimationFrame(()=>{queued=false;enforce();});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enforce();setTimeout(enforce,600);},{once:true});
+  else {enforce();setTimeout(enforce,600);}
+  const obs=new MutationObserver(scheduleEnforce);
+  obs.observe(document.body,{childList:true,subtree:false});
   window.__v36MoveDiagnosticToolsToAbsoluteBottom=enforce;
 })();
 </script>
@@ -9652,9 +9661,8 @@ window.__VERIFIED_INFRA_DIRECT_RESTORE__={
   }
 
   function afterResult(){
-    // Original result handler settles first, mutates state, renders,
-    // and arms. This deferred refresh only verifies the visible ledger.
-    setTimeout(refreshVerified,0);
+    // PERF V57: V52/V55 own the result lifecycle and verified rendering.
+    // Keep this legacy hook inert to avoid a second full verified-grid rebuild.
   }
 
   document.addEventListener('DOMContentLoaded',function(){
@@ -10070,14 +10078,9 @@ window.__RUNTIME_CRASH_FIX_20260830__=true;
     postArm(before);
   },true);
 
-  // Touch/click behavior on iOS can be unusual; pointerup is only a recovery
-  // trigger for the post-arm. It never settles, so it cannot double-grade.
-  document.addEventListener('pointerup',function(ev){
-    const actual=resultFromTarget(ev.target);
-    if(!actual) return;
-    const before=seqLen();
-    setTimeout(()=>postArm(Math.max(-1,before-1)),0);
-  },true);
+  // PERF V57: removed the separate pointerup post-arm path. On iOS a tap
+  // normally emits pointerup + click, so the old recovery path armed every AI twice.
+  // The capture-phase click lifecycle above remains the single result path.
 
   function boot(){
     try{
@@ -10121,17 +10124,9 @@ window.__RUNTIME_CRASH_FIX_20260830__=true;
   const safe=(fn)=>{try{return fn?.()}catch(e){console.error('[V55 sync]',e);return undefined}};
 
   function refreshModelState(){
-    // Core model cards/state.
-    safe(()=>window.renderSequenceAI?.());
-    safe(()=>window.renderColorPatternAI?.());
-    safe(()=>window.renderRoadPreviewAI?.());
-    safe(()=>window.renderDerived?.());
-    safe(()=>window.renderAnalyzer?.());
-    safe(()=>window.renderAdaptiveDerivedMain?.());
-
-    // Exact A-grade specialist renderer: V20/V22/V23/Focus decision,
-    // confidence, reason and their lower verified summaries all come from
-    // the same upgraded signal objects sampled by the top ledger.
+    // PERF V57: __armVerifiedPredictions already calls every model signal directly.
+    // Re-rendering all core cards before that duplicated the heaviest work on every hand.
+    // Only the specialist panel needs an explicit render to keep its visible fields synced.
     safe(()=>window.__aGradeSpecialistsV31?.render?.());
   }
 
@@ -10173,5 +10168,18 @@ window.__RUNTIME_CRASH_FIX_20260830__=true;
 </script>
 
 <script>window.__MAIN_ROAD_FUTURE_ADAPTIVE_V56__={version:56,regimeDrift:true,adaptiveWeighting:true,verifiedReliability:true,sequenceV2LogicChanged:false};</script>
+
+<script id="mobile-freeze-performance-fix-v57">
+window.__MOBILE_FREEZE_PERFORMANCE_FIX_V57__={
+  version:57,
+  removedWholePageMutationScan:true,
+  bodyObserverSubtree:false,
+  singleResultPostArm:true,
+  duplicateVerifiedRefreshRemoved:true,
+  preArmFullCardRerenderRemoved:true,
+  predictionLogicChanged:false,
+  sequenceV2Changed:false
+};
+</script>
 </body>
 </html>
