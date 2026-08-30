@@ -316,8 +316,8 @@
 </div>
 
 <div class="analyzer" id="verifiedAccuracyPanel" style="border-color:#2e9d66;box-shadow:0 0 0 1px rgba(46,157,102,.14) inset">
-  <div class="analyzer-title">✓ Accuracy Verified — Pre-Result Ledger</div>
-  <div class="analyzer-sub">A prediction counts only when it was locked before the next P/B result was entered. WAIT is never counted as a win. Ties are recorded separately and do not become a P/B win or loss. This is live verified accuracy, not backtest accuracy.</div>
+  <div class="analyzer-title">✓ All AI Accuracy — Pre-Result Home Ledger V41</div>
+  <div class="analyzer-sub">A prediction counts only when it was locked before the next P/B result was entered. WAIT is never counted as a win. Ties are recorded separately and do not become a P/B win or loss. This is live verified accuracy, not backtest accuracy. All current prediction AIs plus Governor V34, Shadow Learning V29 advisory, and the Knowledge Engine V27 directional lean are shown here so you do not have to scroll to their source panels.</div>
   <div id="verifiedAccuracyGrid" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px"></div>
   <div class="analyzer-sub" id="verifiedAccuracyNote" style="margin-top:8px">Verified tracking starts from this version forward.</div>
   <div style="margin-top:10px;display:flex;justify-content:flex-end">
@@ -4959,10 +4959,61 @@ renderLibraryBackupStatus();
     ['consensus','AI Consensus',()=>{const x=consensusSignal();return window.__slV10Signal?window.__slV10Signal('consensus',x):x}],
     ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal(),y={side:x.qualified?x.side:null,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('bot',y):y}],
     ['bestestimate','Best-Estimate Analyzer',()=>{const x=computeCombinedAnalyzer(),y={side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0};return window.__slV10Signal?window.__slV10Signal('bestestimate',y):y}],
-    ['specialistv20','RED / BLACK Specialist V20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
-    ['blackctxv22','BLACK Context Specialist V22',()=>{const z=window.__blackContextV22?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
-    ['metav23','Walk-Forward Meta Learner V23',()=>{const z=window.__metaWalkV23?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
-    ['focusv26','Focus AI V26',()=>{const z=window.__focusAIV26?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
+    ['specialistv20','RED / BLACK Specialist V20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{},x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};return window.__slV10Signal?window.__slV10Signal('specialistv20',x):x}],
+    ['blackctxv22','BLACK Context Specialist V22',()=>{const z=window.__blackContextV22?.signal?.()||{},x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};return window.__slV10Signal?window.__slV10Signal('blackctxv22',x):x}],
+    ['metav23','Walk-Forward Meta Learner V23',()=>{const z=window.__metaWalkV23?.signal?.()||{},x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};return window.__slV10Signal?window.__slV10Signal('metav23',x):x}],
+    ['focusv26','Focus AI V26',()=>{const z=window.__focusAIV26?.signal?.()||{},x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};return window.__slV10Signal?window.__slV10Signal('focusv26',x):x}],
+    ['governorv34','Live Model Governor V34',()=>{
+      try{
+        const z=window.__liveModelGovernorV34?.decision?.()||{};
+        const x={side:z.side==='P'||z.side==='B'?z.side:null,strength:Number(z.confidence)||0};
+        return window.__slV10Signal?window.__slV10Signal('governorv34',x):x;
+      }catch(e){return {side:null,strength:0}}
+    }],
+    ['shadowv29','Shadow Learning V29 — Advisory',()=>{
+      try{
+        const trustRows=window.__shadowV29?.trust?.()||[];
+        const trustMap={};
+        trustRows.forEach(r=>{ if(r?.id&&r?.s) trustMap[r.id]=Number(r.s.acc)||0; });
+        const defs=[
+          ['seqv2',()=>sequenceAISignal()],
+          ['color',()=>colorPatternAISignal()],
+          ['roadpreview',()=>roadPreviewAISignal()],
+          ['derivedorig',()=>{const x=derivedRoadSequenceAI()||{};return {side:x.side,strength:Number(x.confidence)||0}}],
+          ['derivedmain',()=>adaptiveDerivedMainSignal()],
+          ['seqdup',()=>sequenceAIDuplicateSignal()],
+          ['consensus',()=>consensusSignal()],
+          ['bot',()=>{const x=masterBotSignal()||{};return {side:x.qualified?x.side:null,strength:Number(x.confidence)||0}}],
+          ['bestestimate',()=>{const x=computeCombinedAnalyzer()||{};return {side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0}}],
+        ];
+        let p=0,b=0,active=0;
+        for(const [id,get] of defs){
+          let x={}; try{x=get()||{}}catch(e){}
+          const side=String(x.side||'').toUpperCase();
+          if(side!=='P'&&side!=='B') continue;
+          active++;
+          const learned=trustMap[id];
+          const w=learned>0 ? Math.max(.15,Math.min(1,learned)) : .50;
+          if(side==='P')p+=w; else b+=w;
+        }
+        const total=p+b, margin=total?Math.abs(p-b)/total:0;
+        const x=(active<2||margin<.10)?{side:null,strength:0}:{side:p>=b?'P':'B',strength:Math.round(Math.min(90,50+margin*40))};
+        return window.__slV10Signal?window.__slV10Signal('shadowv29',x):x;
+      }catch(e){return {side:null,strength:0}}
+    }],
+    ['knowledgev27','Baccarat Knowledge Engine V27 — Lean',()=>{
+      try{
+        const z=window.__baccaratKnowledgeV27?.evidence?.()||{};
+        const side=String(z.side||'').toUpperCase();
+        if(!z.qualified||(side!=='P'&&side!=='B')) {
+          const x={side:null,strength:0};
+          return window.__slV10Signal?window.__slV10Signal('knowledgev27',x):x;
+        }
+        const agree=Number(z.agreement)||0, quality=Number(z.quality)||0, edge=Number(z.edge)||0;
+        const x={side,strength:Math.round(Math.min(90,50+agree*18+quality*10+edge*12))};
+        return window.__slV10Signal?window.__slV10Signal('knowledgev27',x):x;
+      }catch(e){return {side:null,strength:0}}
+    }],
   ];
   function verifiedContext(){
     const seq=currentSequence().filter(x=>x==='P'||x==='B');
@@ -5567,118 +5618,320 @@ renderLibraryBackupStatus();
 })();
 </script>
 
-<script>
+<script id="full-library-fast-sim-v44">
 /* ============================================================
-   FULL LIBRARY AI BACKTEST V1 — 2026-08-26
-   Read-only chronological replay. Restores live state/localStorage.
+   FULL LIBRARY FAST SIMULATION ENGINE V44
+   - Same live prediction functions; no prediction-core rewrite
+   - Chronological pre-result replay; future shoes hidden
+   - Every model is requested once per hand into a frozen snapshot
+   - V43 cache lets nested Bot/Governor/Shadow dependencies reuse signals
+   - UI rendering + persistent storage writes are suspended during replay
+   - Training/verification settles only after the actual result is revealed
    ============================================================ */
 (function(){
   const KEYS=[
-    ['seqv2','Sequence AI V2'],['color','Color Pattern AI'],['roadpreview','Road Preview AI'],
-    ['derivedorig','Derived Road AI'],['derivedmain','Adaptive Derived Roads'],['seqdup','Sequence AI V2 Duplicate'],
-    ['consensus','AI Consensus'],['bot','High-Powered Bot AI'],['bestestimate','Best-Estimate Analyzer']
+    ['seqv2','Sequence AI V2'],
+    ['color','Color Pattern AI'],
+    ['roadpreview','Road Preview AI'],
+    ['derivedorig','Derived Road AI'],
+    ['derivedmain','Adaptive Derived Roads'],
+    ['seqdup','Sequence AI V2 Duplicate'],
+    ['consensus','AI Consensus'],
+    ['bot','High-Powered Bot AI'],
+    ['bestestimate','Best-Estimate Analyzer'],
+    ['specialistv20','RED / BLACK Specialist V20'],
+    ['blackctxv22','BLACK Context Specialist V22'],
+    ['metav23','Walk-Forward Meta Learner V23'],
+    ['focusv26','Focus AI V26'],
+    ['governorv34','Live Model Governor V34'],
+    ['shadowv29','Shadow Learning V29 — Advisory'],
+    ['knowledgev27','Baccarat Knowledge Engine V27 — Lean']
   ];
   const clone=x=>JSON.parse(JSON.stringify(x));
   const pct=(w,n)=>n?Math.round(w*1000/n)/10:null;
+  const validSide=x=>x==='P'||x==='B';
+
   function getSignal(key){
     try{
       let x=null;
       if(key==='seqv2') x=sequenceAISignal();
       else if(key==='color') x=window.colorPatternAISignal?.();
       else if(key==='roadpreview') x=roadPreviewAISignal();
-      else if(key==='derivedorig'){const z=derivedRoadSequenceAI();x={side:z.side,strength:z.confidence||0};}
+      else if(key==='derivedorig'){
+        const z=derivedRoadSequenceAI()||{};
+        x={side:z.side,strength:Number(z.confidence)||0};
+      }
       else if(key==='derivedmain') x=adaptiveDerivedMainSignal();
       else if(key==='seqdup') x=sequenceAIDuplicateSignal();
       else if(key==='consensus') x=consensusSignal();
-      else if(key==='bot'){const z=masterBotSignal();x={side:z.qualified?z.side:null,strength:z.confidence||0};}
-      else if(key==='bestestimate'){const z=computeCombinedAnalyzer();x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0};}
-       else if(key==='specialistv20'){const z=window.__redBlackSpecialistV20?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
-       else if(key==='blackctxv22'){const z=window.__blackContextV22?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
-       else if(key==='metav23'){const z=window.__metaWalkV23?.signal?.()||{};x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};}
+      else if(key==='bot'){
+        const z=masterBotSignal()||{};
+        x={side:z.qualified?z.side:null,strength:Number(z.confidence)||0};
+      }
+      else if(key==='bestestimate'){
+        const z=computeCombinedAnalyzer()||{};
+        x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0};
+      }
+      else if(key==='specialistv20'){
+        const z=window.__redBlackSpecialistV20?.signal?.()||{};
+        x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};
+      }
+      else if(key==='blackctxv22'){
+        const z=window.__blackContextV22?.signal?.()||{};
+        x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};
+      }
+      else if(key==='metav23'){
+        const z=window.__metaWalkV23?.signal?.()||{};
+        x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};
+      }
+      else if(key==='focusv26'){
+        const z=window.__focusAIV26?.signal?.()||{};
+        x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};
+      }
+      else if(key==='governorv34'){
+        const z=window.__liveModelGovernorV34?.decision?.()||{};
+        x={side:validSide(z.side)?z.side:null,strength:Number(z.confidence)||0};
+      }
+      else if(key==='shadowv29'){
+        // Use the same advisory decision logic as the Home ledger, but build it
+        // from already-cached underlying specialist signals.
+        const trustRows=window.__shadowV29?.trust?.()||[];
+        const trustMap={};
+        trustRows.forEach(r=>{ if(r?.id&&r?.s) trustMap[r.id]=Number(r.s.acc)||0; });
+        const defs=[
+          ['seqv2',()=>sequenceAISignal()],
+          ['color',()=>colorPatternAISignal()],
+          ['roadpreview',()=>roadPreviewAISignal()],
+          ['derivedorig',()=>{const q=derivedRoadSequenceAI()||{};return {side:q.side,strength:Number(q.confidence)||0}}],
+          ['derivedmain',()=>adaptiveDerivedMainSignal()],
+          ['seqdup',()=>sequenceAIDuplicateSignal()],
+          ['consensus',()=>consensusSignal()],
+          ['bot',()=>{const q=masterBotSignal()||{};return {side:q.qualified?q.side:null,strength:Number(q.confidence)||0}}],
+          ['bestestimate',()=>{const q=computeCombinedAnalyzer()||{};return {side:q.qualified?q.side:null,strength:q.qualified?(Number(q.top)||0):0}}],
+        ];
+        let p=0,b=0,active=0;
+        for(const [id,get] of defs){
+          let q={}; try{q=get()||{}}catch(e){}
+          const side=String(q.side||'').toUpperCase();
+          if(!validSide(side)) continue;
+          active++;
+          const learned=trustMap[id];
+          const w=learned>0?Math.max(.15,Math.min(1,learned)):.50;
+          if(side==='P')p+=w; else b+=w;
+        }
+        const total=p+b,margin=total?Math.abs(p-b)/total:0;
+        x=(active<2||margin<.10)?{side:null,strength:0}:{side:p>=b?'P':'B',strength:Math.round(Math.min(90,50+margin*40))};
+      }
+      else if(key==='knowledgev27'){
+        const z=window.__baccaratKnowledgeV27?.evidence?.()||{};
+        const side=String(z.side||'').toUpperCase();
+        if(!z.qualified||!validSide(side)) x={side:null,strength:0};
+        else{
+          const agree=Number(z.agreement)||0,quality=Number(z.quality)||0,edge=Number(z.edge)||0;
+          x={side,strength:Math.round(Math.min(90,50+agree*18+quality*10+edge*12))};
+        }
+      }
       if(x && window.__slV10Signal) x=window.__slV10Signal(key,x);
       return x||{};
-    }catch(e){ return {side:null,error:String(e)}; }
+    }catch(e){
+      return {side:null,strength:0,error:String(e)};
+    }
   }
+
+  function snapshot(){
+    const snap={};
+    for(const [k] of KEYS) snap[k]=clone(getSignal(k));
+    return Object.freeze(snap);
+  }
+
   function ensurePanel(){
     let p=document.getElementById('fullLibraryBacktestPanel');
     if(p)return p;
     p=document.createElement('div');p.id='fullLibraryBacktestPanel';p.className='analyzer';p.style.borderColor='#2f855a';
-    p.innerHTML=`<div class="analyzer-title">🧪 Full Library AI Simulation</div>
-      <div class="analyzer-sub" style="color:#c4b5fd"><b>LEAN CORE V28:</b> Simulation scores only the active core prediction engines.</div>
-      <div class="analyzer-sub">Chronological, pre-result replay. Each shoe is hidden from the library until its replay finishes. Your live state is restored after the test.</div>
+    p.innerHTML=`<div class="analyzer-title">⚡ Full Library AI Simulation V44</div>
+      <div class="analyzer-sub" style="color:#c4b5fd"><b>FAST SNAPSHOT ENGINE:</b> all current AIs are scored from one frozen pre-result snapshot per hand.</div>
+      <div class="analyzer-sub">Chronological held-out replay. Future shoes remain hidden until their replay finishes. UI rendering and storage writes are paused during the test, then your live state is restored.</div>
       <div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
         <button class="tiny-btn" id="runFullLibraryBacktest">Run Full Library Simulation</button>
         <button class="tiny-btn" id="copyBacktestReport">Copy Results</button>
       </div>
       <div class="analyzer-sub" id="fullBacktestStatus" style="margin-top:8px">READY</div>
       <div id="fullBacktestResults" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px"></div>
-      <pre id="fullBacktestText" style="white-space:pre-wrap;max-height:320px;overflow:auto;font-size:11px;margin-top:8px"></pre>`;
+      <pre id="fullBacktestText" style="white-space:pre-wrap;max-height:420px;overflow:auto;font-size:11px;margin-top:8px"></pre>`;
     const anchor=document.getElementById('allAiLearningV10Panel')||document.getElementById('verifiedAccuracyGrid')?.closest('.analyzer');
     if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor.nextSibling); else document.body.appendChild(p);
     return p;
   }
+
   function show(stats,meta){
     const box=document.getElementById('fullBacktestResults');if(!box)return;
     box.innerHTML='';
-    KEYS.forEach(([k,n])=>{const s=stats[k],r=pct(s.wins,s.n);const d=document.createElement('div');d.className='analyzer-card';
-      d.innerHTML=`<span>${n}</span><strong>${r==null?'—':r+'%'}</strong><small style="display:block;margin-top:3px;opacity:.72">${s.wins}W–${s.losses}L • N=${s.n} • WAIT=${s.waits}<br>RED ${pct(s.redW,s.redN)??'—'}% (N=${s.redN}) • BLACK ${pct(s.blackW,s.blackN)??'—'}% (N=${s.blackN})</small>`;box.appendChild(d);});
-    const lines=[`FULL LIBRARY BACKTEST`,`${meta.shoes} shoes • ${meta.hands} P/B hands scored • ${meta.ties} ties skipped`, `Minimum warm-up: ${meta.minWarm} hands per shoe`, ''];
-    KEYS.forEach(([k,n])=>{const s=stats[k];lines.push(`${n}: ${pct(s.wins,s.n)??'—'}% | ${s.wins}W-${s.losses}L | N=${s.n} | WAIT=${s.waits} | RED ${pct(s.redW,s.redN)??'—'}% | BLACK ${pct(s.blackW,s.blackN)??'—'}%`)});
+    KEYS.forEach(([k,n])=>{
+      const s=stats[k],r=pct(s.wins,s.n),coverage=meta.hands?Math.round(s.n*1000/meta.hands)/10:0;
+      const d=document.createElement('div');d.className='analyzer-card';
+      d.innerHTML=`<span>${n}</span><strong>${r==null?'—':r+'%'}</strong><small style="display:block;margin-top:3px;opacity:.72">${s.wins}W–${s.losses}L • N=${s.n} • WAIT=${s.waits}<br>Coverage ${coverage}% • RED ${pct(s.redW,s.redN)??'—'}% • BLACK ${pct(s.blackW,s.blackN)??'—'}%</small>`;
+      box.appendChild(d);
+    });
+    const lines=[
+      `FULL LIBRARY BACKTEST — V44 FAST SNAPSHOT ENGINE`,
+      `${meta.shoes} shoes • ${meta.hands} P/B hands scored • ${meta.ties} ties skipped`,
+      `Minimum warm-up: ${meta.minWarm} hands per shoe • Runtime ${meta.seconds}s`,
+      `Pre-result snapshots: ${meta.snapshots} • Cache hits ${meta.cacheHits??'—'} • misses ${meta.cacheMisses??'—'}`,
+      ''
+    ];
+    KEYS.forEach(([k,n])=>{
+      const s=stats[k],coverage=meta.hands?Math.round(s.n*1000/meta.hands)/10:0;
+      lines.push(`${n}: ${pct(s.wins,s.n)??'—'}% | ${s.wins}W-${s.losses}L | N=${s.n} | WAIT=${s.waits} | COV ${coverage}% | RED ${pct(s.redW,s.redN)??'—'}% | BLACK ${pct(s.blackW,s.blackN)??'—'}%`);
+    });
     document.getElementById('fullBacktestText').textContent=lines.join('\n');
   }
+
   async function run(){
-    const btn=document.getElementById('runFullLibraryBacktest'),status=document.getElementById('fullBacktestStatus');
+    const btn=document.getElementById('runFullLibraryBacktest');
+    const status=document.getElementById('fullBacktestStatus');
+    if(!btn||btn.disabled)return;
+
+    btn.disabled=true;
     window.__FULL_LIBRARY_SIMULATION_ACTIVE__=true;
-    if(btn.disabled)return;btn.disabled=true;
-    const savedState=clone(state), savedStorage=localStorage.getItem(KEY), savedBackup=localStorage.getItem(LIBRARY_BACKUP_KEY), savedHist=localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY);
-    const all=[...(savedState.redPatternLibrary||[]).map(x=>({...clone(x),__color:'red'})),...(savedState.blackPatternLibrary||[]).map(x=>({...clone(x),__color:'black'}))]
-      .sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||'')));
-    const stats={};KEYS.forEach(([k])=>stats[k]={wins:0,losses:0,n:0,waits:0,redW:0,redN:0,blackW:0,blackN:0});
-    const train={red:[],black:[]};let hands=0,ties=0;const minWarm=6;
+    const started=performance.now();
+    const savedState=clone(state);
+    const savedStorage=localStorage.getItem(KEY);
+    const savedBackup=localStorage.getItem(LIBRARY_BACKUP_KEY);
+    const savedHist=localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY);
+    const savedRender=window.render;
+    const savedPersist=window.persist;
+
+    const all=[
+      ...(savedState.redPatternLibrary||[]).map(x=>({...clone(x),__color:'red'})),
+      ...(savedState.blackPatternLibrary||[]).map(x=>({...clone(x),__color:'black'}))
+    ].sort((a,b)=>String(a.savedAt||'').localeCompare(String(b.savedAt||'')));
+
+    const stats={};
+    KEYS.forEach(([k])=>stats[k]={wins:0,losses:0,n:0,waits:0,redW:0,redN:0,blackW:0,blackN:0});
+    const train={red:[],black:[]};
+    let hands=0,ties=0,snapshots=0;
+    const minWarm=6;
+
     try{
-      // Fresh temporary learning ledger; historical shoes are introduced only after testing.
-      state=clone(savedState);state.hands=[];state.redPatternLibrary=[];state.blackPatternLibrary=[];state.accuracyVerified={models:{},pending:{},ties:0,version:1};
+      // Simulation-only optimization: no DOM redraw and no localStorage write per hand.
+      window.render=function(){};
+      window.persist=function(){};
+
+      state=clone(savedState);
+      state.hands=[];
+      state.redPatternLibrary=[];
+      state.blackPatternLibrary=[];
+      state.accuracyVerified={models:{},pending:{},ties:0,version:1};
       state.selfLearning={version:9,enabled:true,modelContexts:{},roadChannels:{},totalUpdates:0,createdAt:Date.now()};
+      state.trainingV42={version:42,enabled:true,totalGrades:0,contexts:{},global:{},promoted:{},createdAt:Date.now()};
+
       for(let si=0;si<all.length;si++){
-        const shoe=all[si],seq=String(shoe.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
-        state.currentShoeColor=shoe.__color;state.predictionLibraryMode='selected';state.redPatternLibrary=clone(train.red);state.blackPatternLibrary=clone(train.black);state.hands=[];
-        // Reset only per-shoe pending state; keep temporary learned reliability across shoes.
+        const shoe=all[si];
+        const seq=String(shoe.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
+        state.currentShoeColor=shoe.__color;
+        state.predictionLibraryMode='selected';
+        state.redPatternLibrary=clone(train.red);
+        state.blackPatternLibrary=clone(train.black);
+        state.hands=[];
+
         if(state.accuracyVerified)state.accuracyVerified.pending={};
         if(state.adaptiveDerived)state.adaptiveDerived.pending=null;
         if(state.adaptiveOriginalDerived)state.adaptiveOriginalDerived.pending=null;
+        window.__invalidateAISignalCacheV43?.();
+
         for(let i=0;i<seq.length;i++){
           const actual=seq[i];
-          if(i>=minWarm && (actual==='P'||actual==='B')){
+
+          if(i>=minWarm && validSide(actual)){
             hands++;
-            KEYS.forEach(([k])=>{const x=getSignal(k),s=stats[k];if(x.side==='P'||x.side==='B'){s.n++;if(shoe.__color==='red')s.redN++;else s.blackN++;if(x.side===actual){s.wins++;if(shoe.__color==='red')s.redW++;}else{s.losses++;}if(x.side===actual&&shoe.__color==='black')s.blackW++;}else s.waits++;});
-            // Train the same temporary verified/self-learning hooks after scoring the locked pre-result signals.
-            try{window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}
-            try{window.__settleVerifiedPredictions?.(actual);window.__settleAdaptiveDerivedRoads?.(actual);window.__settleAdaptiveOriginalDerivedRoads?.(actual);}catch(e){}
-          } else if(actual==='T') ties++;
+
+            // ONE frozen pre-result model snapshot for this scoring position.
+            window.__invalidateAISignalCacheV43?.();
+            const snap=snapshot();
+            snapshots++;
+
+            for(const [k] of KEYS){
+              const x=snap[k]||{},s=stats[k];
+              if(validSide(x.side)){
+                s.n++;
+                if(shoe.__color==='red')s.redN++; else s.blackN++;
+                if(x.side===actual){
+                  s.wins++;
+                  if(shoe.__color==='red')s.redW++; else s.blackW++;
+                }else s.losses++;
+              }else s.waits++;
+            }
+
+            // Freeze the ledger/training AFTER scoring, then reveal the result.
+            // V43 cache means these hooks reuse the just-computed model outputs.
+            try{
+              window.__armVerifiedPredictions?.();
+              window.__armAdaptiveDerivedRoads?.();
+              window.__armAdaptiveOriginalDerivedRoads?.();
+            }catch(e){}
+            try{
+              window.__settleVerifiedPredictions?.(actual);
+              window.__settleAdaptiveDerivedRoads?.(actual);
+              window.__settleAdaptiveOriginalDerivedRoads?.(actual);
+            }catch(e){}
+          } else if(actual==='T') {
+            ties++;
+          }
+
           state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});
-          if(i%12===0) await new Promise(r=>setTimeout(r,0));
+
+          // Yield only every ~96 hands; enough for responsiveness without turning
+          // thousands of scoring positions into thousands of event-loop stalls.
+          if((i&95)===95) await new Promise(r=>setTimeout(r,0));
         }
+
         train[shoe.__color].push(clone(shoe));
-        status.textContent=`TESTING ${si+1}/${all.length} • ${shoe.__color.toUpperCase()} • ${seq.length} hands`;
-        if(si%2===0){show(stats,{shoes:si+1,hands:hands,ties,minWarm});await new Promise(r=>setTimeout(r,0));}
+        status.textContent=`RUNNING ${si+1}/${all.length} shoes • ${hands} scored positions`;
+        await new Promise(r=>setTimeout(r,0));
       }
-      show(stats,{shoes:all.length,hands:hands,ties,minWarm});
-      status.textContent=`COMPLETE • ${all.length} SHOES • live state restored`;
-    }catch(e){status.textContent='SIMULATION ERROR: '+(e?.message||e);console.error(e);}
-    finally{
-      window.__FULL_LIBRARY_SIMULATION_ACTIVE__=false;
+
+      const cache=window.__aiSignalCacheV43?.stats?.()||{};
+      const seconds=Math.round((performance.now()-started)/100)/10;
+      show(stats,{shoes:all.length,hands,ties,minWarm,snapshots,seconds,cacheHits:cache.hits,cacheMisses:cache.misses});
+      status.textContent=`COMPLETE • ${all.length} shoes • ${hands} scored • ${seconds}s`;
+      window.__V44_LAST_RESULT__={stats:clone(stats),meta:{shoes:all.length,hands,ties,minWarm,snapshots,seconds,cache}};
+    }catch(e){
+      status.textContent='ERROR: '+String(e?.message||e);
+      console.error('V44 simulation error',e);
+    }finally{
+      // Restore live state and persistence exactly as they were.
       state=savedState;
-      if(savedStorage==null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,savedStorage);
-      if(savedBackup==null)localStorage.removeItem(LIBRARY_BACKUP_KEY);else localStorage.setItem(LIBRARY_BACKUP_KEY,savedBackup);
-      if(savedHist==null)localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);else localStorage.setItem(LIBRARY_BACKUP_HISTORY_KEY,savedHist);
-      try{render();window.__armVerifiedPredictions?.();window.__armAdaptiveDerivedRoads?.();window.__armAdaptiveOriginalDerivedRoads?.();}catch(e){}
+      window.render=savedRender;
+      window.persist=savedPersist;
+      try{
+        if(savedStorage==null)localStorage.removeItem(KEY);else localStorage.setItem(KEY,savedStorage);
+        if(savedBackup==null)localStorage.removeItem(LIBRARY_BACKUP_KEY);else localStorage.setItem(LIBRARY_BACKUP_KEY,savedBackup);
+        if(savedHist==null)localStorage.removeItem(LIBRARY_BACKUP_HISTORY_KEY);else localStorage.setItem(LIBRARY_BACKUP_HISTORY_KEY,savedHist);
+      }catch(e){}
+      window.__invalidateAISignalCacheV43?.();
+      window.__FULL_LIBRARY_SIMULATION_ACTIVE__=false;
       btn.disabled=false;
+      try{savedRender?.()}catch(e){}
     }
   }
-  ensurePanel();
-  document.getElementById('runFullLibraryBacktest')?.addEventListener('click',run);
-  document.getElementById('copyBacktestReport')?.addEventListener('click',async()=>{const t=document.getElementById('fullBacktestText')?.textContent||'';try{await navigator.clipboard.writeText(t);document.getElementById('fullBacktestStatus').textContent='RESULTS COPIED';}catch(e){}});
-  window.__fullLibraryBacktest={run};
+
+  function wire(){
+    ensurePanel();
+    const runBtn=document.getElementById('runFullLibraryBacktest');
+    const copyBtn=document.getElementById('copyBacktestReport');
+    if(runBtn&&!runBtn.__v44){runBtn.__v44=true;runBtn.addEventListener('click',run);}
+    if(copyBtn&&!copyBtn.__v44){
+      copyBtn.__v44=true;
+      copyBtn.addEventListener('click',async()=>{
+        const txt=document.getElementById('fullBacktestText')?.textContent||'';
+        try{await navigator.clipboard.writeText(txt);}catch(e){}
+      });
+    }
+  }
+
+  setTimeout(wire,250);
+  setTimeout(wire,1000);
+  window.__fullLibraryFastSimV44={run,keys:KEYS.map(x=>x[0]),snapshot};
 })();
 </script>
 
@@ -9728,5 +9981,402 @@ renderLibraryBackupStatus();
 })();
 </script>
 
+<script id="all-ai-home-accuracy-v41-tag">
+window.__ALL_AI_HOME_ACCURACY_V41__ = {
+  version: 41,
+  note: 'All current AI/advisory directional outputs are included in the home pre-result accuracy ledger. Prediction cores are unchanged.'
+};
+</script>
+
+<script id="all-ai-a-plus-training-v42">
+/* ============================================================
+   ALL-AI A+ TRAINING CORE V42
+   - Shared contextual training for every registered AI
+   - Pre-result only; no same-hand leakage
+   - Learns color + phase + regime + confidence band + agreement
+   - Short/medium/long memory with Bayesian shrinkage
+   - Promotion gate: learned weights require sufficient evidence
+   - Drift protection: recent deterioration reduces trust
+   - Does NOT rewrite specialist prediction algorithms or shoe library
+   ============================================================ */
+(function(){
+  const MODEL_KEYS = [
+    'seqv2','color','roadpreview','derivedorig','derivedmain','seqdup',
+    'consensus','bot','bestestimate','specialistv20','blackctxv22',
+    'metav23','focusv26','governorv34','shadowv29','knowledgev27'
+  ];
+
+  function ensure(){
+    state.trainingV42 ||= {
+      version:42, enabled:true, totalGrades:0, contexts:{}, global:{},
+      promoted:{}, createdAt:Date.now()
+    };
+    const t=state.trainingV42;
+    t.version=42; t.enabled=true;
+    t.contexts ||= {}; t.global ||= {}; t.promoted ||= {};
+    return t;
+  }
+  function pb(){
+    try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}
+  }
+  function phase(){
+    const n=pb().length;
+    return n<18?'EARLY':n<36?'MIDDLE':'LATE';
+  }
+  function regime(){
+    const s=pb().slice(-12);
+    if(s.length<6)return 'BUILDING';
+    let sw=0; for(let i=1;i<s.length;i++) if(s[i]!==s[i-1]) sw++;
+    const r=sw/(s.length-1);
+    return r>=.68?'CHOP':r<=.32?'RUN':'MIXED';
+  }
+  function color(){ return String(state.currentShoeColor||'combined').toUpperCase(); }
+  function band(v){
+    v=Number(v)||0;
+    return v>=75?'75+':v>=65?'65-74':v>=58?'58-64':'<58';
+  }
+  function seqAgree(side){
+    try{
+      const s=sequenceAISignal()?.side;
+      if(s!=='P'&&s!=='B')return 'NOSEQ';
+      return s===side?'AGREE':'OPPOSE';
+    }catch(e){return 'NOSEQ'}
+  }
+  function bucket(root,k){
+    root[k] ||= {w:0,l:0,n:0,recent:[],medium:[],lastAt:0};
+    return root[k];
+  }
+  function grade(b,win){
+    b.n++; if(win)b.w++; else b.l++;
+    b.recent.push(win?1:0); if(b.recent.length>12)b.recent.shift();
+    b.medium.push(win?1:0); if(b.medium.length>40)b.medium.shift();
+    b.lastAt=Date.now();
+  }
+  function mean(a){return a?.length?a.reduce((s,x)=>s+x,0)/a.length:.5}
+  function posterior(b){
+    if(!b||!b.n)return {rate:.5,n:0,drift:0};
+    const long=((b.w||0)+8)/(b.n+16); // conservative Beta prior
+    const med=mean(b.medium), recent=mean(b.recent);
+    const live=Math.min(.78,b.n/45);
+    const rate=long*(1-live)+(med*.58+recent*.42)*live;
+    return {rate,n:b.n,drift:recent-med,recent,medium:med,long};
+  }
+  function keysFor(model,meta){
+    return [
+      `${model}|${meta.color}|${meta.phase}|${meta.regime}|${meta.band}|${meta.agree}`,
+      `${model}|${meta.color}|${meta.phase}|${meta.regime}|ANY|ANY`,
+      `${model}|ANY|${meta.phase}|${meta.regime}|ANY|ANY`,
+      `${model}|ANY|${meta.phase}|ANY|ANY|ANY`,
+      `${model}|ANY|ANY|ANY|ANY|ANY`
+    ];
+  }
+  function reliability(model,strength,side){
+    const t=ensure(), meta={color:color(),phase:phase(),regime:regime(),band:band(strength),agree:seqAgree(side)};
+    const ks=keysFor(model,meta), weights=[6,5,4,3,2];
+    let num=0,den=0,n=0,drift=0;
+    ks.forEach((k,i)=>{
+      const p=posterior(t.contexts[k]); if(!p.n)return;
+      const w=weights[i]*Math.min(1,p.n/(i===0?18:28));
+      num+=p.rate*w; den+=w; n+=p.n; drift+=p.drift*w;
+    });
+    let rate=den?num/den:.5;
+    drift=den?drift/den:0;
+
+    // Historical held-out priors may initialize trust, but cannot dominate live evidence.
+    const prior=state.selfLearning?.libraryPriors?.[model];
+    if(prior && Number(prior.n)>=12 && Number.isFinite(Number(prior.rate))){
+      const pr=Math.max(.42,Math.min(.62,Number(prior.rate)));
+      const liveN=Number(state.accuracyVerified?.models?.[model]?.predictions)||0;
+      const lw=Math.min(.90,liveN/(liveN+24));
+      rate=rate*lw+pr*(1-lw);
+    }
+
+    // Drift guard: punish a meaningful recent collapse; never reward a tiny hot streak aggressively.
+    if(n>=20 && drift<-.10) rate-=Math.min(.07,Math.abs(drift)*.35);
+    rate=Math.max(.38,Math.min(.66,rate));
+
+    const liveN=Number(state.accuracyVerified?.models?.[model]?.predictions)||0;
+    const promoted=liveN>=24 && n>=40; // training must earn control
+    t.promoted[model]={promoted,rate,n,liveN,phase:meta.phase,regime:meta.regime,updatedAt:Date.now()};
+    return {rate,n,liveN,promoted,drift,...meta};
+  }
+
+  // Capture rich context on the actual pre-result locks.
+  const oldArm=window.__armVerifiedPredictions;
+  if(typeof oldArm==='function'){
+    window.__armVerifiedPredictions=function(){
+      oldArm();
+      try{
+        const a=ensureAccuracy();
+        Object.entries(a.pending||{}).forEach(([model,p])=>{
+          p.v42={
+            color:color(), phase:phase(), regime:regime(),
+            band:band(p.strength), agree:seqAgree(p.side)
+          };
+        });
+        persist();
+      }catch(e){}
+    };
+  }
+
+  // Train only after the result arrives, using the context frozen before it.
+  const oldSettle=window.__settleVerifiedPredictions;
+  if(typeof oldSettle==='function'){
+    window.__settleVerifiedPredictions=function(actual){
+      const snap={};
+      try{
+        const a=ensureAccuracy();
+        Object.entries(a.pending||{}).forEach(([k,p])=>snap[k]=JSON.parse(JSON.stringify(p)));
+      }catch(e){}
+      oldSettle(actual);
+      if(actual==='P'||actual==='B'){
+        const t=ensure();
+        Object.entries(snap).forEach(([model,p])=>{
+          if(!p || (p.side!=='P'&&p.side!=='B'))return;
+          const m=p.v42||{color:p.color?.toUpperCase?.()||color(),phase:(p.phase||phase()).toUpperCase(),regime:regime(),band:band(p.strength),agree:seqAgree(p.side)};
+          const win=p.side===actual;
+          keysFor(model,m).forEach(k=>grade(bucket(t.contexts,k),win));
+          const g=bucket(t.global,model); grade(g,win);
+          t.totalGrades++;
+        });
+        persist();
+      }
+    };
+  }
+
+  // Add V42 as the final shared trust/calibration layer.
+  const priorLearner=window.__slV10Signal;
+  window.__slV10Signal=function(model,x){
+    let y=x;
+    try{ if(typeof priorLearner==='function') y=priorLearner(model,x)||x; }catch(e){y=x}
+    if(!y || (y.side!=='P'&&y.side!=='B'))return y;
+
+    const strength=Number(y.strength ?? y.confidence ?? y.top)||0;
+    const r=reliability(model,strength,y.side);
+    if(!r.promoted) return {...y,trainingV42:true,v42:r}; // learn first; don't overfit early
+
+    let side=y.side, calibrated=strength;
+    // Context-specific learned trust changes confidence modestly.
+    calibrated=Math.round(Math.max(50,Math.min(89,strength+(r.rate-.50)*30)));
+
+    // A+ training behavior: persistent weak/drifting contexts become WAIT.
+    if(r.rate<.465 || (r.n>=60 && r.drift<-.14)){
+      side=null;
+    }else if(r.rate<.49 && strength<64){
+      side=null;
+    }
+
+    return {
+      ...y, side,
+      strength:side?calibrated:0,
+      confidence:('confidence' in y)?(side?calibrated:0):y.confidence,
+      top:('top' in y)?(side?calibrated:0):y.top,
+      trainingV42:true, v42:r,
+      reason:side?y.reason:`A+ TRAINING WAIT: ${Math.round(r.rate*100)}% learned trust in ${r.phase}/${r.regime}; N=${r.n}.`
+    };
+  };
+
+  function renderPanel(){
+    let p=document.getElementById('trainingV42Panel');
+    if(!p){
+      p=document.createElement('div'); p.id='trainingV42Panel'; p.className='analyzer';
+      p.style.borderColor='#7c5cff';
+      p.innerHTML=`<div class="analyzer-title">🧠 A+ Training Core V42 — All AIs</div>
+        <div class="analyzer-sub">Pre-result contextual training shared by every AI. Learns phase, regime, shoe color, confidence band, Sequence agreement, recent drift, and long-term reliability. Learned control is promoted only after enough evidence.</div>
+        <div id="trainingV42Rows" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:7px;margin-top:8px"></div>
+        <div class="analyzer-sub" id="trainingV42Note" style="margin-top:8px"></div>`;
+      const anchor=document.getElementById('allAiLearningV10Panel')||document.getElementById('verifiedAccuracyPanel');
+      if(anchor?.parentNode)anchor.parentNode.insertBefore(p,anchor.nextSibling); else document.body.appendChild(p);
+    }
+    const rows=document.getElementById('trainingV42Rows'); if(!rows)return;
+    rows.innerHTML='';
+    const t=ensure();
+    MODEL_KEYS.forEach(k=>{
+      const z=t.promoted[k]||{};
+      const d=document.createElement('div'); d.className='analyzer-card';
+      const status=z.promoted?'ACTIVE':'TRAINING';
+      d.innerHTML=`<span>${k}</span><strong>${status}</strong><small style="display:block;opacity:.75;margin-top:3px">${z.rate?Math.round(z.rate*100)+'% contextual trust':'Building contextual memory'}${z.n?` • N=${z.n}`:''}${z.phase?`<br>${z.phase} • ${z.regime}`:''}</small>`;
+      rows.appendChild(d);
+    });
+    document.getElementById('trainingV42Note').textContent=
+      `${t.totalGrades||0} contextual grades stored. A model must earn enough pre-result evidence before V42 is allowed to alter its decisions.`;
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function'){
+    window.render=function(){const r=oldRender.apply(this,arguments);try{renderPanel()}catch(e){}return r;};
+  }
+  setTimeout(renderPanel,500); setTimeout(renderPanel,1800);
+  window.__trainingV42={ensure,reliability,render:renderPanel};
+})();
+</script>
+<script id="a-plus-training-v42-build-tag">
+window.__A_PLUS_TRAINING_V42__={version:'42.1',scope:'all registered AIs',leakage:'pre-result only',specialistCoresChanged:false,fix:'all home-ledger AIs now pass through shared training layer'};
+</script>
+
+
+<script id="all-ai-signal-cache-v43">
+/* ============================================================
+   V43 PRE-RESULT SIGNAL SNAPSHOT CACHE
+   Goal: calculate each expensive AI output once per hand/context,
+   then let Home Accuracy, Bot, Governor, Shadow Learning and
+   Training V42 reuse the same snapshot.
+   - Cache invalidates whenever hand sequence, shoe color,
+     library sizes, or training grade count changes.
+   - Prediction logic is unchanged.
+   ============================================================ */
+(function(){
+  const C = {sig:null, values:new Map(), hits:0, misses:0, wraps:0};
+
+  function handSig(){
+    let seq='';
+    try{ seq=(typeof currentSequence==='function'?currentSequence():[]).join(''); }catch(e){}
+    let red=0, black=0, grades=0, color='', mode='';
+    try{
+      red=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary.length:0;
+      black=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary.length:0;
+      grades=Number(state?.trainingV42?.totalGrades)||0;
+      color=String(state?.currentShoeColor||'');
+      mode=String(state?.predictionLibraryMode||'');
+    }catch(e){}
+    return `${color}|${mode}|${red}|${black}|${grades}|${seq}`;
+  }
+
+  function ensure(){
+    const s=handSig();
+    if(C.sig!==s){
+      C.sig=s;
+      C.values.clear();
+    }
+    return s;
+  }
+
+  function cloneTop(x){
+    if(!x || typeof x!=='object') return x;
+    if(Array.isArray(x)) return x.slice();
+    return {...x};
+  }
+
+  function memo(key, fn, ctx, args){
+    ensure();
+    if(C.values.has(key)){
+      C.hits++;
+      return cloneTop(C.values.get(key));
+    }
+    C.misses++;
+    const v=fn.apply(ctx,args||[]);
+    C.values.set(key,v);
+    return cloneTop(v);
+  }
+
+  function wrapGlobal(name){
+    const original=window[name];
+    if(typeof original!=='function' || original.__v43Cached) return;
+    const wrapped=function(...args){
+      const argKey=args.length?`|${args.map(a=>{
+        if(a==null)return String(a);
+        if(typeof a==='string'||typeof a==='number'||typeof a==='boolean')return String(a);
+        try{return JSON.stringify(a)}catch(e){return typeof a}
+      }).join('|')}`:'';
+      return memo(`fn:${name}${argKey}`, original, this, args);
+    };
+    wrapped.__v43Cached=true;
+    wrapped.__v43Original=original;
+    window[name]=wrapped;
+    C.wraps++;
+  }
+
+  function wrapMethod(objName, method){
+    const obj=window[objName];
+    if(!obj || typeof obj[method]!=='function' || obj[method].__v43Cached) return;
+    const original=obj[method];
+    const wrapped=function(...args){
+      const argKey=args.length?`|${args.map(a=>{
+        if(a==null)return String(a);
+        if(typeof a==='string'||typeof a==='number'||typeof a==='boolean')return String(a);
+        try{return JSON.stringify(a)}catch(e){return typeof a}
+      }).join('|')}`:'';
+      return memo(`method:${objName}.${method}${argKey}`, original, this, args);
+    };
+    wrapped.__v43Cached=true;
+    wrapped.__v43Original=original;
+    obj[method]=wrapped;
+    C.wraps++;
+  }
+
+  // Cache specialist/core signals. Nested callers automatically reuse these.
+  [
+    'sequenceAISignal',
+    'colorPatternAISignal',
+    'roadPreviewAISignal',
+    'derivedRoadSequenceAI',
+    'adaptiveDerivedMainSignal',
+    'sequenceAIDuplicateSignal',
+    'consensusSignal',
+    'masterBotSignal',
+    'computeCombinedAnalyzer'
+  ].forEach(wrapGlobal);
+
+  [
+    ['__redBlackSpecialistV20','signal'],
+    ['__blackContextV22','signal'],
+    ['__metaWalkV23','signal'],
+    ['__focusAIV26','signal'],
+    ['__liveModelGovernorV34','decision'],
+    ['__shadowV29','trust'],
+    ['__baccaratKnowledgeV27','evidence']
+  ].forEach(x=>wrapMethod(x[0],x[1]));
+
+  // Cache the FINAL learning/calibration chain as well.
+  if(typeof window.__slV10Signal==='function' && !window.__slV10Signal.__v43Cached){
+    const original=window.__slV10Signal;
+    const wrapped=function(key,x){
+      ensure();
+      const side=String(x?.side||'');
+      const strength=Number(x?.strength ?? x?.confidence ?? x?.top)||0;
+      const qualified=x?.qualified===false?'0':'1';
+      const k=`learn:${String(key)}|${side}|${strength}|${qualified}`;
+      if(C.values.has(k)){ C.hits++; return cloneTop(C.values.get(k)); }
+      C.misses++;
+      const v=original.call(this,key,x);
+      C.values.set(k,v);
+      return cloneTop(v);
+    };
+    wrapped.__v43Cached=true;
+    wrapped.__v43Original=original;
+    window.__slV10Signal=wrapped;
+    C.wraps++;
+  }
+
+  // Explicit invalidation hook for any future module that mutates context
+  // without adding/removing a hand.
+  window.__invalidateAISignalCacheV43=function(){
+    C.sig=null;
+    C.values.clear();
+  };
+
+  window.__aiSignalCacheV43={
+    version:43,
+    stats:()=>({hits:C.hits,misses:C.misses,wrapped:C.wraps,cached:C.values.size,signature:C.sig}),
+    clear:window.__invalidateAISignalCacheV43
+  };
+})();
+</script>
+<script id="v43-build-tag">
+window.__ALL_AI_TRAINING_V43__={
+  version:43,
+  optimization:'one pre-result signal snapshot per hand/context',
+  predictionLogicChanged:false,
+  trainingLogicChanged:false
+};
+</script>
+
+<script id="v44-fast-sim-build-tag">
+window.__V44_FAST_SIM__={
+  version:44,
+  livePredictionLogicChanged:false,
+  simulationMode:'single frozen pre-result snapshot per hand',
+  allAIs:16
+};
+</script>
 </body>
 </html>
