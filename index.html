@@ -9254,7 +9254,7 @@ renderLibraryBackupStatus();
 
   function arm(){
     try{
-      const z=signal(); const S=st(); S.scorePending=(z&&z.qualified&&(z.side==='P'||z.side==='B'))?z.side:null;
+      const z=signal(); const S=st(); S.lastSignal=z||null; S.scorePending=(z&&z.qualified&&(z.side==='P'||z.side==='B'))?z.side:null;
       const c=context(),ss=sourceList();
       st().pending={context:c,sources:ss.map(x=>({key:x.key,name:x.name,side:x.side,strength:x.strength})),at:Date.now()};
     }catch(e){st().pending=null}
@@ -9291,8 +9291,18 @@ renderLibraryBackupStatus();
 
   // Make the High-Powered Bot the consumer of the selector, not another voting layer.
   window.__masterBotSignalPreV48=window.masterBotSignal||null;
-  try{masterBotSignal=signal}catch(e){window.masterBotSignal=signal}
-  window.masterBotSignal=signal;
+  // iOS-safe V48 integration: never run the full selector synchronously inside the core render().
+  // The selector is computed once when predictions are armed, cached, and the bot reads that cache.
+  const cachedMetaSignal=function(){
+    try{
+      const z=st().lastSignal;
+      if(z&&typeof z==='object') return z;
+      const prev=window.__masterBotSignalPreV48;
+      return typeof prev==='function'?prev():{side:null,qualified:false,confidence:0,reason:'META WAIT: selector cache building.'};
+    }catch(e){return {side:null,qualified:false,confidence:0,reason:'META WAIT: selector cache building.'}}
+  };
+  try{masterBotSignal=cachedMetaSignal}catch(e){window.masterBotSignal=cachedMetaSignal}
+  window.masterBotSignal=cachedMetaSignal;
 
   function panel(){
     let p=document.getElementById('metaSelectorV48Panel');
@@ -9306,7 +9316,7 @@ renderLibraryBackupStatus();
       if(bot?.parentNode)bot.parentNode.insertBefore(p,bot); else document.body.appendChild(p);
     }
     try{
-      const z=signal(),S=st();
+      const S=st(),z=S.lastSignal||{side:null,qualified:false,confidence:0,reason:'META WAIT: selector cache building.',context:{}};
       const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
       set('ms48Pick',z.selectedName||'WAIT');set('ms48Trust',z.selectedTrust?`${Math.round(z.selectedTrust*1000)/10}%`:'—');const sn=(S.scoreW||0)+(S.scoreL||0);set('ms48Accuracy',sn?`${Math.round((S.scoreW||0)*1000/sn)/10}% • ${S.scoreW||0}W-${S.scoreL||0}L • N=${sn}`:'—');set('ms48Grades',S.grades||0);set('ms48Ctx',`${z.context?.color||'—'} • ${z.context?.phase||'—'} • ${z.context?.regime||'—'}`);set('ms48Reason',z.reason||'Building selector memory.');
       const title=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));
