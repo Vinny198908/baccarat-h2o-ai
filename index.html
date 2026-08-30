@@ -11293,5 +11293,160 @@ window.__V49_CONTROLLED_META__={version:49,architecture:'existing specialists ->
   window.__V49_3_META_BOT_FIX__={version:'49.3',legacyBotShapeCompatible:true,renderSafe:true,armSafe:true,preResultCycleProtected:true};
 })();
 </script>
+<script id="v50-split-policy-qualified-bot">
+/* ============================================================
+   V50 — SPLIT RED/BLACK POLICY + QUALIFIED BOT CONTROL
+   - Raw specialist P/B leans remain visible/learnable.
+   - ONLY replay-qualified selector calls can control the final Bot.
+   - RED and BLACK use separate trust buckets and promotion rules.
+   - Focus V26 is a primary RED specialist; BLACK is intentionally stricter.
+   - Governor V34 is diagnostic only and is not a selector source.
+   - Simulation uses an isolated empty V50 learner state so prior live replay
+     cannot leak into chronological full-library testing.
+   ============================================================ */
+(function(){
+  const VERSION=50, COMMIT_EVERY=12, MAX_REPLAY=240;
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const clone=x=>{try{return JSON.parse(JSON.stringify(x))}catch(e){return null}};
+  const sideOf=v=>{const s=String(v||'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':null};
+  function strictOf(fn){return typeof fn==='function'?(fn.__v492Original||fn):null}
+  function call(fn){try{return typeof fn==='function'?(fn()||{}):{}}catch(e){return {}}}
+  function pb(){try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B')}catch(e){return []}}
+  function color(){const q=String(state.currentShoeColor||state.shoeColor||'COMBINED').toUpperCase();return q.includes('RED')?'RED':q.includes('BLACK')?'BLACK':'COMBINED'}
+  function phase(){const n=pb().length;return n<18?'EARLY':n<36?'MIDDLE':'LATE'}
+  function regime(){const a=pb().slice(-12);if(a.length<6)return 'BUILDING';let sw=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])sw++;const r=sw/(a.length-1);return r>=.68?'CHOP':r<=.32?'RUN':'MIXED'}
+  function context(){return {color:color(),phase:phase(),regime:regime()}}
+  function ckey(c){return `${c.color}|${c.phase}|${c.regime}`}
+  function blank(){return {version:VERSION,replay:[],models:{},pairs:{},pending:null,deferred:null,settled:0,commits:0,committedRecords:0,audit:[],lastHandN:0,createdAt:Date.now()}}
+  let simWasActive=false;
+  function S(){
+    const active=window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true;
+    if(active){
+      if(!simWasActive||!window.__V50_SIM_STATE__)window.__V50_SIM_STATE__=blank();
+      simWasActive=true;return window.__V50_SIM_STATE__;
+    }
+    simWasActive=false;
+    state.metaSelectorV50 ||= blank();
+    const s=state.metaSelectorV50;s.version=VERSION;s.replay||=[];s.models||={};s.pairs||={};s.audit||=[];return s;
+  }
+  function strength(z){return clamp(Number(z?.strength??z?.confidence??z?.top)||0,0,100)}
+  function sourceDefs(){
+    const seqW=window.sequenceAISignal, roadW=window.roadPreviewAISignal;
+    const v20W=window.__redBlackSpecialistV20?.signal;
+    const v23W=window.__metaWalkV23?.signal;
+    const v22W=window.__blackContextV22?.signal;
+    const f26W=window.__focusAIV26?.signal;
+    return [
+      ['seqv2','Sequence AI V2',seqW,strictOf(seqW)],
+      ['roadpreview','Road Preview AI',roadW,strictOf(roadW)],
+      ['specialistv20','RED / BLACK Specialist V20',v20W,strictOf(v20W)],
+      ['metav23','Walk-Forward Meta Learner V23',v23W,strictOf(v23W)],
+      ['focusv26','Focus AI V26',f26W,strictOf(f26W)],
+      ['blackctxv22','BLACK Context Specialist V22',v22W,strictOf(v22W)]
+    ];
+  }
+  function sources(){
+    const c=color(),out=[];
+    for(const [key,name,rawFn,strictFn] of sourceDefs()){
+      if(key==='blackctxv22'&&c!=='BLACK')continue;
+      const raw=call(rawFn), strict=call(strictFn);
+      const rs=sideOf(raw.side)||sideOf(raw.candidate), ss=sideOf(strict.side);
+      const side=rs||ss;if(!side)continue;
+      const strictQualified=!!ss && strict.qualified!==false;
+      out.push({key,name,side,strength:strength(raw)||strength(strict),strictQualified,rawOnly:!strictQualified});
+    }
+    return out;
+  }
+  function bucket(obj,key){obj[key]||={w:0,l:0,n:0};return obj[key]}
+  function modelKey(k,c){return `${k}|${ckey(c)}`}
+  function pairKey(a,b,c){const [x,y]=[a,b].sort();return `${x}~${y}|${ckey(c)}`}
+  function posterior(b){if(!b||!b.n)return {rate:.5,n:0};return {rate:(b.w+6)/(b.n+12),n:b.n}}
+  function rebuild(){
+    const s=S();s.models={};s.pairs={};const rows=s.replay.slice(-MAX_REPLAY);
+    for(const r of rows){
+      if(!r||!sideOf(r.actual)||!Array.isArray(r.sources))continue;
+      for(const x of r.sources){const b=bucket(s.models,modelKey(x.key,r.context));b.n++;x.side===r.actual?b.w++:b.l++}
+      for(let i=0;i<r.sources.length;i++)for(let j=i+1;j<r.sources.length;j++){
+        const a=r.sources[i],b=r.sources[j];if(a.side===b.side)continue;
+        const q=s.pairs[pairKey(a.key,b.key,r.context)]||(s.pairs[pairKey(a.key,b.key,r.context)]={n:0,firstW:0,secondW:0});
+        const [first,second]=[a.key,b.key].sort();q.n++;const winner=a.side===r.actual?a.key:b.key;if(winner===first)q.firstW++;else if(winner===second)q.secondW++;
+      }
+    }
+    s.commits++;s.committedRecords=rows.length;s.lastCommitAt=Date.now();
+    try{if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true&&typeof persist==='function')persist()}catch(e){}
+  }
+  function maybeCommit(force){const s=S(),pending=Math.max(0,s.replay.length-s.committedRecords);if(force||pending>=COMMIT_EVERY)rebuild()}
+  function trust(x,c){
+    const p=posterior(S().models[modelKey(x.key,c)]);let rate=p.rate;
+    try{const q=window.__trainingV42?.reliability?.(x.key,x.strength,x.side);if(q&&Number(q.n)>0){const qr=clamp(Number(q.rate)||.5,.42,.62),w=Math.min(.22,Number(q.n)/(Number(q.n)+120));rate=rate*(1-w)+qr*w}}catch(e){}
+    // Raw-only sources can teach the learner but do not get the same promotion power.
+    if(x.rawOnly)rate-=.012;
+    rate+=(x.strength-60)*0.00035;
+    // Policy preference from the 77-shoe test: Focus/V23 were strongest on RED.
+    if(c.color==='RED'&&x.key==='focusv26')rate+=.018;
+    if(c.color==='RED'&&x.key==='metav23')rate+=.010;
+    // BLACK has no proven dominant model, so no model receives a large prior boost.
+    if(c.color==='BLACK'&&x.key==='specialistv20')rate+=.004;
+    return {rate:clamp(rate,.40,.64),n:p.n};
+  }
+  function pairEdge(a,b,c){const q=S().pairs[pairKey(a.key,b.key,c)];if(!q||!q.n)return {edge:0,n:0};const aFirst=[a.key,b.key].sort()[0]===a.key;const aw=aFirst?q.firstW:q.secondW,bw=aFirst?q.secondW:q.firstW;return {edge:(aw+5)/(q.n+10)-(bw+5)/(q.n+10),n:q.n}}
+  function signal(){
+    const c=context(),ss=sources(),s=S();
+    if(!ss.length)return {side:null,candidate:null,qualified:false,confidence:0,reason:'V50 WAIT: no usable P/B evidence.',metaSelectorV50:true,context:c,sources:[]};
+    const scored=ss.map(x=>{const t=trust(x,c);let adj=0,k=0,pn=0;for(const y of ss){if(y.key===x.key||y.side===x.side)continue;const pe=pairEdge(x,y,c);if(pe.n){adj+=pe.edge*Math.min(1,pe.n/18);pn+=pe.n;k++}}if(k)adj/=k;return {...x,trust:t.rate,learnedN:t.n,pairN:pn,score:clamp(t.rate+adj*.16,.38,.67)}}).sort((a,b)=>b.score-a.score||Number(b.strictQualified)-Number(a.strictQualified)||b.strength-a.strength);
+    const top=scored[0], second=scored[1];
+    const same=scored.filter(x=>x.side===top.side), opp=scored.filter(x=>x.side!==top.side);
+    const strictSame=same.filter(x=>x.strictQualified), strictOpp=opp.filter(x=>x.strictQualified);
+    const evidence=top.learnedN+top.pairN, margin=top.score-(second?.score??.5);
+    const avgStrict=strictSame.reduce((a,x)=>a+x.strength,0)/Math.max(1,strictSame.length);
+    let qualified=false,reason='';
+    if(c.color==='RED'){
+      const focus=same.find(x=>x.key==='focusv26'&&x.strictQualified);
+      const v23=same.find(x=>x.key==='metav23'&&x.strictQualified);
+      if(strictSame.length>=2 && top.score>=.515 && avgStrict>=54 && (!strictOpp.length || margin>=.006)) qualified=true;
+      if((focus||v23)&&strictSame.length>=2&&top.score>=.508&&avgStrict>=53) qualified=true;
+      reason=qualified?`RED QUALIFIED: ${top.name} leads with ${strictSame.length} strict supporters.`:`RED LEARNING ONLY: ${top.name} leans ${top.side==='P'?'PLAYER':'BANKER'}, but strict support/trust is not strong enough yet.`;
+    }else if(c.color==='BLACK'){
+      // BLACK is intentionally harder to promote because the 77-shoe test had no strong BLACK specialist.
+      if(strictSame.length>=2 && evidence>=24 && top.score>=.535 && margin>=.012 && avgStrict>=55) qualified=true;
+      if(strictSame.length>=3 && evidence>=16 && top.score>=.525 && avgStrict>=55 && strictOpp.length<=1) qualified=true;
+      reason=qualified?`BLACK QUALIFIED: ${top.name} leads after stricter BLACK replay checks.`:`BLACK LEARNING ONLY: ${top.name} leans ${top.side==='P'?'PLAYER':'BANKER'}; BLACK requires stronger replay evidence and agreement.`;
+    }else{
+      if(strictSame.length>=2&&evidence>=18&&top.score>=.525&&avgStrict>=55)qualified=true;
+      reason=qualified?`QUALIFIED: ${top.name} leads.`:`LEARNING ONLY: ${top.name} is the best raw candidate, but qualification is not met.`;
+    }
+    const conf=qualified?clamp(Math.round((50+(top.score-.5)*165+Math.max(0,avgStrict-55)*.18)*10)/10,52,80):clamp(Math.round((50+Math.max(0,top.score-.5)*70)*10)/10,50,59);
+    return {side:qualified?top.side:null,candidate:top.side,rawSide:top.side,qualified,confidence:conf,strength:conf,reason,metaSelectorV50:true,context:c,selectedModel:top.key,selectedName:top.name,selectedTrust:top.score,selectedEvidence:evidence,margin,sources:scored,strictSupporters:strictSame.length,strictOpponents:strictOpp.length,replayRecords:s.replay.length,commits:s.commits,predictionTier:qualified?'QUALIFIED':'LEARNING',fusion:'V50 split-color selector'};
+  }
+  function audit(type,msg,extra){const s=S();s.audit.push({at:Date.now(),type,msg,...(extra||{})});if(s.audit.length>80)s.audit.splice(0,s.audit.length-80)}
+  function finalize(p,actual){const s=S();if(!sideOf(actual)||!p?.sources?.length)return false;const now=pb(),handN=now.length;if(handN<=p.handN)return false;const observed=now[p.handN];if(sideOf(observed)&&observed!==actual){audit('REJECT','Settlement mismatch',{observed,actual});return true}const rec={context:clone(p.context),sources:clone(p.sources),actual,armedHandN:p.handN,settledHandN:handN,armedAt:p.armedAt,settledAt:Date.now()};s.replay.push(rec);if(s.replay.length>MAX_REPLAY)s.replay.splice(0,s.replay.length-MAX_REPLAY);s.settled++;maybeCommit(false);audit('SETTLE','Outcome added to V50 replay',{actual,replay:s.replay.length});return true}
+  function arm(){const s=S(),handN=pb().length;if(s.deferred){const d=s.deferred;s.deferred=null;if(!finalize(d.pending,d.actual))audit('REJECT','Deferred V50 settlement still had no appended hand')}if(handN<s.lastHandN)maybeCommit(true);s.lastHandN=handN;const ss=sources();s.pending={handN,context:context(),sources:ss.map(x=>({key:x.key,name:x.name,side:x.side,strength:x.strength,strictQualified:x.strictQualified,rawOnly:x.rawOnly})),armedAt:Date.now()};audit('ARM','V50 pre-result snapshot stored',{handN,sources:ss.length})}
+  function settle(actual){const s=S(),p=s.pending;s.pending=null;if(!sideOf(actual))return;if(!p?.sources?.length){audit('REJECT','No V50 pre-result snapshot');return}if(finalize(p,actual))return;s.deferred={pending:p,actual,queuedAt:Date.now()};audit('QUEUE','V50 settlement waiting for appended hand',{handN:p.handN})}
+
+  // Wrap current verified hooks so V50 learns independently of V49 and includes Focus V26.
+  const oa=window.__armVerifiedPredictions;
+  if(typeof oa==='function'&&!oa.__metaSelectorV50){const w=function(){try{arm()}catch(e){console.warn('V50 arm',e)}return oa.apply(this,arguments)};w.__metaSelectorV50=true;window.__armVerifiedPredictions=w}
+  const os=window.__settleVerifiedPredictions;
+  if(typeof os==='function'&&!os.__metaSelectorV50){const w=function(actual){let r;try{r=os.apply(this,arguments)}finally{try{settle(actual)}catch(e){console.warn('V50 settle',e)}}return r};w.__metaSelectorV50=true;window.__settleVerifiedPredictions=w}
+
+  // Final Bot receives ONLY qualified V50 calls. Raw candidate remains visible in V50 panel.
+  function botSignal(){const z=signal();return {...z,side:z.qualified?z.side:null,strength:z.qualified?z.confidence:0,confidence:z.qualified?z.confidence:0}}
+  window.__metaSelectorV50={version:VERSION,signal,botSignal,arm,settle,state:S,rebuild,commitNow:()=>maybeCommit(true),sourceList:sources,context,governorInfluence:false,splitColorPolicies:true,rawLearning:true,qualifiedBotOnly:true};
+  window.masterBotSignal=botSignal;try{masterBotSignal=botSignal}catch(e){}
+
+  function panel(){
+    let p=document.getElementById('metaSelectorV50Panel');
+    if(!p){p=document.createElement('div');p.id='metaSelectorV50Panel';p.className='analyzer';p.style.borderColor='#4fa3ff';p.innerHTML=`<div class="analyzer-title">🎯 Meta-Selector AI V50 — Split RED / BLACK Policy</div><div class="analyzer-sub">Raw P/B leans stay visible and are learned from. Only QUALIFIED calls can control the High-Powered Bot. RED and BLACK have separate trust policies; Governor V34 is diagnostic only.</div><div class="backtest-grid" style="margin-top:8px"><div class="bt-card"><strong id="ms50Pick">WAIT</strong><span>Current candidate</span></div><div class="bt-card"><strong id="ms50Tier">LEARNING</strong><span>Bot tier</span></div><div class="bt-card"><strong id="ms50Trust">—</strong><span>Replay trust</span></div><div class="bt-card"><strong id="ms50Replay">0</strong><span>Replay outcomes</span></div></div><div class="analyzer-sub" id="ms50Reason" style="margin-top:8px"></div><div class="analyzer-sub" id="ms50Audit" style="margin-top:4px"></div>`;const old=document.getElementById('metaSelectorV49Panel');if(old)old.style.display='none';const bot=[...document.querySelectorAll('.analyzer')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(bot?.parentNode)bot.parentNode.insertBefore(p,bot);else document.body.appendChild(p)}
+    try{const z=signal(),s=S(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ms50Pick',z.candidate?(z.candidate==='P'?'PLAYER':'BANKER'):'WAIT');set('ms50Tier',z.qualified?'QUALIFIED':'LEARNING ONLY');set('ms50Trust',z.selectedTrust?`${Math.round(z.selectedTrust*1000)/10}%`:'—');set('ms50Replay',s.replay.length);set('ms50Reason',z.reason);const a=s.audit[s.audit.length-1];set('ms50Audit',a?`Audit: ${a.type} • ${a.msg}`:'Audit: waiting for first pre-result snapshot.');const t=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(t)t.textContent='🤖 High-Powered Bot AI — V50 Qualified Meta-Controller'}catch(e){}return p
+  }
+  // Render Bot safely: show raw candidate as LEARNING, but never arm it as a qualified Bot pick.
+  window.renderMasterBot=function(){try{if(typeof botHeartbeat==='function')botHeartbeat();if(typeof ensureBotState==='function')ensureBotState();const z=signal(),get=id=>document.getElementById(id),d=get('botDecision');if(!d)return;d.textContent=z.qualified?(z.side==='P'?'PLAYER':'BANKER'):(z.candidate?`${z.candidate==='P'?'PLAYER':'BANKER'} • LEARNING`:'WAIT');const c=get('botConfidence');if(c)c.textContent=z.qualified?`${Math.round(z.confidence*10)/10}%`:'—';const pe=get('botPhase');if(pe)pe.textContent=z.context?.phase||'—';const ps=get('botPhaseSamples');if(ps)ps.textContent=z.selectedEvidence||0;const rs=get('botRoadSamples');if(rs)rs.textContent=z.replayRecords||0;const note=get('botNote');if(note)note.textContent=z.reason||'';const tog=get('botLearningToggle');if(tog){tog.textContent='V50 META: ALWAYS ON';tog.disabled=true}}catch(e){console.warn('V50 render bot',e)}};try{renderMasterBot=window.renderMasterBot}catch(e){}
+  window.armBotPrediction=function(){try{if(typeof ensureBotState==='function')ensureBotState();const z=botSignal();if(state?.bot)state.bot.pending=z.qualified?{side:z.side,confidence:z.confidence,phase:z.context?.phase||'',hand:pb().length+1,color:state.currentShoeColor||'none',specialists:(z.sources||[]).map(x=>({name:x.name,side:x.side,strength:x.strength,reliability:x.score}))}:null}catch(e){try{if(state?.bot)state.bot.pending=null}catch(_){}}};try{armBotPrediction=window.armBotPrediction}catch(e){}
+
+  const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v50){const w=function(){const r=oldRender.apply(this,arguments);try{panel();window.renderMasterBot()}catch(e){}return r};w.__v50=true;w.__v50Original=oldRender;window.render=w;try{render=w}catch(e){}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,120));else setTimeout(panel,120);setTimeout(()=>{try{window.__armVerifiedPredictions?.();panel()}catch(e){}},350);
+  window.__V50_SPLIT_POLICY__={version:50,rawLearning:true,qualifiedBotOnly:true,redBlackPoliciesSeparated:true,focusRedPriority:true,blackConservative:true,governorDiagnosticOnly:true,simulationStateIsolated:true,replayBatch:12,maxReplay:240};
+})();
+</script>
 </body>
 </html>
