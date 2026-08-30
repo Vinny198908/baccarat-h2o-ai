@@ -9284,7 +9284,7 @@ renderLibraryBackupStatus();
   }
   const oldSettle=window.__settleVerifiedPredictions;
   if(typeof oldSettle==='function'&&!oldSettle.__metaSelectorV48){
-    const wrapped=function(actual){let r;try{r=oldSettle.apply(this,arguments)}finally{try{settle(actual)}catch(e){}}return r};
+    const wrapped=function(actual){let r;try{r=oldSettle.apply(this,arguments)}finally{try{settle(actual)}catch(e){};try{schedulePanel(0)}catch(e){}}return r};
     wrapped.__metaSelectorV48=true;window.__settleVerifiedPredictions=wrapped;
   }
 
@@ -9313,10 +9313,16 @@ renderLibraryBackupStatus();
     }catch(e){}
     return p;
   }
-  const oldRender=window.render;
-  if(typeof oldRender==='function'&&!window.__metaSelectorV48RenderWrapped){window.render=function(){const r=oldRender.apply(this,arguments);try{panel()}catch(e){}return r};window.__metaSelectorV48RenderWrapped=true}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,120));else setTimeout(panel,120);
-  setTimeout(panel,800);
+  // MOBILE RENDER SAFETY FIX: Meta-Selector UI must never run inside the core render() chain.
+  // The selector remains the Bot controller and keeps the same pre-result grading logic,
+  // but its panel refresh is deferred so expensive specialist evaluation cannot block page paint.
+  let __ms48PanelTimer=0;
+  function schedulePanel(delay=0){
+    try{clearTimeout(__ms48PanelTimer)}catch(e){}
+    __ms48PanelTimer=setTimeout(()=>{try{panel()}catch(e){}},Math.max(0,delay));
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>schedulePanel(180));else schedulePanel(180);
+  schedulePanel(900);
 
   window.__metaSelectorV48={version:VERSION,signal,arm,settle,state:st,sourceList,context};
 })();
