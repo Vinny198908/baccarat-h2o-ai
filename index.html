@@ -498,8 +498,8 @@
 <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Choose a shoe library and enter hands to begin historical matching.</div>
 </div>
 <div class="analyzer" id="sequenceDuplicatePanel" style="border-color:#2c7ca8;box-shadow:0 0 0 1px rgba(44,124,168,.14) inset">
-<div class="analyzer-title">Sequence AI V2 Duplicate <span style="font-size:10px;padding:4px 7px;border-radius:999px;background:#173c29;color:#8ff0b3;margin-left:6px">SEQUENCE ONLY</span></div>
-<div class="analyzer-sub">SEPARATE POWER DUPLICATE. Uses its own enhanced multi-window historical continuation ensemble with per-shoe vote caps, long-pattern persistence, regime awareness, conflict detection, and a stronger WAIT gate. When Kaggle is ON, the 200,000-shoe Kaggle signal becomes additional confirmation: agreement can strengthen the Duplicate, while strong conflict can force WAIT instead of blindly flipping sides. Original Sequence AI V2 is unchanged.</div>
+<div class="analyzer-title">Sequence AI V2 Duplicate — Frozen Library AI V47 <span style="font-size:10px;padding:4px 7px;border-radius:999px;background:#173c29;color:#8ff0b3;margin-left:6px">TRAIN ONCE • NO AUTO-RETRAIN</span></div>
+<div class="analyzer-sub">FROZEN LIBRARY SPECIALIST V47. This AI is trained one time on the entire saved RED + BLACK shoe library after at least 76 shoes are present, then its trained weights are frozen and persisted. It does not automatically retrain when shoes are added, removed, or when a live shoe is played. It predicts from the frozen library model plus the current pre-result sequence only. Sequence AI V2 is unchanged. During the leakage-safe V44 library backtest this frozen AI is intentionally excluded, because testing it on the same shoes it was trained on would be an in-sample/leakage score.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Duplicate pick</span><strong id="seqDupSide">WAIT</strong></div>
 <div class="analyzer-card"><span>Duplicate confidence</span><strong id="seqDupStrength">—</strong></div>
@@ -10569,6 +10569,517 @@ window.__V24_DIAGNOSTIC_REPAIR__={
     preserve
   };
 })();
+</script>
+
+
+<script id="v46LeanTrainingFirstBot">
+(()=>{
+  // V46 LEAN TRAINING-FIRST BOT
+  // Purpose: reduce redundant prediction logic while preserving all specialist/training panels.
+  // Active prediction sources: Sequence V2, Road Preview, RED/BLACK Specialist V20,
+  // Walk-Forward Meta V23, plus BLACK Context V22 only during BLACK shoes.
+  // Explicitly excluded from Bot voting because they are redundant/composite/weak in V44:
+  // Sequence Duplicate, Color Pattern direct vote, Adaptive Derived, Consensus, Focus composite,
+  // Knowledge V27 and Shadow V29 (kept advisory/training only), Governor V34 until repaired.
+
+  function leanSignal(){
+    try{ if(typeof ensureBotState==='function') ensureBotState(); }catch(e){}
+    const color=String(state?.shoeColor||state?.currentShoeColor||'').toLowerCase();
+    const phase=(typeof botPhaseInfo==='function'?botPhaseInfo():{key:'EARLY'});
+    const defs=[];
+    const seq=(typeof sequenceAISignal==='function'?sequenceAISignal():{})||{};
+    const road=(typeof roadPreviewAISignal==='function'?roadPreviewAISignal():{})||{};
+    const v20=window.__redBlackSpecialistV20?.signal?.()||{};
+    const v23=window.__metaWalkV23?.signal?.()||{};
+    const v22=window.__blackContextV22?.signal?.()||{};
+
+    const add=(key,name,z,base)=>{
+      const side=(z?.qualified===false)?null:z?.side;
+      if(side!=='P'&&side!=='B')return;
+      const strength=Math.max(0,Math.min(100,Number(z.confidence??z.strength)||0));
+      // Conservative weighting: confidence helps, but no single source dominates.
+      const weight=base*(0.72+0.28*(strength/100));
+      defs.push({key,name,side,strength,weight});
+    };
+    add('seqv2','Sequence AI V2',seq,1.00);
+    add('roadpreview','Road Preview AI',road,0.88);
+    add('specialistv20','RED / BLACK Specialist V20',v20,1.02);
+    add('metav23','Walk-Forward Meta Learner V23',v23,1.04);
+    if(color==='black') add('blackctxv22','BLACK Context Specialist V22',v22,1.06);
+
+    let p=0,b=0,total=0;
+    for(const x of defs){ total+=x.weight; x.side==='P'?p+=x.weight:b+=x.weight; }
+    const pVotes=defs.filter(x=>x.side==='P').length,bVotes=defs.filter(x=>x.side==='B').length;
+    const candidate=p>=b?'P':b>p?'B':null;
+    const supporters=candidate?defs.filter(x=>x.side===candidate):[];
+    const opp=candidate?defs.filter(x=>x.side!==candidate):[];
+    const edge=total?Math.abs(p-b)/total:0;
+    const avg=supporters.length?supporters.reduce((s,x)=>s+x.strength,0)/supporters.length:0;
+
+    let qualified=false,reason='';
+    if(defs.length<2) reason=`WAIT: only ${defs.length} independent trained source${defs.length===1?' is':'s are'} ready.`;
+    else if(supporters.length<2) reason='WAIT: no two independent trained sources agree.';
+    else if(edge<0.10) reason=`WAIT: trained-source edge ${Math.round(edge*100)}% is too small.`;
+    else if(avg<56) reason=`WAIT: agreeing trained sources average ${Math.round(avg)}% strength.`;
+    else { qualified=true; reason=`LEAN TRAINING-FIRST LOCK: ${supporters.length}/${defs.length} active trained sources support ${candidate==='P'?'PLAYER':'BANKER'}.`; }
+
+    const confidence=qualified?Math.min(88,Math.round(avg+Math.min(8,edge*16)+(supporters.length>=3?3:0))):Math.round(avg||0);
+    return {
+      side:qualified?candidate:null,candidate,confidence,qualified,reason,phase,
+      candidates:defs,agreement:defs.length?supporters.length/defs.length:0,
+      total:defs.length,agree:supporters.length,historicalSamples:0,
+      pScore:total?Math.round(p/total*100):0,bScore:total?Math.round(b/total*100):0,
+      seqV2:seq,roadPreview:road,specialistV20:v20,metaV23:v23,blackContextV22:v22,
+      fusion:'V46 Lean: Sequence V2 + Road Preview + V20 + V23 + V22 on BLACK',
+      leanTrainingFirstV46:true
+    };
+  }
+
+  // Override only the Bot fusion. Source AIs, training, diagnostics, Shadow and Knowledge stay intact.
+  window.__masterBotSignalPreV46=window.masterBotSignal||null;
+  try{ masterBotSignal=leanSignal; }catch(e){ window.masterBotSignal=leanSignal; }
+  window.masterBotSignal=leanSignal;
+  window.__leanTrainingFirstV46={signal:leanSignal,active:true};
+
+  function relabel(){
+    const title=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));
+    if(title) title.textContent='🤖 High-Powered Bot AI — V46 Lean Training-First Core';
+    const note=document.getElementById('kaggleLibraryNote');
+    if(note) note.textContent='V46 Bot voting is intentionally lean: Sequence V2 + Road Preview + V20 + V23, with V22 added only on BLACK shoes. Duplicate/Consensus/Adaptive/Focus do not get extra Bot votes. Shadow V29 and Knowledge V27 remain advisory/training only.';
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,100));else setTimeout(relabel,100);
+})();
+</script>
+
+
+<script id="frozen-library-ai-v47">
+/* ============================================================
+   FROZEN LIBRARY AI V47 — repurposes Sequence AI V2 Duplicate
+   PURPOSE
+   - Train ONCE from the complete saved RED + BLACK shoe library.
+   - Require at least 76 saved shoes before the first freeze.
+   - Consume every eligible P/B training row exposed by the V32 recurrent trainer.
+   - Persist a deep copy of the trained RED + BLACK recurrent networks.
+   - NEVER auto-retrain after a successful freeze, even if the library changes.
+   - Live inference reads only the frozen networks + current pre-result sequence.
+   - Sequence AI V2 remains untouched.
+   - Excluded from V44 full-library replay because those same shoes are training data.
+   ============================================================ */
+(function(){
+  const VERSION=47;
+  const MIN_SHOES=76;
+  const MIN_TRAINED_ROWS=120;
+  const LIVE_GATE=56.5;
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const sigmoid=x=>1/(1+Math.exp(-Math.max(-18,Math.min(18,x))));
+
+  function S(){ return window.state || (typeof state!=="undefined"?state:{}); }
+  function deep(x){ try{return JSON.parse(JSON.stringify(x));}catch(e){return null;} }
+  function libraries(){
+    const s=S();
+    return {red:s.redPatternLibrary||[],black:s.blackPatternLibrary||[]};
+  }
+  function shoeCount(){ const L=libraries(); return L.red.length+L.black.length; }
+  function pb(){
+    try{return (typeof currentSequence==="function"?currentSequence():[]).filter(x=>x==="P"||x==="B");}
+    catch(e){return [];}
+  }
+  function color(){
+    const x=String(S().currentShoeColor||"COMBINED").toUpperCase();
+    return x.includes("RED")?"RED":x.includes("BLACK")?"BLACK":"COMBINED";
+  }
+  function persistSafe(){
+    try{if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true && typeof persist==="function")persist();}catch(e){}
+  }
+  function store(){
+    const s=S();
+    s.frozenLibraryAIv47 ||= {version:VERSION,frozen:false,trainedAt:null,shoeCount:0,sourceFingerprint:null,red:null,black:null};
+    return s.frozenLibraryAIv47;
+  }
+  function fingerprint(){
+    try{return window.__recurrentSequenceV32?.sourceFingerprint?.()||null;}catch(e){return null;}
+  }
+  function trainOnce(){
+    const st=store();
+    if(st.frozen && st.red && st.black) return st;
+    const n=shoeCount();
+    if(n<MIN_SHOES){ st.waitingForShoes=MIN_SHOES-n; return st; }
+    const engine=window.__recurrentSequenceV32;
+    if(!engine || typeof engine.train!=="function") { st.error="V32 recurrent trainer unavailable"; return st; }
+    let trained;
+    // Train from a temporary V32 store so freezing this AI cannot rewrite the
+    // recurrent state used anywhere else in the application.
+    const s=S();
+    const priorRecurrent=deep(s.recurrentSequenceV32);
+    try{
+      trained=engine.train(true);
+      trained=deep(trained);
+    }catch(e){
+      st.error=String(e?.message||e);
+      return st;
+    }finally{
+      if(priorRecurrent) s.recurrentSequenceV32=priorRecurrent;
+      else try{delete s.recurrentSequenceV32;}catch(e){s.recurrentSequenceV32=null;}
+    }
+    if(!trained?.red || !trained?.black){st.error="Training did not return both RED and BLACK networks";return st;}
+    const rn=Number(trained.red.trainedN||0), bn=Number(trained.black.trainedN||0);
+    if(rn<MIN_TRAINED_ROWS || bn<MIN_TRAINED_ROWS){st.error=`Insufficient trained rows: RED ${rn}, BLACK ${bn}`;return st;}
+    st.version=VERSION;
+    st.frozen=true;
+    st.trainedAt=Date.now();
+    st.shoeCount=n;
+    st.sourceFingerprint=fingerprint();
+    st.red=deep(trained.red);
+    st.black=deep(trained.black);
+    st.redTrainedN=rn;
+    st.blackTrainedN=bn;
+    st.redLoss=trained.red.loss??null;
+    st.blackLoss=trained.black.loss??null;
+    st.waitingForShoes=0;
+    st.error=null;
+    persistSafe();
+    return st;
+  }
+  function forward(net,steps){
+    const H=Array.isArray(net?.bh)?net.bh.length:0;
+    if(!H||!Array.isArray(steps)||!steps.length)return .5;
+    let h=Array(H).fill(0);
+    for(const x of steps){
+      const nh=new Array(H);
+      for(let j=0;j<H;j++){
+        let z=Number(net.bh[j]||0);
+        for(let i=0;i<x.length;i++) z+=Number(net.Wxh?.[j]?.[i]||0)*Number(x[i]||0);
+        for(let k=0;k<H;k++) z+=Number(net.Whh?.[j]?.[k]||0)*h[k];
+        nh[j]=Math.tanh(z);
+      }
+      h=nh;
+    }
+    let z=Number(net.by||0);
+    for(let j=0;j<H;j++)z+=Number(net.Why?.[j]||0)*h[j];
+    return sigmoid(z);
+  }
+  function signal(){
+    // Never present an in-sample score as leakage-safe evidence.
+    if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true){
+      return {side:null,strength:0,qualified:false,frozenV47:true,excludedFromV44:true,reason:"Frozen on full library — excluded from same-library backtest"};
+    }
+    const st=trainOnce();
+    if(!st.frozen){
+      return {side:null,strength:0,qualified:false,frozenV47:true,trainingStatus:"WAITING",shoeCount:shoeCount(),requiredShoes:MIN_SHOES,reason:st.error||`Waiting for ${Math.max(0,MIN_SHOES-shoeCount())} more saved shoes before one-time freeze`};
+    }
+    const eng=window.__recurrentSequenceV32;
+    const hist=pb();
+    const steps=eng?.sequenceFeatures?.(hist)||[];
+    if(!steps.length)return {side:null,strength:0,qualified:false,frozenV47:true,reason:"Need live P/B sequence"};
+    const c=color();
+    let nets=[];
+    if(c==="RED"&&st.red)nets=[st.red];
+    else if(c==="BLACK"&&st.black)nets=[st.black];
+    else {if(st.red)nets.push(st.red);if(st.black)nets.push(st.black);}
+    if(!nets.length)return {side:null,strength:0,qualified:false,frozenV47:true,reason:"Frozen networks unavailable"};
+    const probs=nets.map(n=>forward(n,steps));
+    const p=probs.reduce((a,b)=>a+b,0)/probs.length;
+    const rawSide=p>=.5?"P":"B";
+    const conf=50+Math.abs(p-.5)*100;
+    const qualified=conf>=LIVE_GATE;
+    return {
+      side:qualified?rawSide:null,
+      rawSide,
+      strength:qualified?Number(conf.toFixed(1)):0,
+      confidence:Number(conf.toFixed(1)),
+      qualified,
+      frozenV47:true,
+      trainingStatus:"FROZEN",
+      frozenShoeCount:st.shoeCount,
+      trainedN:Number(st.redTrainedN||0)+Number(st.blackTrainedN||0),
+      redTrainedN:st.redTrainedN||0,
+      blackTrainedN:st.blackTrainedN||0,
+      sourceFingerprint:st.sourceFingerprint,
+      color:c,
+      colorConfirmation:`FROZEN ${c}`,
+      similarityScore:Number(conf.toFixed(1)),
+      colorMatch:Number(conf.toFixed(1)),
+      rawProbabilityP:p,
+      reason:qualified?`Frozen full-library model • ${st.shoeCount} shoes • no auto-retrain`:`Frozen model below ${LIVE_GATE}% confidence gate`
+    };
+  }
+  function status(){ const st=trainOnce(); return deep(st); }
+
+  // Repurpose the redundant duplicate as the one permanently frozen full-library learner.
+  window.sequenceAIDuplicateSignal=signal;
+  window.__frozenLibraryAIv47={version:VERSION,trainOnce,status,signal,minimumShoes:MIN_SHOES,noAutoRetrain:true};
+
+  // Attempt the one-time freeze only when the complete 76-shoe library is already loaded.
+  try{trainOnce();}catch(e){}
+})();
+</script>
+
+<script id="frozen-library-ai-v47-ui">
+(function(){
+  function update(){
+    try{
+      const st=window.__frozenLibraryAIv47?.status?.();
+      const p=document.getElementById('sequenceDuplicatePanel');
+      if(!p||!st)return;
+      p.dataset.frozenLibraryAi='v47';
+      const note=document.getElementById('seqDupNote');
+      if(note){
+        if(st.frozen){
+          const when=st.trainedAt?new Date(st.trainedAt).toLocaleString():'—';
+          note.textContent=`FROZEN TRAINING: ${st.shoeCount} shoes • ${(st.redTrainedN||0)+(st.blackTrainedN||0)} hand examples • trained ${when} • automatic retraining OFF.`;
+        }else{
+          note.textContent=st.error||`One-time training waits for all 76 saved shoes. Current library: ${st.shoeCount||0}.`;
+        }
+      }
+    }catch(e){}
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!window.__frozenV47RenderWrapped){
+    window.render=function(){const r=oldRender.apply(this,arguments);try{update();}catch(e){}return r;};
+    window.__frozenV47RenderWrapped=true;
+  }
+  update();
+})();
+</script>
+
+<script id="frozen-library-ai-v47-1-integrity-fix">
+/* V47.1 integrity fixes found during full scan:
+   1) Frozen Duplicate bypasses shared live-learning inference adjustments.
+   2) Duplicate probability UI reflects frozen P/B probability instead of false 0% fields.
+*/
+(function(){
+  const priorSL=window.__slV10Signal;
+  if(typeof priorSL==='function'&&!window.__frozenV47SLBypass){
+    window.__slV10Signal=function(key,x){
+      if(key==='seqdup'&&x?.frozenV47===true)return x;
+      return priorSL.apply(this,arguments);
+    };
+    window.__frozenV47SLBypass=true;
+  }
+  function fixUI(){
+    try{
+      const x=window.__frozenLibraryAIv47?.signal?.();
+      if(!x?.frozenV47)return;
+      const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+      if(Number.isFinite(Number(x.rawProbabilityP))){
+        const p=Math.round(Number(x.rawProbabilityP)*1000)/10;
+        set('seqDupP',p+'%');
+        set('seqDupB',(Math.round((100-p)*10)/10)+'%');
+        set('seqDupT','—');
+      }else{
+        set('seqDupP','—'); set('seqDupB','—'); set('seqDupT','—');
+      }
+      set('seqDupBase',x.rawSide||'—');
+    }catch(e){}
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!window.__frozenV47IntegrityRenderWrapped){
+    window.render=function(){const r=oldRender.apply(this,arguments);try{fixUI();}catch(e){}return r;};
+    window.__frozenV47IntegrityRenderWrapped=true;
+  }
+  fixUI();
+  window.__FROZEN_LIBRARY_AI_V47_1_SCAN__={syntaxChecked:true,sharedTrainerIsolation:true,liveLearningInferenceBypass:true,probabilityUiFixed:true};
+})();
+</script>
+
+
+<script id="meta-selector-v49">
+/* ============================================================
+   META-SELECTOR AI V49 — CONTROLLED REPLAY + STRICT PRE-RESULT AUDIT
+   - Existing specialist AIs -> trained selector -> High-Powered Bot.
+   - Prediction is frozen BEFORE the next result is known.
+   - Completed outcomes first enter a replay buffer.
+   - Selector trust is recalibrated in batches, not rewritten after every hand.
+   - Replay window is bounded so stale history cannot dominate forever.
+   - Frozen Library AI V47 remains frozen and is not auto-retrained.
+   - Frozen V47 is withheld from selector control until independent evidence exists.
+   ============================================================ */
+(function(){
+  const VERSION=49;
+  const COMMIT_EVERY=12;
+  const MAX_REPLAY=240;
+  const MIN_DISAGREE_EVIDENCE=20;
+  const SOURCE_DEFS=[
+    ['seqv2','Sequence AI V2',()=>typeof sequenceAISignal==='function'?sequenceAISignal():{}],
+    ['roadpreview','Road Preview AI',()=>typeof roadPreviewAISignal==='function'?roadPreviewAISignal():{}],
+    ['specialistv20','RED / BLACK Specialist V20',()=>window.__redBlackSpecialistV20?.signal?.()||{}],
+    ['metav23','Walk-Forward Meta Learner V23',()=>window.__metaWalkV23?.signal?.()||{}],
+    ['blackctxv22','BLACK Context Specialist V22',()=>window.__blackContextV22?.signal?.()||{}]
+  ];
+  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+  const clone=x=>{try{return JSON.parse(JSON.stringify(x))}catch(e){return null}};
+  function pb(){try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B')}catch(e){return []}}
+  function color(){const q=String(state.currentShoeColor||state.shoeColor||'COMBINED').toUpperCase();return q.includes('RED')?'RED':q.includes('BLACK')?'BLACK':'COMBINED'}
+  function phase(){const n=pb().length;return n<18?'EARLY':n<36?'MIDDLE':'LATE'}
+  function regime(){const a=pb().slice(-12);if(a.length<6)return 'BUILDING';let sw=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])sw++;const r=sw/(a.length-1);return r>=.68?'CHOP':r<=.32?'RUN':'MIXED'}
+  function context(){return {color:color(),phase:phase(),regime:regime()}}
+  function ckey(c){return `${c.color}|${c.phase}|${c.regime}`}
+  function strength(z){return clamp(Number(z?.strength??z?.confidence??z?.top)||0,0,100)}
+  function valid(z){return z&&(z.side==='P'||z.side==='B')&&z.qualified!==false}
+  function S(){
+    state.metaSelectorV49 ||= {version:VERSION,replay:[],models:{},pairs:{},pending:null,settled:0,commits:0,committedRecords:0,audit:[],lastHandN:0,lastCommitAt:null};
+    const s=state.metaSelectorV49;s.version=VERSION;s.replay||=[];s.models||={};s.pairs||={};s.audit||=[];return s;
+  }
+  function sourceList(){
+    const c=color(),out=[];
+    for(const [key,name,fn] of SOURCE_DEFS){
+      if(key==='blackctxv22'&&c!=='BLACK')continue;
+      let z={};try{z=fn()||{}}catch(e){}
+      if(!valid(z))continue;
+      out.push({key,name,side:z.side,strength:strength(z)});
+    }
+    return out;
+  }
+  function bucket(obj,key){obj[key]||={w:0,l:0,n:0};return obj[key]}
+  function modelKey(k,c){return `${k}|${ckey(c)}`}
+  function pairKey(a,b,c){const [x,y]=[a,b].sort();return `${x}~${y}|${ckey(c)}`}
+  function posterior(b){if(!b||!b.n)return {rate:.5,n:0};return {rate:(b.w+6)/(b.n+12),n:b.n}}
+  function rebuild(){
+    const s=S();s.models={};s.pairs={};
+    const rows=s.replay.slice(-MAX_REPLAY);
+    for(const r of rows){
+      if(!r||!(r.actual==='P'||r.actual==='B')||!Array.isArray(r.sources))continue;
+      for(const x of r.sources){
+        const b=bucket(s.models,modelKey(x.key,r.context));b.n++;x.side===r.actual?b.w++:b.l++;
+      }
+      for(let i=0;i<r.sources.length;i++)for(let j=i+1;j<r.sources.length;j++){
+        const a=r.sources[i],b=r.sources[j];if(a.side===b.side)continue;
+        const pk=pairKey(a.key,b.key,r.context),q=s.pairs[pk]||(s.pairs[pk]={n:0,firstW:0,secondW:0});
+        const [first,second]=[a.key,b.key].sort();q.n++;
+        const winner=a.side===r.actual?a.key:b.key;
+        if(winner===first)q.firstW++;else if(winner===second)q.secondW++;
+      }
+    }
+    s.commits++;s.committedRecords=rows.length;s.lastCommitAt=Date.now();
+    try{if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true&&typeof persist==='function')persist()}catch(e){}
+  }
+  function maybeCommit(force){
+    const s=S();
+    const pending=Math.max(0,s.replay.length-s.committedRecords);
+    if(force||pending>=COMMIT_EVERY)rebuild();
+  }
+  function trust(x,c){
+    const p=posterior(S().models[modelKey(x.key,c)]);
+    let rate=p.rate;
+    // Existing V42 history is advisory only and cannot overpower replay evidence.
+    try{
+      const q=window.__trainingV42?.reliability?.(x.key,x.strength,x.side);
+      if(q&&Number(q.n)>0){
+        const qr=clamp(Number(q.rate)||.5,.42,.62),w=Math.min(.35,Number(q.n)/(Number(q.n)+80));
+        rate=rate*(1-w)+qr*w;
+      }
+    }catch(e){}
+    rate+=(x.strength-60)*0.0005;
+    return {rate:clamp(rate,.42,.62),n:p.n};
+  }
+  function pairEdge(a,b,c){
+    const q=S().pairs[pairKey(a.key,b.key,c)];if(!q||!q.n)return {edge:0,n:0};
+    const aFirst=[a.key,b.key].sort()[0]===a.key;
+    const aw=aFirst?q.firstW:q.secondW,bw=aFirst?q.secondW:q.firstW;
+    return {edge:(aw+5)/(q.n+10)-(bw+5)/(q.n+10),n:q.n};
+  }
+  function signal(){
+    const c=context(),sources=sourceList(),s=S();
+    if(sources.length<2)return {side:null,qualified:false,confidence:0,reason:`META WAIT: only ${sources.length} specialist source${sources.length===1?'':'s'} ready.`,metaSelectorV49:true,context:c,sources};
+    const scored=sources.map(x=>{
+      const t=trust(x,c);let adj=0,n=0,k=0;
+      for(const y of sources){if(y.key===x.key||y.side===x.side)continue;const pe=pairEdge(x,y,c);if(pe.n){adj+=pe.edge*Math.min(1,pe.n/18);n+=pe.n;k++;}}
+      if(k)adj/=k;
+      return {...x,trust:t.rate,learnedN:t.n,pairN:n,score:clamp(t.rate+adj*.18,.38,.66)};
+    }).sort((a,b)=>b.score-a.score||b.strength-a.strength);
+    const top=scored[0],second=scored[1],same=scored.filter(x=>x.side===top.side),opp=scored.filter(x=>x.side!==top.side);
+    const evidence=top.learnedN+top.pairN,margin=top.score-(second?.score??.5),avg=same.reduce((z,x)=>z+x.strength,0)/Math.max(1,same.length);
+    let qualified=false,reason='';
+    if(!opp.length&&same.length>=2){
+      qualified=top.score>=.49&&avg>=56;
+      reason=qualified?`META LOCK: ${same.length}/${scored.length} specialists agree; ${top.name} leads.`:'META WAIT: agreement exists but calibrated trust is still weak.';
+    }else if(evidence<MIN_DISAGREE_EVIDENCE)reason=`META WAIT: disagreement requires replay evidence; ${top.name} has N=${evidence}.`;
+    else if(top.score<.515)reason=`META WAIT: best replay-calibrated trust is ${Math.round(top.score*1000)/10}%.`;
+    else if(margin<.012&&top.pairN<18)reason='META WAIT: specialists are too close; more disagreement replay is required.';
+    else{qualified=true;reason=`META SELECT: ${top.name} leads ${c.color}/${c.phase}/${c.regime} at ${Math.round(top.score*1000)/10}% replay-calibrated trust.`;}
+    const conf=qualified?clamp(Math.round((50+(top.score-.5)*150+Math.max(0,top.strength-55)*.25)*10)/10,52,82):0;
+    return {side:qualified?top.side:null,candidate:top.side,qualified,confidence:conf,strength:conf,reason,metaSelectorV49:true,context:c,selectedModel:top.key,selectedName:top.name,selectedTrust:top.score,selectedEvidence:evidence,margin,sources:scored,agreement:same.length/scored.length,total:scored.length,agree:same.length,replayRecords:s.replay.length,committedRecords:s.committedRecords,commits:s.commits,fusion:'V49 controlled replay selector'};
+  }
+  function audit(type,msg,extra){const s=S();s.audit.push({at:Date.now(),type,msg,...(extra||{})});if(s.audit.length>80)s.audit.splice(0,s.audit.length-80)}
+  function finalizeSettlement(p,actual){
+    const s=S();
+    if(actual!=='P'&&actual!=='B'){audit('SKIP','Non P/B result skipped');return false}
+    if(!p?.sources?.length){audit('REJECT','No pre-result snapshot; outcome not learned');return false}
+    const now=pb(),handN=now.length;
+    if(handN<=p.handN)return false;
+    // Verify the newly appended P/B result equals the settlement argument.
+    const observed=now[p.handN];
+    if((observed==='P'||observed==='B')&&observed!==actual){audit('REJECT','Settlement did not match appended result',{observed,actual});return true}
+    const rec={context:clone(p.context),sources:clone(p.sources),actual,armedHandN:p.handN,settledHandN:handN,armedAt:p.armedAt,settledAt:Date.now()};
+    s.replay.push(rec);if(s.replay.length>MAX_REPLAY)s.replay.splice(0,s.replay.length-MAX_REPLAY);
+    s.settled++;audit('SETTLE','Outcome added to replay buffer',{actual,replay:s.replay.length});
+    maybeCommit(false);return true;
+  }
+  function arm(){
+    const s=S(),handN=pb().length;
+    // Core result handlers call settlement before appending the hand. Finish that
+    // captured settlement here, after the append and before arming the next hand.
+    if(s.deferredSettlement){
+      const d=s.deferredSettlement;s.deferredSettlement=null;
+      if(!finalizeSettlement(d.pending,d.actual))audit('REJECT','Deferred settlement still had no appended hand',{armed:d.pending?.handN,now:handN});
+    }
+    // A lower hand count means a new shoe began. Commit any buffered learning before continuing.
+    if(handN<s.lastHandN)maybeCommit(true);
+    s.lastHandN=handN;
+    const ss=sourceList();
+    s.pending={handN,context:context(),sources:ss.map(x=>({key:x.key,name:x.name,side:x.side,strength:x.strength})),armedAt:Date.now()};
+    audit('ARM','Pre-result snapshot stored',{handN,sources:ss.length});
+  }
+  function settle(actual){
+    const s=S(),p=s.pending;s.pending=null;
+    if(actual!=='P'&&actual!=='B'){audit('SKIP','Non P/B result skipped');return}
+    if(!p?.sources?.length){audit('REJECT','No pre-result snapshot; outcome not learned');return}
+    if(finalizeSettlement(p,actual))return;
+    // Normal live path: the core calls settle immediately before state.hands.push().
+    // Preserve the exact pre-result snapshot and finalize it in arm() after append.
+    s.deferredSettlement={pending:p,actual,queuedAt:Date.now()};
+    audit('QUEUE','Settlement captured; waiting for appended hand',{armed:p.handN,now:pb().length});
+  }
+  // Hook strict pre-result arm/settle after all prior accuracy hooks.
+  const oa=window.__armVerifiedPredictions;
+  if(typeof oa==='function'&&!oa.__metaSelectorV49){const w=function(){try{arm()}catch(e){}return oa.apply(this,arguments)};w.__metaSelectorV49=true;window.__armVerifiedPredictions=w}
+  const os=window.__settleVerifiedPredictions;
+  if(typeof os==='function'&&!os.__metaSelectorV49){const w=function(actual){let r;try{r=os.apply(this,arguments)}finally{try{settle(actual)}catch(e){}}return r};w.__metaSelectorV49=true;window.__settleVerifiedPredictions=w}
+
+  // High-Powered Bot consumes the controlled selector directly.
+  window.__masterBotSignalPreV49=window.masterBotSignal||null;
+  try{masterBotSignal=signal}catch(e){window.masterBotSignal=signal}window.masterBotSignal=signal;
+
+  function panel(){
+    let p=document.getElementById('metaSelectorV49Panel');
+    if(!p){p=document.createElement('div');p.id='metaSelectorV49Panel';p.className='analyzer';p.style.borderColor='#4fa3ff';
+      p.innerHTML=`<div class="analyzer-title">🎯 Meta-Selector AI V49 — Controlled Replay</div>
+      <div class="analyzer-sub">Strict pre-result learning. Verified outcomes enter a replay buffer; selector trust is recalibrated every ${COMMIT_EVERY} settled P/B hands or at a new shoe, instead of changing after every hand. Frozen Library AI V47 remains frozen.</div>
+      <div class="backtest-grid" style="margin-top:8px"><div class="bt-card"><strong id="ms49Pick">WAIT</strong><span>Selected AI</span></div><div class="bt-card"><strong id="ms49Trust">—</strong><span>Replay trust</span></div><div class="bt-card"><strong id="ms49Replay">0</strong><span>Replay outcomes</span></div><div class="bt-card"><strong id="ms49Commit">0</strong><span>Recalibrations</span></div></div>
+      <div class="analyzer-sub" id="ms49Reason" style="margin-top:8px"></div>
+      <div class="analyzer-sub" id="ms49Audit" style="margin-top:4px"></div>
+      <div class="rank-actions" style="margin-top:8px"><button class="tiny-btn" id="ms49CommitNow">Recalibrate From Replay Now</button><button class="tiny-btn" id="ms49RunWalkForward">Run Chronological Walk-Forward Test</button></div>`;
+      const old=document.getElementById('metaSelectorV48Panel');if(old)old.remove();
+      const bot=[...document.querySelectorAll('.analyzer')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(bot?.parentNode)bot.parentNode.insertBefore(p,bot);else document.body.appendChild(p);
+      p.querySelector('#ms49CommitNow')?.addEventListener('click',()=>{maybeCommit(true);panel()});
+      p.querySelector('#ms49RunWalkForward')?.addEventListener('click',()=>{
+        const b=document.getElementById('runFullLibraryBacktest');
+        if(b){b.click();setTimeout(()=>document.getElementById('fullLibraryBacktestPanel')?.scrollIntoView?.({behavior:'smooth',block:'start'}),100)}
+      });
+    }
+    try{const z=signal(),s=S(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+      set('ms49Pick',z.selectedName||'WAIT');set('ms49Trust',z.selectedTrust?`${Math.round(z.selectedTrust*1000)/10}%`:'—');set('ms49Replay',s.replay.length);set('ms49Commit',s.commits);set('ms49Reason',z.reason||'Building replay evidence.');
+      const a=s.audit[s.audit.length-1];set('ms49Audit',a?`Audit: ${a.type} • ${a.msg}`:'Audit: waiting for first pre-result snapshot.');
+      const t=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(t)t.textContent='🤖 High-Powered Bot AI — V49 Controlled Meta-Controller';
+    }catch(e){}return p;
+  }
+  const oldRender=window.render;if(typeof oldRender==='function'&&!window.__metaSelectorV49RenderWrapped){window.render=function(){const r=oldRender.apply(this,arguments);try{panel()}catch(e){}return r};window.__metaSelectorV49RenderWrapped=true}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,120));else setTimeout(panel,120);setTimeout(panel,800);
+  window.__metaSelectorV49={version:VERSION,signal,arm,settle,state:S,rebuild,commitNow:()=>maybeCommit(true),sourceList,context,commitEvery:COMMIT_EVERY,maxReplay:MAX_REPLAY,strictPreResult:true};
+})();
+</script>
+<script id="meta-selector-v49-build-tag">
+window.__V49_CONTROLLED_META__={version:49,architecture:'existing specialists -> controlled replay selector -> High-Powered Bot',strictPreResult:true,settlementOrderFixed:true,replayBatch:12,maxReplay:240,chronologicalWalkForwardButton:true,frozenV47Preserved:true,autoRetrainFrozenModel:false};
 </script>
 </body>
 </html>
