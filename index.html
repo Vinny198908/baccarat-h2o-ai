@@ -1501,9 +1501,61 @@ function futureRoadChip(label,mark){
   return `<span class="future-chip">${label}: ${mark?roadMarkLabel(mark):'—'}</span>`;
 }
 
+function mainRoadFutureAdaptiveContext(){
+  const seq=state.hands.filter(h=>h&&h.r!=='T').map(h=>h.r).filter(x=>x==='P'||x==='B');
+  const recent=seq.slice(-14);
+  const transitions=(a)=>{
+    if(!a||a.length<2)return .5;
+    let n=0; for(let i=1;i<a.length;i++) if(a[i]!==a[i-1]) n++;
+    return n/(a.length-1);
+  };
+  const tr=transitions(recent);
+  const late=transitions(recent.slice(-7));
+  const early=transitions(recent.slice(-14,-7));
+  const drift=Math.abs(late-early);
+  let streak=0;
+  if(recent.length){streak=1;for(let i=recent.length-2;i>=0&&recent[i]===recent[recent.length-1];i--)streak++;}
+  const p=recent.filter(x=>x==='P').length, b=recent.length-p;
+  const imbalance=recent.length?Math.abs(p-b)/recent.length:0;
+  let regime='MIXED';
+  if(recent.length<7) regime='BUILDING';
+  else if(drift>=.34) regime='SHIFT';
+  else if(tr<=.38||streak>=4) regime='TREND';
+  else if(tr>=.68) regime='CHOP';
+
+  // Verified recent Future-Test reliability. Shrunk toward 50% so a small sample
+  // can never over-power the live road evidence.
+  const a=loadMainRoadFutureAccuracy();
+  let raw=.50;
+  try{
+    const hist=JSON.parse(localStorage.getItem('baccarat-main-road-future-adaptive-history-v56')||'[]');
+    const last=Array.isArray(hist)?hist.slice(-16):[];
+    if(last.length) raw=last.reduce((z,x)=>z+(x&&x.ok?1:0),0)/last.length;
+  }catch(e){}
+  if((a.n||0)>0 && raw===.50) raw=(a.w||0)/(a.n||1);
+  const sample=Math.min(16,Number(a.n)||0);
+  const shrink=sample/(sample+10);
+  const reliability=.50+(raw-.50)*shrink;
+
+  let mainWeight=2.0, roadWeight=1.0, edgeGate=4, confidenceScale=1.0;
+  if(regime==='TREND'){ mainWeight=2.45; roadWeight=.90; edgeGate=4; confidenceScale=1.04; }
+  else if(regime==='CHOP'){ mainWeight=1.55; roadWeight=1.18; edgeGate=5; confidenceScale=.98; }
+  else if(regime==='SHIFT'){ mainWeight=1.35; roadWeight=.95; edgeGate=8; confidenceScale=.84; }
+  else if(regime==='BUILDING'){ mainWeight=1.65; roadWeight=.90; edgeGate=7; confidenceScale=.88; }
+
+  // If recent verified performance softens, reduce aggression; if it improves,
+  // permit a modest increase. This changes weighting/gating only, never rewrites outcomes.
+  const relAdj=Math.max(.82,Math.min(1.12,.88+(reliability-.50)*.80+.12));
+  confidenceScale*=relAdj;
+  edgeGate += reliability<.48?2:reliability>.58?-1:0;
+
+  return {regime,tr,late,early,drift,streak,imbalance,reliability,mainWeight,roadWeight,edgeGate,confidenceScale,sample};
+}
+
 function mainRoadFutureTest(){
   const t0=(window.performance&&performance.now)?performance.now():Date.now();
   const main=sequenceAISignal();
+  const ctx=mainRoadFutureAdaptiveContext();
   const roadDefs=[
     {label:'Eye',offset:1},
     {label:'Small',offset:2},
@@ -1513,15 +1565,16 @@ function mainRoadFutureTest(){
 
   const scoreSide=(side)=>{
     let weighted=0, weight=0, readyRoads=0;
-    // Main Road gets 40% of the intended blend when it has usable evidence.
     const mainPct=side==='P'?(main.pPct||0):(main.bPct||0);
-    if(mainPct>0){ weighted+=mainPct*2; weight+=2; }
-    // Each of the three roads contributes one equal unit when its hypothetical marks are ready.
+    if(mainPct>0){ weighted+=mainPct*ctx.mainWeight; weight+=ctx.mainWeight; }
     for(const r of roadSigs){
       const sig=r.sig||{};
       if(sig.pMark && sig.bMark && sig.pMark!==sig.bMark){
         const pct=side==='P'?(sig.pPct||50):(sig.bPct||50);
-        weighted+=pct; weight+=1; readyRoads++;
+        // Reliability and regime alter contribution strength, not the road's prediction.
+        const q=Math.max(.75,Math.min(1.15,((Number(sig.confidence)||Number(sig.strength)||60)/70)));
+        const rw=ctx.roadWeight*q;
+        weighted+=pct*rw; weight+=rw; readyRoads++;
       }
     }
     const pct=weight?weighted/weight:50;
@@ -1529,30 +1582,34 @@ function mainRoadFutureTest(){
   };
 
   const p=scoreSide('P'), b=scoreSide('B');
-  // Normalize the two candidate scores into a clean P/B comparison.
   const total=(p.pct+b.pct)||100;
-  const pNorm=Math.round(100*p.pct/total);
-  const bNorm=100-pNorm;
-  const edge=Math.abs(pNorm-bNorm);
+  let pNorm=Math.round(100*p.pct/total);
+  let bNorm=100-pNorm;
+  const rawEdge=Math.abs(pNorm-bNorm);
+  const scaledEdge=rawEdge*ctx.confidenceScale;
   const evidence=Math.max(p.weight,b.weight);
   let side=null, label='WAIT';
-  if(evidence>0){
+  if(evidence>0 && scaledEdge>=ctx.edgeGate){
     side=pNorm>bNorm?'P':bNorm>pNorm?'B':null;
-    if(side) label=edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN';
+    if(side) label=scaledEdge>=10?'STRONG LEAN':scaledEdge>=6?'LIKELY':'SLIGHT LEAN';
   }
+
+  // During a detected regime shift, require at least two usable derived-road futures
+  // or a clearly strong Main-Road edge. This is the drift safety gate.
+  const ready=Math.min(p.readyRoads,b.readyRoads);
+  if(ctx.regime==='SHIFT' && side && ready<2 && rawEdge<12){ side=null; label='WAIT'; }
 
   const path=(sideKey,norm)=>{
     const marks=previewFor(sideKey);
     return {
-      side:sideKey,
-      norm,
+      side:sideKey,norm,
       main:futureMainRoadDescription(sideKey),
       marks,
       chips:futureRoadChip('Eye',marks.eye)+futureRoadChip('Small',marks.small)+futureRoadChip('Roach',marks.roach)
     };
   };
   const elapsed=Math.max(0,Math.round(((window.performance&&performance.now)?performance.now():Date.now())-t0));
-  return {p:path('P',pNorm),b:path('B',bNorm),side,label,edge,evidence,main,roadSigs,elapsed};
+  return {p:path('P',pNorm),b:path('B',bNorm),side,label,edge:rawEdge,scaledEdge,evidence,main,roadSigs,ctx,elapsed};
 }
 
 function renderMainRoadFutureTest(){
@@ -1575,7 +1632,9 @@ function renderMainRoadFutureTest(){
   }
   const ready=x.roadSigs.filter(r=>r.sig&&r.sig.pMark&&r.sig.bMark&&r.sig.pMark!==r.sig.bMark).length;
   const mainText=(x.main&&((x.main.pPct||0)+(x.main.bPct||0)>0))?`Main Road history P ${x.main.pPct||0}% / B ${x.main.bPct||0}%`:'Main Road history still building';
-  set('futureNote',`${mainText} • ${ready}/3 derived roads ready. This is a hypothetical preview only; neither P nor B is written into the shoe until the real result is entered.`);
+  const c=x.ctx||{};
+  const rel=Math.round((c.reliability||.5)*100);
+  set('futureNote',`${mainText} • ${ready}/3 derived roads ready • Adaptive regime ${c.regime||'MIXED'} • drift ${Math.round((c.drift||0)*100)}% • recent verified reliability ${rel}%. This is a hypothetical preview only; neither P nor B is written into the shoe until the real result is entered.`);
 }
 
 
@@ -1598,8 +1657,17 @@ function settleMainRoadFutureAccuracy(actual){
   if(!x||!x.side) return; // WAIT is never graded.
   const a=loadMainRoadFutureAccuracy();
   a.n++;
-  if(x.side===actual)a.w++;else a.l++;
+  const ok=x.side===actual;
+  if(ok)a.w++;else a.l++;
   saveMainRoadFutureAccuracy(a);
+  try{
+    const key='baccarat-main-road-future-adaptive-history-v56';
+    let h=JSON.parse(localStorage.getItem(key)||'[]');
+    if(!Array.isArray(h))h=[];
+    h.push({ok:!!ok,predicted:x.side,actual,regime:x.ctx?.regime||'MIXED',edge:Number(x.edge)||0,ts:Date.now()});
+    if(h.length>80)h=h.slice(-80);
+    localStorage.setItem(key,JSON.stringify(h));
+  }catch(e){}
 }
 function renderMainRoadFutureAccuracy(){
   const el=document.getElementById('futureAccuracy'); if(!el)return;
@@ -1610,6 +1678,7 @@ function resetMainRoadFutureAccuracy(){
   const ok=confirm('Reset Main Road Future Test verified accuracy to 0? This clears only the Future Test W/L/N score.');
   if(!ok)return;
   saveMainRoadFutureAccuracy({w:0,l:0,n:0});
+  try{localStorage.removeItem('baccarat-main-road-future-adaptive-history-v56');}catch(e){}
   renderMainRoadFutureAccuracy();
 }
 document.getElementById('resetMainRoadFutureAccuracyBtn')?.addEventListener('click',resetMainRoadFutureAccuracy);
@@ -8225,21 +8294,75 @@ renderLibraryBackupStatus();
 
   function renderUpgrade(){
     settleArm();
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    let z20={},z22={},z23={},zf={};
+    try{z20=v20()||{}}catch(e){}
+    try{z22=v22()||{}}catch(e){}
+    try{z23=v23()||{}}catch(e){}
+    try{zf=focus()||{}}catch(e){}
+
+    // CRITICAL LIVE-SYNC FIX:
+    // V31 upgrades replace the underlying signal functions. The old code only
+    // refreshed reason/badge text, leaving the decision/confidence DOM fields
+    // showing the pre-upgrade V20/V22/V23/Focus values. That produced impossible
+    // screens such as PLAYER 79% while the same card said WAIT, and made the top
+    // verified ledger look inconsistent even when it was reading the upgraded
+    // signal correctly. These fields now render from the exact same upgraded
+    // signal objects used by the verified ledger.
+    set('v20Pick',z20.qualified?(z20.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('v20Conf',z20.qualified?`${Number(z20.confidence)||0}%`:'—');
+    set('v20Color',String(color()||'—').toUpperCase());
+    set('v20Anchor',String(z20.anchorSupport||0));
+    set('v20Reason',z20.reason||'');
+
+    set('v22Pick',z22.qualified?(z22.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('v22Conf',z22.qualified?`${Number(z22.confidence)||0}%`:'—');
+    set('v22Engine',z22.engine||'—');
+    set('v22Ctx',z22.context?`${String(z22.context.phase||'').toUpperCase()} • S${z22.context.streak||0}`:'—');
+    set('v22Reason',z22.reason||'');
+
+    set('v23Pick',z23.qualified?(z23.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('v23Conf',z23.qualified?`${Number(z23.confidence)||0}%`:'—');
+    set('v23Bucket',z23.bucket||'—');
+    set('v23N',wf().totalUpdates||0);
+    set('v23Reason',z23.reason||'');
+
+    set('focusV26Pick',zf.qualified?(zf.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    set('focusV26Conf',zf.qualified?`${Number(zf.confidence)||0}%`:'—');
+    set('focusV26Agree',`${Number(zf.supporters)||0}/3`);
+    set('focusV26Active',`${Number(zf.active)||0}/3`);
+    set('focusV26Reason',zf.reason||'');
+
     const map=[
-      ['rbSpecialistV20','🎯 RED / BLACK Specialist V20 — A-Grade Live','v20Reason',()=>v20()],
-      ['blackContextV22','⚫ BLACK Context Specialist V22 — A-Grade Live',null,()=>v22()],
-      ['metaWalkV23','🧠 Walk-Forward Meta Learner V23 — A-Grade Live','v23Reason',()=>v23()],
-      ['focusAIV26','🔎 Focus AI V26 — A-Grade Live', 'focusV26Reason',()=>focus()]
+      ['rbSpecialistV20','🎯 RED / BLACK Specialist V20 — A-Grade Live',z20],
+      ['blackContextV22','⚫ BLACK Context Specialist V22 — A-Grade Live',z22],
+      ['metaWalkV23','🧠 Walk-Forward Meta Learner V23 — A-Grade Live',z23],
+      ['focusAIV26','🔎 Focus AI V26 — A-Grade Live',zf]
     ];
-    for(const [id,title,reasonId,get] of map){const p=document.getElementById(id);if(!p)continue;const h=p.querySelector('.analyzer-title');if(h)h.textContent=title;let z={};try{z=get()||{}}catch(e){};let badge=p.querySelector('.aGradeAwareBadge');if(!badge){badge=document.createElement('div');badge.className='analyzer-sub aGradeAwareBadge';badge.style.marginTop='6px';badge.style.color='#8ff0b3';p.appendChild(badge);}badge.textContent=`AWARENESS: ${z.awareness||'BUILDING'} • ADAPTATION: A-GRADE • verified live evidence is sample-size weighted`;
-      if(reasonId){const r=document.getElementById(reasonId);if(r&&z.reason)r.textContent=z.reason;}
+    for(const [id,title,z] of map){
+      const panel=document.getElementById(id);if(!panel)continue;
+      const h=panel.querySelector('.analyzer-title');if(h)h.textContent=title;
+      let badge=panel.querySelector('.aGradeAwareBadge');
+      if(!badge){badge=document.createElement('div');badge.className='analyzer-sub aGradeAwareBadge';badge.style.marginTop='6px';badge.style.color='#8ff0b3';panel.appendChild(badge);}
+      badge.textContent=`AWARENESS: ${z.awareness||'BUILDING'} • ADAPTATION: A-GRADE • verified live evidence is sample-size weighted`;
     }
-    const n=document.getElementById('v23N');if(n)n.textContent=wf().totalUpdates||0;
+
+    // Refresh lower verified summaries from the same central ledger so their
+    // N/W/L/WAIT display cannot lag behind the first accuracy panel.
+    const applyVerified=(key,rateId,detailId,extra)=>{
+      const va=window.__verifiedAccuracySummary?.(key);if(!va)return;
+      set(rateId,va.rate==null?'—':va.rate+'%');
+      set(detailId,extra(va));
+    };
+    applyVerified('specialistv20','v20Verified','v20VerifiedDetail',va=>`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits} • RED ${va.red} • BLACK ${va.black}`);
+    applyVerified('blackctxv22','v22Verified','v22VerifiedDetail',va=>`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits} • EARLY ${va.early} • MID ${va.middle} • LATE ${va.late}`);
+    applyVerified('metav23','v23Verified','v23VerifiedDetail',va=>`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits} • BEFORE LEARNING ${va.before} • AFTER LEARNING ${va.after}`);
+    applyVerified('focusv26','focusV26Verified','focusV26VerifiedDetail',va=>`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits}`);
   }
   const old=window.render;if(typeof old==='function')window.render=function(){const r=old.apply(this,arguments);try{renderUpgrade()}catch(e){}return r};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(renderUpgrade,800));else setTimeout(renderUpgrade,800);
   setTimeout(renderUpgrade,1800);
-  window.__aGradeSpecialistsV31={v20,v22,v23,focus,settleArm,awarenessFor,grade:{adaptation:'A',awareness:'A'}};
+  window.__aGradeSpecialistsV31={v20,v22,v23,focus,settleArm,awarenessFor,render:renderUpgrade,grade:{adaptation:'A',awareness:'A'}};
 })();
 </script>
 
@@ -9855,5 +9978,200 @@ window.__RUNTIME_CRASH_FIX_20260830__=true;
   };
 })();
 </script>
+
+<script id="combined-live-ledger-hard-fix-v52">
+/* ============================================================
+   COMBINED LIVE LEDGER HARD FIX V52 — 2026-08-30
+   Purpose:
+   - Guarantee VERIFIED predictions settle BEFORE each live P/B/T result.
+   - Guarantee the NEXT hand is armed AFTER the result is committed.
+   - Works even when iOS fallback handlers or later onclick replacements run.
+   - Duplicate settle/arm calls are safe: pending locks are consumed once and
+     WAIT counters are already protected by lastWaitHand.
+   - Does NOT alter Sequence AI V2 or any model's prediction algorithm.
+   ============================================================ */
+(function(){
+  'use strict';
+
+  function resultFromTarget(t){
+    if(!t) return null;
+    const direct = t.closest ? t.closest('[data-result]') : null;
+    let v = direct?.getAttribute?.('data-result');
+    if(v==='P'||v==='B'||v==='T') return v;
+
+    const id = String(t.id||'');
+    if(id==='previewP') return 'P';
+    if(id==='previewB') return 'B';
+    if(id==='previewT') return 'T';
+    return null;
+  }
+
+  function seqLen(){
+    try { return (typeof currentSequence==='function' ? currentSequence() : []).length; }
+    catch(e){ return Array.isArray(state?.hands) ? state.hands.length : 0; }
+  }
+
+  function preSettle(actual){
+    try{
+      if(typeof window.__settleVerifiedPredictions==='function'){
+        window.__settleVerifiedPredictions(actual);
+      }
+    }catch(e){ console.error('[V52 pre-settle]',e); }
+  }
+
+  function postArm(beforeLen){
+    let tries=0;
+    const run=()=>{
+      tries++;
+      const now=seqLen();
+
+      // Wait until the result handler has actually committed the hand.
+      if(now<=beforeLen && tries<8){
+        setTimeout(run,12);
+        return;
+      }
+
+      try{
+        if(typeof window.__armVerifiedPredictions==='function'){
+          window.__armVerifiedPredictions();
+        }
+      }catch(e){ console.error('[V52 post-arm]',e); }
+
+      try{
+        if(typeof window.renderVerifiedAccuracy==='function'){
+          window.renderVerifiedAccuracy();
+        }
+      }catch(e){}
+
+      try{
+        const a=state?.accuracyVerified;
+        if(a && typeof a==='object'){
+          a.v52LastLifecycle={
+            at:Date.now(),
+            beforeLen,
+            afterLen:now,
+            nextHand:now+1,
+            combined:state?.predictionLibraryMode==='combined'
+          };
+          if(typeof persist==='function') persist();
+        }
+      }catch(e){}
+    };
+    setTimeout(run,0);
+  }
+
+  // Capture phase = settle the previous pre-result locks before any result
+  // handler mutates state.hands. The existing core settle is harmless afterward.
+  document.addEventListener('click',function(ev){
+    const actual=resultFromTarget(ev.target);
+    if(!actual) return;
+    const before=seqLen();
+    preSettle(actual);
+    postArm(before);
+  },true);
+
+  // Touch/click behavior on iOS can be unusual; pointerup is only a recovery
+  // trigger for the post-arm. It never settles, so it cannot double-grade.
+  document.addEventListener('pointerup',function(ev){
+    const actual=resultFromTarget(ev.target);
+    if(!actual) return;
+    const before=seqLen();
+    setTimeout(()=>postArm(Math.max(-1,before-1)),0);
+  },true);
+
+  function boot(){
+    try{
+      if(typeof window.__armVerifiedPredictions==='function'){
+        window.__armVerifiedPredictions();
+      }
+      if(typeof window.renderVerifiedAccuracy==='function'){
+        window.renderVerifiedAccuracy();
+      }
+    }catch(e){ console.error('[V52 boot]',e); }
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,80),{once:true});
+  }else{
+    setTimeout(boot,80);
+  }
+
+  window.__COMBINED_LIVE_LEDGER_HARD_FIX_V52__={
+    version:52,
+    preResultSettle:true,
+    postResultArm:true,
+    combinedModeAware:true,
+    predictionLogicChanged:false
+  };
+})();
+</script>
+
+<script id="all-ai-unified-live-sync-v55">
+/* ============================================================
+   V55 FINAL ALL-AI LIVE/VERIFIED SYNC — 2026-08-30
+   - Uses V52 as the single result settle/post-arm lifecycle.
+   - No extra result click timers (prevents duplicate refresh/arm churn).
+   - Every call to the verified arm first refreshes the model/card state.
+   - Lower specialist cards are rendered from the exact upgraded V31 signals.
+   - Prediction algorithms are unchanged; Sequence AI V2 is untouched.
+   ============================================================ */
+(function(){
+  'use strict';
+  if(window.__ALL_AI_UNIFIED_LIVE_SYNC_V55__) return;
+  const safe=(fn)=>{try{return fn?.()}catch(e){console.error('[V55 sync]',e);return undefined}};
+
+  function refreshModelState(){
+    // Core model cards/state.
+    safe(()=>window.renderSequenceAI?.());
+    safe(()=>window.renderColorPatternAI?.());
+    safe(()=>window.renderRoadPreviewAI?.());
+    safe(()=>window.renderDerived?.());
+    safe(()=>window.renderAnalyzer?.());
+    safe(()=>window.renderAdaptiveDerivedMain?.());
+
+    // Exact A-grade specialist renderer: V20/V22/V23/Focus decision,
+    // confidence, reason and their lower verified summaries all come from
+    // the same upgraded signal objects sampled by the top ledger.
+    safe(()=>window.__aGradeSpecialistsV31?.render?.());
+  }
+
+  const baseArm=window.__armVerifiedPredictions;
+  if(typeof baseArm==='function' && !baseArm.__v55UnifiedSync){
+    const unifiedArm=function(){
+      refreshModelState();
+      const out=baseArm.apply(this,arguments);
+      // Render the lower cards again after the ledger is armed so their
+      // W/L/N/WAIT summaries reflect the just-created pending locks.
+      safe(()=>window.__aGradeSpecialistsV31?.render?.());
+      safe(()=>window.renderVerifiedAccuracy?.());
+      return out;
+    };
+    unifiedArm.__v55UnifiedSync=true;
+    unifiedArm.__base=baseArm;
+    window.__armVerifiedPredictions=unifiedArm;
+  }
+
+  // Initial/restored-shoe reconciliation only. Result clicks are handled solely
+  // by V52, avoiding the three competing V52/V53/V54 click lifecycles.
+  function boot(){
+    refreshModelState();
+    safe(()=>window.__armVerifiedPredictions?.());
+    safe(()=>window.renderVerifiedAccuracy?.());
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,260),{once:true});
+  else setTimeout(boot,260);
+
+  window.__ALL_AI_UNIFIED_LIVE_SYNC_V55__={
+    version:55,
+    singleResultLifecycle:'V52',
+    lowerCardsUseSameSignals:true,
+    duplicateResultSyncRemoved:true,
+    predictionLogicChanged:false,
+    sequenceV2Changed:false
+  };
+})();
+</script>
+
+<script>window.__MAIN_ROAD_FUTURE_ADAPTIVE_V56__={version:56,regimeDrift:true,adaptiveWeighting:true,verifiedReliability:true,sequenceV2LogicChanged:false};</script>
 </body>
 </html>
