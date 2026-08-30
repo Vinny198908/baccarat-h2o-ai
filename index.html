@@ -1614,6 +1614,171 @@ function resetMainRoadFutureAccuracy(){
 }
 document.getElementById('resetMainRoadFutureAccuracyBtn')?.addEventListener('click',resetMainRoadFutureAccuracy);
 
+
+
+/* === VERIFIED INFRASTRUCTURE RESTORED FROM KNOWN-GOOD V48 SOURCE === */
+function ensureAccuracy(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:1};
+    if(!state.accuracyVerified.models)state.accuracyVerified.models={}; if(!state.accuracyVerified.pending)state.accuracyVerified.pending={};
+    return state.accuracyVerified;
+  }
+
+function armVerifiedPredictions(){
+    const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join(''),ctx=verifiedContext();
+    Object.entries(a.pending||{}).forEach(([k,p])=>{if(!p||Number(p.hand)!==hand)delete a.pending[k];});
+    modelDefs.forEach(([key,name,get])=>{
+      let x=null;try{x=get()}catch(e){}
+      const side=x?.side;
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      if(side==='P'||side==='B') a.pending[key]={side,hand,seq,lockedAt:Date.now(),strength:Number(x.strength)||0,...ctx};
+      else {
+        delete a.pending[key];
+        if(m.lastWaitHand!==hand){m.waits=(m.waits||0)+1;m.lastWaitHand=hand;}
+      }
+    });
+    persist();renderVerifiedAccuracy();
+  }
+
+function settleVerifiedPredictions(actual){
+    const a=ensureAccuracy(); if(actual==='T'){a.ties=(a.ties||0)+1;persist();return;}
+    if(actual!=='P'&&actual!=='B')return;
+    const settlingHand=currentSequence().length+1;
+    modelDefs.forEach(([key,name])=>{
+      const p=a.pending[key]; if(!p)return;
+      if(Number(p.hand)!==settlingHand){delete a.pending[key];return;}
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      m.splits ||= {};
+      const win=p.side===actual; m.predictions++; if(win)m.wins++;else m.losses++;
+      const bump=(id)=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n++;if(win)z.w++;else z.l++;};
+      if(p.color==='red'||p.color==='black')bump('color:'+p.color);
+      if(p.phase)bump('phase:'+p.phase);
+      if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
+      [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
+      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates}; delete a.pending[key];
+    });
+    persist();renderVerifiedAccuracy();
+  }
+
+function renderVerifiedAccuracy(){
+    const a=ensureAccuracy(),g=document.getElementById('verifiedAccuracyGrid');if(!g)return;g.innerHTML='';
+    modelDefs.forEach(([key,name])=>{
+      const m=a.models[key]||{wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}},p=a.pending[key];
+      const rate=m.predictions?Math.round(m.wins*100/m.predictions):null;
+      const recent=(arr)=>arr?.length?Math.round(arr.reduce((x,y)=>x+y,0)*100/arr.length)+'%':'—';
+      const d=document.createElement('div');d.className='analyzer-card';d.style.textAlign='left';
+      d.innerHTML=`<span style="font-size:10px">${name}</span><strong style="font-size:18px">${rate==null?'—':rate+'%'}</strong><small style="display:block;color:var(--muted);margin-top:3px">Verified ${m.wins||0}W–${m.losses||0}L • N=${m.predictions||0} • WAIT=${m.waits||0}<br>Last 10 ${recent(m.last10)} • 25 ${recent(m.last25)} • 50 ${recent(m.last50)}<br>${m.last?`Last settled #${m.last.hand}: ${m.last.predicted} → ${m.last.actual} ${m.last.win?'✓':'✗'}<br>`:''}${p?`LOCKED ${p.side} for hand #${p.hand}`:'No qualified prediction locked'}</small>`;
+      g.appendChild(d);
+    });
+    const n=document.getElementById('verifiedAccuracyNote');
+    if(n){
+      const nextHand=currentSequence().length+1;
+      const pending=Object.values(a.pending||{}).filter(Boolean);
+      const stale=pending.filter(p=>Number(p.hand)!==nextHand);
+      const armed=pending.filter(p=>Number(p.hand)===nextHand).length;
+      const health=stale.length?`⚠ LEDGER CHECK: ${stale.length} stale lock(s) detected — re-arm required.`:`✅ LEDGER HEALTHY: ${armed} model lock(s) armed for hand #${nextHand}.`;
+      n.textContent=`${health} Only pre-result P/B locks are scored. ${a.ties||0} tie result(s) observed; ties do not become wins or losses.`;
+    }
+  }
+
+function verifiedSummary(key){
+    const m=ensureAccuracy().models[key]||{wins:0,losses:0,predictions:0,waits:0,splits:{}};
+    const fmt=(z)=>z&&z.n?`${Math.round(z.w*100/z.n)}% (${z.w}W–${z.l}L, N=${z.n})`:'—';
+    return {
+      rate:m.predictions?Math.round(m.wins*100/m.predictions):null,wins:m.wins||0,losses:m.losses||0,n:m.predictions||0,waits:m.waits||0,
+      red:fmt(m.splits?.['color:red']),black:fmt(m.splits?.['color:black']),
+      early:fmt(m.splits?.['phase:early']),middle:fmt(m.splits?.['phase:middle']),late:fmt(m.splits?.['phase:late']),
+      before:fmt(m.splits?.['learning:before']),after:fmt(m.splits?.['learning:after'])
+    };
+  }
+
+function verifiedContext(){
+    const seq=currentSequence().filter(x=>x==='P'||x==='B');
+    const n=seq.length;
+    const color=String(state.currentShoeColor||'combined').toLowerCase();
+    const phase=n<18?'early':n<36?'middle':'late';
+    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
+    return {color,phase,learningUpdates,learningStage:learningUpdates>0?'after':'before'};
+  }
+
+function resetVerifiedAccuracy(){
+    const ok=confirm('Reset ALL verified accuracy records to 0? This clears only the Accuracy Verified ledger. Your saved RED/BLACK shoe libraries, current shoe history, AI logic, and settings will NOT be deleted.');
+    if(!ok)return;
+    state.accuracyVerified={models:{},pending:{},ties:0,version:1};
+    persist();
+    renderVerifiedAccuracy();
+    setTimeout(armVerifiedPredictions,150);
+  }
+
+function colorPatternAISignal(){
+    const cur=currentSequence();
+    const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+    if(cur.length<6 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,bestSimilarity:0,grade:'LOW',agreeWindows:0,totalWindows:0,bestLen:0,reason:'WAIT: Need at least 6 live hands plus saved historical shoes.'};
+    const maxK=Math.min(22,cur.length), lengths=[];
+    for(let k=maxK;k>=5;k--){ if(k<=9 || k%2===0 || k===maxK) lengths.push(k); }
+    const windows=[]; let totalMatches=0,bestSimilarity=0,bestLen=0;
+    for(const k of lengths){
+      const pat=cur.slice(-k); const candidates=[];
+      lib.forEach((shoe,shoeIndex)=>{
+        const ss=(shoe.sequence||'').split('');
+        let best=null;
+        for(let i=0;i+k<ss.length;i++){
+          let score=0, max=0;
+          for(let j=0;j<k;j++){
+            const a=pat[j],b=ss[i+j];
+            const w=(j+1)/k*.7+.65; // recent colors matter a little more
+            max+=w;
+            if(a===b) score+=w;
+            else if(a==='T'||b==='T') score+=w*.18; // tie mismatch is softer, but still a mismatch
+          }
+          const sim=max?score/max:0;
+          if(sim<.76) continue;
+          const nxt=ss[i+k]; if(!'PBT'.includes(nxt)) continue;
+          if(!best || sim>best.sim) best={sim,nxt,pos:i};
+        }
+        if(best) candidates.push({...best,shoeIndex});
+      });
+      if(!candidates.length) continue;
+      totalMatches+=candidates.length;
+      const avgSim=candidates.reduce((a,x)=>a+x.sim,0)/candidates.length;
+      const topSim=Math.max(...candidates.map(x=>x.sim));
+      bestSimilarity=Math.max(bestSimilarity,topSim); bestLen=Math.max(bestLen,k);
+      let p=0,b=0,t=0,w=0;
+      candidates.forEach(x=>{ const ww=Math.pow(x.sim,4)*(1+k/22); w+=ww; if(x.nxt==='P')p+=ww; else if(x.nxt==='B')b+=ww; else t+=ww; });
+      if(!w) continue; p/=w;b/=w;t/=w;
+      const leader=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
+      const vals=[p,b,t].sort((a,b)=>b-a),edge=vals[0]-vals[1];
+      const quality=Math.min(1,candidates.length/7)*.45 + avgSim*.55;
+      const weight=(.65+k/18)*quality;
+      windows.push({k,p,b,t,leader,edge,weight,samples:candidates.length,avgSim,topSim});
+    }
+    if(!windows.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,bestSimilarity:0,grade:'LOW',agreeWindows:0,totalWindows:0,bestLen:0,reason:'WAIT: Current color pattern has not formed a strong historical match yet.'};
+    const leaderWeight={P:0,B:0,T:0}; windows.forEach(x=>leaderWeight[x.leader]+=x.weight);
+    const candidate=Object.entries(leaderWeight).sort((a,b)=>b[1]-a[1])[0][0];
+    const agreeWindows=windows.filter(x=>x.leader===candidate).length,totalWindows=windows.length;
+    let sw=0,p=0,b=0,t=0; windows.forEach(x=>{sw+=x.weight;p+=x.p*x.weight;b+=x.b*x.weight;t+=x.t*x.weight}); p/=sw;b/=sw;t/=sw;
+    const pPct=safePct(p*100),bPct=safePct(b*100),tPct=safePct(t*100);
+    const pbEdge=Math.abs(p-b)*100, agreement=agreeWindows/totalWindows, simPct=safePct(bestSimilarity*100);
+    const grade=simPct>=94&&agreement>=.65?'HIGH':simPct>=84&&agreement>=.5?'MEDIUM':'LOW';
+    let side=candidate, reason='';
+    if(side==='T') reason='WAIT: Historical color matches lean Tie; P/B signal is withheld.';
+    else if(totalMatches<2) reason='WAIT: Too few independent historical continuations.';
+    else if(agreement<.5) reason='WAIT: Historical color windows are conflicting.';
+    else if(pbEdge<9) reason=`WAIT: Player/Banker continuation edge is only ${Math.round(pbEdge)} points.`;
+    else if(simPct<78) reason=`WAIT: Best color similarity is only ${simPct}%.`;
+    if(reason) side=null;
+    const strength=side?safePct(50+pbEdge*.38+(simPct-75)*.35+agreement*10):0;
+    return {side,strength,pPct,bPct,tPct,matches:totalMatches,bestSimilarity:simPct,grade,agreeWindows,totalWindows,bestLen,reason};
+  }
+
+function renderColorPatternAI(){
+    const x=window.__slV10Signal?window.__slV10Signal('color',colorPatternAISignal()):colorPatternAISignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('colorAiSide',sideName(x.side));set('colorAiStrength',x.side?x.strength+'%':'WAIT');set('colorAiMatches',x.matches||0);
+    set('colorAiSimilarity',(x.bestSimilarity||0)+'%');set('colorAiGrade',x.grade||'LOW');set('colorAiWindows',(x.agreeWindows||0)+'/'+(x.totalWindows||0));
+    set('colorAiP',x.matches?x.pPct+'%':'—');set('colorAiB',x.matches?x.bPct+'%':'—');set('colorAiT',x.matches?x.tPct+'%':'—');
+    const n=document.getElementById('colorAiNote'); if(n)n.textContent=x.side?`${x.matches} historical continuations • best ${x.bestLen}-hand adaptive window • ${x.bestSimilarity}% similarity. Old-shoe influence automatically falls when the live colors stop matching.`:(x.reason||'WAIT');
+  }
+/* === END VERIFIED INFRASTRUCTURE RESTORE === */
+
 function render(){renderRoad();renderDerived();renderPreview();renderMainRoadFutureTest();renderMainRoadFutureAccuracy();renderHistory();renderStats();renderDragonAlert();renderAnalyzer();renderPatternLibrary();renderSeparateShoes();renderCurrentShoeColor();}
 
 
@@ -2922,19 +3087,13 @@ function renderRoadPreviewAI(){
 
 function sequenceAISignal(){
   const cur=currentSequence();
+  // Sequence AI V2 stays isolated: selected/combined saved P/B/T shoe history only.
+  // No Kaggle, H2O, derived roads, Screenshot Match AI, Bot AI, or card composition.
   const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(cur.length<4 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus saved historical shoe evidence.'};
 
-  // V2 HIGH-SELECTIVITY CALIBRATION: favor persistent long matches and demand substantially more proof
-  // from the weaker BLACK historical pool. COMBINED uses the middle gate.
-  const colorMode=state.predictionLibraryMode==='combined'?'combined':(state.currentShoeColor||'combined');
-  const gate=colorMode==='black'
-    ? {sim:80,agree:.72,edge:24,minRaw:5,minLong:9}
-    : colorMode==='red'
-      ? {sim:80,agree:.72,edge:22,minRaw:5,minLong:9}
-      : {sim:80,agree:.72,edge:20,minRaw:5,minLong:9};
-
-  const maxK=Math.min(28,cur.length);
+  // Adaptive windows: short, medium and long endings become available as the shoe grows.
+  const maxK=Math.min(24,cur.length);
   const lengths=[];
   for(let k=maxK;k>=3;k--){
     if(k<=8 || k%2===0 || k===maxK) lengths.push(k);
@@ -2943,56 +3102,54 @@ function sequenceAISignal(){
   let windows=[], rawMatches=0, bestLen=0;
   lengths.forEach(k=>{
     const pattern=cur.slice(-k).join('');
+    let p=0,b=0,t=0,total=0;
     const shoeVotes=[];
     lib.forEach((shoe,shoeIndex)=>{
       const ss=shoe.sequence||'';
-      let sp=0,sb=0,st=0,hits=0;
+      let sp=0,sb=0,st=0,hits=0,bestPosition='';
       for(let i=0;i+k<ss.length;i++){
         if(ss.slice(i,i+k)!==pattern) continue;
         const nxt=ss[i+k];
         if(nxt==='P')sp++; else if(nxt==='B')sb++; else if(nxt==='T')st++;
         hits++;
+        const frac=i/Math.max(1,ss.length-k);
+        bestPosition=frac<.33?'front':frac<.67?'middle':'end';
       }
       if(hits){
+        // Duplicate-match control: each historical shoe contributes one normalized vote per window.
         const z=sp+sb+st||1;
-        const purity=Math.max(sp,sb,st)/z;
-        // One shoe still cannot dominate a window, but ambiguous continuations are muted.
-        const voteQuality=.45+.55*purity;
-        shoeVotes.push({shoeIndex,p:sp/z,b:sb/z,t:st/z,hits,purity,voteQuality});
+        shoeVotes.push({shoeIndex,p:sp/z,b:sb/z,t:st/z,hits,position:bestPosition});
       }
     });
     if(!shoeVotes.length) return;
-    const qsum=shoeVotes.reduce((a,x)=>a+x.voteQuality,0)||1;
-    const pAvg=shoeVotes.reduce((a,x)=>a+x.p*x.voteQuality,0)/qsum;
-    const bAvg=shoeVotes.reduce((a,x)=>a+x.b*x.voteQuality,0)/qsum;
-    const tAvg=shoeVotes.reduce((a,x)=>a+x.t*x.voteQuality,0)/qsum;
+    const pAvg=shoeVotes.reduce((a,x)=>a+x.p,0)/shoeVotes.length;
+    const bAvg=shoeVotes.reduce((a,x)=>a+x.b,0)/shoeVotes.length;
+    const tAvg=shoeVotes.reduce((a,x)=>a+x.t,0)/shoeVotes.length;
     const leader=pAvg>=bAvg&&pAvg>=tAvg?'P':bAvg>=pAvg&&bAvg>=tAvg?'B':'T';
-    const vals=[pAvg,bAvg,tAvg].sort((a,b)=>b-a);
-    const edge=vals[0]-vals[1];
+    const edge=Math.max(pAvg,bAvg,tAvg)-[pAvg,bAvg,tAvg].sort((a,b)=>b-a)[1];
     const sampleQuality=Math.min(1,shoeVotes.length/8);
-    const lengthQuality=Math.min(1,k/18);
-    const longBoost=1+1.45*Math.pow(lengthQuality,1.7);
-    const purityQuality=shoeVotes.reduce((a,x)=>a+x.purity,0)/shoeVotes.length;
-    const weight=(.38+.62*sampleQuality)*longBoost*(.72+.28*purityQuality)*(1+.45*edge);
+    const lengthQuality=Math.min(1,k/16);
+    const persistence=Math.min(1,k/Math.max(6,cur.length));
+    const weight=(.45+.55*sampleQuality)*(1+.9*lengthQuality)*(1+.35*persistence);
     rawMatches+=shoeVotes.length;
     bestLen=Math.max(bestLen,k);
-    windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,edge,samples:shoeVotes.length,weight,purity:purityQuality});
+    windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,edge,samples:shoeVotes.length,weight});
   });
 
   if(!windows.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable saved-shoe sequence found yet.'};
 
+  // Determine persistent leader first; conflicting windows are deliberately penalized.
   const leaderWeights={P:0,B:0,T:0};
   windows.forEach(w=>leaderWeights[w.leader]+=w.weight);
   const leader=Object.entries(leaderWeights).sort((a,b)=>b[1]-a[1])[0][0];
-  const agreeingWeight=windows.filter(w=>w.leader===leader).reduce((a,w)=>a+w.weight,0);
-  const allWeight=windows.reduce((a,w)=>a+w.weight,0)||1;
-  const weightedAgreement=agreeingWeight/allWeight;
   const agreeWindows=windows.filter(w=>w.leader===leader).length;
   const totalWindows=windows.length;
+  const agreement=agreeWindows/totalWindows;
 
   let ap=0,ab=0,at=0,aw=0;
   windows.forEach(w=>{
-    const persistenceBoost=w.leader===leader ? (1+.60*weightedAgreement) : .32;
+    // Persistent longer matches get more influence; disagreeing windows are muted.
+    const persistenceBoost=w.leader===leader ? (1+.35*agreement) : .55;
     const ww=w.weight*persistenceBoost;
     ap+=w.p*ww; ab+=w.b*ww; at+=w.t*ww; aw+=ww;
   });
@@ -3001,28 +3158,23 @@ function sequenceAISignal(){
   const nonTieTotal=pr+br||1;
   const nonTieEdge=Math.abs(pr-br)/nonTieTotal*100;
   const avgSamples=windows.reduce((a,w)=>a+Math.min(1,w.samples/8),0)/totalWindows;
-  const avgPurity=windows.reduce((a,w)=>a+w.purity,0)/totalWindows;
-  const lengthQuality=Math.min(1,bestLen/18);
-  const similarityScore=Math.round(100*(.43*weightedAgreement+.22*avgSamples+.23*lengthQuality+.12*avgPurity));
-  const grade=similarityScore>=86&&weightedAgreement>=.76?'VERY STRONG':similarityScore>=74&&weightedAgreement>=.68?'STRONG':similarityScore>=60?'MODERATE':'LOW';
+  const lengthQuality=Math.min(1,bestLen/16);
+  const similarityScore=Math.round(100*(.48*agreement+.30*avgSamples+.22*lengthQuality));
+  const grade=similarityScore>=84&&agreement>=.72?'VERY STRONG':similarityScore>=70&&agreement>=.62?'STRONG':similarityScore>=55?'MODERATE':'LOW';
   const candidate=pr>=br?'P':'B';
-  const tieLedHistory=leader==='T';
-  const insufficientDepth=(rawMatches<gate.minRaw && bestLen<gate.minLong);
 
-  if(tieLedHistory || similarityScore<gate.sim || weightedAgreement<gate.agree || nonTieEdge<gate.edge || insufficientDepth){
-    const reason=tieLedHistory
-      ? `WAIT: historical windows are led by T (${tr}%), so there is no qualified P/B continuation.`
-      : `WAIT: ${similarityScore}% quality • ${Math.round(weightedAgreement*100)}% weighted agreement • ${Math.round(nonTieEdge)}-point P/B edge • ${colorMode.toUpperCase()} selective gate.`;
-    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:reason};
+  // Stronger WAIT gate: do not manufacture confidence from weak/conflicting history.
+  if(similarityScore<55 || agreement<.58 || nonTieEdge<6 || (rawMatches<3 && bestLen<8)){
+    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:`WAIT: ${similarityScore}% similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge.`};
   }
 
   const sampleFactor=Math.min(1,rawMatches/24);
-  const persistenceFactor=Math.min(1,bestLen/18);
-  const strength=Math.min(90,Math.round(46 + nonTieEdge*.22 + Math.max(0,similarityScore-50)*.40 + sampleFactor*4 + persistenceFactor*6));
-  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources:[{name:'saved-shoes-v2-selective'}]};
+  const persistenceFactor=Math.min(1,bestLen/16);
+  const strength=Math.min(88,Math.round(48 + nonTieEdge*.20 + Math.max(0,similarityScore-50)*.38 + sampleFactor*5 + persistenceFactor*4));
+  return {side:candidate,strength,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:'',sources:[{name:'saved-shoes-v2'}]};
 }
 function renderSequenceAI(){
-  const s=window.__slV10Signal?window.__slV10Signal('seqv2',sequenceAISignal()):sequenceAISignal();
+  const s=sequenceAISignal();
   const name=s.side==='P'?'Player':s.side==='B'?'Banker':'WAIT';
   document.getElementById('seqAiSide').textContent=name;
   document.getElementById('seqAiStrength').textContent=s.side ? s.strength+'%' : 'WAIT';
@@ -5091,203 +5243,9 @@ renderLibraryBackupStatus();
 </script>
 
 
-<script id="adaptiveColorPatternAndAccuracyV1">
-(function(){
-  const safePct=n=>Number.isFinite(n)?Math.max(0,Math.min(100,Math.round(n))):0;
-  const sideName=s=>s==='P'?'Player':s==='B'?'Banker':s==='T'?'Tie':'WAIT';
 
-  function colorPatternAISignal(){
-    const cur=currentSequence();
-    const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
-    if(cur.length<6 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,bestSimilarity:0,grade:'LOW',agreeWindows:0,totalWindows:0,bestLen:0,reason:'WAIT: Need at least 6 live hands plus saved historical shoes.'};
-    const maxK=Math.min(22,cur.length), lengths=[];
-    for(let k=maxK;k>=5;k--){ if(k<=9 || k%2===0 || k===maxK) lengths.push(k); }
-    const windows=[]; let totalMatches=0,bestSimilarity=0,bestLen=0;
-    for(const k of lengths){
-      const pat=cur.slice(-k); const candidates=[];
-      lib.forEach((shoe,shoeIndex)=>{
-        const ss=(shoe.sequence||'').split('');
-        let best=null;
-        for(let i=0;i+k<ss.length;i++){
-          let score=0, max=0;
-          for(let j=0;j<k;j++){
-            const a=pat[j],b=ss[i+j];
-            const w=(j+1)/k*.7+.65; // recent colors matter a little more
-            max+=w;
-            if(a===b) score+=w;
-            else if(a==='T'||b==='T') score+=w*.18; // tie mismatch is softer, but still a mismatch
-          }
-          const sim=max?score/max:0;
-          if(sim<.76) continue;
-          const nxt=ss[i+k]; if(!'PBT'.includes(nxt)) continue;
-          if(!best || sim>best.sim) best={sim,nxt,pos:i};
-        }
-        if(best) candidates.push({...best,shoeIndex});
-      });
-      if(!candidates.length) continue;
-      totalMatches+=candidates.length;
-      const avgSim=candidates.reduce((a,x)=>a+x.sim,0)/candidates.length;
-      const topSim=Math.max(...candidates.map(x=>x.sim));
-      bestSimilarity=Math.max(bestSimilarity,topSim); bestLen=Math.max(bestLen,k);
-      let p=0,b=0,t=0,w=0;
-      candidates.forEach(x=>{ const ww=Math.pow(x.sim,4)*(1+k/22); w+=ww; if(x.nxt==='P')p+=ww; else if(x.nxt==='B')b+=ww; else t+=ww; });
-      if(!w) continue; p/=w;b/=w;t/=w;
-      const leader=p>=b&&p>=t?'P':b>=p&&b>=t?'B':'T';
-      const vals=[p,b,t].sort((a,b)=>b-a),edge=vals[0]-vals[1];
-      const quality=Math.min(1,candidates.length/7)*.45 + avgSim*.55;
-      const weight=(.65+k/18)*quality;
-      windows.push({k,p,b,t,leader,edge,weight,samples:candidates.length,avgSim,topSim});
-    }
-    if(!windows.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,bestSimilarity:0,grade:'LOW',agreeWindows:0,totalWindows:0,bestLen:0,reason:'WAIT: Current color pattern has not formed a strong historical match yet.'};
-    const leaderWeight={P:0,B:0,T:0}; windows.forEach(x=>leaderWeight[x.leader]+=x.weight);
-    const candidate=Object.entries(leaderWeight).sort((a,b)=>b[1]-a[1])[0][0];
-    const agreeWindows=windows.filter(x=>x.leader===candidate).length,totalWindows=windows.length;
-    let sw=0,p=0,b=0,t=0; windows.forEach(x=>{sw+=x.weight;p+=x.p*x.weight;b+=x.b*x.weight;t+=x.t*x.weight}); p/=sw;b/=sw;t/=sw;
-    const pPct=safePct(p*100),bPct=safePct(b*100),tPct=safePct(t*100);
-    const pbEdge=Math.abs(p-b)*100, agreement=agreeWindows/totalWindows, simPct=safePct(bestSimilarity*100);
-    const grade=simPct>=94&&agreement>=.65?'HIGH':simPct>=84&&agreement>=.5?'MEDIUM':'LOW';
-    let side=candidate, reason='';
-    if(side==='T') reason='WAIT: Historical color matches lean Tie; P/B signal is withheld.';
-    else if(totalMatches<2) reason='WAIT: Too few independent historical continuations.';
-    else if(agreement<.5) reason='WAIT: Historical color windows are conflicting.';
-    else if(pbEdge<9) reason=`WAIT: Player/Banker continuation edge is only ${Math.round(pbEdge)} points.`;
-    else if(simPct<78) reason=`WAIT: Best color similarity is only ${simPct}%.`;
-    if(reason) side=null;
-    const strength=side?safePct(50+pbEdge*.38+(simPct-75)*.35+agreement*10):0;
-    return {side,strength,pPct,bPct,tPct,matches:totalMatches,bestSimilarity:simPct,grade,agreeWindows,totalWindows,bestLen,reason};
-  }
-  window.colorPatternAISignal=colorPatternAISignal;
+<!-- Removed duplicate legacy full-library backtest block; current backtest retained. -->
 
-  function renderColorPatternAI(){
-    const x=window.__slV10Signal?window.__slV10Signal('color',colorPatternAISignal()):colorPatternAISignal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
-    set('colorAiSide',sideName(x.side));set('colorAiStrength',x.side?x.strength+'%':'WAIT');set('colorAiMatches',x.matches||0);
-    set('colorAiSimilarity',(x.bestSimilarity||0)+'%');set('colorAiGrade',x.grade||'LOW');set('colorAiWindows',(x.agreeWindows||0)+'/'+(x.totalWindows||0));
-    set('colorAiP',x.matches?x.pPct+'%':'—');set('colorAiB',x.matches?x.bPct+'%':'—');set('colorAiT',x.matches?x.tPct+'%':'—');
-    const n=document.getElementById('colorAiNote'); if(n)n.textContent=x.side?`${x.matches} historical continuations • best ${x.bestLen}-hand adaptive window • ${x.bestSimilarity}% similarity. Old-shoe influence automatically falls when the live colors stop matching.`:(x.reason||'WAIT');
-  }
-
-  function ensureAccuracy(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:1};
-    if(!state.accuracyVerified.models)state.accuracyVerified.models={}; if(!state.accuracyVerified.pending)state.accuracyVerified.pending={};
-    return state.accuracyVerified;
-  }
-  const modelDefs=[
-    ['seqv2','Sequence AI V2',()=>window.__slV10Signal?window.__slV10Signal('seqv2',sequenceAISignal()):sequenceAISignal()],
-    ['color','Color Pattern AI',()=>window.__slV10Signal?window.__slV10Signal('color',colorPatternAISignal()):colorPatternAISignal()],
-    ['roadpreview','Road Preview AI',()=>window.__slV10Signal?window.__slV10Signal('roadpreview',roadPreviewAISignal()):roadPreviewAISignal()],
-    ['derivedorig','Derived Road AI',()=>{const x=derivedRoadSequenceAI(),y={side:x.side,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('derivedorig',y):y}],
-    ['derivedmain','Adaptive Derived Roads — Main-Road Mode',()=>{const x=adaptiveDerivedMainSignal();return window.__slV10Signal?window.__slV10Signal('derivedmain',x):x}],
-    ['seqdup','Sequence AI V2 Duplicate',()=>{const x=sequenceAIDuplicateSignal();return window.__slV10Signal?window.__slV10Signal('seqdup',x):x}],
-    ['consensus','AI Consensus',()=>{const x=consensusSignal();return window.__slV10Signal?window.__slV10Signal('consensus',x):x}],
-    ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal(),y={side:x.qualified?x.side:null,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('bot',y):y}],
-    ['bestestimate','Best-Estimate Analyzer',()=>{const x=computeCombinedAnalyzer(),y={side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0};return window.__slV10Signal?window.__slV10Signal('bestestimate',y):y}],
-    ['specialistv20','RED / BLACK Specialist V20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
-    ['blackctxv22','BLACK Context Specialist V22',()=>{const z=window.__blackContextV22?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
-    ['metav23','Walk-Forward Meta Learner V23',()=>{const z=window.__metaWalkV23?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
-    ['focusv26','Focus AI V26',()=>{const z=window.__focusAIV26?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0}}],
-  ];
-  function verifiedContext(){
-    const seq=currentSequence().filter(x=>x==='P'||x==='B');
-    const n=seq.length;
-    const color=String(state.currentShoeColor||'combined').toLowerCase();
-    const phase=n<18?'early':n<36?'middle':'late';
-    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
-    return {color,phase,learningUpdates,learningStage:learningUpdates>0?'after':'before'};
-  }
-  function armVerifiedPredictions(){
-    const a=ensureAccuracy(),hand=currentSequence().length+1,seq=currentSequence().join(''),ctx=verifiedContext();
-    Object.entries(a.pending||{}).forEach(([k,p])=>{if(!p||Number(p.hand)!==hand)delete a.pending[k];});
-    modelDefs.forEach(([key,name,get])=>{
-      let x=null;try{x=get()}catch(e){}
-      const side=x?.side;
-      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
-      if(side==='P'||side==='B') a.pending[key]={side,hand,seq,lockedAt:Date.now(),strength:Number(x.strength)||0,...ctx};
-      else {
-        delete a.pending[key];
-        if(m.lastWaitHand!==hand){m.waits=(m.waits||0)+1;m.lastWaitHand=hand;}
-      }
-    });
-    persist();renderVerifiedAccuracy();
-  }
-  function settleVerifiedPredictions(actual){
-    const a=ensureAccuracy(); if(actual==='T'){a.ties=(a.ties||0)+1;persist();return;}
-    if(actual!=='P'&&actual!=='B')return;
-    const settlingHand=currentSequence().length+1;
-    modelDefs.forEach(([key,name])=>{
-      const p=a.pending[key]; if(!p)return;
-      if(Number(p.hand)!==settlingHand){delete a.pending[key];return;}
-      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
-      m.splits ||= {};
-      const win=p.side===actual; m.predictions++; if(win)m.wins++;else m.losses++;
-      const bump=(id)=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n++;if(win)z.w++;else z.l++;};
-      if(p.color==='red'||p.color==='black')bump('color:'+p.color);
-      if(p.phase)bump('phase:'+p.phase);
-      if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
-      [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
-      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates}; delete a.pending[key];
-    });
-    persist();renderVerifiedAccuracy();
-  }
-  function resetVerifiedAccuracy(){
-    const ok=confirm('Reset ALL verified accuracy records to 0? This clears only the Accuracy Verified ledger. Your saved RED/BLACK shoe libraries, current shoe history, AI logic, and settings will NOT be deleted.');
-    if(!ok)return;
-    state.accuracyVerified={models:{},pending:{},ties:0,version:1};
-    persist();
-    renderVerifiedAccuracy();
-    setTimeout(armVerifiedPredictions,150);
-  }
-  document.getElementById('resetVerifiedAccuracyBtn')?.addEventListener('click',resetVerifiedAccuracy);
-
-  function renderVerifiedAccuracy(){
-    const a=ensureAccuracy(),g=document.getElementById('verifiedAccuracyGrid');if(!g)return;g.innerHTML='';
-    modelDefs.forEach(([key,name])=>{
-      const m=a.models[key]||{wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}},p=a.pending[key];
-      const rate=m.predictions?Math.round(m.wins*100/m.predictions):null;
-      const recent=(arr)=>arr?.length?Math.round(arr.reduce((x,y)=>x+y,0)*100/arr.length)+'%':'—';
-      const d=document.createElement('div');d.className='analyzer-card';d.style.textAlign='left';
-      d.innerHTML=`<span style="font-size:10px">${name}</span><strong style="font-size:18px">${rate==null?'—':rate+'%'}</strong><small style="display:block;color:var(--muted);margin-top:3px">Verified ${m.wins||0}W–${m.losses||0}L • N=${m.predictions||0} • WAIT=${m.waits||0}<br>Last 10 ${recent(m.last10)} • 25 ${recent(m.last25)} • 50 ${recent(m.last50)}<br>${m.last?`Last settled #${m.last.hand}: ${m.last.predicted} → ${m.last.actual} ${m.last.win?'✓':'✗'}<br>`:''}${p?`LOCKED ${p.side} for hand #${p.hand}`:'No qualified prediction locked'}</small>`;
-      g.appendChild(d);
-    });
-    const n=document.getElementById('verifiedAccuracyNote');
-    if(n){
-      const nextHand=currentSequence().length+1;
-      const pending=Object.values(a.pending||{}).filter(Boolean);
-      const stale=pending.filter(p=>Number(p.hand)!==nextHand);
-      const armed=pending.filter(p=>Number(p.hand)===nextHand).length;
-      const health=stale.length?`⚠ LEDGER CHECK: ${stale.length} stale lock(s) detected — re-arm required.`:`✅ LEDGER HEALTHY: ${armed} model lock(s) armed for hand #${nextHand}.`;
-      n.textContent=`${health} Only pre-result P/B locks are scored. ${a.ties||0} tie result(s) observed; ties do not become wins or losses.`;
-    }
-  }
-  function verifiedSummary(key){
-    const m=ensureAccuracy().models[key]||{wins:0,losses:0,predictions:0,waits:0,splits:{}};
-    const fmt=(z)=>z&&z.n?`${Math.round(z.w*100/z.n)}% (${z.w}W–${z.l}L, N=${z.n})`:'—';
-    return {
-      rate:m.predictions?Math.round(m.wins*100/m.predictions):null,wins:m.wins||0,losses:m.losses||0,n:m.predictions||0,waits:m.waits||0,
-      red:fmt(m.splits?.['color:red']),black:fmt(m.splits?.['color:black']),
-      early:fmt(m.splits?.['phase:early']),middle:fmt(m.splits?.['phase:middle']),late:fmt(m.splits?.['phase:late']),
-      before:fmt(m.splits?.['learning:before']),after:fmt(m.splits?.['learning:after'])
-    };
-  }
-  window.__verifiedAccuracySummary=verifiedSummary;
-  window.renderColorPatternAI=renderColorPatternAI;window.renderVerifiedAccuracy=renderVerifiedAccuracy;window.renderAdaptiveDerivedMain=renderAdaptiveDerivedMain;
-
-  // Expose direct grading hooks to the core result handlers above. This makes grading
-  // deterministic: settle old lock -> commit actual -> arm next lock.
-  window.__settleVerifiedPredictions=settleVerifiedPredictions;
-  window.__armVerifiedPredictions=armVerifiedPredictions;
-  window.__settleAdaptiveDerivedRoads=settleAdaptiveDerivedRoads;
-  window.__armAdaptiveDerivedRoads=armAdaptiveDerivedRoads;
-  window.__settleAdaptiveOriginalDerivedRoads=settleAdaptiveOriginalDerivedRoads;
-  window.__armAdaptiveOriginalDerivedRoads=armAdaptiveOriginalDerivedRoads;
-  document.getElementById('clearBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};resetAdaptiveDerivedForNewShoe();persist();renderColorPatternAI();renderVerifiedAccuracy();renderAdaptiveDerivedMain();},150),true);
-  document.getElementById('undoBtn')?.addEventListener('click',()=>setTimeout(()=>{ensureAccuracy().pending={};undoAdaptiveDerivedGrade();persist();renderColorPatternAI();armVerifiedPredictions();armAdaptiveDerivedRoads();renderAdaptiveDerivedMain();},150),true);
-
-  // Keep the new panels current even when existing render() is called by imports/scans/settings.
-  const oldRender=window.render;
-  if(typeof oldRender==='function') window.render=function(){const r=oldRender.apply(this,arguments);try{renderColorPatternAI();renderVerifiedAccuracy();renderAdaptiveDerivedMain()}catch(e){}return r};
-  ensureAccuracy();ensureAdaptiveDerivedState();ensureAdaptiveOriginalDerivedState();renderColorPatternAI();renderVerifiedAccuracy();renderAdaptiveDerivedMain();setTimeout(()=>{armVerifiedPredictions();armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();},500);setTimeout(()=>{armVerifiedPredictions();armAdaptiveDerivedRoads();armAdaptiveOriginalDerivedRoads();},1800);
-})();
-</script>
 
 <script>
 /* ============================================================
@@ -5669,13 +5627,14 @@ renderLibraryBackupStatus();
       calibrated=Math.max(50,Math.min(88,calibrated+bonus));
     }
 
-    // Model-specific learned WAIT behavior.
+    // V49 single-trust-gate rule:
+    // self-learning CALIBRATES confidence and records learned reliability,
+    // but it does not erase a P/B prediction that the underlying AI already qualified.
+    // WAIT is reserved for the underlying AI's own qualification decision.
     if(r.n>=p.minN && r.reliability<p.hard){
-      side=null;
-      waitReason=`SELF-LEARN WAIT: ${NAMES[key]||key} is only ${Math.round(r.reliability*100)}% reliable in this learned context (N=${r.n}).`;
+      waitReason=`SELF-LEARN CAUTION: ${NAMES[key]||key} is ${Math.round(r.reliability*100)}% reliable in this learned context (N=${r.n}); side preserved, confidence calibrated.`;
     } else if(r.n>=p.minN && r.reliability<p.soft && strength<p.softStrength){
-      side=null;
-      waitReason=`SELF-LEARN WAIT: weak ${strength}% signal plus ${Math.round(r.reliability*100)}% learned reliability (N=${r.n}).`;
+      waitReason=`SELF-LEARN CAUTION: weak ${strength}% signal with ${Math.round(r.reliability*100)}% learned reliability (N=${r.n}); side preserved, confidence calibrated.`;
     }
 
     // A strong learned record may slightly relax a marginal strength, but it
@@ -5743,7 +5702,7 @@ renderLibraryBackupStatus();
       panel.style.borderColor='#6b5b95';
       panel.innerHTML=`
         <div class="analyzer-title">🧠 All-AI Self-Learning V10</div>
-        <div class="analyzer-sub">Every major AI now has its own verified-performance trust gate. Core specialty logic stays separate; learned weak contexts automatically become WAIT.</div>
+        <div class="analyzer-sub">Every major AI keeps its own core qualification logic. Verified learning calibrates confidence and flags weak contexts without independently deleting an already-qualified P/B prediction.</div>
         <div id="allAiLearningRows" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-top:8px"></div>
         <div class="analyzer-sub" id="allAiLearningNote" style="margin-top:8px"></div>`;
       const v9=document.getElementById('selfLearningV9Panel');
@@ -8058,9 +8017,15 @@ renderLibraryBackupStatus();
   adaptiveDerivedMainSignal=function(){
     const out=base();
     const aw=awareness();
-    // Awareness is advisory but can tighten qualification during unresolved structural change.
+    // V49: Awareness is advisory. During unresolved structural change it reduces
+    // confidence instead of erasing an Adaptive-Derived P/B prediction.
     if(out.side && (aw.global==='MIXED ROAD REGIME' || (aw.global==='CHANGE WATCH' && aw.mature>=2))){
-      if((out.edge||0)<.22){out.side=null;out.confidence=0;out.strength=0;out.waitReason='WAIT: awareness layer sees an unresolved live regime change; require stronger road edge before adapting.';}
+      if((out.edge||0)<.22){
+        const baseConf=Number(out.confidence||out.strength||0);
+        const reduced=Math.max(50,Math.round(baseConf-5));
+        out.confidence=reduced; out.strength=reduced;
+        out.waitReason='CAUTION: awareness sees an unresolved live regime change; prediction preserved with reduced confidence.';
+      }
     }
     out.awareness=aw;out.aGradeAwarenessV14=true;
     return out;
@@ -8541,7 +8506,7 @@ renderLibraryBackupStatus();
    Adds one consistent RED/BLACK × EARLY/MID/LATE × CHOP/MIXED/RUN
    context ledger to every major model. Predictions are captured before
    the next P/B result, settled afterward, sample-shrunk toward neutral,
-   and low-evidence contexts can reduce confidence or WAIT.
+   and low-evidence contexts reduce confidence without independently forcing WAIT.
    Does not rewrite Sequence AI V2 core sequence matching.
    ============================================================ */
 (function(){
@@ -8595,12 +8560,14 @@ renderLibraryBackupStatus();
     const weakMature=t.n>=12&&t.rate<.46;
     const unstable=t.n>=8&&t.stability<.80;
     const lowEvidence=adjusted>0&&adjusted<52;
-    if(side&&(weakMature||unstable||lowEvidence))out.side=null;
-    if('confidence' in out)out.confidence=out.side?adjusted:0;
-    if('strength' in out)out.strength=out.side?adjusted:0;
-    if('top' in out && typeof out.top==='number')out.top=out.side?adjusted:0;
-    out.regimeV39={...c,contextN:t.n,contextRate:Math.round(t.rate*1000)/10,contextMaturity:Math.round(t.maturity*100),stability:Math.round(t.stability*100),adjustedConfidence:out.side?adjusted:0};
-    if(side&&!out.side)out.regimeWaitReason=`V39 WAIT — weak/unstable verified ${c.color.toUpperCase()} ${c.phase.toUpperCase()} ${c.rhythm.toUpperCase()} context.`;
+    // V49 single-trust-gate rule:
+    // regime/phase modifies confidence and labels caution, but does not get
+    // a second chance to delete a P/B prediction already qualified by the AI.
+    if('confidence' in out)out.confidence=side?adjusted:0;
+    if('strength' in out)out.strength=side?adjusted:0;
+    if('top' in out && typeof out.top==='number')out.top=side?adjusted:0;
+    out.regimeV39={...c,contextN:t.n,contextRate:Math.round(t.rate*1000)/10,contextMaturity:Math.round(t.maturity*100),stability:Math.round(t.stability*100),adjustedConfidence:side?adjusted:0};
+    if(side&&(weakMature||unstable||lowEvidence))out.regimeWaitReason=`V39 CAUTION — ${c.color.toUpperCase()} ${c.phase.toUpperCase()} ${c.rhythm.toUpperCase()} context reduced confidence; side preserved.`;
     return out;
   }
   const prev=window.__slV10Signal;
@@ -9495,6 +9462,32 @@ window.__PREDICTION_LEDGER_SYNC_FIX__={
   version:1,
   rule:'one final live prediction -> display -> verified lock -> governor',
   fixed:['derivedmain','seqdup','bestestimate','governor-adaptive','v39-audit']
+};
+</script>
+
+<script id="single-trust-gate-v49-stamp">
+window.__SINGLE_TRUST_GATE_V49__={
+  version:49,
+  rule:'underlying AI owns P/B-vs-WAIT; learning/regime/awareness may calibrate confidence but may not veto an already-qualified side',
+  directSourceRepair:true
+};
+</script>
+
+<script id="v23-original-walk-forward-restore-stamp">
+window.__V23_ORIGINAL_WALK_FORWARD_RESTORED__=true;
+</script>
+
+<script id="sequence-v2-original-restore-stamp">
+window.__SEQUENCE_V2_ORIGINAL_RESTORED__={
+  source:'index_SEQUENCE_AI_V2.html',
+  restored:['sequenceAISignal','renderSequenceAI']
+};
+</script>
+
+<script id="verified-infra-direct-restore-stamp">
+window.__VERIFIED_INFRA_DIRECT_RESTORE__={
+  source:'SINGLE_TRUST_GATE_FIX_20260830',
+  restored:['ensureAccuracy','armVerifiedPredictions','settleVerifiedPredictions','renderVerifiedAccuracy','verifiedSummary','verifiedContext','resetVerifiedAccuracy','colorPatternAISignal','renderColorPatternAI']
 };
 </script>
 
