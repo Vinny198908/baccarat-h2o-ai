@@ -3181,6 +3181,104 @@ function renderRoadPreviewAI(){
   }
 }
 
+// Sequence AI V2 drift/shift fallback.
+// Exact V2 logic remains first priority. This layer runs only when exact evidence is absent/weak.
+// It tolerates ONE local flip / insertion / deletion when aligning the live suffix to saved shoes,
+// then asks what result followed the aligned historical segment. Strong exact matches are never overridden.
+const __seqV2DriftMemo={key:'',value:null};
+function __seqV2OneEditOrLess(a,b){
+  const la=a.length, lb=b.length;
+  if(Math.abs(la-lb)>1) return false;
+  if(la===lb){
+    let d=0;
+    for(let i=0;i<la;i++) if(a.charCodeAt(i)!==b.charCodeAt(i) && ++d>1) return false;
+    return true;
+  }
+  const short=la<lb?a:b, long=la<lb?b:a;
+  let i=0,j=0,skips=0;
+  while(i<short.length && j<long.length){
+    if(short.charCodeAt(i)===long.charCodeAt(j)){ i++; j++; continue; }
+    if(++skips>1) return false;
+    j++;
+  }
+  return true;
+}
+function __seqV2DriftFallback(cur,lib){
+  const key=cur.join('')+'|'+lib.length+'|'+lib.reduce((a,x)=>a+((x&&x.sequence)||'').length,0);
+  if(__seqV2DriftMemo.key===key) return __seqV2DriftMemo.value;
+  const out={side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,driftUsed:true,driftType:'one-edit alignment',waitReason:'WAIT: No reliable drift-aligned continuation found.'};
+  if(cur.length<6 || !lib.length){ __seqV2DriftMemo.key=key; __seqV2DriftMemo.value=out; return out; }
+
+  // Keep this intentionally bounded for iPhone/iPad live performance.
+  const maxK=Math.min(16,cur.length);
+  const lengths=[];
+  for(const k of [maxK,14,12,10,8,6]) if(k>=6 && k<=maxK && !lengths.includes(k)) lengths.push(k);
+  const windows=[];
+  let rawMatches=0,bestLen=0;
+
+  for(const k of lengths){
+    const pattern=cur.slice(-k).join('');
+    const shoeVotes=[];
+    for(let shoeIndex=0;shoeIndex<lib.length;shoeIndex++){
+      const ss=lib[shoeIndex].sequence||'';
+      let sp=0,sb=0,st=0,hits=0,bestEdit=2;
+      // Segment lengths k, k-1 and k+1 model a flip, deletion or insertion.
+      for(const segLen of [k,k-1,k+1]){
+        if(segLen<4) continue;
+        for(let i=0;i+segLen<ss.length;i++){
+          const seg=ss.slice(i,i+segLen);
+          if(!__seqV2OneEditOrLess(pattern,seg)) continue;
+          const nxt=ss[i+segLen];
+          if(nxt==='P')sp++; else if(nxt==='B')sb++; else if(nxt==='T')st++;
+          hits++;
+          bestEdit=Math.min(bestEdit, pattern===seg?0:1);
+        }
+      }
+      if(hits){
+        const z=sp+sb+st||1;
+        // Penalize drift evidence versus exact evidence so fuzzy history cannot dominate.
+        shoeVotes.push({shoeIndex,p:sp/z,b:sb/z,t:st/z,hits,quality:bestEdit===0?1:.72});
+      }
+    }
+    if(!shoeVotes.length) continue;
+    const qsum=shoeVotes.reduce((a,x)=>a+x.quality,0)||1;
+    const pAvg=shoeVotes.reduce((a,x)=>a+x.p*x.quality,0)/qsum;
+    const bAvg=shoeVotes.reduce((a,x)=>a+x.b*x.quality,0)/qsum;
+    const tAvg=shoeVotes.reduce((a,x)=>a+x.t*x.quality,0)/qsum;
+    const vals=[['P',pAvg],['B',bAvg],['T',tAvg]].sort((a,b)=>b[1]-a[1]);
+    const leader=vals[0][0], edge=vals[0][1]-vals[1][1];
+    const sampleQuality=Math.min(1,shoeVotes.length/10);
+    const lengthQuality=Math.min(1,k/14);
+    const weight=.62*(.50+.50*sampleQuality)*(1+.65*lengthQuality);
+    rawMatches+=shoeVotes.length; bestLen=Math.max(bestLen,k);
+    windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,edge,samples:shoeVotes.length,weight});
+  }
+
+  if(!windows.length){ __seqV2DriftMemo.key=key; __seqV2DriftMemo.value=out; return out; }
+  const leaderWeights={P:0,B:0,T:0}; windows.forEach(w=>leaderWeights[w.leader]+=w.weight);
+  const leader=Object.entries(leaderWeights).sort((a,b)=>b[1]-a[1])[0][0];
+  const agreeWindows=windows.filter(w=>w.leader===leader).length, totalWindows=windows.length;
+  const agreement=agreeWindows/Math.max(1,totalWindows);
+  let ap=0,ab=0,at=0,aw=0;
+  windows.forEach(w=>{ const ww=w.weight*(w.leader===leader?1:.50); ap+=w.p*ww;ab+=w.b*ww;at+=w.t*ww;aw+=ww; });
+  let pp=ap/aw,bp=ab/aw,tp=at/aw; const z=pp+bp+tp||1; pp=pp/z*100;bp=bp/z*100;tp=tp/z*100;
+  const pr=Math.round(pp),br=Math.round(bp),tr=Math.max(0,100-pr-br), nonTie=pr+br||1;
+  const edge=Math.abs(pr-br)/nonTie*100;
+  const sampleFactor=Math.min(1,rawMatches/24), lengthFactor=Math.min(1,bestLen/14);
+  const similarityScore=Math.round(100*(.52*agreement+.27*sampleFactor+.21*lengthFactor));
+  const grade=similarityScore>=80&&agreement>=.72?'STRONG':similarityScore>=64&&agreement>=.62?'MODERATE':'LOW';
+  const candidate=pr>=br?'P':'B';
+  Object.assign(out,{pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows});
+  // Conservative gate: fuzzy alignment must have agreement, sample depth and a meaningful P/B edge.
+  if(similarityScore>=64 && agreement>=.62 && edge>=8 && rawMatches>=4){
+    out.side=candidate;
+    out.strength=Math.min(82,Math.round(46+edge*.18+Math.max(0,similarityScore-55)*.30+sampleFactor*4+lengthFactor*3));
+    out.waitReason='';
+    out.sources=[{name:'saved-shoes-v2-drift'}];
+  }else out.waitReason=`WAIT: Drift alignment ${similarityScore}% • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(edge)}-point P/B edge.`;
+  __seqV2DriftMemo.key=key; __seqV2DriftMemo.value=out; return out;
+}
+
 function sequenceAISignal(){
   const cur=currentSequence();
   // Sequence AI V2 stays isolated: selected/combined saved P/B/T shoe history only.
@@ -3232,7 +3330,7 @@ function sequenceAISignal(){
     windows.push({length:k,p:pAvg,b:bAvg,t:tAvg,leader,edge,samples:shoeVotes.length,weight});
   });
 
-  if(!windows.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: No comparable saved-shoe sequence found yet.'};
+  if(!windows.length) return __seqV2DriftFallback(cur,lib);
 
   // Determine persistent leader first; conflicting windows are deliberately penalized.
   const leaderWeights={P:0,B:0,T:0};
@@ -3261,7 +3359,9 @@ function sequenceAISignal(){
 
   // Stronger WAIT gate: do not manufacture confidence from weak/conflicting history.
   if(similarityScore<55 || agreement<.58 || nonTieEdge<6 || (rawMatches<3 && bestLen<8)){
-    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,waitReason:`WAIT: ${similarityScore}% similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge.`};
+    const drift=__seqV2DriftFallback(cur,lib);
+    if(drift && drift.side) return drift;
+    return {side:null,strength:0,pPct:pr,bPct:br,tPct:tr,matches:rawMatches,weightedMatches:Math.round(aw*10)/10,bestLen,similarityScore,grade,agreeWindows,totalWindows,driftChecked:true,waitReason:`WAIT: exact ${similarityScore}% similarity • ${agreeWindows}/${totalWindows} windows agree • ${Math.round(nonTieEdge)}-point P/B edge. Drift alignment also failed its safety gate.`};
   }
 
   const sampleFactor=Math.min(1,rawMatches/24);
@@ -3282,7 +3382,9 @@ function renderSequenceAI(){
   const grade=document.getElementById('seqAiGrade'); if(grade) grade.textContent=s.grade||'LOW';
   const wins=document.getElementById('seqAiWindows'); if(wins) wins.textContent=`${s.agreeWindows||0}/${s.totalWindows||0}`;
   document.getElementById('seqAiNote').textContent=s.side
-    ? `${s.grade} historical resemblance: ${s.similarityScore}% similarity. ${s.agreeWindows}/${s.totalWindows} rolling windows agree on ${name}. Strong persistent similarity now increases Sequence AI influence; Road Preview AI remains a separate saved-library/historical-road specialist and does not use Sequence AI output.`
+    ? (s.driftUsed
+      ? `${s.grade} DRIFT-ALIGNED resemblance: ${s.similarityScore}% similarity. ${s.agreeWindows}/${s.totalWindows} windows agree on ${name}. Exact V2 evidence was weak, so the one-edit shift/flip/insert/delete fallback found a continuation; fuzzy evidence is down-weighted and never overrides a strong exact match.`
+      : `${s.grade} historical resemblance: ${s.similarityScore}% similarity. ${s.agreeWindows}/${s.totalWindows} rolling windows agree on ${name}. Strong persistent similarity now increases Sequence AI influence; Road Preview AI remains a separate saved-library/historical-road specialist and does not use Sequence AI output.`)
     : (s.waitReason||'WAIT: historical resemblance is not strong or consistent enough yet.');
 }
 
@@ -10396,6 +10498,71 @@ window.__MOBILE_FREEZE_PERFORMANCE_FIX_V57__={
     predictionLogicChanged:false,
     sequenceV2Changed:false
   };
+})();
+</script>
+
+<script id="v62-ai-panel-order-stability-fix">
+/* V62 UI ORDER STABILITY FIX — prevents MutationObserver reordering loops/freezes. */
+(function(){
+  'use strict';
+  if(window.__V62_AI_PANEL_ORDER__) return;
+  window.__V62_AI_PANEL_ORDER__=true;
+  const TOP_IDS=['focusAIV26','blackContextV22','metaWalkV23','roadPreviewAiPanel','masterBotPanel'];
+  const BOTTOM_IDS=['liveModelGovernorV32','regimePhaseV39','verifiedAccuracyPanel','allAiLearningV10Panel','selfLearningV9Panel','colorPatternAiPanel'];
+  function ensureStacks(){
+    const app=document.querySelector('.app'); if(!app) return null;
+    let top=document.getElementById('v61TopAiStack');
+    if(!top){
+      top=document.createElement('div'); top.id='v61TopAiStack'; top.setAttribute('data-ui-order','top-priority-ai');
+      const bar=app.querySelector('.topbar');
+      if(bar) app.insertBefore(top,bar.nextSibling); else app.insertBefore(top,app.firstChild);
+    }
+    let bottom=document.getElementById('v61BottomAiStack');
+    if(!bottom){ bottom=document.createElement('div'); bottom.id='v61BottomAiStack'; bottom.setAttribute('data-ui-order','bottom-learning-audit'); app.appendChild(bottom); }
+    return {app,top,bottom};
+  }
+  function orderedChildren(container, ids){
+    return ids.map(id=>document.getElementById(id)).filter(Boolean).every((el,i,arr)=>
+      el.parentNode===container && (i===0 || arr[i-1].nextElementSibling===el)
+    );
+  }
+  function placeOrdered(container, ids){
+    const els=ids.map(id=>document.getElementById(id)).filter(Boolean);
+    if(!els.length || orderedChildren(container,ids)) return false;
+    const frag=document.createDocumentFragment();
+    for(const el of els) frag.appendChild(el);
+    container.appendChild(frag);
+    return true;
+  }
+  let moving=false;
+  function enforce(){
+    if(moving) return;
+    const stacks=ensureStacks(); if(!stacks) return;
+    moving=true;
+    try{
+      placeOrdered(stacks.top,TOP_IDS);
+      placeOrdered(stacks.bottom,BOTTOM_IDS);
+      if(stacks.bottom.parentNode!==stacks.app || stacks.app.lastElementChild!==stacks.bottom) stacks.app.appendChild(stacks.bottom);
+    }finally{moving=false;}
+  }
+  let timer=0;
+  function schedule(){
+    if(moving) return;
+    clearTimeout(timer);
+    timer=setTimeout(enforce,60);
+  }
+  function start(){
+    enforce(); setTimeout(enforce,180); setTimeout(enforce,800);
+    const app=document.querySelector('.app');
+    if(app){
+      const obs=new MutationObserver(schedule);
+      obs.observe(app,{childList:true,subtree:true});
+      window.__v62PanelOrderObserver=obs;
+    }
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start,{once:true}); else start();
+  window.__v61EnforceAiPanelOrder=enforce;
+  window.__v62EnforceAiPanelOrder=enforce;
 })();
 </script>
 </body>
