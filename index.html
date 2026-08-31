@@ -655,6 +655,59 @@
 <div class="match-pct"><strong id="matchT">—</strong><span>Tie followed</span></div>
 </div>
 </div>
+
+<div class="match-box" id="currentShoeMatcherBox" style="border:1px solid #5b7ee5;background:#101522">
+<div class="match-head">
+<b>🔎 Current Shoe Matcher / Rest-of-Shoe Predictor</b>
+<span id="shoeMatcherStatus" style="font-size:10px;color:var(--muted)">READY</span>
+</div>
+<div class="match-line">Paste the current Bead Plate/results and, if you want, the current Main Road P/B sequence. Leave either field blank to use the live shoe. The scan searches the full active RED, BLACK, or COMBINED saved-shoe library and ranks the closest historical continuations.</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+<div>
+<div style="font-size:10px;color:var(--muted);margin-bottom:4px">CURRENT BEAD PLATE / RESULTS (P B T)</div>
+<textarea id="shoeMatcherBeadInput" rows="3" placeholder="Example: B P B B T P ..." style="width:100%;box-sizing:border-box;background:#0b0f18;color:#fff;border:1px solid #33405d;border-radius:8px;padding:8px;resize:vertical"></textarea>
+</div>
+<div>
+<div style="font-size:10px;color:var(--muted);margin-bottom:4px">CURRENT MAIN ROAD (P / B, optional)</div>
+<textarea id="shoeMatcherMainInput" rows="3" placeholder="Optional P/B sequence; blank = derive from results" style="width:100%;box-sizing:border-box;background:#0b0f18;color:#fff;border:1px solid #33405d;border-radius:8px;padding:8px;resize:vertical"></textarea>
+</div>
+</div>
+<div class="library-actions" style="margin-top:10px">
+<button class="tiny-btn" id="shoeMatcherUseLiveBtn">Use Current Live Shoe</button>
+<button class="tiny-btn" id="shoeMatcherScanBtn">Scan Full Shoe Library</button>
+</div>
+<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<button class="tiny-btn" id="shoeMatcherFollowBtn">20-Hand Follow Mode: OFF</button>
+<span id="shoeMatcherFollowNote" style="font-size:10px;color:var(--muted)">Turn this on at hand 20. Every new live result will verify the sequence and automatically re-scan if the match drifts.</span>
+</div>
+<div class="match-pcts" style="margin-top:10px">
+<div class="match-pct"><strong id="shoeMatcherBest">—</strong><span>Best matching shoe</span></div>
+<div class="match-pct"><strong id="shoeMatcherSimilarity">—</strong><span>Similarity</span></div>
+<div class="match-pct"><strong id="shoeMatcherPosition">—</strong><span>Matched position</span></div>
+</div>
+<div class="match-pcts" style="margin-top:8px">
+<div class="match-pct"><strong id="shoeMatcherNext">—</strong><span>Likely next result</span></div>
+<div class="match-pct"><strong id="shoeMatcherConsensus">—</strong><span>Top-match agreement</span></div>
+<div class="match-pct"><strong id="shoeMatcherEvidence">—</strong><span>Evidence</span></div>
+</div>
+<div class="match-pcts" style="margin-top:8px">
+<div class="match-pct"><strong id="shoeMatcherLean">—</strong><span>Shoe lean</span></div>
+<div class="match-pct"><strong id="shoeMatcherLeanStrength">—</strong><span>Lean strength</span></div>
+<div class="match-pct"><strong id="shoeMatcherLeanSupport">—</strong><span>Historical support</span></div>
+</div>
+<div class="match-line" id="shoeMatcherLeanNote" style="margin-top:8px">Shoe Lean is confirmation only. It never overrides the 20-Hand Elite Match Gate.</div>
+<div class="match-line" id="sharedShoeContextStatus" style="margin-top:8px"><b>SHARED SHOE CONTEXT:</b> waiting for 20-hand matcher evidence.</div>
+<div class="match-line" id="shoeMatcherDetail" style="margin-top:10px">Enter at least 6 results; 20+ hands is the preferred sequence-follow starting point.</div>
+<div style="margin-top:10px;padding:8px;border:1px solid #33405d;border-radius:8px;background:#0b0f18">
+<div style="font-size:10px;color:var(--muted);margin-bottom:5px">PROJECTED REMAINDER</div>
+<div id="shoeMatcherRemainder" style="font-weight:800;letter-spacing:1px;word-break:break-word">—</div>
+</div>
+<div style="margin-top:8px;padding:8px;border:1px solid #33405d;border-radius:8px;background:#0b0f18">
+<div style="font-size:10px;color:var(--muted);margin-bottom:5px">TOP MATCHES</div>
+<div id="shoeMatcherTopMatches" style="font-size:11px;line-height:1.55;color:#dce5ff">—</div>
+</div>
+</div>
+
 <div class="match-box" id="reuseScannerBox">
 <div class="match-head">
 <b>Same-Color Shoe Reuse Scanner</b>
@@ -2041,8 +2094,291 @@ function scanPreviousRoads(){
   text.textContent=`Best road-structure match: ${label} at ${best.overall}%. Big Eye ${best.eye.total?best.eye.score+'%':'N/A'}, Small ${best.small.total?best.small.score+'%':'N/A'}, Cockroach ${best.roach.total?best.roach.score+'%':'N/A'}. ${total?`Matched historical road blocks most often continued with ${next}.`:'There are not enough historical continuations yet.'} RED/BLUE here are derived-road colors, not Banker/Player bets.`;
 }
 
+
+
+// --- V78 Current Shoe Matcher / Rest-of-Shoe Predictor ---
+// Manual/live analysis only. It does not write hypothetical results into state or alter AI accuracy ledgers.
+let shoeMatcherFollowMode=false;
+let shoeMatcherLastLiveLen=0;
+let shoeMatcherLastResult=null;
+let shoeMatcherAutoTimer=null;
+function shoeMatcherFollowReady(){ return shoeMatcherFollowMode && currentSequence().length>=20 && window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true; }
+function updateShoeMatcherFollowUI(){
+  const b=document.getElementById('shoeMatcherFollowBtn'),n=document.getElementById('shoeMatcherFollowNote'),len=currentSequence().length;
+  if(b)b.textContent=`20-Hand Follow Mode: ${shoeMatcherFollowMode?'ON':'OFF'}`;
+  if(n)n.textContent=shoeMatcherFollowMode?(len>=20?`LIVE LOCK ACTIVE at hand ${len}. New results verify the current match; drift triggers an automatic full-library re-scan.`:`Follow Mode armed. ${20-len} more live hand${20-len===19?'':'s'} until automatic sequence tracking begins.`):'Turn this on at hand 20. Every new live result will verify the sequence and automatically re-scan if the match drifts.';
+}
+function scheduleShoeMatcherLiveFollow(){
+  if(!shoeMatcherFollowReady())return;
+  clearTimeout(shoeMatcherAutoTimer);
+  shoeMatcherAutoTimer=setTimeout(()=>{
+    try{
+      const live=currentSequence().join('');
+      if(live.length===shoeMatcherLastLiveLen)return;
+      shoeMatcherLastLiveLen=live.length;
+      const b=document.getElementById('shoeMatcherBeadInput'),m=document.getElementById('shoeMatcherMainInput');
+      if(b)b.value=live;if(m)m.value=shoeMatcherMainFromBead(live);
+      scanCurrentShoeMatcher(true);updateShoeMatcherFollowUI();
+    }catch(e){console.warn('shoe matcher live follow',e)}
+  },0);
+}
+function shoeMatcherNormalize(v,allowTie=true){
+  let x=String(v||'').toUpperCase().replace(/[^PBT]/g,'');
+  return allowTie?x:x.replace(/T/g,'');
+}
+function shoeMatcherMainFromBead(bead){ return shoeMatcherNormalize(bead,false); }
+function shoeMatcherLcsRatio(a,b){
+  a=String(a||'');b=String(b||'');if(!a||!b)return 0;
+  const n=b.length,dp=new Uint16Array(n+1);
+  for(let i=1;i<=a.length;i++){
+    let prev=0;
+    for(let j=1;j<=n;j++){
+      const hold=dp[j];
+      dp[j]=a[i-1]===b[j-1]?prev+1:Math.max(dp[j],dp[j-1]);
+      prev=hold;
+    }
+  }
+  return dp[n]/Math.max(a.length,b.length,1);
+}
+function shoeMatcherSuffixScore(cur,histEnd){
+  const max=Math.min(18,cur.length,histEnd.length);if(max<3)return 0;
+  let hit=0,den=0;
+  for(let k=3;k<=max;k++){
+    const w=k*k, a=cur.slice(-k), b=histEnd.slice(-k);den+=w;if(a===b)hit+=w;
+    else{
+      let same=0;for(let i=0;i<k;i++)if(a[i]===b[i])same++;
+      hit+=w*(same/k)*0.45;
+    }
+  }
+  return den?hit/den:0;
+}
+let shoeMatcherRoadCacheKey='',shoeMatcherRoadCache=null;
+function shoeMatcherRoadScore(curBead,histPrefix){
+  try{
+    const key=shoeMatcherNormalize(curBead,true);
+    if(key!==shoeMatcherRoadCacheKey||!shoeMatcherRoadCache){shoeMatcherRoadCacheKey=key;shoeMatcherRoadCache=currentDerivedRoadSetFromSeq(key);}
+    const c=shoeMatcherRoadCache,h=currentDerivedRoadSetFromSeq(histPrefix);
+    const one=(a,b)=>{
+      a=(a||[]).join('');b=(b||[]).join('');if(a.length<3||b.length<3)return null;
+      const tail=Math.min(14,a.length,b.length);return shoeMatcherLcsRatio(a.slice(-tail),b.slice(-tail));
+    };
+    const vals=[one(c.bigEye,h.bigEye),one(c.small,h.small),one(c.roach,h.roach)].filter(x=>x!=null);
+    return vals.length?vals.reduce((x,y)=>x+y,0)/vals.length:0;
+  }catch(e){return 0;}
+}
+function currentDerivedRoadSetFromSeq(seq){
+  const hs=shoeMatcherNormalize(seq,true).split('').map(r=>({r}));
+  return {bigEye:deriveRoad(hs,1),small:deriveRoad(hs,2),roach:deriveRoad(hs,3)};
+}
+function shoeMatcherCandidateScore(bead,main,hist,pos){
+  const prefix=hist.slice(0,pos), prefixMain=shoeMatcherMainFromBead(prefix);
+  const beadTail=bead.slice(-Math.min(24,bead.length)), histTail=prefix.slice(-Math.min(24,prefix.length));
+  const mainTail=main.slice(-Math.min(24,main.length)), histMainTail=prefixMain.slice(-Math.min(24,prefixMain.length));
+  const beadSeq=shoeMatcherLcsRatio(beadTail,histTail);
+  const mainSeq=shoeMatcherLcsRatio(mainTail,histMainTail);
+  const beadSuffix=shoeMatcherSuffixScore(bead,histTail);
+  const mainSuffix=shoeMatcherSuffixScore(main,histMainTail);
+  const lenPenalty=Math.min(1,pos/Math.max(6,bead.length));
+  const mature=bead.length>=20;
+  // Sequence/suffix scoring is cheap. Only run the heavier three-road comparison
+  // for plausible alignments so live Follow Mode stays responsive on iPhone/iPad.
+  const preScore=mature
+    ?(beadSeq*.20)+(mainSeq*.18)+(beadSuffix*.31)+(mainSuffix*.23)
+    :(beadSeq*.23)+(mainSeq*.23)+(beadSuffix*.24)+(mainSuffix*.18);
+  const roads=preScore>=.28?shoeMatcherRoadScore(bead,prefix):0;
+  let score=preScore+(roads*(mature?.08:.12));
+  score*=0.82+0.18*lenPenalty;
+  return {score,beadSeq,mainSeq,beadSuffix,mainSuffix,roads,prefix,mature};
+}
+function shoeMatcherScanCore(beadInput,mainInput){
+  const bead=shoeMatcherNormalize(beadInput,true);
+  const main=shoeMatcherNormalize(mainInput,false)||shoeMatcherMainFromBead(bead);
+  const lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=Math.max(8,bead.length+1));
+  if(bead.length<6)return {error:`NEED ${6-bead.length} MORE RESULT${6-bead.length===1?'':'S'}`,bead,main,libCount:lib.length};
+  if(!lib.length)return {error:'NO ELIGIBLE SAVED SHOES',bead,main,libCount:0};
+  const all=[];
+  lib.forEach((shoe,idx)=>{
+    const hist=shoeMatcherNormalize(shoe.sequence,true);if(hist.length<bead.length+1)return;
+    const center=Math.min(hist.length-1,Math.max(bead.length,6));
+    const minPos=Math.max(6,Math.min(bead.length-4,center));
+    const maxPos=hist.length-1;
+    let best=null;
+    for(let pos=minPos;pos<=maxPos;pos++){
+      const x=shoeMatcherCandidateScore(bead,main,hist,pos);
+      if(!best||x.score>best.score)best={...x,pos};
+    }
+    if(best){
+      // Follow Mode continuity bonus: if the previously selected shoe still aligns at the expected next hand,
+      // prefer staying on it. A wrong live result removes this advantage automatically on the next scan.
+      if(shoeMatcherFollowMode && bead.length>=20 && shoeMatcherLastResult && shoeMatcherLastResult.best){
+        const prev=shoeMatcherLastResult.best;
+        const sameSaved=(prev.shoe && shoe && (prev.shoe.id&&shoe.id?prev.shoe.id===shoe.id:prev.sequence===hist));
+        const expectedPos=prev.pos + Math.max(0,bead.length-shoeMatcherLastResult.bead.length);
+        if(sameSaved && Math.abs(best.pos-expectedPos)<=1)best.score=Math.min(1,best.score*1.08);
+      }
+      const continuation=hist.slice(best.pos);
+      const next=continuation[0]||null;
+      all.push({shoe,idx,sequence:hist,...best,continuation,next});
+    }
+  });
+  all.sort((a,b)=>b.score-a.score);
+  const top=all.slice(0,Math.min(7,all.length));
+  if(!top.length)return {error:'NO MATCHABLE CONTINUATIONS',bead,main,libCount:lib.length};
+  const best=top[0];
+
+  // V81 elite-match gate: at 20+ hands, a 95-100% alignment outranks weaker matches.
+  // If multiple elite matches disagree on the immediate next result, return WAIT
+  // until another live hand separates them instead of letting weaker matches break the tie.
+  const elite=(bead.length>=20)?top.filter(x=>x.score>=.95):[];
+  const votePool=elite.length?elite:top;
+  const weights=votePool.map((x,i)=>Math.max(.01,x.score*x.score*(1-i*.06)));
+  const nextVotes={P:0,B:0,T:0};
+  votePool.forEach((x,i)=>{if(x.next&&nextVotes[x.next]!=null)nextVotes[x.next]+=weights[i];});
+  const voteTotal=nextVotes.P+nextVotes.B+nextVotes.T;
+  const eliteSides=[...new Set(elite.map(x=>x.next).filter(x=>x==='P'||x==='B'||x==='T'))];
+  const eliteConflict=elite.length>1&&eliteSides.length>1;
+  let nextSide=null,nextPct=0;
+  if(!eliteConflict&&voteTotal){
+    nextSide=['P','B','T'].sort((a,b)=>nextVotes[b]-nextVotes[a])[0];
+    nextPct=Math.round(nextVotes[nextSide]*100/voteTotal);
+  }
+
+  // Multi-step consensus projection. Elite matches stay isolated from weaker matches.
+  // If elite continuations disagree at any projected hand, projection stops there.
+  let projected='';
+  const projectionPool=elite.length?elite:top;
+  const projectionWeights=projectionPool.map((x,i)=>Math.max(.01,x.score*x.score*(1-i*.06)));
+  const maxSteps=Math.min(30,Math.max(...projectionPool.map(x=>x.continuation.length)));
+  for(let step=0;step<maxSteps;step++){
+    const v={P:0,B:0,T:0};let total=0,contributors=0;
+    projectionPool.forEach((x,i)=>{const r=x.continuation[step];if(r&&v[r]!=null){v[r]+=projectionWeights[i];total+=projectionWeights[i];contributors++;}});
+    if(!total)break;
+    if(!elite.length&&contributors<2)break;
+    const activeSides=['P','B','T'].filter(side=>v[side]>0);
+    if(elite.length>1&&activeSides.length>1)break;
+    const side=['P','B','T'].sort((a,b)=>v[b]-v[a])[0], pct=v[side]/total;
+    if(pct<(elite.length?0.95:.55))break;
+    projected+=side;
+  }
+  const sim=Math.round(best.score*100);
+  const evidence=top.filter(x=>x.score>=Math.max(.35,best.score*.72)).length;
+  return {bead,main,libCount:lib.length,all,top,best,sim,evidence,nextSide,nextPct,projected,nextVotes,eliteCount:elite.length,eliteConflict,votePoolSize:votePool.length};
+}
+function shoeMatcherFormatSeq(s){return String(s||'').replace(/(.{4})/g,'$1 ').trim();}
+const SHARED_SHOE_CONTEXT_KEY='baccarat-shared-shoe-context-v83';
+window.__SHARED_SHOE_CONTEXT__={ready:false,handN:0,lean:'BALANCED',strength:'LOW',support:'—',bestScore:0,eliteCount:0,eliteConflict:false,following:false,nextSide:null,nextPct:0,updatedAt:0};
+function publishSharedShoeContext(r){
+  const lean=shoeMatcherLeanAnalysis(r);
+  const handN=Number(r&&r.inputLen)||((state&&state.hands)||[]).length||0;
+  const bestScore=r&&r.top&&r.top[0]?Number(r.top[0].score)||0:0;
+  const ctx={ready:handN>=20&&!!(r&&r.top&&r.top.length),handN,lean:lean.label||'BALANCED',strength:lean.strength||'LOW',support:lean.support||'—',bestScore,eliteCount:Number(r&&r.eliteCount)||0,eliteConflict:!!(r&&r.eliteConflict),following:!!(window.__shoeFollowV79&&window.__shoeFollowV79.enabled&&bestScore>=.62),nextSide:r&&r.eliteConflict?null:(r&&r.nextSide||null),nextPct:Number(r&&r.nextPct)||0,updatedAt:Date.now()};
+  window.__SHARED_SHOE_CONTEXT__=ctx;
+  try{localStorage.setItem(SHARED_SHOE_CONTEXT_KEY,JSON.stringify(ctx))}catch(e){}
+  const el=document.getElementById('sharedShoeContextStatus');
+  if(el)el.innerHTML=ctx.ready?`<b>SHARED SHOE CONTEXT:</b> ${ctx.lean} • ${ctx.strength} • best match ${Math.round(ctx.bestScore*100)}% • ${ctx.eliteConflict?'ELITE CONFLICT / WAIT':(ctx.nextSide?`elite next ${ctx.nextSide} ${ctx.nextPct}%`:'no elite next')} • available to all AI signal calls`:'<b>SHARED SHOE CONTEXT:</b> waiting for 20-hand matcher evidence.';
+  return ctx;
+}
+function sharedShoeContext(){return window.__SHARED_SHOE_CONTEXT__||{};}
+function applySharedShoeContextToSignal(name,sig){
+  if(!sig||typeof sig!=='object')return sig;
+  const c=sharedShoeContext();
+  sig.shoeContext=c; // Every AI can inspect the same context without replacing its native logic.
+  if(!c.ready)return sig;
+  const side=(sig.side==='P'||sig.side==='B')?sig.side:null;
+  const leanSide=c.lean==='BANKER LEAN'?'B':c.lean==='PLAYER LEAN'?'P':null;
+  sig.shoeContextAgreement=side&&leanSide?(side===leanSide?'AGREE':'CONFLICT'):'NEUTRAL';
+  sig.shoeContextEliteAgreement=side&&c.nextSide?(side===c.nextSide?'AGREE':'CONFLICT'):'NEUTRAL';
+  // Context is deliberately advisory: do not rewrite side/confidence here.
+  return sig;
+}
+function installSharedShoeContextAllAI(){
+  const names=['sequenceAISignal','colorPatternAISignal','roadPreviewSignal','derivedRoadSignal','adaptiveDerivedSignal','walkForwardSignal','highPoweredBotSignal','mainRoadFutureTest'];
+  names.forEach(n=>{try{const f=window[n];if(typeof f==='function'&&!f.__shoeContextV83){const w=function(){return applySharedShoeContextToSignal(n,f.apply(this,arguments));};w.__shoeContextV83=true;w.__original=f;window[n]=w;try{eval(`${n}=window[n]`)}catch(e){}}}catch(e){}});
+}
+function shoeMatcherLeanAnalysis(r){
+  if(!r||r.error||!r.top||!r.top.length)return {label:'—',strength:'—',support:'—',note:'Not enough matching evidence for a shoe lean.'};
+  const pool=(r.eliteCount&&r.top.filter(x=>x.score>=0.95).length)?r.top.filter(x=>x.score>=0.95):r.top.filter(x=>x.score>=0.62);
+  if(!pool.length)return {label:'BALANCED',strength:'LOW',support:'0/0',note:'No sufficiently strong historical matches support a directional shoe lean.'};
+  let b=0,p=0,total=0,bs=0,ps=0;
+  for(const x of pool){
+    const cont=String(x.continuation||'').replace(/T/g,'').slice(0,12);
+    if(!cont)continue;
+    const w=Math.max(.01,Number(x.score)||0); total+=w;
+    const bc=(cont.match(/B/g)||[]).length, pc=(cont.match(/P/g)||[]).length, n=bc+pc;
+    if(!n)continue;
+    b+=w*bc/n;p+=w*pc/n;
+    if(bc>pc)bs++; else if(pc>bc)ps++;
+  }
+  const den=b+p;if(!den)return {label:'BALANCED',strength:'LOW',support:`0/${pool.length}`,note:'Matched shoes do not have enough remaining P/B hands to classify the lean.'};
+  const bp=b/den, pp=p/den, edge=Math.abs(bp-pp);
+  let label='BALANCED', side=null;
+  if(edge>=0.08){side=bp>pp?'B':'P';label=side==='B'?'BANKER LEAN':'PLAYER LEAN';}
+  let strength=edge>=0.20?'STRONG':edge>=0.12?'MODERATE':edge>=0.08?'LIGHT':'BALANCED';
+  const sup=side==='B'?bs:side==='P'?ps:Math.max(bs,ps), pct=Math.round((side==='B'?bp:side==='P'?pp:Math.max(bp,pp))*100);
+  return {label,strength,support:`${sup}/${pool.length} • ${pct}%`,note:`Based on the next up-to-12 P/B hands of ${pool.length} ${r.eliteCount?'elite':'qualified'} historical match${pool.length===1?'':'es'}. Confirmation only; the Elite Match Gate still controls the actual next-result decision.`};
+}
+function renderShoeMatcherResult(r){
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  if(r.error){
+    set('shoeMatcherStatus',r.error);['shoeMatcherBest','shoeMatcherSimilarity','shoeMatcherPosition','shoeMatcherNext','shoeMatcherConsensus','shoeMatcherEvidence','shoeMatcherLean','shoeMatcherLeanStrength','shoeMatcherLeanSupport'].forEach(id=>set(id,'—'));set('shoeMatcherLeanNote','Not enough matching evidence for a shoe lean.');
+    set('shoeMatcherDetail',`Scanner could not produce a projection. ${r.error}. Active library candidates: ${r.libCount||0}.`);set('shoeMatcherRemainder','—');set('shoeMatcherTopMatches','—');return;
+  }
+  const b=r.best, color=b.shoe?.shoeColor?String(b.shoe.shoeColor).toUpperCase():'SAVED';
+  set('shoeMatcherStatus',r.sim>=75?'STRONG MATCH':r.sim>=62?'MODERATE MATCH':r.sim>=50?'WEAK MATCH':'LOW MATCH');
+  set('shoeMatcherBest',`#${b.idx+1} ${color}`);set('shoeMatcherSimilarity',`${r.sim}%`);set('shoeMatcherPosition',`Hand ${b.pos+1}`);
+  set('shoeMatcherNext',r.eliteConflict?'WAIT':(r.nextSide?`${r.nextSide} ${r.nextPct}%`:'—'));set('shoeMatcherConsensus',r.eliteConflict?'ELITE CONFLICT':(r.nextSide?`${r.nextPct}%`:'—'));set('shoeMatcherEvidence',r.eliteCount?`${r.eliteCount} elite / ${r.top.length} top`:`${r.evidence}/${r.top.length} strong`);
+  const lean=shoeMatcherLeanAnalysis(r);set('shoeMatcherLean',lean.label);set('shoeMatcherLeanStrength',lean.strength);set('shoeMatcherLeanSupport',lean.support);set('shoeMatcherLeanNote',lean.note);publishSharedShoeContext(r);installSharedShoeContextAllAI();
+  set('shoeMatcherDetail',r.eliteConflict?`Scanned ${r.libCount} eligible saved shoes. ${r.eliteCount} elite matches (95%+) disagree on the immediate next result, so the matcher is WAITING for the next live hand to separate them. Weaker matches are ignored while elite matches exist.`:`Scanned ${r.libCount} eligible saved shoes. Best alignment is saved shoe #${b.idx+1} at historical hand ${b.pos+1}. Score combines current Bead Plate/results, Main Road P/B structure, suffix alignment, and all three derived roads. ${r.eliteCount?`Elite-match gate active with ${r.eliteCount} match${r.eliteCount===1?'':'es'} at 95%+; weaker matches cannot overturn the next result.`:`Top-match next-result agreement is ${r.nextSide||'—'} ${r.nextPct||0}%.`}`);
+  set('shoeMatcherRemainder',r.projected?shoeMatcherFormatSeq(r.projected):'No multi-hand continuation reached the 55% consensus gate.');
+  const lines=r.top.slice(0,5).map((x,i)=>{
+    const c=x.shoe?.shoeColor?String(x.shoe.shoeColor).toUpperCase():'SAVED';
+    return `${i+1}. Shoe #${x.idx+1} ${c} • ${Math.round(x.score*100)}% • align hand ${x.pos+1} • next ${x.next||'—'} • remainder ${shoeMatcherFormatSeq(x.continuation.slice(0,18))||'—'}`;
+  });
+  set('shoeMatcherTopMatches',lines.join('  |  '));
+}
+function scanCurrentShoeMatcher(auto=false){
+  const beadEl=document.getElementById('shoeMatcherBeadInput'),mainEl=document.getElementById('shoeMatcherMainInput');
+  const live=currentSequence().join('');
+  const bead=shoeMatcherNormalize(beadEl?.value,true)||live;
+  const main=shoeMatcherNormalize(mainEl?.value,false)||shoeMatcherMainFromBead(bead);
+  const r=shoeMatcherScanCore(bead,main);
+  renderShoeMatcherResult(r);
+  if(!r.error){shoeMatcherLastResult=r;if(auto){const st=document.getElementById('shoeMatcherStatus');if(st)st.textContent+=' • FOLLOWING';}}
+  return r;
+}
+function shoeMatcherUseLive(){
+  const bead=currentSequence().join('');
+  const b=document.getElementById('shoeMatcherBeadInput'),m=document.getElementById('shoeMatcherMainInput');
+  if(b)b.value=bead;if(m)m.value=shoeMatcherMainFromBead(bead);
+  if(bead.length>=20)shoeMatcherFollowMode=true;
+  shoeMatcherLastLiveLen=bead.length;updateShoeMatcherFollowUI();scanCurrentShoeMatcher();
+}
+function toggleShoeMatcherFollow(){
+  shoeMatcherFollowMode=!shoeMatcherFollowMode;
+  if(shoeMatcherFollowMode){
+    const bead=currentSequence().join('');shoeMatcherLastLiveLen=bead.length;
+    if(bead.length>=20)shoeMatcherUseLive();
+  }
+  updateShoeMatcherFollowUI();
+}
+
 document.getElementById('scanReuseBtn').onclick=scanSameColorReuse;
 document.getElementById('scanRoadReuseBtn').onclick=scanPreviousRoads;
+
+document.getElementById('shoeMatcherScanBtn')?.addEventListener('click',scanCurrentShoeMatcher);
+document.getElementById('shoeMatcherUseLiveBtn')?.addEventListener('click',shoeMatcherUseLive);
+document.getElementById('shoeMatcherFollowBtn')?.addEventListener('click',toggleShoeMatcherFollow);
+updateShoeMatcherFollowUI();
+
+// Live hand hook: core settles before pushing the new hand, so defer one tick and scan the updated shoe.
+try{
+  const __smOldSettle=window.__settleVerifiedPredictions;
+  if(typeof __smOldSettle==='function'&&!__smOldSettle.__shoeMatcherV79){
+    const __smWrap=function(actual){let r;try{r=__smOldSettle.apply(this,arguments)}finally{if(actual==='P'||actual==='B'||actual==='T')scheduleShoeMatcherLiveFollow()}return r};
+    __smWrap.__shoeMatcherV79=true;window.__settleVerifiedPredictions=__smWrap;
+  }
+}catch(e){console.warn('shoe matcher follow hook',e)}
+
 
 document.getElementById('saveShoeBtn').onclick=()=>{
   saveSequenceToLibrary(currentSequence(),'manual');
@@ -5152,54 +5488,21 @@ renderLibraryBackupStatus();
     persist();renderVerifiedAccuracy();
   }
   function settleVerifiedPredictions(actual){
-    const a=ensureAccuracy();
-    if(actual==='T'){a.ties=(a.ties||0)+1;persist();renderVerifiedAccuracy();return;}
+    const a=ensureAccuracy(); if(actual==='T'){a.ties=(a.ties||0)+1;persist();return;}
     if(actual!=='P'&&actual!=='B')return;
-
-    // V77 DIRECT PRE-RESULT VERIFIER
-    // This function is called BEFORE state.hands.push(), so every fallback signal below
-    // is the prediction that existed immediately before the revealed result.
-    // A pending lock is preferred, but a missing/stale lock can no longer stop counts.
     const settlingHand=currentSequence().length+1;
-    const seq=currentSequence().join('');
-    const ctx=verifiedContext();
-
-    modelDefs.forEach(([key,name,get])=>{
+    modelDefs.forEach(([key,name])=>{
+      const p=a.pending[key]; if(!p)return;
+      if(Number(p.hand)!==settlingHand){delete a.pending[key];return;}
       const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
       m.splits ||= {};
-
-      // Hard duplicate guard: one P/B grade maximum per AI per hand.
-      if(Number(m.lastScoredHand)===settlingHand){
-        delete a.pending[key];
-        return;
-      }
-
-      let p=a.pending[key];
-      if(!p || Number(p.hand)!==settlingHand || (p.side!=='P'&&p.side!=='B')){
-        // Lock failed or went stale: capture the live pre-result signal NOW.
-        let x=null; try{x=get()}catch(e){}
-        const side=String(x?.side||'').toUpperCase();
-        if(side==='P'||side==='B'){
-          p={side,hand:settlingHand,seq,lockedAt:Date.now(),strength:Number(x?.strength)||0,...ctx,directFallback:true};
-        }else{
-          // No qualified prediction existed at reveal time. Count WAIT once, not a fake loss.
-          if(Number(m.lastWaitHand)!==settlingHand){m.waits=(m.waits||0)+1;m.lastWaitHand=settlingHand;}
-          delete a.pending[key];
-          return;
-        }
-      }
-
-      const win=p.side===actual;
-      m.predictions=(m.predictions||0)+1;
-      if(win)m.wins=(m.wins||0)+1; else m.losses=(m.losses||0)+1;
-      m.lastScoredHand=settlingHand;
+      const win=p.side===actual; m.predictions++; if(win)m.wins++;else m.losses++;
       const bump=(id)=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n++;if(win)z.w++;else z.l++;};
       if(p.color==='red'||p.color==='black')bump('color:'+p.color);
       if(p.phase)bump('phase:'+p.phase);
       if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
       [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
-      m.last={predicted:p.side,actual,win,hand:settlingHand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates,directFallback:!!p.directFallback};
-      delete a.pending[key];
+      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates}; delete a.pending[key];
     });
     persist();renderVerifiedAccuracy();
   }
@@ -13023,7 +13326,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     'blackContextV22',
     'metaWalkV23',
     'roadPreviewAiPanel',
-    /* V86: High-Powered Bot intentionally removed from V71 top-order enforcement */
+    'masterBotPanel'
   ];
 
   const BOTTOM_IDS=[
@@ -13439,258 +13742,201 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
-\n
-
-<script id="v83-canonical-single-grade-accuracy-engine">
+<script id="v77-direct-all-ai-accuracy-counters">
 (function(){
-  const VERSION=83;
-  const MODELS=[
-    ['seqv2','Sequence AI V2',['seqAiSide']],
-    ['color','Adaptive Historical Color Pattern AI',['colorAiSide']],
-    ['roadpreview','Road Preview AI',['roadAiSide']],
-    ['derivedorig','Derived Road AI',['derivedIndependentPrediction']],
-    ['derivedmain','Adaptive Derived Roads',['adaptiveMainDerivedPrediction']],
-    ['seqdup','Sequence AI V2 Duplicate',['seqDupSide']],
-    ['consensus','AI Consensus',['consensusSide']],
-    ['bot','High-Powered Bot AI',['botDecision']],
-    ['bestestimate','Best-Estimate Analyzer',['bestSide']],
-    ['specialistv20','RED / BLACK Specialist V20',['v20Pick']],
-    ['blackctxv22','BLACK Context Specialist V22',['v22Pick','blackCtxPick','blackContextPick']],
-    ['metav23','Walk-Forward Meta Learner V23',['v23Pick','metaWalkPick','walkForwardPick']],
-    ['focusv26','Focus AI V26',['focusV26Pick']],
-    ['contextv25','V25 Context-Aware Final Decision',['v25Pick']],
-    ['shadowv29','Shadow Learning V29',['shadowV29Pick','shadowPick']],
-    ['knowledgev27','Baccarat Knowledge Engine V27',['knowledgeV27Pick','knowledgePick']],
-    ['metav49','Meta-Selector AI V49',[]],
-    ['metav50','Meta-Selector AI V50',['ms50Pick']]
-  ];
-  let pending=null, serial=0;
-  function sideFrom(v){
-    const t=String(v??'').trim().toUpperCase();
-    if(!t || /WAIT|NO BET|N\/A|^—$|^--$/.test(t)) return null;
-    if(t==='P'||/\bPLAYER\b/.test(t)) return 'P';
-    if(t==='B'||/\bBANKER\b/.test(t)) return 'B';
-    return null;
-  }
-  function A(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:1};
-    state.accuracyVerified.models||={};state.accuracyVerified.pending||={};
+  function acc(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object') state.accuracyVerified={models:{},pending:{},ties:0,version:77};
+    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {}; state.accuracyVerified.version=77;
     return state.accuracyVerified;
   }
-  function blank(name){return {name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}}}
-  function defSide(key){
-    try{
-      const d=(window.__accuracyModelDefs||[]).find(x=>x&&x[0]===key);
-      if(d&&typeof d[2]==='function')return sideFrom(d[2]?.()?.side);
-    }catch(e){}
-    try{
-      if(key==='metav49')return sideFrom(window.__metaSelectorV49?.signal?.()?.side);
-      if(key==='metav50'){const z=window.__metaSelectorV50?.signal?.()||{};return sideFrom(z.side||z.candidate)}
-    }catch(e){}
-    return null;
-  }
-  function visibleSide(ids){
-    for(const id of ids||[]){const el=document.getElementById(id);const s=sideFrom(el?.textContent);if(s)return s}
-    return null;
-  }
-  function clone(x,fallback){try{return JSON.parse(JSON.stringify(x??fallback))}catch(e){return fallback}}
-  function capture(actual){
-    const a=A(), hand=(state.hands?.length||0)+1;
+  function defs(){ return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]; }
+  function context(){
+    const seq=currentSequence().filter(x=>x==='P'||x==='B'),n=seq.length;
     const color=String(state.currentShoeColor||'combined').toLowerCase();
-    const pb=(state.hands||[]).filter(h=>h?.r==='P'||h?.r==='B').length;
-    const phase=pb<18?'early':pb<36?'middle':'late';
-    const learningStage=(Number(state.metaWalkV23?.totalUpdates)||0)>0?'after':'before';
-    const rows=MODELS.map(([key,name,ids])=>{
-      const m=a.models[key]||blank(name);
-      const lock=a.pending?.[key];
-      const pred=visibleSide(ids) || ((lock&&Number(lock.hand)===hand)?sideFrom(lock.side):null) || defSide(key);
-      return {key,name,pred,base:{
-        wins:Number(m.wins)||0,losses:Number(m.losses)||0,predictions:Number(m.predictions)||0,waits:Number(m.waits)||0,
-        last10:clone(m.last10,[]),last25:clone(m.last25,[]),last50:clone(m.last50,[]),splits:clone(m.splits,{})
-      }};
+    const phase=n<18?'early':n<36?'middle':'late';
+    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
+    return {color,phase,learningUpdates,learningStage:learningUpdates>0?'after':'before'};
+  }
+  function freshLocks(){
+    const a=acc(),hand=currentSequence().length+1,seq=currentSequence().join(''),c=context();
+    const next={};
+    defs().forEach(([key,name,get])=>{
+      let x=null; try{x=get()}catch(e){}
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      const side=x?.side;
+      if(side==='P'||side==='B') next[key]={side,hand,seq,lockedAt:Date.now(),strength:Number(x?.strength)||0,...c};
+      else if(m.lastWaitHand!==hand){m.waits=(Number(m.waits)||0)+1;m.lastWaitHand=hand;}
     });
-    return {actual,hand,color,phase,learningStage,rows,token:++serial};
-  }
-  function push(arr,v,max){arr=Array.isArray(arr)?arr:[];arr.push(v);return arr.length>max?arr.slice(-max):arr}
-  function bumpSplit(m,id,win){const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1}
-  function settle(s){
-    if(!s||pending!==s)return;
-    // One click must have committed one result before we grade.
-    if((state.hands?.length||0)<s.hand)return;
-    const a=A();
-    for(const r of s.rows){
-      const b=r.base,m=a.models[r.key]||(a.models[r.key]=blank(r.name));
-      // Canonical restore: erases any +2/+3 mutations made by legacy accuracy handlers for THIS click.
-      m.wins=b.wins;m.losses=b.losses;m.predictions=b.predictions;m.waits=b.waits;
-      m.last10=clone(b.last10,[]);m.last25=clone(b.last25,[]);m.last50=clone(b.last50,[]);m.splits=clone(b.splits,{});
-      if(s.actual==='P'||s.actual==='B'){
-        if(r.pred){
-          const win=r.pred===s.actual;
-          m.predictions=b.predictions+1;m.wins=b.wins+(win?1:0);m.losses=b.losses+(win?0:1);
-          m.last10=push(m.last10,win?1:0,10);m.last25=push(m.last25,win?1:0,25);m.last50=push(m.last50,win?1:0,50);
-          if(s.color==='red'||s.color==='black')bumpSplit(m,'color:'+s.color,win);
-          bumpSplit(m,'phase:'+s.phase,win);
-          if(r.key==='metav23')bumpSplit(m,'learning:'+s.learningStage,win);
-          m.last={predicted:r.pred,actual:s.actual,win,hand:s.hand,settledAt:Date.now(),source:'V83 canonical single-grade'};
-          m.lastScoredHand=s.hand;
-        }else{
-          m.waits=b.waits+1;m.lastWaitHand=s.hand;
-        }
-      }
-      delete a.pending[r.key];
-    }
-    a.version=VERSION;a.lastCanonicalHand=s.hand;a.lastCanonicalToken=s.token;
+    a.pending=next;
     try{persist()}catch(e){}
-    try{window.renderVerifiedAccuracy?.()}catch(e){}
     try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
-    pending=null;
   }
-  function result(t){const el=t?.closest?.('[data-result]');const x=String(el?.dataset?.result||'').toUpperCase();return ['P','B','T'].includes(x)?x:null}
-  window.addEventListener('click',e=>{
-    const actual=result(e.target);if(!actual)return;
-    const s=capture(actual);pending=s;
-    // Let every legacy synchronous/zero-delay hook finish, then normalize canonical W/L/N once.
-    setTimeout(()=>settle(s),120);
-  },true);
-  window.__V83_CANONICAL_ACCURACY__={version:VERSION,models:MODELS.map(x=>x[0]),capture,settle,sideFrom};
+  function grade(actual){
+    const a=acc();
+    if(actual==='T'){a.ties=(Number(a.ties)||0)+1;try{persist()}catch(e){};return;}
+    if(actual!=='P'&&actual!=='B')return;
+    const hand=currentSequence().length+1;
+    const pending={...a.pending};
+    Object.entries(pending).forEach(([key,p])=>{
+      if(!p||Number(p.hand)!==hand)return;
+      const def=defs().find(d=>d[0]===key),name=def?.[1]||key;
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      const win=p.side===actual;
+      m.predictions=(Number(m.predictions)||0)+1;
+      if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
+      m.splits ||= {};
+      const bump=id=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;};
+      if(p.color==='red'||p.color==='black')bump('color:'+p.color);
+      if(p.phase)bump('phase:'+p.phase);
+      if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
+      [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
+      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates};
+    });
+    a.pending={};
+    try{persist()}catch(e){}
+    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  }
+  // Capture-phase listener guarantees grading occurs before the core handler appends the actual result.
+  document.querySelectorAll('[data-result]').forEach(btn=>{
+    if(btn.__v77Accuracy)return; btn.__v77Accuracy=true;
+    btn.addEventListener('click',()=>{try{grade(btn.dataset.result)}catch(e){console.error('V77 grade',e)}},true);
+  });
+  // Preview P/B buttons also commit real results in this build.
+  [['previewP','P'],['previewB','B']].forEach(([id,actual])=>{
+    const b=document.getElementById(id); if(!b||b.__v77Accuracy)return; b.__v77Accuracy=true;
+    b.addEventListener('click',()=>{try{grade(actual)}catch(e){console.error('V77 preview grade',e)}},true);
+  });
+  // Disable the older verified settle hook to prevent double-counting. Keep arm hook for compatibility,
+  // then overwrite pending with one authoritative fresh snapshot after each committed render.
+  window.__settleVerifiedPredictions=function(){};
+  const armCompat=window.__armVerifiedPredictions;
+  window.__armVerifiedPredictions=function(){try{freshLocks()}catch(e){console.error('V77 arm',e)}};
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v77Accuracy){
+    const w=function(){const r=oldRender.apply(this,arguments);setTimeout(()=>{try{freshLocks()}catch(e){}},0);return r};w.__v77Accuracy=true;window.render=w;
+  }
+  setTimeout(freshLocks,300);setTimeout(freshLocks,1200);
+  window.__V77_ACCURACY_FIX__={version:77,directCaptureGrade:true,singleSettlePath:true,doubleCountGuard:true};
 })();
 </script>
 
-<script id="v84-main-future-single-grade-fix">
+
+<script id="v80-shoe-matcher-follow-final-hook">
 (function(){
-  const VERSION=84;
-  let serial=0, active=null;
-  function engine(){ return window.__V72_MAIN_FUTURE__ || null; }
-  function acc(){ try{return engine()?.accuracy?.()||null}catch(e){return null} }
-  function test(){ try{return engine()?.test?.()||null}catch(e){return null} }
-  function actualFromTarget(t){
-    const r=t?.closest?.('[data-result]');
-    const a=String(r?.dataset?.result||'').toUpperCase();
-    if(a==='P'||a==='B'||a==='T')return a;
-    const id=t?.closest?.('#previewP,#previewB')?.id;
-    return id==='previewP'?'P':id==='previewB'?'B':null;
+  // V79 originally hooked __settleVerifiedPredictions, but V77 intentionally replaces
+  // that function later to prevent accuracy double-counting. Hook the actual result
+  // controls here, after V77, so Follow Mode always sees the committed live hand.
+  function afterCommittedResult(){
+    if(!shoeMatcherFollowMode)return;
+    setTimeout(()=>{try{scheduleShoeMatcherLiveFollow()}catch(e){console.warn('V80 matcher follow',e)}},0);
   }
-  function snapshot(actual){
-    const a=acc(),x=test(); if(!a)return null;
-    const side=(x?.side==='P'||x?.side==='B')?x.side:null;
-    return {
-      token:++serial, actual, side,
-      preHands:Array.isArray(state?.hands)?state.hands.length:0,
-      base:{
-        wins:Number(a.wins)||0, losses:Number(a.losses)||0,
-        waits:Number(a.waits)||0, ties:Number(a.ties)||0,
-        ledger:Array.isArray(a.ledger)?a.ledger.slice():[]
-      },
-      prediction:x?{side,edge:Number(x.edge)||0,p:Number(x.p?.norm)||0,b:Number(x.b?.norm)||0}:null,
-      at:Date.now()
-    };
-  }
-  function renderAcc(){
-    try{
-      const a=acc(); if(!a)return;
-      const n=(Number(a.wins)||0)+(Number(a.losses)||0);
-      const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
-      set('futureAccuracyPct',n?((100*(Number(a.wins)||0)/n).toFixed(1)+'%'):'—');
-      set('futureAccuracyWL',`${Number(a.wins)||0}W-${Number(a.losses)||0}L`);
-      set('futureAccuracyN',`N=${n}`);
-      set('futureAccuracyWait',`WAIT=${Number(a.waits)||0}`);
-    }catch(e){}
-  }
-  function normalize(s){
-    if(!s||active!==s)return;
-    const hands=Array.isArray(state?.hands)?state.hands.length:0;
-    if(hands<s.preHands+1){ setTimeout(()=>normalize(s),80); return; }
-    const a=acc(); if(!a||active!==s)return;
-    // Preserve the newly armed NEXT-hand pending prediction, but make this result's score authoritative.
-    const nextPending=a.pending;
-    a.wins=s.base.wins; a.losses=s.base.losses; a.waits=s.base.waits; a.ties=s.base.ties;
-    a.ledger=s.base.ledger.slice();
-    if(s.actual==='P'||s.actual==='B'){
-      if(s.side){
-        const correct=s.side===s.actual;
-        if(correct)a.wins++; else a.losses++;
-        a.ledger.push({
-          side:s.side,actual:s.actual,correct,
-          edge:s.prediction?.edge||0,p:s.prediction?.p||0,b:s.prediction?.b||0,
-          settledAt:Date.now(),source:'V84 authoritative single-grade',token:s.token
-        });
-        if(a.ledger.length>600)a.ledger=a.ledger.slice(-600);
-      }
-      // WAIT was already registered when this hand was armed; do not add another WAIT here.
-    }else if(s.actual==='T'){
-      a.ties=s.base.ties+1;
-    }
-    a.pending=nextPending;
-    a.lastCanonicalHand=hands;
-    a.lastCanonicalToken=s.token;
-    try{if(typeof persist==='function')persist()}catch(e){}
-    renderAcc();
-    active=null;
-  }
-  window.addEventListener('click',function(e){
-    const actual=actualFromTarget(e.target); if(!actual)return;
-    const s=snapshot(actual); if(!s)return;
-    active=s;
-    // Run after all legacy settle/render/arm handlers so their duplicate/missed mutations are normalized away.
-    setTimeout(()=>normalize(s),220);
-  },true);
-  window.__V84_MAIN_FUTURE_SINGLE_GRADE__={version:VERSION,snapshot,normalize,accuracy:acc,test};
+  document.querySelectorAll('[data-result]').forEach(btn=>{
+    if(btn.__v80ShoeMatcherFollow)return;
+    btn.__v80ShoeMatcherFollow=true;
+    btn.addEventListener('click',afterCommittedResult,false);
+  });
+  [['previewP','P'],['previewB','B']].forEach(([id])=>{
+    const btn=document.getElementById(id);
+    if(!btn||btn.__v80ShoeMatcherFollow)return;
+    btn.__v80ShoeMatcherFollow=true;
+    btn.addEventListener('click',afterCommittedResult,false);
+  });
+  const undo=document.getElementById('undoBtn');
+  if(undo&&!undo.__v80ShoeMatcherFollow){undo.__v80ShoeMatcherFollow=true;undo.addEventListener('click',()=>{setTimeout(()=>{try{shoeMatcherLastLiveLen=currentSequence().length; if(shoeMatcherFollowReady())shoeMatcherUseLive(); else updateShoeMatcherFollowUI();}catch(e){}},0)});}
+  const clear=document.getElementById('clearBtn');
+  if(clear&&!clear.__v80ShoeMatcherFollow){clear.__v80ShoeMatcherFollow=true;clear.addEventListener('click',()=>{setTimeout(()=>{try{if(currentSequence().length===0){shoeMatcherFollowMode=false;shoeMatcherLastLiveLen=0;shoeMatcherLastResult=null;shoeMatcherRoadCacheKey='';shoeMatcherRoadCache=null;updateShoeMatcherFollowUI();}}catch(e){}},0)});}
+  window.__V80_SHOE_MATCHER_FIX__={version:80,finalLiveHook:true,roadCache:true,heavyRoadPrune:true};
 })();
 </script>
 
+<script id="shared-shoe-context-final-hook-v83">
+(function(){
+  function install(){try{installSharedShoeContextAllAI()}catch(e){console.warn('V83 shared context install',e)}}
+  install(); setTimeout(install,0);
+  const old=window.__settleVerifiedPredictions;
+  if(typeof old==='function'&&!old.__shoeContextV83){const w=function(){let z=old.apply(this,arguments);try{install()}catch(e){}return z};w.__shoeContextV83=true;window.__settleVerifiedPredictions=w;}
+})();
+</script>
 
-<script id="v86-layout-corrected-no-blink">
-(()=>{
-  'use strict';
-  // Final layout authority. No MutationObserver: prevents panel tug-of-war/blinking.
-  function place(){
-    const bot=document.getElementById('masterBotPanel');
-    const specialist=document.getElementById('rbSpecialistV20');
-    const proof=document.getElementById('structureProofV51Panel');
-    const app=document.querySelector('.app');
-    if(!app) return false;
+<script id="v84-main-future-selective-confidence-gate">
+/* V84 — Selective tuning around the preserved V72 Main Road Future Test.
+   Core V72 P-vs-B scoring is untouched. This layer only decides P/B vs WAIT.
+   Purpose: stop scoring weak ~50/50 calls and require corroboration. */
+(function(){
+  const base=(window.__V72_MAIN_FUTURE__&&window.__V72_MAIN_FUTURE__.test)||window.mainRoadFutureTest;
+  if(typeof base!=='function')return;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  const html=(id,v)=>{const e=document.getElementById(id);if(e)e.innerHTML=v};
+  const pbN=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}};
+  function context(){try{return window.__SHARED_SHOE_CONTEXT__||{}}catch(e){return {}}}
+  function readyRoads(x){try{return x.roadSigs.filter(r=>r.sig&&r.sig.pMark&&r.sig.bMark&&r.sig.pMark!==r.sig.bMark).length}catch(e){return 0}}
 
-    // Use the V71 top stack's end as the original High-Bot area.
-    const top=document.getElementById('v71TopAiStack');
-    if(top && specialist && specialist.parentNode!==top) top.appendChild(specialist);
+  function tuned(){
+    const x=base();
+    const n=pbN(), roads=readyRoads(x), c=context();
+    let side=x.side, reason='', minEdge=n<12?10:n<20?8:7;
+    let confirmation='NONE';
+    const eliteAgree=!!(side&&n>=20&&c&&c.ready&&!c.eliteConflict&&c.nextSide===side&&(c.bestScore||0)>=.95);
+    if(eliteAgree)minEdge=5;
 
-    // Create one bottom layout stack INSIDE .app so it does not fight V71's bottom stack.
-    let dock=document.getElementById('v86RequestedBottomStack');
-    if(!dock){
-      dock=document.createElement('div');
-      dock.id='v86RequestedBottomStack';
-      dock.setAttribute('data-ui-order','requested-bottom-panels');
-    }
-    if(dock.parentNode!==app) app.appendChild(dock);
+    if(!side){reason='BASE WAIT';}
+    else if(roads<2){side=null;reason='WAIT — fewer than 2/3 derived roads ready';}
+    else if(n>=20&&c&&c.ready&&c.eliteConflict){side=null;reason='WAIT — elite historical matches conflict';confirmation='ELITE CONFLICT';}
+    else if(n>=20&&c&&c.ready&&c.nextSide&&(c.bestScore||0)>=.95&&side!==c.nextSide){side=null;reason='WAIT — Main Road conflicts with 95%+ elite match';confirmation='ELITE CONFLICT';}
+    else if((x.edge||0)<minEdge){side=null;reason=`WAIT — edge ${x.edge||0} below ${minEdge}-point gate`;}
+    else if(eliteAgree){confirmation='ELITE AGREE';reason='ELITE CONFIRMED';}
 
-    if(bot && bot.parentNode!==dock) dock.appendChild(bot);
-    if(proof && proof.parentNode!==dock) dock.appendChild(proof);
-    if(bot && proof && bot.nextElementSibling!==proof) dock.insertBefore(proof,bot.nextElementSibling);
-
-    // Make this requested stack the last child of .app. This operation is finite.
-    if(app.lastElementChild!==dock) app.appendChild(dock);
-    return !!(specialist && bot && proof);
-  }
-
-  function finiteRetry(){
-    let tries=0;
-    const tick=()=>{
-      tries++;
-      const ready=place();
-      if(!ready && tries<20) setTimeout(tick,100);
-      else {
-        // A few delayed passes cover late-created dynamic panels without a permanent observer.
-        setTimeout(place,350);
-        setTimeout(place,1000);
+    if(side&&n>=20&&c&&c.ready){
+      const leanSide=c.lean==='BANKER LEAN'?'B':c.lean==='PLAYER LEAN'?'P':null;
+      if(side&&leanSide&&(c.strength==='STRONG'||c.strength==='MODERATE')){
+        if(side!==leanSide){side=null;reason='WAIT — strong Shoe Lean conflicts';confirmation='LEAN CONFLICT';}
+        else if(confirmation==='NONE')confirmation='LEAN AGREE';
       }
-    };
-    tick();
+    }
+    if(side&&!reason)reason=(x.edge||0)>=10?'STRONG BASE EDGE':'QUALIFIED EDGE';
+    return Object.assign({},x,{side,label:side?(confirmation==='ELITE AGREE'?'ELITE CONFIRMED':(x.label||'LIKELY')):'WAIT',v84Gate:{n,roads,minEdge,confirmation,reason,baseSide:x.side,baseEdge:x.edge||0},version:84});
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',finiteRetry,{once:true});
-  else finiteRetry();
+  function acc(){
+    if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true){if(!window.__V84_FUTURE_ACC_SIM__)window.__V84_FUTURE_ACC_SIM__={wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,ledger:[]};return window.__V84_FUTURE_ACC_SIM__}
+    if(!state.futureTestAccuracyV84||typeof state.futureTestAccuracyV84!=='object')state.futureTestAccuracyV84={wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,ledger:[]};
+    const a=state.futureTestAccuracyV84;for(const k of ['wins','losses','waits','ties'])if(!Number.isFinite(a[k]))a[k]=0;if(!Array.isArray(a.ledger))a.ledger=[];return a;
+  }
+  function renderAcc(){const a=acc(),n=(a.wins||0)+(a.losses||0);set('futureAccuracyPct',n?(100*a.wins/n).toFixed(1)+'%':'—');set('futureAccuracyWL',`${a.wins}W-${a.losses}L`);set('futureAccuracyN',`N=${n}`);set('futureAccuracyWait',`WAIT=${a.waits}`)}
+  function render(){
+    const x=tuned();
+    set('futurePMain',x.p.main);set('futureBMain',x.b.main);html('futurePRoads',x.p.chips);html('futureBRoads',x.b.chips);
+    set('futurePScore',x.p.norm+'%');set('futureBScore',x.b.norm+'%');
+    set('futureTestSpeed',`Automatic test • ${x.elapsed} ms • V85 selective tune • context-order repaired`);
+    if(!x.side)set('futureFinal',`Likely answer: WAIT — ${x.v84Gate.reason.replace(/^WAIT — /,'')}`);
+    else set('futureFinal',`Likely answer: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.label} • ${x.side==='P'?x.p.norm:x.b.norm}% vs ${x.side==='P'?x.b.norm:x.p.norm}%`);
+    const c=context();
+    const ctx=x.v84Gate.n>=20&&c.ready?` • Shoe context: ${c.lean}, ${c.strength}${c.eliteConflict?', elite conflict':''}`:'';
+    set('futureNote',`${x.v84Gate.roads}/3 derived roads ready • Gate needs ${x.v84Gate.minEdge}+ point edge • ${x.v84Gate.confirmation} • V72 scoring preserved; V85 filters weak/conflicting calls and arms only after refreshed shoe context.${ctx}`);
+    renderAcc();return x;
+  }
+  function settle(actual){const a=acc();if(!['P','B','T'].includes(actual))return;const q=a.pending;a.pending=null;if(actual==='T'){a.ties++;return}if(!q)return;const correct=q.side===actual;if(correct)a.wins++;else a.losses++;a.ledger.push({...q,actual,correct,settledAt:Date.now()});if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600)}
+  function arm(){const a=acc(),n=pbN(),x=tuned();if(!(x.side==='P'||x.side==='B')){a.pending=null;if(a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n}return}a.lastWaitHandN=null;a.pending={side:x.side,handN:n,edge:x.edge,p:x.p.norm,b:x.b.norm,reason:x.v84Gate.reason,confirmation:x.v84Gate.confirmation,armedAt:Date.now()}}
 
-  window.__applyV86Layout=place;
+  // Grade prior V84 prediction before the clicked result commits, then arm the next one after commit.
+  function bind(){
+    const nodes=[...document.querySelectorAll('[data-result]'),document.getElementById('previewP'),document.getElementById('previewB')].filter(Boolean);
+    nodes.forEach(btn=>{if(btn.__v84Gate)return;btn.__v84Gate=true;btn.addEventListener('click',function(){let actual=this.dataset&&this.dataset.result;if(!actual){if(this.id==='previewP')actual='P';if(this.id==='previewB')actual='B'}try{settle(actual)}catch(e){}setTimeout(()=>{setTimeout(()=>{try{arm();render();if(typeof persist==='function')persist()}catch(e){}},0)},0)},true)});
+    let rb=document.getElementById('resetFutureAccuracy');if(rb&&!rb.__v84Reset){const clean=rb.cloneNode(true);rb.parentNode.replaceChild(clean,rb);rb=clean;rb.__v84Reset=true;rb.addEventListener('click',()=>{if(!confirm('Reset only the V84 Main Road Future Test accuracy?'))return;const a=acc();a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.lastWaitHandN=null;a.ledger=[];try{persist()}catch(e){}render()})}
+  }
+  function syncAfterHistoryEdit(){
+    setTimeout(()=>{setTimeout(()=>{try{const a=acc();a.pending=null;arm();render();if(typeof persist==='function')persist()}catch(e){}},0)},0);
+  }
+  const u=document.getElementById('undoBtn');
+  if(u&&!u.__v85FutureSync){u.__v85FutureSync=true;u.addEventListener('click',syncAfterHistoryEdit,false);}
+  const cl=document.getElementById('clearBtn');
+  if(cl&&!cl.__v85FutureSync){cl.__v85FutureSync=true;cl.addEventListener('click',()=>{setTimeout(()=>{try{const a=acc();a.pending=null;a.lastWaitHandN=null;renderAcc();if(typeof persist==='function')persist()}catch(e){}},0)},false);}
+
+  window.mainRoadFutureTest=tuned;try{mainRoadFutureTest=tuned}catch(e){}
+  window.renderMainRoadFutureTest=render;try{renderMainRoadFutureTest=render}catch(e){}
+  window.__V84_MAIN_FUTURE_TUNE__={version:85,test:tuned,render,accuracy:acc,baseVersion:72,coreScoringChanged:false,selectiveGate:true,minRoads:2};
+  const title=document.querySelector('#mainRoadFutureTest .future-test-title');if(title)title.textContent='⚡ Main Road Future Test — P vs B';
+  bind();setTimeout(bind,250);setTimeout(bind,900);setTimeout(()=>{try{arm();render()}catch(e){}},50);
 })();
 </script>
 </body>
