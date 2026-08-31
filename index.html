@@ -12961,5 +12961,270 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v69-high-bot-v64-plus-bigeye-small">
+(function(){
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const phase=n=>n<18?'EARLY':n<40?'MIDDLE':'LATE';
+
+  function curSeq(){
+    try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return[]}
+  }
+  function library(){
+    try{return activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}
+  }
+  function hands(s){return s.split('').map(r=>({r}))}
+
+  function roadMarks(s,offset){
+    try{
+      if(typeof deriveRoad!=='function') return [];
+      return deriveRoad(hands(s),offset).map(x=>{
+        if(typeof x==='string') return String(x)[0].toUpperCase();
+        if(x&&typeof x==='object'){
+          const v=x.color||x.c||x.r||x.value||'';
+          return String(v)[0].toUpperCase();
+        }
+        return '';
+      }).filter(x=>x==='R'||x==='B');
+    }catch(e){return []}
+  }
+
+  function endingSimilarity(a,b,maxLen=10){
+    const n=Math.min(a.length,b.length,maxLen);
+    if(!n)return 0;
+    let same=0;
+    for(let i=1;i<=n;i++) if(a[a.length-i]===b[b.length-i]) same++;
+    return same/n;
+  }
+
+  function mainShape(s){
+    const a=s.filter(x=>x==='P'||x==='B'), cols=[];
+    if(!a.length)return '';
+    let side=a[0],run=1;
+    for(let i=1;i<a.length;i++){
+      if(a[i]===side) run++;
+      else{cols.push(side+Math.min(run,6));side=a[i];run=1}
+    }
+    cols.push(side+Math.min(run,6));
+    return cols.slice(-7).join('|');
+  }
+
+  function shapeSimilarity(a,b){
+    const A=a.split('|').filter(Boolean), B=b.split('|').filter(Boolean);
+    const n=Math.min(A.length,B.length);
+    if(!n)return 0;
+    let score=0;
+    for(let i=1;i<=n;i++){
+      const x=A[A.length-i], y=B[B.length-i];
+      if(x[0]===y[0]) score+=.58;
+      score+=.42*(1-Math.min(5,Math.abs(+x.slice(1)-(+y.slice(1))))/5);
+    }
+    return score/n;
+  }
+
+  function rawHighBotV69(){
+    const cur=curSeq(), L=library(), n=cur.length;
+    if(n<8||!L.length){
+      return {side:null,label:'WAIT',confidence:50,phase:phase(n),matches:0,reason:'building history'};
+    }
+
+    const k=Math.min(12,n);
+    const pat=cur.slice(-k);
+    const curMain=mainShape(cur);
+    const curEye=roadMarks(cur.join(''),1);
+    const curSmall=roadMarks(cur.join(''),2);
+    const curPos=(n-k)%6;
+    const cand=[];
+
+    L.forEach((shoe,si)=>{
+      const s=shoe.sequence||'';
+      let best=null;
+
+      for(let i=0;i+k<s.length;i++){
+        let same=0;
+        for(let j=0;j<k;j++) if(s[i+j]===pat[j]) same++;
+        const bead=same/k;
+        if(bead<.72) continue;
+
+        const prefix=s.slice(0,i+k);
+        const main=shapeSimilarity(curMain,mainShape(prefix));
+        const eye=endingSimilarity(curEye,roadMarks(prefix,1),10) || .5;
+        const small=endingSimilarity(curSmall,roadMarks(prefix,2),10) || .5;
+        const pos=(i%6)===curPos?1:0;
+        const phaseFit=phase(i+k)===phase(n)?1:.78;
+
+        const score=(.43*bead + .24*main + .13*eye + .10*small + .10*pos)*phaseFit;
+        const next=s[i+k];
+        if(next!=='P'&&next!=='B'&&next!=='T') continue;
+
+        if(!best||score>best.score){
+          best={score,next,bead,main,eye,small,pos,si};
+        }
+      }
+      if(best)cand.push(best);
+    });
+
+    cand.sort((a,b)=>b.score-a.score);
+    const top=cand.slice(0,Math.min(15,cand.length));
+
+    if(top.length<4){
+      return {side:null,label:'WAIT',confidence:50,phase:phase(n),matches:top.length,reason:'too few historical matches'};
+    }
+
+    let P=0,B=0,T=0;
+    top.forEach((x,r)=>{
+      const w=x.score*(1-r/(top.length*2));
+      if(x.next==='P') P+=w;
+      else if(x.next==='B') B+=w;
+      else T+=w;
+    });
+
+    const pb=P+B;
+    const side=P>=B?'P':'B';
+    const edge=pb?Math.abs(P-B)/pb:0;
+    const avg=top.reduce((q,x)=>q+x.score,0)/top.length;
+    const eyeAvg=top.reduce((q,x)=>q+x.eye,0)/top.length;
+    const smallAvg=top.reduce((q,x)=>q+x.small,0)/top.length;
+    const stability=clamp(Math.round(100*(avg*.65+Math.min(1,top.length/12)*.35)),0,100);
+
+    const eyeWeak=curEye.length>=4 && eyeAvg<.52;
+    const smallWeak=curSmall.length>=4 && smallAvg<.52;
+    const strong=edge>=.09 && avg>=.75 && stability>=55 && !eyeWeak && !smallWeak;
+
+    let result={
+      side:strong?side:null,
+      label:strong?(side==='P'?'PLAYER':'BANKER'):'WAIT',
+      confidence:strong?clamp(Math.round(50+edge*28+(avg-.72)*30),50,75):50,
+      phase:phase(n),
+      matches:top.length,
+      stability,
+      pPct:pb?Math.round(100*P/pb):50,
+      bPct:pb?Math.round(100*B/pb):50,
+      beadQuality:Math.round(100*top.reduce((q,x)=>q+x.bead,0)/top.length),
+      mainQuality:Math.round(100*top.reduce((q,x)=>q+x.main,0)/top.length),
+      bigEyeQuality:Math.round(100*eyeAvg),
+      smallRoadQuality:Math.round(100*smallAvg),
+      samePosition:top.filter(x=>x.pos).length,
+      reason:strong
+        ? 'Bead Plate + Main Road + Big Eye + Small Road + saved shoe history'
+        : 'WAIT — evidence not strong enough'
+    };
+
+    try{
+      if(typeof window.tieTransitionEvidence==='function'){
+        const t=window.tieTransitionEvidence();
+        result.tieTransition=t;
+        result.tieAware=true;
+        if(t&&t.active&&t.side){
+          if(result.side && result.side!==t.side){
+            result.side=null;
+            result.label='WAIT';
+            result.confidence=50;
+            result.tieTransitionStatus='CONFLICT_WAIT';
+            result.reason+=' • post-tie history conflicts';
+          }else if(result.side===t.side){
+            result.confidence=clamp(result.confidence+Math.min(4,(t.edge||0)/8),0,100);
+            result.tieTransitionStatus='CONFIRMS';
+          }
+        }
+      }
+    }catch(e){}
+
+    return result;
+  }
+
+  window.highPoweredBotSignal=rawHighBotV69;
+  window.masterBotSignal=rawHighBotV69;
+  try{highPoweredBotSignal=rawHighBotV69}catch(e){}
+  try{masterBotSignal=rawHighBotV69}catch(e){}
+
+  window.__highPoweredBotV69={
+    version:69,
+    sources:['BEAD_PLATE','MAIN_ROAD','BIG_EYE_BOY','SMALL_ROAD','SAVED_SHOE_HISTORY'],
+    excluded:['COCKROACH_ROAD','MAIN_ROAD_FUTURE_TEST'],
+    adaptive:true,
+    tieAware:true
+  };
+})();
+</script>
+
+
+<style id="v69-clean-dev-panels">
+#v58BotPanel,
+#v60SeqDupPanel,
+#v64TieTransitionPanel,
+#baccaratKnowledgeV27Panel {
+  display:none !important;
+}
+</style>
+<script id="v69-runtime-compatibility-fix">
+(function(){
+  const raw = window.highPoweredBotSignal;
+  if(typeof raw !== 'function') return;
+
+  function phaseObj(v){
+    const s=String(v||'EARLY').toUpperCase();
+    return {key:s.toLowerCase(),label:s};
+  }
+
+  function compatible(){
+    const x = raw.apply(this, arguments) || {};
+    const qualified = x.side==='P' || x.side==='B';
+    const samples = Number(x.matches)||0;
+
+    return {
+      ...x,
+      qualified,
+      candidate: qualified ? x.side : null,
+      strength: Number(x.confidence)||0,
+      samples,
+      windows:samples,
+      phase: phaseObj(x.phase),
+      phaseHist:{samples},
+      roadMem:{samples},
+      agree: qualified ? 1 : 0,
+      total: 1,
+      seqV2:{side:null,strength:0},
+      sequenceDuplicate:{side:null,strength:0},
+      roadPreview:{side:null,strength:0},
+      reason:x.reason || (qualified
+        ? 'V69 High Bot: Bead Plate + Main Road + Big Eye + Small Road + saved shoe history'
+        : 'WAIT — V69 evidence not strong enough')
+    };
+  }
+
+  compatible.__v69Compatible = true;
+  compatible.__base = raw;
+
+  window.highPoweredBotSignal = compatible;
+  window.masterBotSignal = compatible;
+  try{ highPoweredBotSignal = compatible; }catch(e){}
+  try{ masterBotSignal = compatible; }catch(e){}
+
+  window.__highPoweredBotV69.runtimeCompatibilityFixed = true;
+  window.__highPoweredBotV69.hiddenDevPanels = [
+    'v58BotPanel',
+    'v60SeqDupPanel',
+    'v64TieTransitionPanel',
+    'baccaratKnowledgeV27Panel'
+  ];
+
+  function removeVisibleDevPanels(){
+    ['v58BotPanel','v60SeqDupPanel','v64TieTransitionPanel','baccaratKnowledgeV27Panel']
+      .forEach(id=>{
+        const el=document.getElementById(id);
+        if(el) el.style.display='none';
+      });
+  }
+
+  removeVisibleDevPanels();
+  if(typeof MutationObserver==='function'){
+    const mo=new MutationObserver(removeVisibleDevPanels);
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+    window.__v69DevPanelObserver=mo;
+  }
+})();
+</script>
+
 </body>
 </html>
