@@ -13426,5 +13426,188 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v73-main-future-accuracy-direct-lifecycle">
+/* V73 — MAIN/DERIVED ROAD FUTURE TEST ACCURACY REPAIR
+   Direct lifecycle tracker. It no longer depends on the long verified-accuracy
+   wrapper chain, so every live P/B/T result reliably settles the exact
+   pre-result Future Test call, then the next hand is armed after render. */
+(function(){
+  'use strict';
+  if(window.__V73_FUTURE_ACCURACY_FIX__) return;
+  window.__V73_FUTURE_ACCURACY_FIX__=true;
+
+  function pbN(){
+    try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}
+  }
+  function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,lastArmedHandN:null,ledger:[],version:73}}
+  function acc(){
+    if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true){
+      if(!window.__V73_FUTURE_ACC_SIM__) window.__V73_FUTURE_ACC_SIM__=blank();
+      return window.__V73_FUTURE_ACC_SIM__;
+    }
+
+    if(!state.futureTestAccuracyV73 || typeof state.futureTestAccuracyV73!=='object'){
+      // Preserve any already-earned V56 score instead of unexpectedly resetting it.
+      const old=(state.futureTestAccuracyV56 && typeof state.futureTestAccuracyV56==='object')
+        ? state.futureTestAccuracyV56 : null;
+      state.futureTestAccuracyV73=blank();
+      if(old){
+        for(const k of ['wins','losses','waits','ties']){
+          if(Number.isFinite(Number(old[k]))) state.futureTestAccuracyV73[k]=Number(old[k]);
+        }
+        if(Array.isArray(old.ledger)) state.futureTestAccuracyV73.ledger=old.ledger.slice(-600);
+      }
+    }
+    const a=state.futureTestAccuracyV73;
+    for(const k of ['wins','losses','waits','ties']) if(!Number.isFinite(Number(a[k]))) a[k]=0;
+    if(!Array.isArray(a.ledger)) a.ledger=[];
+    a.version=73;
+    return a;
+  }
+
+  function test(){
+    try{
+      const fn=window.mainRoadFutureTest || (typeof mainRoadFutureTest==='function'?mainRoadFutureTest:null);
+      return typeof fn==='function'?fn():null;
+    }catch(e){console.warn('V73 future test',e);return null}
+  }
+
+  function arm(){
+    const a=acc(), handN=pbN(), x=test();
+    a.lastArmedHandN=handN;
+
+    if(!x || !(x.side==='P'||x.side==='B')){
+      a.pending=null;
+      if(a.lastWaitHandN!==handN){
+        a.waits++;
+        a.lastWaitHandN=handN;
+      }
+      renderAcc();
+      return;
+    }
+
+    a.lastWaitHandN=null;
+    a.pending={
+      side:x.side,
+      handN,
+      edge:Number(x.edge)||0,
+      p:Number(x?.p?.norm)||50,
+      b:Number(x?.b?.norm)||50,
+      readyRoads:Number(x.readyRoads)||0,
+      armedAt:Date.now()
+    };
+    renderAcc();
+  }
+
+  function settle(actual){
+    if(!['P','B','T'].includes(actual)) return;
+    const a=acc();
+    const q=a.pending;
+
+    // A tie is tracked but does not grade a P-vs-B prediction.
+    // The same P/B position is re-armed immediately after the tie is rendered.
+    if(actual==='T'){
+      a.ties++;
+      renderAcc();
+      return;
+    }
+
+    a.pending=null;
+    if(!q){
+      renderAcc();
+      return;
+    }
+
+    const correct=q.side===actual;
+    if(correct) a.wins++; else a.losses++;
+    a.ledger.push({...q,actual,correct,settledAt:Date.now()});
+    if(a.ledger.length>600) a.ledger.splice(0,a.ledger.length-600);
+
+    try{
+      if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true && typeof persist==='function') persist();
+    }catch(e){}
+    renderAcc();
+  }
+
+  function renderAcc(){
+    const a=acc(), n=(a.wins||0)+(a.losses||0);
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('futureAccuracyPct',n?(100*(a.wins||0)/n).toFixed(1)+'%':'—');
+    set('futureAccuracyWL',`${a.wins||0}W-${a.losses||0}L`);
+    set('futureAccuracyN',`N=${n}`);
+    set('futureAccuracyWait',`WAIT=${a.waits||0}`);
+    const row=document.getElementById('futureAccuracyRow');
+    if(row) row.dataset.accuracyEngine='V73-DIRECT';
+  }
+
+  // Settle at CAPTURE phase before any legacy result handler mutates state.hands.
+  document.addEventListener('click',function(ev){
+    const btn=ev.target && ev.target.closest ? ev.target.closest('[data-result]') : null;
+    if(!btn) return;
+    const actual=btn.getAttribute('data-result');
+    if(!['P','B','T'].includes(actual)) return;
+    settle(actual);
+    // The existing live handler now commits the result and calls render().
+    // Fallback re-arm covers any alternate result path.
+    setTimeout(arm,0);
+  },true);
+
+  // Own the reset action in capture phase so older V55/V56 listeners cannot
+  // reset a different ledger while leaving the visible V73 score untouched.
+  document.addEventListener('click',function(ev){
+    const b=ev.target && ev.target.closest ? ev.target.closest('#resetFutureAccuracy') : null;
+    if(!b) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    if(!confirm('Reset only the Main Road Future Test verified accuracy score?')) return;
+    state.futureTestAccuracyV73=blank();
+    try{if(typeof persist==='function')persist()}catch(e){}
+    renderAcc();
+    setTimeout(arm,0);
+  },true);
+
+  // Re-arm from the authoritative Future Test render path. This happens after
+  // a newly-entered hand is committed, so pending always belongs to NEXT hand.
+  const baseRender=window.renderMainRoadFutureTest ||
+    (typeof renderMainRoadFutureTest==='function'?renderMainRoadFutureTest:null);
+  if(typeof baseRender==='function' && !baseRender.__v73FutureAccuracy){
+    const wrapped=function(){
+      const r=baseRender.apply(this,arguments);
+      try{arm()}catch(e){console.warn('V73 future arm after render',e)}
+      return r;
+    };
+    wrapped.__v73FutureAccuracy=true;
+    wrapped.__base=baseRender;
+    window.renderMainRoadFutureTest=wrapped;
+    try{renderMainRoadFutureTest=wrapped}catch(e){}
+  }
+
+  // Re-arm when controls can change the pre-result context without adding a hand.
+  document.addEventListener('click',function(ev){
+    const id=ev.target?.closest?.('button')?.id||'';
+    if(['undoBtn','clearBtn','newShoeBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn'].includes(id)){
+      setTimeout(arm,60);
+    }
+  },true);
+
+  window.__mainRoadFutureAccuracyV73={
+    version:73,
+    accuracy:acc,
+    arm,
+    settle,
+    render:renderAcc,
+    directResultLifecycle:true,
+    independentOfVerifiedWrapperChain:true
+  };
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>{renderAcc();arm()},220),{once:true});
+  }else{
+    setTimeout(()=>{renderAcc();arm()},220);
+  }
+})();
+</script>
+
 </body>
 </html>
