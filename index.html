@@ -697,6 +697,14 @@
 </div>
 <div class="match-line" id="shoeMatcherLeanNote" style="margin-top:8px">Shoe Lean is confirmation only. It never overrides the 20-Hand Elite Match Gate.</div>
 <div class="match-line" id="sharedShoeContextStatus" style="margin-top:8px"><b>SHARED SHOE CONTEXT:</b> waiting for 20-hand matcher evidence.</div>
+<div id="shoeMatcherAccuracyRow" style="margin-top:8px;padding:8px 10px;border:1px solid #303743;border-radius:10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <strong>20-Hand Matcher Accuracy</strong>
+  <span id="shoeMatcherAccuracyPct">—</span>
+  <span id="shoeMatcherAccuracyWL">0W-0L</span>
+  <span id="shoeMatcherAccuracyN">N=0</span>
+  <span id="shoeMatcherAccuracyWait">WAIT=0</span>
+  <button class="tiny-btn" id="resetShoeMatcherAccuracy" type="button">Reset</button>
+</div>
 <div class="match-line" id="shoeMatcherDetail" style="margin-top:10px">Enter at least 6 results; 20+ hands is the preferred sequence-follow starting point.</div>
 <div style="margin-top:10px;padding:8px;border:1px solid #33405d;border-radius:8px;background:#0b0f18">
 <div style="font-size:10px;color:var(--muted);margin-bottom:5px">PROJECTED REMAINDER</div>
@@ -13937,6 +13945,108 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   window.__V84_MAIN_FUTURE_TUNE__={version:85,test:tuned,render,accuracy:acc,baseVersion:72,coreScoringChanged:false,selectiveGate:true,minRoads:2};
   const title=document.querySelector('#mainRoadFutureTest .future-test-title');if(title)title.textContent='⚡ Main Road Future Test — P vs B';
   bind();setTimeout(bind,250);setTimeout(bind,900);setTimeout(()=>{try{arm();render()}catch(e){}},50);
+})();
+</script>
+
+<script id="v86-shoe-matcher-independent-accuracy">
+(function(){
+  const KEY='shoe-matcher-accuracy-v86';
+  const FRESH=()=>({wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,lastSettledKey:null,ledger:[]});
+
+  function acc(){
+    if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true){
+      if(!window.__V86_MATCHER_ACC_SIM__)window.__V86_MATCHER_ACC_SIM__=FRESH();
+      return window.__V86_MATCHER_ACC_SIM__;
+    }
+    if(!window.__V86_MATCHER_ACC__){
+      let a=null; try{a=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+      window.__V86_MATCHER_ACC__=(a&&typeof a==='object')?a:FRESH();
+    }
+    const a=window.__V86_MATCHER_ACC__;
+    for(const k of ['wins','losses','waits','ties'])if(!Number.isFinite(a[k]))a[k]=0;
+    if(!Array.isArray(a.ledger))a.ledger=[];
+    return a;
+  }
+  function save(){
+    if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true)return;
+    try{localStorage.setItem(KEY,JSON.stringify(acc()))}catch(e){}
+  }
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  function render(){
+    const a=acc(),n=a.wins+a.losses;
+    set('shoeMatcherAccuracyPct',n?(100*a.wins/n).toFixed(1)+'%':'—');
+    set('shoeMatcherAccuracyWL',`${a.wins}W-${a.losses}L`);
+    set('shoeMatcherAccuracyN',`N=${n}`);
+    set('shoeMatcherAccuracyWait',`WAIT=${a.waits}`);
+  }
+  function handN(){try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}}
+  function getCall(){
+    const c=window.__SHARED_SHOE_CONTEXT__||{};
+    if(handN()<20||!c.ready)return {side:null,reason:'NOT READY'};
+    if(c.eliteConflict)return {side:null,reason:'ELITE CONFLICT'};
+    if(c.nextSide==='P'||c.nextSide==='B')return {side:c.nextSide,reason:(c.bestScore||0)>=.95?'ELITE':'MATCHER'};
+    return {side:null,reason:'WAIT'};
+  }
+  function arm(){
+    const a=acc(),n=handN(),call=getCall();
+    if(call.side){
+      a.pending={side:call.side,handN:n,reason:call.reason,armedAt:Date.now()};
+      a.lastWaitHandN=null;
+    }else{
+      a.pending=null;
+      if(n>=20&&a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n;}
+    }
+    save();render();
+  }
+  function settle(actual){
+    if(!['P','B','T'].includes(actual))return;
+    const a=acc(),q=a.pending;
+    if(!q)return;
+    // One prediction belongs to exactly the next result after handN.
+    const settleKey=`${q.handN}->${q.handN+1}`;
+    if(a.lastSettledKey===settleKey){a.pending=null;return;}
+    a.pending=null;a.lastSettledKey=settleKey;
+    if(actual==='T'){a.ties++;save();render();return;}
+    const correct=q.side===actual;
+    if(correct)a.wins++;else a.losses++;
+    a.ledger.push({predicted:q.side,actual,correct,handN:q.handN,reason:q.reason,settledAt:Date.now()});
+    if(a.ledger.length>500)a.ledger.splice(0,a.ledger.length-500);
+    save();render();
+  }
+  function postCommitArm(){setTimeout(()=>setTimeout(()=>{try{arm()}catch(e){}},0),0)}
+
+  function bindResult(btn){
+    if(!btn||btn.__v86MatcherAcc)return;
+    btn.__v86MatcherAcc=true;
+    btn.addEventListener('click',function(){
+      let actual=this.dataset&&this.dataset.result;
+      if(!actual&&this.id==='previewP')actual='P';
+      if(!actual&&this.id==='previewB')actual='B';
+      try{settle(actual)}catch(e){}
+      postCommitArm();
+    },true);
+  }
+  function bind(){
+    document.querySelectorAll('[data-result]').forEach(bindResult);
+    bindResult(document.getElementById('previewP'));bindResult(document.getElementById('previewB'));
+    const rb=document.getElementById('resetShoeMatcherAccuracy');
+    if(rb&&!rb.__v86MatcherReset){rb.__v86MatcherReset=true;rb.addEventListener('click',()=>{
+      if(!confirm('Reset only the 20-Hand Matcher accuracy?'))return;
+      window.__V86_MATCHER_ACC__=FRESH();try{localStorage.removeItem(KEY)}catch(e){}
+      render();postCommitArm();
+    });}
+    const u=document.getElementById('undoBtn');
+    if(u&&!u.__v86MatcherUndo){u.__v86MatcherUndo=true;u.addEventListener('click',()=>{
+      // Never grade on Undo; discard stale pending and re-arm from refreshed history.
+      acc().pending=null;postCommitArm();save();
+    },false);}
+    const cl=document.getElementById('clearBtn');
+    if(cl&&!cl.__v86MatcherClear){cl.__v86MatcherClear=true;cl.addEventListener('click',()=>{
+      setTimeout(()=>{const a=acc();a.pending=null;a.lastWaitHandN=null;a.lastSettledKey=null;save();render()},0);
+    },false);}
+  }
+  window.__V86_MATCHER_ACCURACY__={version:86,acc,arm,settle,render,getCall,independent:true};
+  bind();setTimeout(bind,250);setTimeout(bind,900);setTimeout(()=>{try{arm()}catch(e){}},80);
 })();
 </script>
 </body>
