@@ -13023,7 +13023,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     'blackContextV22',
     'metaWalkV23',
     'roadPreviewAiPanel',
-    'masterBotPanel'
+    /* V86: High-Powered Bot intentionally removed from V71 top-order enforcement */
   ];
 
   const BOTTOM_IDS=[
@@ -13639,70 +13639,58 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 </script>
 
 
-<script id="v85-layout-corrected-user-request">
+<script id="v86-layout-corrected-no-blink">
 (()=>{
   'use strict';
-  // User-requested layout only:
-  // 1) RED/BLACK Specialist takes the High-Powered Bot's original slot.
-  // 2) High-Powered Bot moves to the bottom.
-  // 3) Structure Proof moves to the bottom.
-  // 4) Main Road Future Test is NEVER moved by this patch.
-  let busy=false;
-  function applyV85Layout(){
-    if(busy) return;
-    busy=true;
-    try{
-      const bot=document.getElementById('masterBotPanel');
-      const specialist=document.getElementById('rbSpecialistV20');
-      const proof=document.getElementById('structureProofV51Panel');
-      let dock=document.getElementById('diagnosticToolsAbsoluteBottomV36');
-      if(!dock){
-        dock=document.createElement('div');
-        dock.id='diagnosticToolsAbsoluteBottomV36';
-        dock.style.cssText='max-width:1200px;margin:18px auto 0;padding:0 8px 18px;';
-        document.body.appendChild(dock);
-      }
+  // Final layout authority. No MutationObserver: prevents panel tug-of-war/blinking.
+  function place(){
+    const bot=document.getElementById('masterBotPanel');
+    const specialist=document.getElementById('rbSpecialistV20');
+    const proof=document.getElementById('structureProofV51Panel');
+    const app=document.querySelector('.app');
+    if(!app) return false;
 
-      // Preserve the Bot's original location with a stable marker.
-      let slot=document.getElementById('v85OriginalBotSlot');
-      if(!slot && bot && bot.parentNode && bot.parentNode!==dock){
-        slot=document.createElement('div');
-        slot.id='v85OriginalBotSlot';
-        slot.style.display='contents';
-        bot.parentNode.insertBefore(slot,bot);
-      }
+    // Use the V71 top stack's end as the original High-Bot area.
+    const top=document.getElementById('v71TopAiStack');
+    if(top && specialist && specialist.parentNode!==top) top.appendChild(specialist);
 
-      // Put RED/BLACK Specialist into the Bot's former position.
-      if(slot && specialist && specialist.previousSibling!==slot){
-        slot.parentNode.insertBefore(specialist,slot.nextSibling);
-      }
+    // Create one bottom layout stack INSIDE .app so it does not fight V71's bottom stack.
+    let dock=document.getElementById('v86RequestedBottomStack');
+    if(!dock){
+      dock=document.createElement('div');
+      dock.id='v86RequestedBottomStack';
+      dock.setAttribute('data-ui-order','requested-bottom-panels');
+    }
+    if(dock.parentNode!==app) app.appendChild(dock);
 
-      // Move only these requested panels to the bottom dock.
-      if(bot && bot.parentNode!==dock) dock.appendChild(bot);
-      if(proof && proof.parentNode!==dock) dock.appendChild(proof);
+    if(bot && bot.parentNode!==dock) dock.appendChild(bot);
+    if(proof && proof.parentNode!==dock) dock.appendChild(proof);
+    if(bot && proof && bot.nextElementSibling!==proof) dock.insertBefore(proof,bot.nextElementSibling);
 
-      // Keep Structure Proof after High-Powered Bot at the bottom.
-      if(bot && proof && bot.parentNode===dock && proof.parentNode===dock){
-        if(bot.nextElementSibling!==proof) dock.insertBefore(proof,bot.nextElementSibling);
-      }
-
-      // Keep the bottom dock itself at the absolute bottom.
-      if(dock.parentNode!==document.body || dock!==document.body.lastElementChild){
-        document.body.appendChild(dock);
-      }
-    } finally { busy=false; }
+    // Make this requested stack the last child of .app. This operation is finite.
+    if(app.lastElementChild!==dock) app.appendChild(dock);
+    return !!(specialist && bot && proof);
   }
 
-  // Dynamic panels are created after load/render, so re-assert layout safely.
-  document.addEventListener('DOMContentLoaded',()=>{
-    applyV85Layout();
-    setTimeout(applyV85Layout,300);
-    setTimeout(applyV85Layout,900);
-    setTimeout(applyV85Layout,1800);
-  });
-  const mo=new MutationObserver(()=>setTimeout(applyV85Layout,0));
-  setTimeout(()=>{ if(document.body) mo.observe(document.body,{childList:true,subtree:true}); applyV85Layout(); },50);
-  window.__applyV85Layout=applyV85Layout;
+  function finiteRetry(){
+    let tries=0;
+    const tick=()=>{
+      tries++;
+      const ready=place();
+      if(!ready && tries<20) setTimeout(tick,100);
+      else {
+        // A few delayed passes cover late-created dynamic panels without a permanent observer.
+        setTimeout(place,350);
+        setTimeout(place,1000);
+      }
+    };
+    tick();
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',finiteRetry,{once:true});
+  else finiteRetry();
+
+  window.__applyV86Layout=place;
 })();
 </script>
 </body>
