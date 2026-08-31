@@ -13299,5 +13299,53 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   window.__V74_SCAN_STATUS__={syntaxClean:true,duplicateIds:0,governorRuntimeRemoved:true,centralLedgerUiRemoved:true,individualAccuracyPreserved:true};
 })();
 </script>
+
+<script id="v75-reset-buttons-all-ai-accuracy">
+(function(){
+  function resetOne(key,label){
+    try{
+      if(!window.state && typeof state==='undefined') return;
+      const a=state.accuracyVerified||(state.accuracyVerified={models:{},pending:{},ties:0,version:1});
+      a.models=a.models||{}; a.pending=a.pending||{};
+      delete a.models[key];
+      delete a.pending[key];
+      try{ if(typeof persist==='function') persist(); }catch(e){}
+      try{ window.renderVerifiedAccuracy?.(); }catch(e){}
+      try{ window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.(); }catch(e){}
+      setTimeout(()=>{ try{ window.__armVerifiedPredictions?.(); }catch(e){} },150);
+    }catch(e){ console.error('V75 reset accuracy failed',key,e); }
+  }
+  function install(){
+    document.querySelectorAll('[data-v73-acc]').forEach(card=>{
+      const key=card.getAttribute('data-v73-acc');
+      if(!key || card.querySelector('[data-v75-reset="'+key+'"]')) return;
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.setAttribute('data-v75-reset',key);
+      btn.textContent='Reset Accuracy';
+      btn.style.marginTop='7px';
+      btn.style.fontSize='11px';
+      btn.style.padding='5px 8px';
+      btn.addEventListener('click',()=>{
+        const title=card.closest('.analyzer,.road-predict-panel')?.querySelector('.analyzer-title,.road-predict-title')?.textContent?.trim()||key;
+        resetOne(key,title);
+      });
+      card.appendChild(btn);
+    });
+    // Preserve the Main Road Future Test's existing dedicated reset control; normalize its wording.
+    const future=document.getElementById('resetFutureAccuracy');
+    if(future) future.textContent='Reset Accuracy';
+  }
+  const oldRefresh=window.__V73_INDIVIDUAL_ACCURACY__?.refresh;
+  if(window.__V73_INDIVIDUAL_ACCURACY__ && typeof oldRefresh==='function'){
+    window.__V73_INDIVIDUAL_ACCURACY__.refresh=function(){ const r=oldRefresh.apply(this,arguments); install(); return r; };
+  }
+  const oldRender=window.render;
+  if(typeof oldRender==='function') window.render=function(){const r=oldRender.apply(this,arguments);setTimeout(install,0);return r;};
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{install();setTimeout(install,300);setTimeout(install,1200)});
+  else {install();setTimeout(install,300);setTimeout(install,1200)}
+  window.__V75_RESET_ALL_AI_ACCURACY__={install,resetOne};
+})();
+</script>
 </body>
 </html>
