@@ -13438,6 +13438,81 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   window.__V76_ACCURACY_FIX__={version:76,repairArm:true,repairSettle:true};
 })();
 </script>
-<!-- V77: direct pre-result accuracy fallback + per-AI duplicate guard -->
+
+<script id="v78-authoritative-click-accuracy-counter">
+(function(){
+  const VERSION=78;
+  function ensure(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object') state.accuracyVerified={models:{},pending:{},ties:0,version:VERSION};
+    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {};
+    return state.accuracyVerified;
+  }
+  function defs(){ return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]; }
+  function context(){
+    const n=currentSequence().filter(x=>x==='P'||x==='B').length;
+    const color=String(state.currentShoeColor||'combined').toLowerCase();
+    const phase=n<18?'early':n<36?'middle':'late';
+    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
+    return {color,phase,learningUpdates,learningStage:learningUpdates>0?'after':'before'};
+  }
+  function model(a,key,name){
+    return a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  }
+  function snapshot(actual){
+    if(actual!=='P'&&actual!=='B'&&actual!=='T') return null;
+    const a=ensure(), hand=currentSequence().length+1, seq=currentSequence().join(''), ctx=context(), calls=[];
+    for(const [key,name,get] of defs()){
+      const m=model(a,key,name);
+      let x=null; try{x=get()}catch(e){}
+      const side=String(x?.side||'').toUpperCase();
+      if(side==='P'||side==='B') calls.push({key,name,side,strength:Number(x?.strength)||0,hand,seq,...ctx});
+      else if(Number(m.lastWaitHand)!==hand){ m.waits=(Number(m.waits)||0)+1; m.lastWaitHand=hand; }
+    }
+    return {actual,hand,calls,capturedAt:Date.now()};
+  }
+  function grade(snap){
+    if(!snap) return;
+    const a=ensure();
+    if(snap.actual==='T'){
+      if(Number(a.__v78LastTieHand)!==snap.hand){ a.ties=(Number(a.ties)||0)+1; a.__v78LastTieHand=snap.hand; }
+    }else{
+      for(const p of snap.calls){
+        const m=model(a,p.key,p.name);
+        // Existing verifier may already have graded this hand. Never double-count.
+        if(Number(m.lastScoredHand)===snap.hand || Number(m.__v78LastScoredHand)===snap.hand) continue;
+        const win=p.side===snap.actual;
+        m.predictions=(Number(m.predictions)||0)+1;
+        if(win) m.wins=(Number(m.wins)||0)+1; else m.losses=(Number(m.losses)||0)+1;
+        m.lastScoredHand=snap.hand; m.__v78LastScoredHand=snap.hand;
+        m.splits ||= {};
+        const bump=id=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;};
+        if(p.color==='red'||p.color==='black') bump('color:'+p.color);
+        if(p.phase) bump('phase:'+p.phase);
+        if(p.key==='metav23') bump('learning:'+(p.learningStage||'before'));
+        [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
+        m.last={predicted:p.side,actual:snap.actual,win,hand:snap.hand,lockedAt:snap.capturedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates,source:'V78 direct click'};
+        delete a.pending[p.key];
+      }
+    }
+    try{persist()}catch(e){}
+    try{window.renderVerifiedAccuracy?.()}catch(e){}
+    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  }
+  function actualFromTarget(t){
+    const el=t?.closest?.('[data-result],#previewP,#previewB'); if(!el) return null;
+    if(el.dataset?.result) return String(el.dataset.result).toUpperCase();
+    if(el.id==='previewP') return 'P'; if(el.id==='previewB') return 'B';
+    return null;
+  }
+  document.addEventListener('click',function(e){
+    const actual=actualFromTarget(e.target); if(!actual) return;
+    const snap=snapshot(actual); if(!snap) return;
+    // Let the app's normal handler commit the result first, then fill any counter the legacy hooks missed.
+    queueMicrotask(()=>grade(snap));
+  },true);
+  window.__V78_ACCURACY_COUNTER__={version:VERSION,snapshot,grade,authoritativeClickFallback:true};
+})();
+</script>
+
 </body>
 </html>
