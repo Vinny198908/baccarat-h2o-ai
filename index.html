@@ -13329,5 +13329,102 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v72-fast-shoe-color-buttons">
+/* V72 — repair RED / BLACK / COMBINED shoe selector buttons.
+   Immediate UI response; heavy recalculation is deferred so iPhone/iPad taps do not look frozen. */
+(function(){
+  'use strict';
+  if(window.__V72_SHOE_COLOR_BUTTON_FIX__) return;
+  window.__V72_SHOE_COLOR_BUTTON_FIX__=true;
+
+  let busy=false, timer=0;
+
+  function safe(fn){try{return fn()}catch(e){console.warn('V72 shoe selector:',e)}}
+
+  function finalizeHeavy(){
+    clearTimeout(timer);
+    timer=setTimeout(()=>{
+      safe(()=>persist());
+      safe(()=>render());
+      safe(()=>{
+        if(state?.kaggleLibraryEnabled!==false && typeof scoreWithKaggle==='function'){
+          setTimeout(()=>safe(()=>scoreWithKaggle(false)),40);
+        }
+      });
+      busy=false;
+    },35);
+  }
+
+  function choose(mode){
+    if(!window.state && typeof state==='undefined') return;
+
+    if(mode==='red' || mode==='black'){
+      state.currentShoeColor=mode;
+      state.predictionLibraryMode='selected';
+    }else if(mode==='combined'){
+      state.predictionLibraryMode='combined';
+    }else return;
+
+    if(state.h2o) state.h2o.last=null;
+    if(state.deepseek) state.deepseek.last=null;
+    if(state.kaggle) state.kaggle.last=null;
+    if(state.backtest) state.backtest.pending=null;
+
+    // Paint the selected button/status immediately before expensive AI work.
+    safe(()=>renderCurrentShoeColor());
+
+    // Yield to Safari so the tap highlight/status appears instantly.
+    if(!busy){
+      busy=true;
+      if(typeof requestAnimationFrame==='function'){
+        requestAnimationFrame(()=>finalizeHeavy());
+      }else{
+        finalizeHeavy();
+      }
+    }else{
+      finalizeHeavy();
+    }
+  }
+
+  function replaceAndBind(id,mode){
+    const old=document.getElementById(id);
+    if(!old || old.dataset.v72Bound==='1') return;
+    const btn=old.cloneNode(true); // removes legacy onclick/listeners
+    btn.dataset.v72Bound='1';
+    old.parentNode.replaceChild(btn,old);
+
+    btn.addEventListener('click',function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      choose(mode);
+    },false);
+
+    // iOS Safari can occasionally synthesize delayed click behavior after layout moves.
+    btn.addEventListener('touchend',function(){
+      // click normally follows; this only ensures visual feedback immediately.
+      safe(()=>renderCurrentShoeColor());
+    },{passive:true});
+  }
+
+  function bind(){
+    replaceAndBind('currentRedShoeBtn','red');
+    replaceAndBind('currentBlackShoeBtn','black');
+    replaceAndBind('combinedShoeBtn','combined');
+    safe(()=>renderCurrentShoeColor());
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',bind,{once:true});
+  }else{
+    bind();
+  }
+  setTimeout(bind,150);
+  setTimeout(bind,700);
+
+  window.__V72_SET_SHOE_COLOR__=choose;
+})();
+</script>
+
 </body>
 </html>
