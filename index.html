@@ -5127,6 +5127,7 @@ renderLibraryBackupStatus();
     ['metav49','Meta-Selector AI V49',()=>{try{const z=window.__metaSelectorV49?.signal?.()||{};return {side:z.qualified&&(z.side==='P'||z.side==='B')?z.side:null,strength:Number(z.confidence||z.trust)||0}}catch(e){return {side:null,strength:0}}}],
     ['metav50','Meta-Selector AI V50',()=>{try{const z=window.__metaSelectorV50?.signal?.()||{};return {side:z.qualified&&(z.side==='P'||z.side==='B')?z.side:null,strength:Number(z.confidence||z.trust)||0}}catch(e){return {side:null,strength:0}}}],
   ];
+  window.__accuracyModelDefs=modelDefs;
   function verifiedContext(){
     const seq=currentSequence().filter(x=>x==='P'||x==='B');
     const n=seq.length;
@@ -13345,6 +13346,63 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{install();setTimeout(install,300);setTimeout(install,1200)});
   else {install();setTimeout(install,300);setTimeout(install,1200)}
   window.__V75_RESET_ALL_AI_ACCURACY__={install,resetOne};
+})();
+</script>
+
+<script id="v76-all-ai-accuracy-repair">
+(function(){
+  function ensure(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object') state.accuracyVerified={models:{},pending:{},ties:0,version:2};
+    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {};
+    return state.accuracyVerified;
+  }
+  function ctx(){
+    const seq=currentSequence().filter(x=>x==='P'||x==='B'),n=seq.length;
+    const color=String(state.currentShoeColor||'combined').toLowerCase();
+    const phase=n<18?'early':n<36?'middle':'late';
+    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
+    return {color,phase,learningUpdates,learningStage:learningUpdates>0?'after':'before'};
+  }
+  function refresh(){try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){} }
+  function ensureDirectLocks(){
+    const a=ensure(),hand=currentSequence().length+1,seq=currentSequence().join(''),c=ctx();
+    const defs=Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];
+    Object.entries(a.pending).forEach(([k,p])=>{if(!p||Number(p.hand)!==hand)delete a.pending[k]});
+    defs.forEach(([key,name,get])=>{
+      if(a.pending[key]&&Number(a.pending[key].hand)===hand)return;
+      let x=null;try{x=get()}catch(e){}
+      const side=x?.side;
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      if(side==='P'||side==='B') a.pending[key]={side,hand,seq,lockedAt:Date.now(),strength:Number(x.strength)||0,...c};
+      else if(m.lastWaitHand!==hand){m.waits=(Number(m.waits)||0)+1;m.lastWaitHand=hand;}
+    });
+  }
+  function manualGrade(key,p,actual){
+    const a=ensure(),m=a.models[key]||(a.models[key]={name:key,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+    const win=p.side===actual;m.predictions=(Number(m.predictions)||0)+1;if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
+    m.splits ||= {};const bump=id=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;};
+    if(p.color==='red'||p.color==='black')bump('color:'+p.color);if(p.phase)bump('phase:'+p.phase);if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
+    [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
+    m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates};delete a.pending[key];
+  }
+  const oldArm=window.__armVerifiedPredictions;
+  window.__armVerifiedPredictions=function(){
+    let r;try{if(typeof oldArm==='function')r=oldArm.apply(this,arguments)}catch(e){console.warn('V76 old arm repaired',e)}
+    try{ensureDirectLocks();persist();refresh()}catch(e){console.warn('V76 direct arm',e)}return r;
+  };
+  const oldSettle=window.__settleVerifiedPredictions;
+  window.__settleVerifiedPredictions=function(actual){
+    const a=ensure(),hand=currentSequence().length+1,snap={},before={};
+    Object.entries(a.pending||{}).forEach(([k,p])=>{if(p&&Number(p.hand)===hand){snap[k]={...p};before[k]=Number(a.models?.[k]?.predictions)||0;}});
+    let r;try{if(typeof oldSettle==='function')r=oldSettle.apply(this,arguments)}catch(e){console.warn('V76 old settle repaired',e)}
+    if(actual==='P'||actual==='B'){
+      Object.entries(snap).forEach(([k,p])=>{const after=Number(a.models?.[k]?.predictions)||0;if(after<=before[k])manualGrade(k,p,actual)});
+    }
+    try{persist();refresh()}catch(e){}return r;
+  };
+  setTimeout(()=>{try{window.__armVerifiedPredictions();refresh()}catch(e){}},250);
+  setTimeout(()=>{try{window.__armVerifiedPredictions();refresh()}catch(e){}},1000);
+  window.__V76_ACCURACY_FIX__={version:76,repairArm:true,repairSettle:true};
 })();
 </script>
 </body>
