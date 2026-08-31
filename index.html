@@ -13638,5 +13638,72 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v85-layout-corrected-user-request">
+(()=>{
+  'use strict';
+  // User-requested layout only:
+  // 1) RED/BLACK Specialist takes the High-Powered Bot's original slot.
+  // 2) High-Powered Bot moves to the bottom.
+  // 3) Structure Proof moves to the bottom.
+  // 4) Main Road Future Test is NEVER moved by this patch.
+  let busy=false;
+  function applyV85Layout(){
+    if(busy) return;
+    busy=true;
+    try{
+      const bot=document.getElementById('masterBotPanel');
+      const specialist=document.getElementById('rbSpecialistV20');
+      const proof=document.getElementById('structureProofV51Panel');
+      let dock=document.getElementById('diagnosticToolsAbsoluteBottomV36');
+      if(!dock){
+        dock=document.createElement('div');
+        dock.id='diagnosticToolsAbsoluteBottomV36';
+        dock.style.cssText='max-width:1200px;margin:18px auto 0;padding:0 8px 18px;';
+        document.body.appendChild(dock);
+      }
+
+      // Preserve the Bot's original location with a stable marker.
+      let slot=document.getElementById('v85OriginalBotSlot');
+      if(!slot && bot && bot.parentNode && bot.parentNode!==dock){
+        slot=document.createElement('div');
+        slot.id='v85OriginalBotSlot';
+        slot.style.display='contents';
+        bot.parentNode.insertBefore(slot,bot);
+      }
+
+      // Put RED/BLACK Specialist into the Bot's former position.
+      if(slot && specialist && specialist.previousSibling!==slot){
+        slot.parentNode.insertBefore(specialist,slot.nextSibling);
+      }
+
+      // Move only these requested panels to the bottom dock.
+      if(bot && bot.parentNode!==dock) dock.appendChild(bot);
+      if(proof && proof.parentNode!==dock) dock.appendChild(proof);
+
+      // Keep Structure Proof after High-Powered Bot at the bottom.
+      if(bot && proof && bot.parentNode===dock && proof.parentNode===dock){
+        if(bot.nextElementSibling!==proof) dock.insertBefore(proof,bot.nextElementSibling);
+      }
+
+      // Keep the bottom dock itself at the absolute bottom.
+      if(dock.parentNode!==document.body || dock!==document.body.lastElementChild){
+        document.body.appendChild(dock);
+      }
+    } finally { busy=false; }
+  }
+
+  // Dynamic panels are created after load/render, so re-assert layout safely.
+  document.addEventListener('DOMContentLoaded',()=>{
+    applyV85Layout();
+    setTimeout(applyV85Layout,300);
+    setTimeout(applyV85Layout,900);
+    setTimeout(applyV85Layout,1800);
+  });
+  const mo=new MutationObserver(()=>setTimeout(applyV85Layout,0));
+  setTimeout(()=>{ if(document.body) mo.observe(document.body,{childList:true,subtree:true}); applyV85Layout(); },50);
+  window.__applyV85Layout=applyV85Layout;
+})();
+</script>
 </body>
 </html>
