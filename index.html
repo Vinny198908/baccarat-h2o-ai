@@ -13555,5 +13555,88 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   window.__V83_CANONICAL_ACCURACY__={version:VERSION,models:MODELS.map(x=>x[0]),capture,settle,sideFrom};
 })();
 </script>
+
+<script id="v84-main-future-single-grade-fix">
+(function(){
+  const VERSION=84;
+  let serial=0, active=null;
+  function engine(){ return window.__V72_MAIN_FUTURE__ || null; }
+  function acc(){ try{return engine()?.accuracy?.()||null}catch(e){return null} }
+  function test(){ try{return engine()?.test?.()||null}catch(e){return null} }
+  function actualFromTarget(t){
+    const r=t?.closest?.('[data-result]');
+    const a=String(r?.dataset?.result||'').toUpperCase();
+    if(a==='P'||a==='B'||a==='T')return a;
+    const id=t?.closest?.('#previewP,#previewB')?.id;
+    return id==='previewP'?'P':id==='previewB'?'B':null;
+  }
+  function snapshot(actual){
+    const a=acc(),x=test(); if(!a)return null;
+    const side=(x?.side==='P'||x?.side==='B')?x.side:null;
+    return {
+      token:++serial, actual, side,
+      preHands:Array.isArray(state?.hands)?state.hands.length:0,
+      base:{
+        wins:Number(a.wins)||0, losses:Number(a.losses)||0,
+        waits:Number(a.waits)||0, ties:Number(a.ties)||0,
+        ledger:Array.isArray(a.ledger)?a.ledger.slice():[]
+      },
+      prediction:x?{side,edge:Number(x.edge)||0,p:Number(x.p?.norm)||0,b:Number(x.b?.norm)||0}:null,
+      at:Date.now()
+    };
+  }
+  function renderAcc(){
+    try{
+      const a=acc(); if(!a)return;
+      const n=(Number(a.wins)||0)+(Number(a.losses)||0);
+      const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
+      set('futureAccuracyPct',n?((100*(Number(a.wins)||0)/n).toFixed(1)+'%'):'—');
+      set('futureAccuracyWL',`${Number(a.wins)||0}W-${Number(a.losses)||0}L`);
+      set('futureAccuracyN',`N=${n}`);
+      set('futureAccuracyWait',`WAIT=${Number(a.waits)||0}`);
+    }catch(e){}
+  }
+  function normalize(s){
+    if(!s||active!==s)return;
+    const hands=Array.isArray(state?.hands)?state.hands.length:0;
+    if(hands<s.preHands+1){ setTimeout(()=>normalize(s),80); return; }
+    const a=acc(); if(!a||active!==s)return;
+    // Preserve the newly armed NEXT-hand pending prediction, but make this result's score authoritative.
+    const nextPending=a.pending;
+    a.wins=s.base.wins; a.losses=s.base.losses; a.waits=s.base.waits; a.ties=s.base.ties;
+    a.ledger=s.base.ledger.slice();
+    if(s.actual==='P'||s.actual==='B'){
+      if(s.side){
+        const correct=s.side===s.actual;
+        if(correct)a.wins++; else a.losses++;
+        a.ledger.push({
+          side:s.side,actual:s.actual,correct,
+          edge:s.prediction?.edge||0,p:s.prediction?.p||0,b:s.prediction?.b||0,
+          settledAt:Date.now(),source:'V84 authoritative single-grade',token:s.token
+        });
+        if(a.ledger.length>600)a.ledger=a.ledger.slice(-600);
+      }
+      // WAIT was already registered when this hand was armed; do not add another WAIT here.
+    }else if(s.actual==='T'){
+      a.ties=s.base.ties+1;
+    }
+    a.pending=nextPending;
+    a.lastCanonicalHand=hands;
+    a.lastCanonicalToken=s.token;
+    try{if(typeof persist==='function')persist()}catch(e){}
+    renderAcc();
+    active=null;
+  }
+  window.addEventListener('click',function(e){
+    const actual=actualFromTarget(e.target); if(!actual)return;
+    const s=snapshot(actual); if(!s)return;
+    active=s;
+    // Run after all legacy settle/render/arm handlers so their duplicate/missed mutations are normalized away.
+    setTimeout(()=>normalize(s),220);
+  },true);
+  window.__V84_MAIN_FUTURE_SINGLE_GRADE__={version:VERSION,snapshot,normalize,accuracy:acc,test};
+})();
+</script>
+
 </body>
 </html>
