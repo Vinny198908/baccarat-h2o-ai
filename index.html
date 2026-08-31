@@ -13226,5 +13226,108 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v71-exact-ai-panel-order">
+/* Exact UI order restored from the earlier working panel-order build.
+   UI ORDER ONLY — High Bot prediction/learning logic is unchanged. */
+(function(){
+  'use strict';
+  if(window.__V71_EXACT_AI_PANEL_ORDER__) return;
+  window.__V71_EXACT_AI_PANEL_ORDER__=true;
+
+  const TOP_IDS=[
+    'focusAIV26',
+    'blackContextV22',
+    'metaWalkV23',
+    'roadPreviewAiPanel',
+    'masterBotPanel'
+  ];
+
+  const BOTTOM_IDS=[
+    'liveModelGovernorV32',
+    'regimePhaseV39',
+    'verifiedAccuracyPanel',
+    'allAiLearningV10Panel',
+    'selfLearningV9Panel',
+    'colorPatternAiPanel'
+  ];
+
+  function ensureStacks(){
+    const app=document.querySelector('.app');
+    if(!app) return null;
+
+    let top=document.getElementById('v71TopAiStack');
+    if(!top){
+      top=document.createElement('div');
+      top.id='v71TopAiStack';
+      top.setAttribute('data-ui-order','top-priority-ai');
+      const bar=app.querySelector('.topbar');
+      if(bar && bar.nextSibling) app.insertBefore(top,bar.nextSibling);
+      else app.insertBefore(top,app.firstChild);
+    }
+
+    let bottom=document.getElementById('v71BottomAiStack');
+    if(!bottom){
+      bottom=document.createElement('div');
+      bottom.id='v71BottomAiStack';
+      bottom.setAttribute('data-ui-order','bottom-learning-audit');
+      app.appendChild(bottom);
+    }
+    return {app,top,bottom};
+  }
+
+  let moving=false;
+  function enforce(){
+    if(moving) return;
+    const stacks=ensureStacks();
+    if(!stacks) return;
+    moving=true;
+    try{
+      for(const id of TOP_IDS){
+        const el=document.getElementById(id);
+        if(el && el.parentNode!==stacks.top) stacks.top.appendChild(el);
+      }
+      for(const id of BOTTOM_IDS){
+        const el=document.getElementById(id);
+        if(el && el.parentNode!==stacks.bottom) stacks.bottom.appendChild(el);
+      }
+      if(stacks.bottom.parentNode===stacks.app && stacks.app.lastElementChild!==stacks.bottom){
+        stacks.app.appendChild(stacks.bottom);
+      }
+    }finally{
+      moving=false;
+    }
+  }
+
+  let timer=0;
+  function schedule(){
+    clearTimeout(timer);
+    timer=setTimeout(enforce,25);
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',()=>{
+      enforce();
+      setTimeout(enforce,150);
+      setTimeout(enforce,700);
+    });
+  }else{
+    enforce();
+    setTimeout(enforce,150);
+    setTimeout(enforce,700);
+  }
+
+  const obs=new MutationObserver(schedule);
+  obs.observe(document.body,{childList:true,subtree:true});
+
+  window.__V71_PANEL_ORDER__={
+    top:TOP_IDS.slice(),
+    bottom:BOTTOM_IDS.slice(),
+    predictionLogicChanged:false,
+    highBotLogicChanged:false
+  };
+})();
+</script>
+
 </body>
 </html>
