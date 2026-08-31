@@ -13439,112 +13439,121 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
-\n<script id="v82-single-authoritative-accuracy-finalizer">
+\n
+
+<script id="v83-canonical-single-grade-accuracy-engine">
 (function(){
-  const VERSION=82;
-  const DISPLAY={
-    seqv2:['Sequence AI V2','seqAiSide'],
-    color:['Adaptive Historical Color Pattern AI','colorAiSide'],
-    roadpreview:['Road Preview AI','roadAiSide'],
-    derivedorig:['Derived Road AI','derivedIndependentPrediction'],
-    derivedmain:['Adaptive Derived Roads','adaptiveMainDerivedPrediction'],
-    seqdup:['Sequence AI V2 Duplicate','seqDupSide'],
-    consensus:['AI Consensus','consensusSide'],
-    bot:['High-Powered Bot AI','botDecision'],
-    bestestimate:['Best-Estimate Analyzer','bestSide'],
-    specialistv20:['RED / BLACK Specialist','specialistSide'],
-    focus:['Focus AI','focusAiSide'],
-    blackcontext:['Black Context AI','blackContextSide'],
-    walkforward:['Walk-Forward Meta Learner','walkForwardSide'],
-    metaselector:['Meta Selector','metaSelectorSide'],
-    seqconfidence:['Sequence Confidence','seqConfidenceSide'],
-    roadconfidence:['Road Confidence','roadConfidenceSide'],
-    highconfidence:['High Confidence','highConfidenceSide']
-  };
-  let pendingSnapshot=null;
-  let settleToken=0;
+  const VERSION=83;
+  const MODELS=[
+    ['seqv2','Sequence AI V2',['seqAiSide']],
+    ['color','Adaptive Historical Color Pattern AI',['colorAiSide']],
+    ['roadpreview','Road Preview AI',['roadAiSide']],
+    ['derivedorig','Derived Road AI',['derivedIndependentPrediction']],
+    ['derivedmain','Adaptive Derived Roads',['adaptiveMainDerivedPrediction']],
+    ['seqdup','Sequence AI V2 Duplicate',['seqDupSide']],
+    ['consensus','AI Consensus',['consensusSide']],
+    ['bot','High-Powered Bot AI',['botDecision']],
+    ['bestestimate','Best-Estimate Analyzer',['bestSide']],
+    ['specialistv20','RED / BLACK Specialist V20',['v20Pick']],
+    ['blackctxv22','BLACK Context Specialist V22',['v22Pick','blackCtxPick','blackContextPick']],
+    ['metav23','Walk-Forward Meta Learner V23',['v23Pick','metaWalkPick','walkForwardPick']],
+    ['focusv26','Focus AI V26',['focusV26Pick']],
+    ['contextv25','V25 Context-Aware Final Decision',['v25Pick']],
+    ['shadowv29','Shadow Learning V29',['shadowV29Pick','shadowPick']],
+    ['knowledgev27','Baccarat Knowledge Engine V27',['knowledgeV27Pick','knowledgePick']],
+    ['metav49','Meta-Selector AI V49',[]],
+    ['metav50','Meta-Selector AI V50',['ms50Pick']]
+  ];
+  let pending=null, serial=0;
   function sideFrom(v){
     const t=String(v??'').trim().toUpperCase();
-    if(!t || /WAIT|NO BET|—|--|N\/A/.test(t)) return null;
+    if(!t || /WAIT|NO BET|N\/A|^—$|^--$/.test(t)) return null;
     if(t==='P'||/\bPLAYER\b/.test(t)) return 'P';
     if(t==='B'||/\bBANKER\b/.test(t)) return 'B';
     return null;
   }
-  function ensureAccuracy(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object') state.accuracyVerified={models:{},pending:{},ties:0,version:1};
-    if(!state.accuracyVerified.models) state.accuracyVerified.models={};
-    if(!state.accuracyVerified.pending) state.accuracyVerified.pending={};
+  function A(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:1};
+    state.accuracyVerified.models||={};state.accuracyVerified.pending||={};
     return state.accuracyVerified;
   }
-  function blankModel(){return {wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}}}
-  function capture(actual){
-    const a=ensureAccuracy();
-    const hand=(state.hands?.length||0)+1;
-    const rows=[];
-    for(const [key,[name,id]] of Object.entries(DISPLAY)){
-      const el=document.getElementById(id);
-      const text=el?.textContent||'';
-      const pred=sideFrom(text);
-      const m=a.models[key]||blankModel();
-      rows.push({key,name,id,text,pred,base:{
-        wins:+m.wins||0,losses:+m.losses||0,predictions:+m.predictions||0,waits:+m.waits||0,
-        last10:Array.isArray(m.last10)?m.last10.slice():[],
-        last25:Array.isArray(m.last25)?m.last25.slice():[],
-        last50:Array.isArray(m.last50)?m.last50.slice():[],
-        splits:(m.splits&&typeof m.splits==='object')?JSON.parse(JSON.stringify(m.splits)):{}
-      }});
-    }
-    return {actual,hand,rows,capturedAt:Date.now(),token:++settleToken};
+  function blank(name){return {name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}}}
+  function defSide(key){
+    try{
+      const d=(window.__accuracyModelDefs||[]).find(x=>x&&x[0]===key);
+      if(d&&typeof d[2]==='function')return sideFrom(d[2]?.()?.side);
+    }catch(e){}
+    try{
+      if(key==='metav49')return sideFrom(window.__metaSelectorV49?.signal?.()?.side);
+      if(key==='metav50'){const z=window.__metaSelectorV50?.signal?.()||{};return sideFrom(z.side||z.candidate)}
+    }catch(e){}
+    return null;
   }
-  function pushRecent(arr,val,max){arr.push(val);while(arr.length>max)arr.shift();return arr}
-  function finalSettle(s){
-    if(!s||s!==pendingSnapshot) return;
-    const a=ensureAccuracy();
-    // If this click did not actually add the expected hand, do not grade it.
-    if((state.hands?.length||0)<s.hand) return;
+  function visibleSide(ids){
+    for(const id of ids||[]){const el=document.getElementById(id);const s=sideFrom(el?.textContent);if(s)return s}
+    return null;
+  }
+  function clone(x,fallback){try{return JSON.parse(JSON.stringify(x??fallback))}catch(e){return fallback}}
+  function capture(actual){
+    const a=A(), hand=(state.hands?.length||0)+1;
+    const color=String(state.currentShoeColor||'combined').toLowerCase();
+    const pb=(state.hands||[]).filter(h=>h?.r==='P'||h?.r==='B').length;
+    const phase=pb<18?'early':pb<36?'middle':'late';
+    const learningStage=(Number(state.metaWalkV23?.totalUpdates)||0)>0?'after':'before';
+    const rows=MODELS.map(([key,name,ids])=>{
+      const m=a.models[key]||blank(name);
+      const lock=a.pending?.[key];
+      const pred=visibleSide(ids) || ((lock&&Number(lock.hand)===hand)?sideFrom(lock.side):null) || defSide(key);
+      return {key,name,pred,base:{
+        wins:Number(m.wins)||0,losses:Number(m.losses)||0,predictions:Number(m.predictions)||0,waits:Number(m.waits)||0,
+        last10:clone(m.last10,[]),last25:clone(m.last25,[]),last50:clone(m.last50,[]),splits:clone(m.splits,{})
+      }};
+    });
+    return {actual,hand,color,phase,learningStage,rows,token:++serial};
+  }
+  function push(arr,v,max){arr=Array.isArray(arr)?arr:[];arr.push(v);return arr.length>max?arr.slice(-max):arr}
+  function bumpSplit(m,id,win){const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1}
+  function settle(s){
+    if(!s||pending!==s)return;
+    // One click must have committed one result before we grade.
+    if((state.hands?.length||0)<s.hand)return;
+    const a=A();
     for(const r of s.rows){
-      const b=r.base;
-      const m=a.models[r.key]=a.models[r.key]||blankModel();
-      // Restore the exact pre-click baseline first. This erases all duplicate legacy grades for this click.
+      const b=r.base,m=a.models[r.key]||(a.models[r.key]=blank(r.name));
+      // Canonical restore: erases any +2/+3 mutations made by legacy accuracy handlers for THIS click.
       m.wins=b.wins;m.losses=b.losses;m.predictions=b.predictions;m.waits=b.waits;
-      m.last10=b.last10.slice();m.last25=b.last25.slice();m.last50=b.last50.slice();m.splits=JSON.parse(JSON.stringify(b.splits||{}));
-      if(s.actual==='T'){
-        // Ties are skipped for P/B W-L accuracy.
-      } else if(!r.pred){
-        m.waits=b.waits+1;
-      } else {
-        const win=r.pred===s.actual;
-        m.predictions=b.predictions+1;
-        m.wins=b.wins+(win?1:0);
-        m.losses=b.losses+(win?0:1);
-        pushRecent(m.last10,win?1:0,10);pushRecent(m.last25,win?1:0,25);pushRecent(m.last50,win?1:0,50);
-        const split=m.splits[r.pred]||(m.splits[r.pred]={wins:0,losses:0,predictions:0});
-        split.predictions=(+split.predictions||0)+1;split.wins=(+split.wins||0)+(win?1:0);split.losses=(+split.losses||0)+(win?0:1);
+      m.last10=clone(b.last10,[]);m.last25=clone(b.last25,[]);m.last50=clone(b.last50,[]);m.splits=clone(b.splits,{});
+      if(s.actual==='P'||s.actual==='B'){
+        if(r.pred){
+          const win=r.pred===s.actual;
+          m.predictions=b.predictions+1;m.wins=b.wins+(win?1:0);m.losses=b.losses+(win?0:1);
+          m.last10=push(m.last10,win?1:0,10);m.last25=push(m.last25,win?1:0,25);m.last50=push(m.last50,win?1:0,50);
+          if(s.color==='red'||s.color==='black')bumpSplit(m,'color:'+s.color,win);
+          bumpSplit(m,'phase:'+s.phase,win);
+          if(r.key==='metav23')bumpSplit(m,'learning:'+s.learningStage,win);
+          m.last={predicted:r.pred,actual:s.actual,win,hand:s.hand,settledAt:Date.now(),source:'V83 canonical single-grade'};
+          m.lastScoredHand=s.hand;
+        }else{
+          m.waits=b.waits+1;m.lastWaitHand=s.hand;
+        }
       }
-      a.pending[r.key]=undefined;delete a.pending[r.key];
+      delete a.pending[r.key];
     }
-    a.version=VERSION;
-    a.lastAuthoritativeHand=s.hand;
-    a.lastAuthoritativeToken=s.token;
+    a.version=VERSION;a.lastCanonicalHand=s.hand;a.lastCanonicalToken=s.token;
     try{persist()}catch(e){}
     try{window.renderVerifiedAccuracy?.()}catch(e){}
     try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
-    pendingSnapshot=null;
+    pending=null;
   }
-  function resultFromTarget(t){
-    const el=t?.closest?.('[data-result]');
-    const x=String(el?.dataset?.result||'').toUpperCase();
-    return ['P','B','T'].includes(x)?x:null;
-  }
-  // WINDOW capture runs before every document/target click handler, regardless of their registration order.
-  window.addEventListener('click',function(e){
-    const actual=resultFromTarget(e.target);if(!actual)return;
-    const s=capture(actual);pendingSnapshot=s;
-    // Run after synchronous handlers, microtasks, and zero-delay legacy settlement callbacks.
-    setTimeout(()=>finalSettle(s),40);
+  function result(t){const el=t?.closest?.('[data-result]');const x=String(el?.dataset?.result||'').toUpperCase();return ['P','B','T'].includes(x)?x:null}
+  window.addEventListener('click',e=>{
+    const actual=result(e.target);if(!actual)return;
+    const s=capture(actual);pending=s;
+    // Let every legacy synchronous/zero-delay hook finish, then normalize canonical W/L/N once.
+    setTimeout(()=>settle(s),120);
   },true);
-  window.__V82_ACCURACY_COUNTER__={version:VERSION,DISPLAY,capture,finalSettle,sideFrom};
+  window.__V83_CANONICAL_ACCURACY__={version:VERSION,models:MODELS.map(x=>x[0]),capture,settle,sideFrom};
 })();
-</script>\n
+</script>
 </body>
 </html>
