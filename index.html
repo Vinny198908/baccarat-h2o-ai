@@ -5152,21 +5152,54 @@ renderLibraryBackupStatus();
     persist();renderVerifiedAccuracy();
   }
   function settleVerifiedPredictions(actual){
-    const a=ensureAccuracy(); if(actual==='T'){a.ties=(a.ties||0)+1;persist();return;}
+    const a=ensureAccuracy();
+    if(actual==='T'){a.ties=(a.ties||0)+1;persist();renderVerifiedAccuracy();return;}
     if(actual!=='P'&&actual!=='B')return;
+
+    // V77 DIRECT PRE-RESULT VERIFIER
+    // This function is called BEFORE state.hands.push(), so every fallback signal below
+    // is the prediction that existed immediately before the revealed result.
+    // A pending lock is preferred, but a missing/stale lock can no longer stop counts.
     const settlingHand=currentSequence().length+1;
-    modelDefs.forEach(([key,name])=>{
-      const p=a.pending[key]; if(!p)return;
-      if(Number(p.hand)!==settlingHand){delete a.pending[key];return;}
+    const seq=currentSequence().join('');
+    const ctx=verifiedContext();
+
+    modelDefs.forEach(([key,name,get])=>{
       const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
       m.splits ||= {};
-      const win=p.side===actual; m.predictions++; if(win)m.wins++;else m.losses++;
+
+      // Hard duplicate guard: one P/B grade maximum per AI per hand.
+      if(Number(m.lastScoredHand)===settlingHand){
+        delete a.pending[key];
+        return;
+      }
+
+      let p=a.pending[key];
+      if(!p || Number(p.hand)!==settlingHand || (p.side!=='P'&&p.side!=='B')){
+        // Lock failed or went stale: capture the live pre-result signal NOW.
+        let x=null; try{x=get()}catch(e){}
+        const side=String(x?.side||'').toUpperCase();
+        if(side==='P'||side==='B'){
+          p={side,hand:settlingHand,seq,lockedAt:Date.now(),strength:Number(x?.strength)||0,...ctx,directFallback:true};
+        }else{
+          // No qualified prediction existed at reveal time. Count WAIT once, not a fake loss.
+          if(Number(m.lastWaitHand)!==settlingHand){m.waits=(m.waits||0)+1;m.lastWaitHand=settlingHand;}
+          delete a.pending[key];
+          return;
+        }
+      }
+
+      const win=p.side===actual;
+      m.predictions=(m.predictions||0)+1;
+      if(win)m.wins=(m.wins||0)+1; else m.losses=(m.losses||0)+1;
+      m.lastScoredHand=settlingHand;
       const bump=(id)=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n++;if(win)z.w++;else z.l++;};
       if(p.color==='red'||p.color==='black')bump('color:'+p.color);
       if(p.phase)bump('phase:'+p.phase);
       if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
       [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
-      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates}; delete a.pending[key];
+      m.last={predicted:p.side,actual,win,hand:settlingHand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates,directFallback:!!p.directFallback};
+      delete a.pending[key];
     });
     persist();renderVerifiedAccuracy();
   }
@@ -13405,5 +13438,6 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   window.__V76_ACCURACY_FIX__={version:76,repairArm:true,repairSettle:true};
 })();
 </script>
+<!-- V77: direct pre-result accuracy fallback + per-AI duplicate guard -->
 </body>
 </html>
