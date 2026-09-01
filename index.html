@@ -14586,9 +14586,15 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     const roadSide=r&&(r.side==='P'||r.side==='B')?r.side:null;
     if(raw.side&&roadSide){
       if(raw.side===roadSide){
-        side=raw.side;mode=ph==='MIDDLE'?'MIDDLE AGREEMENT':'AGREEMENT';
-        conf=Math.min(94,Math.round(conf+(ph==='MIDDLE'?7:4)+Math.min(4,(r.edge||0)/8)));
-        reason=`Raw + Historical 3-Road agree${ph==='MIDDLE'?' in middle shoe':''}`;
+        const agreeGate=raw.avgSim>=84 && raw.edge>=(ph==='MIDDLE'?12:14);
+        if(agreeGate){
+          side=raw.side;mode=ph==='MIDDLE'?'MIDDLE AGREEMENT':'AGREEMENT';
+          conf=Math.min(94,Math.round(conf+(ph==='MIDDLE'?7:4)+Math.min(4,(r.edge||0)/8)));
+          reason=`Raw + Historical 3-Road agree${ph==='MIDDLE'?' in middle shoe':''} • V98 quality gate passed`;
+        }else{
+          side=null;mode='AGREEMENT QUALITY WAIT';conf=0;
+          reason=`Raw + Historical 3-Road agree, but Raw quality is below the V98 ${ph==='MIDDLE'?'middle':'early/late'} gate`;
+        }
       }else if(rawStrong){
         side=raw.side;mode='STRONG RAW CONFLICT';conf=Math.max(50,Math.round(conf-7));
         reason='3-Road conflicts; strong Raw evidence retained at reduced confidence';
@@ -14601,13 +14607,13 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     }
     return {...raw,side,conf,reason,v97:{phase:ph,mode,rawSide:raw.side,roadSide,rawStrong,road:r}};
   }
-  base.scan=tuned;base.signal=tuned;base.version=97;base.role='RAW_PLUS_3_ROAD_SELECTIVE_CONFIRMATION';
-  window.__rawRoadAgreementV97={version:97,tuned,baseline:originalScan,rollback:'V96_BASELINE_ROLLBACK'};
+  base.scan=tuned;base.signal=tuned;base.version=98;base.role='RAW_PLUS_3_ROAD_SELECTIVE_CONFIRMATION_V98';
+  window.__rawRoadAgreementV97={version:98,tuned,baseline:originalScan,rollback:'V97_LIVE_WIRING_FIX',tune:'agreement quality gate'};
   function patch(){
     try{
       const oldRender=base.render;
       if(oldRender&&!oldRender.__v97){
-        const w=function(){const out=oldRender.apply(this,arguments);try{const x=tuned(),e=document.getElementById('rawSeqFinal');if(e)e.textContent=x.side?`Best prediction: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.v97.mode} • confidence ${x.conf}%`:`Best prediction: WAIT — ${x.reason}`;const a=document.getElementById('rawSeqAgreement');if(a)a.textContent+=` • V97 ${x.v97.phase}: ${x.v97.mode}`;}catch(e){}return out};w.__v97=true;base.render=w;
+        const w=function(){const out=oldRender.apply(this,arguments);try{const x=tuned(),e=document.getElementById('rawSeqFinal');if(e)e.textContent=x.side?`Best prediction: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.v97.mode} • confidence ${x.conf}%`:`Best prediction: WAIT — ${x.reason}`;const a=document.getElementById('rawSeqAgreement');if(a)a.textContent+=` • V98 ${x.v97.phase}: ${x.v97.mode}`;}catch(e){}return out};w.__v97=true;base.render=w;
       }
     }catch(e){console.warn('V97 tune patch',e)}
   }
@@ -14633,7 +14639,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     if(agr){
       const r=x.v97&&x.v97.road;
       const rs=r&&(r.side==='P'||r.side==='B')?r.side:null;
-      agr.textContent=`Raw + 3-Road V97: Raw ${x.v97.rawSide||'WAIT'} • 3-Road ${rs||'WAIT'} • ${x.v97.phase} • ${x.v97.mode}`;
+      agr.textContent=`Raw + 3-Road V98: Raw ${x.v97.rawSide||'WAIT'} • 3-Road ${rs||'WAIT'} • ${x.v97.phase} • ${x.v97.mode}`;
     }
   }
   function install(){
@@ -14673,5 +14679,113 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v99-accuracy-integrity-final">
+(function(){
+  'use strict';
+  const VERSION=99;
+  function A(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:VERSION};
+    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {};
+    state.accuracyVerified.version=VERSION;
+    state.accuracyVerified.__gradedEvents ||= {};
+    return state.accuracyVerified;
+  }
+  function defs(){return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]}
+  function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}}
+  function handNo(){return seq().length+1}
+  function ctx(){
+    const n=seq().length,color=String(state.currentShoeColor||'combined').toLowerCase();
+    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
+    return {color,phase:n<18?'early':n<36?'middle':'late',learningUpdates,learningStage:learningUpdates>0?'after':'before'};
+  }
+  function model(key,name){
+    const a=A();
+    return a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  }
+  function repairArm(){
+    const a=A(),hand=handNo(),sequence=seq().join(''),c=ctx();
+    for(const [key,name,get] of defs()){
+      const m=model(key,name);
+      const existing=a.pending[key];
+      if(existing&&Number(existing.hand)===hand&&(existing.side==='P'||existing.side==='B'))continue;
+      let x=null;try{x=get()}catch(e){console.warn('V99 arm signal',key,e)}
+      const side=x?.side;
+      if(side==='P'||side==='B'){
+        a.pending[key]={side,hand,seq:sequence,lockedAt:Date.now(),strength:Number(x?.strength)||0,...c,v99Repair:true};
+      }else{
+        delete a.pending[key];
+        if(m.lastWaitHand!==hand){m.waits=(Number(m.waits)||0)+1;m.lastWaitHand=hand;}
+      }
+    }
+    try{persist()}catch(e){}
+    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  }
+  function manualGrade(key,name,p,actual,eventKey){
+    if(!p||Number(p.hand)!==handNo()||(p.side!=='P'&&p.side!=='B'))return false;
+    const a=A(),m=model(key,name);
+    a.__gradedEvents[eventKey] ||= {};
+    if(a.__gradedEvents[eventKey][key])return false;
+    const win=p.side===actual;
+    m.predictions=(Number(m.predictions)||0)+1;
+    if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
+    m.splits ||= {};
+    const bump=id=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;};
+    if(p.color==='red'||p.color==='black')bump('color:'+p.color);
+    if(p.phase)bump('phase:'+p.phase);
+    if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
+    [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
+    m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates,v99Repaired:true};
+    a.__gradedEvents[eventKey][key]=1;
+    return true;
+  }
+  function install(){
+    // Repair the pre-result snapshot in capture phase, while the current shoe still excludes the clicked result.
+    document.querySelectorAll('[data-result],#previewP,#previewB').forEach(btn=>{
+      if(btn.__v99AccuracyArm)return;btn.__v99AccuracyArm=true;
+      btn.addEventListener('click',()=>{try{repairArm()}catch(e){console.error('V99 pre-click arm',e)}},true);
+    });
+    const old=window.__settleVerifiedPredictions;
+    if(typeof old==='function'&&!old.__v99AccuracyIntegrity){
+      const w=function(actual){
+        if(actual!=='P'&&actual!=='B'&&actual!=='T')return old.apply(this,arguments);
+        const a=A(),eventKey=`${handNo()}:${actual}:${state.hands?.length||0}`;
+        if(a.__v99LastEvent===eventKey)return;
+        a.__v99LastEvent=eventKey;
+        const snap={}; const before={};
+        for(const [key,name] of defs()){if(a.pending[key])snap[key]={...a.pending[key]};before[key]=Number(model(key,name).predictions)||0;}
+        let r;try{r=old.apply(this,arguments)}finally{
+          if(actual==='P'||actual==='B'){
+            for(const [key,name] of defs()){
+              const after=Number(model(key,name).predictions)||0;
+              if(after>before[key]){a.__gradedEvents[eventKey] ||= {};a.__gradedEvents[eventKey][key]=1;}
+              else if(snap[key])manualGrade(key,name,snap[key],actual,eventKey);
+            }
+          }
+          // Prevent unbounded event-dedupe growth.
+          const ks=Object.keys(a.__gradedEvents);if(ks.length>120)ks.slice(0,ks.length-80).forEach(k=>delete a.__gradedEvents[k]);
+          a.pending={};
+          try{persist()}catch(e){}
+          try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+          setTimeout(()=>{try{repairArm()}catch(e){}},0);
+        }
+        return r;
+      };
+      w.__v99AccuracyIntegrity=true;w.__wrapped=old;window.__settleVerifiedPredictions=w;
+    }
+  }
+  // Keep individual cards refreshed and heal any missing lock after renders/imports/settings changes.
+  const or=window.render;
+  if(typeof or==='function'&&!or.__v99AccuracyIntegrity){
+    const rw=function(){const r=or.apply(this,arguments);setTimeout(()=>{try{repairArm()}catch(e){}},0);return r};
+    rw.__v99AccuracyIntegrity=true;window.render=rw;try{render=rw}catch(e){}
+  }
+  install();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{install();setTimeout(repairArm,100)});
+  setTimeout(()=>{install();repairArm()},350);setTimeout(()=>{install();repairArm()},1200);
+  window.__V99_ACCURACY_INTEGRITY__={version:VERSION,repairArm,install,perModelFallback:true,perEventDedupe:true,singleIncrementGuarantee:true};
+})();
+
+</script>
 </body>
 </html>
