@@ -14680,385 +14680,308 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 </script>
 
 
-<script id="v99-accuracy-integrity-final">
+<script id="remove-meta-selector-keep-walk-forward-v99">
+/* V99: Remove standalone Meta-Selector controllers; preserve Walk-Forward V23. */
 (function(){
-  'use strict';
-  const VERSION=99;
-  function A(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:VERSION};
-    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {};
-    state.accuracyVerified.version=VERSION;
-    state.accuracyVerified.__gradedEvents ||= {};
-    return state.accuracyVerified;
+  const disabledSignal=()=>({side:null,candidate:null,qualified:false,confidence:0,strength:0,disabled:true,reason:'Standalone Meta-Selector removed.'});
+  function clean(){
+    try{
+      // Remove standalone Meta-Selector panels only. Keep Walk-Forward V23.
+      ['metaSelectorV49Panel','metaSelectorV50Panel'].forEach(id=>document.getElementById(id)?.remove());
+      document.querySelectorAll('.analyzer').forEach(el=>{
+        const t=(el.querySelector('.analyzer-title')?.textContent||'').trim();
+        if(/^🎯?\s*Meta-Selector AI V(?:49|50)\b/i.test(t) || /^Meta-Selector AI V(?:49|50)\b/i.test(t)) el.remove();
+      });
+
+      // Make the retained V23 role unambiguous in the UI.
+      const wf=document.getElementById('metaWalkV23');
+      if(wf){
+        const title=wf.querySelector('.analyzer-title');
+        if(title) title.textContent='🧠 Walk-Forward Learner V23 — A-Grade Live';
+        const pickLabel=document.querySelector('#metaWalkV23 #v23Pick')?.previousElementSibling;
+        if(pickLabel) pickLabel.textContent='WALK-FORWARD DECISION';
+      }
+
+      // Remove V49/V50 from the shared verified-accuracy model registry.
+      if(Array.isArray(window.__accuracyModelDefs)){
+        for(let i=window.__accuracyModelDefs.length-1;i>=0;i--){
+          const k=String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase();
+          if(k==='metav49'||k==='metav50') window.__accuracyModelDefs.splice(i,1);
+        }
+      }
+
+      // Disable standalone selector APIs so later UI refreshes cannot use them.
+      if(window.__metaSelectorV49) window.__metaSelectorV49={version:49,removed:true,signal:disabledSignal,botSignal:disabledSignal};
+      if(window.__metaSelectorV50) window.__metaSelectorV50={version:50,removed:true,signal:disabledSignal,botSignal:disabledSignal};
+
+      // Restore the pre-Meta High-Powered Bot path captured by V49 when available.
+      const prior=window.__masterBotSignalPreV49;
+      if(typeof prior==='function'){
+        window.masterBotSignal=prior;
+        try{masterBotSignal=prior}catch(e){}
+      }
+
+      // Remove stale Meta-Selector-only control text if present.
+      const tog=document.getElementById('botLearningToggle');
+      if(tog && /meta-selector/i.test(tog.textContent||'')){
+        tog.textContent='Bot learning';
+        tog.disabled=false;
+      }
+    }catch(e){console.warn('V99 remove meta selector',e)}
   }
-  function defs(){return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]}
-  function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}}
-  function handNo(){return seq().length+1}
-  function ctx(){
-    const n=seq().length,color=String(state.currentShoeColor||'combined').toLowerCase();
-    const learningUpdates=Number(state.metaWalkV23?.totalUpdates)||0;
-    return {color,phase:n<18?'early':n<36?'middle':'late',learningUpdates,learningStage:learningUpdates>0?'after':'before'};
+
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__removeStandaloneMetaV99){
+    const wrapped=function(){const r=oldRender.apply(this,arguments);clean();return r};
+    wrapped.__removeStandaloneMetaV99=true;
+    window.render=wrapped;
   }
-  function model(key,name){
-    const a=A();
-    return a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(clean,0));
+  else setTimeout(clean,0);
+  setTimeout(clean,250);setTimeout(clean,1000);
+  window.__REMOVE_STANDALONE_META_V99__={enabled:true,keepWalkForwardV23:true,removed:['Meta-Selector V49','Meta-Selector V50'],clean};
+})();
+</script>
+
+<script id="v98-remove-consensus-seqdup-bot">
+(()=>{
+  const REMOVED_KEYS=new Set(['seqdup','consensus','bot']);
+  const REMOVED_PATTERNS=[/Sequence AI V2 Duplicate/i,/Sequence Duplicate/i,/AI Consensus/i,/High-Powered Bot AI/i,/High-Powered Bot/i];
+  const nullSignal=()=>({side:null,candidate:null,qualified:false,confidence:0,strength:0,removed:true,reason:'REMOVED'});
+
+  function disableSignals(){
+    try{window.sequenceAIDuplicateSignal=nullSignal;}catch(e){}
+    try{sequenceAIDuplicateSignal=nullSignal;}catch(e){}
+    try{window.consensusSignal=nullSignal;}catch(e){}
+    try{consensusSignal=nullSignal;}catch(e){}
+    try{window.masterBotSignal=nullSignal;}catch(e){}
+    try{masterBotSignal=nullSignal;}catch(e){}
   }
-  function repairArm(){
-    const a=A(),hand=handNo(),sequence=seq().join(''),c=ctx();
-    for(const [key,name,get] of defs()){
-      const m=model(key,name);
-      const existing=a.pending[key];
-      if(existing&&Number(existing.hand)===hand&&(existing.side==='P'||existing.side==='B'))continue;
-      let x=null;try{x=get()}catch(e){console.warn('V99 arm signal',key,e)}
-      const side=x?.side;
-      if(side==='P'||side==='B'){
-        a.pending[key]={side,hand,seq:sequence,lockedAt:Date.now(),strength:Number(x?.strength)||0,...c,v99Repair:true};
-      }else{
-        delete a.pending[key];
-        if(m.lastWaitHand!==hand){m.waits=(Number(m.waits)||0)+1;m.lastWaitHand=hand;}
+
+  function stripModelDefs(){
+    try{
+      if(Array.isArray(window.__accuracyModelDefs)){
+        window.__accuracyModelDefs=window.__accuracyModelDefs.filter(x=>!REMOVED_KEYS.has(String(x?.[0]||'')));
+      }
+    }catch(e){}
+  }
+
+  function removePanels(){
+    const nodes=[...document.querySelectorAll('.analyzer, .panel, section, article, div')];
+    for(const el of nodes){
+      if(!el || el.dataset?.v98Removed==='1') continue;
+      const title=el.querySelector?.('.analyzer-title');
+      const txt=(title?.textContent || '').trim();
+      if(txt && REMOVED_PATTERNS.some(rx=>rx.test(txt))){
+        // Prefer the analyzer container; this avoids deleting a parent that contains other AIs.
+        const target=el.classList?.contains('analyzer')?el:(title?.closest?.('.analyzer')||el);
+        target.dataset.v98Removed='1';
+        target.remove();
       }
     }
-    try{persist()}catch(e){}
-    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
   }
-  function manualGrade(key,name,p,actual,eventKey){
-    if(!p||Number(p.hand)!==handNo()||(p.side!=='P'&&p.side!=='B'))return false;
-    const a=A(),m=model(key,name);
-    a.__gradedEvents[eventKey] ||= {};
-    if(a.__gradedEvents[eventKey][key])return false;
-    const win=p.side===actual;
-    m.predictions=(Number(m.predictions)||0)+1;
-    if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
-    m.splits ||= {};
-    const bump=id=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;};
-    if(p.color==='red'||p.color==='black')bump('color:'+p.color);
-    if(p.phase)bump('phase:'+p.phase);
-    if(key==='metav23')bump('learning:'+(p.learningStage||'before'));
-    [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
-    m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,learningUpdates:p.learningUpdates,v99Repaired:true};
-    a.__gradedEvents[eventKey][key]=1;
-    return true;
+
+  function pruneAccuracyUI(){
+    // Remove any leftover cards/rows whose visible label is one of the removed AIs.
+    for(const el of [...document.querySelectorAll('[data-model], [data-ai], .accuracy-row, .bt-card, tr')]){
+      const key=String(el.dataset?.model||el.dataset?.ai||'').toLowerCase();
+      const txt=String(el.textContent||'');
+      if(REMOVED_KEYS.has(key) || REMOVED_PATTERNS.some(rx=>rx.test(txt))) el.remove();
+    }
   }
-  function install(){
-    // Repair the pre-result snapshot in capture phase, while the current shoe still excludes the clicked result.
-    document.querySelectorAll('[data-result],#previewP,#previewB').forEach(btn=>{
-      if(btn.__v99AccuracyArm)return;btn.__v99AccuracyArm=true;
-      btn.addEventListener('click',()=>{try{repairArm()}catch(e){console.error('V99 pre-click arm',e)}},true);
+
+  function clean(){disableSignals();stripModelDefs();removePanels();pruneAccuracyUI();}
+  clean();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{clean();setTimeout(clean,250);setTimeout(clean,1200)});
+  else {setTimeout(clean,50);setTimeout(clean,500);}
+  // Re-apply after renders so removed modules cannot be reinserted by older wrappers.
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v98RemovedModules){
+    const w=function(){const r=oldRender.apply(this,arguments);try{clean()}catch(e){}return r};
+    w.__v98RemovedModules=true;window.render=w;try{render=w}catch(e){}
+  }
+  window.__V98_REMOVED_MODULES__={consensus:true,sequenceDuplicate:true,highPoweredBot:true,walkForwardKept:true,metaSelectorRemoved:true};
+})();
+</script>
+
+
+<script id="v100-stability-count-bestestimate-fix">
+(()=>{
+  'use strict';
+  const REMOVED=new Set(['seqdup','consensus','bot','metav49','metav50']);
+  const nullSignal=()=>({side:null,candidate:null,qualified:false,confidence:0,strength:0,removed:true,reason:'REMOVED'});
+
+  // Removed modules: make every legacy entry point inert so old click/render hooks
+  // cannot keep grading, learning, or consuming cycles after their panels are gone.
+  for(const name of ['sequenceAIDuplicateSignal','consensusSignal','masterBotSignal']){
+    try{window[name]=nullSignal}catch(e){}
+    try{eval(name+'=nullSignal')}catch(e){}
+  }
+  for(const name of ['armBotPrediction','settleBotPrediction','renderMasterBot','botHeartbeat']){
+    try{window[name]=()=>{}}catch(e){}
+    try{eval(name+'=()=>{}')}catch(e){}
+  }
+
+  function pruneDefs(){
+    if(!Array.isArray(window.__accuracyModelDefs))return;
+    const seen=new Set();
+    window.__accuracyModelDefs=window.__accuracyModelDefs.filter(row=>{
+      const k=String(row?.[0]||'').toLowerCase();
+      if(!k||REMOVED.has(k)||seen.has(k))return false;
+      seen.add(k);return true;
     });
-    const old=window.__settleVerifiedPredictions;
-    if(typeof old==='function'&&!old.__v99AccuracyIntegrity){
-      const w=function(actual){
-        if(actual!=='P'&&actual!=='B'&&actual!=='T')return old.apply(this,arguments);
-        const a=A(),eventKey=`${handNo()}:${actual}:${state.hands?.length||0}`;
-        if(a.__v99LastEvent===eventKey)return;
-        a.__v99LastEvent=eventKey;
-        const snap={}; const before={};
-        for(const [key,name] of defs()){if(a.pending[key])snap[key]={...a.pending[key]};before[key]=Number(model(key,name).predictions)||0;}
-        let r;try{r=old.apply(this,arguments)}finally{
-          if(actual==='P'||actual==='B'){
-            for(const [key,name] of defs()){
-              const after=Number(model(key,name).predictions)||0;
-              if(after>before[key]){a.__gradedEvents[eventKey] ||= {};a.__gradedEvents[eventKey][key]=1;}
-              else if(snap[key])manualGrade(key,name,snap[key],actual,eventKey);
+  }
+
+  // Accuracy registry can be reassigned by older scripts. Re-prune immediately
+  // before every arm/settle call so one AI has only one authoritative ledger entry.
+  const oa=window.__armVerifiedPredictions;
+  if(typeof oa==='function'&&!oa.__v100RegistryFix){
+    const w=function(){pruneDefs();return oa.apply(this,arguments)};
+    w.__v100RegistryFix=true;window.__armVerifiedPredictions=w;
+  }
+  const os=window.__settleVerifiedPredictions;
+  if(typeof os==='function'&&!os.__v100RegistryFix){
+    const w=function(actual){pruneDefs();return os.apply(this,arguments)};
+    w.__v100RegistryFix=true;window.__settleVerifiedPredictions=w;
+  }
+
+  // Best-Estimate anti-stale guard. It never flips merely because a prediction
+  // has repeated. It only releases a long-held side when recent live results and
+  // at least one fresh road/recent-shoe source both support the opposite side.
+  const base=window.computeCombinedAnalyzer;
+  if(typeof base==='function'&&!base.__v100AntiStale){
+    const wrapped=function(){
+      const z=base.apply(this,arguments)||{};
+      try{
+        const seq=(typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B');
+        const n=seq.length, side=(z.side==='P'||z.side==='B')?z.side:null;
+        state.bestEstimateLiveGuard ||= {lastHandN:-1,lastSide:null,repeat:0};
+        const g=state.bestEstimateLiveGuard;
+        if(n!==g.lastHandN){
+          g.repeat=(side&&side===g.lastSide)?g.repeat+1:(side?1:0);
+          g.lastSide=side;g.lastHandN=n;
+        }
+        if(side&&g.repeat>=8&&seq.length>=8){
+          const recent=seq.slice(-8), opp=side==='P'?'B':'P';
+          const oppCount=recent.filter(x=>x===opp).length;
+          let freshSupport=0;
+          try{const r=typeof roadPreviewAISignal==='function'?roadPreviewAISignal():null;if(r?.side===opp&&r?.qualified!==false)freshSupport++}catch(e){}
+          try{const r=typeof roadStructureSignal==='function'?roadStructureSignal():null;if(r?.side===opp)freshSupport++}catch(e){}
+          try{const r=typeof historyPatternSignal==='function'?historyPatternSignal():null;if(r?.side===opp)freshSupport++}catch(e){}
+          if(oppCount>=5&&freshSupport>=1){
+            const rawTop=Number(z.top??z.confidence??50)||50;
+            // Do not manufacture a winner. Release the stale call to WAIT unless
+            // the opposing live evidence is strong enough to clear 60%.
+            if(oppCount>=6&&freshSupport>=2){
+              z.side=opp;z.candidate=opp;z.qualified=true;z.top=Math.max(60,Math.min(72,rawTop));
+              z.antiStale=true;z.reason=(z.reason?z.reason+' • ':'')+'Live anti-stale correction: recent shoe + fresh road evidence oppose the long-held side.';
+              g.lastSide=opp;g.repeat=1;
+            }else{
+              z.side=null;z.qualified=false;z.antiStale=true;
+              z.reason=(z.reason?z.reason+' • ':'')+'WAIT: long-held side lost support from recent live results.';
             }
           }
-          // Prevent unbounded event-dedupe growth.
-          const ks=Object.keys(a.__gradedEvents);if(ks.length>120)ks.slice(0,ks.length-80).forEach(k=>delete a.__gradedEvents[k]);
-          a.pending={};
-          try{persist()}catch(e){}
-          try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
-          setTimeout(()=>{try{repairArm()}catch(e){}},0);
         }
-        return r;
-      };
-      w.__v99AccuracyIntegrity=true;w.__wrapped=old;window.__settleVerifiedPredictions=w;
-    }
+      }catch(e){}
+      return z;
+    };
+    wrapped.__v100AntiStale=true;wrapped.__base=base;
+    window.computeCombinedAnalyzer=wrapped;try{computeCombinedAnalyzer=wrapped}catch(e){}
   }
-  // Keep individual cards refreshed and heal any missing lock after renders/imports/settings changes.
-  const or=window.render;
-  if(typeof or==='function'&&!or.__v99AccuracyIntegrity){
-    const rw=function(){const r=or.apply(this,arguments);setTimeout(()=>{try{repairArm()}catch(e){}},0);return r};
-    rw.__v99AccuracyIntegrity=true;window.render=rw;try{render=rw}catch(e){}
-  }
-  install();
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{install();setTimeout(repairArm,100)});
-  setTimeout(()=>{install();repairArm()},350);setTimeout(()=>{install();repairArm()},1200);
-  window.__V99_ACCURACY_INTEGRITY__={version:VERSION,repairArm,install,perModelFallback:true,perEventDedupe:true,singleIncrementGuarantee:true};
-})();
 
+  function cleanUI(){
+    // Remove stale panels after any legacy render reinserts them.
+    ['consensusPanel','masterBotPanel','metaSelectorV49Panel','metaSelectorV50Panel'].forEach(id=>document.getElementById(id)?.remove());
+    document.querySelectorAll('.analyzer').forEach(el=>{
+      const t=String(el.querySelector('.analyzer-title')?.textContent||'');
+      if(/Sequence AI V2 Duplicate|AI Consensus|High-Powered Bot|Meta-Selector AI V(?:49|50)/i.test(t))el.remove();
+    });
+    pruneDefs();
+  }
+  cleanUI();
+  const rr=window.render;
+  if(typeof rr==='function'&&!rr.__v100Clean){
+    const w=function(){const r=rr.apply(this,arguments);try{cleanUI()}catch(e){}return r};
+    w.__v100Clean=true;window.render=w;try{render=w}catch(e){}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(cleanUI,0));
+  setTimeout(cleanUI,250);setTimeout(cleanUI,1200);
+  window.__V100_STABILITY_FIX__={enabled:true,removed:[...REMOVED],accuracyRegistryDeduped:true,bestEstimateAntiStale:true};
+})();
 </script>
 
-<script id="v100-accuracy-capture-final">
-(function(){
+
+<script id="v101-derived-result-display-only-fix">
+(()=>{
   'use strict';
-  const V=100;
-  const DOM={
-    seqv2:{id:'seqAiSide'}, color:{id:'colorAiSide'}, roadpreview:{id:'roadAiSide'}, seqdup:{id:'seqDupSide'}, consensus:{id:'consensusSide'},
-    bot:{id:'botDecision'}, bestestimate:{id:'bestSide'}, specialistv20:{id:'v20Pick'}, blackctxv22:{id:'v22Pick'}, metav23:{id:'v23Pick'},
-    focusv26:{id:'focusV26Pick'}, contextv25:{id:'v25Pick'}, metav50:{id:'ms50Pick',gate:()=>String(document.getElementById('ms50Tier')?.textContent||'').toUpperCase().includes('QUALIFIED')},
-    derivedorig:{id:'derivedIndependentPrediction'}
-  };
-  const sideOf=t=>{t=String(t||'').toUpperCase();if(/\bPLAYER\b|^P$/.test(t))return 'P';if(/\bBANKER\b|^B$/.test(t))return 'B';return null};
-  function acc(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:V};
-    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {}; state.accuracyVerified.version=V; return state.accuracyVerified;
+  // DISPLAY-ONLY PATCH: does not change Derived Road prediction, gating,
+  // verified accuracy arm/settle logic, counters, or any other AI.
+  const KEY='derivedorig';
+
+  function model(){
+    try{return state?.accuracyVerified?.models?.[KEY]||null}catch(e){return null}
   }
-  function defs(){return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]}
-  function model(key,name){const a=acc();return a.models[key]||(a.models[key]={name:name||key,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}})}
-  function pbN(){try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}}
-  function context(){const n=pbN(),color=String(state.currentShoeColor||'combined').toLowerCase(),u=Number(state.metaWalkV23?.totalUpdates)||0;return {color,phase:n<18?'early':n<36?'middle':'late',learningUpdates:u,learningStage:u>0?'after':'before'}}
-  function getterSide(key,get){let x=null;try{x=get?.()}catch(e){};const s=x?.side;return (s==='P'||s==='B')?{side:s,strength:Number(x?.strength)||0}:null}
-  function domSide(key){const d=DOM[key];if(!d)return null;if(d.gate&&!d.gate())return null;const e=document.getElementById(d.id);if(!e)return null;const s=sideOf(e.textContent);return s?{side:s,strength:0}:null}
-  function snapshot(actual){
-    const a=acc(),c=context(),hand=pbN()+1,models={};
-    for(const [key,name,get] of defs()){
-      const g=getterSide(key,get),d=domSide(key),pick=g||d;
-      if(pick)models[key]={name,side:pick.side,strength:pick.strength,hand,...c};
+  function pending(){
+    try{return state?.accuracyVerified?.pending?.[KEY]||null}catch(e){return null}
+  }
+  function handCount(){
+    try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B').length}catch(e){return 0}
+  }
+  function ensureBox(){
+    const host=document.getElementById('derivedIndependentFinal');
+    if(!host)return null;
+    let box=document.getElementById('derivedIndependentResultStatus');
+    if(!box){
+      box=document.createElement('div');
+      box.id='derivedIndependentResultStatus';
+      box.style.cssText='margin-top:10px;padding:10px 12px;border:1px solid rgba(143,240,179,.55);border-radius:10px;background:rgba(143,240,179,.06);font-weight:800;line-height:1.45';
+      const score=document.getElementById('derivedIndependentTestScore');
+      if(score?.parentNode===host) score.insertAdjacentElement('afterend',box);
+      else host.appendChild(box);
     }
-    // Dedicated counters use their already-armed pre-result pending records.
-    const dedicated={};
-    for(const [name,api] of Object.entries({future:window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__,raw:window.__rawSequenceMatchV96,hist3:window.__historical3RoadFutureMatch,matcher:window.__V86_MATCHER_ACCURACY__})){
-      try{const z=api?.accuracy?.();if(z)dedicated[name]={before:(Number(z.wins)||0)+(Number(z.losses)||0),pending:z.pending?{...z.pending}:null,ref:z}}catch(e){}
+    return box;
+  }
+  function sideName(s){return s==='P'?'PLAYER':s==='B'?'BANKER':String(s||'—')}
+  function paint(){
+    const box=ensureBox();if(!box)return;
+    const m=model(),p=pending(),last=m?.last||null;
+    let result='LAST GRADED RESULT: —';
+    if(last){
+      result=`LAST GRADED RESULT: ${last.win?'WIN ✓':'LOSS ✗'} • predicted ${sideName(last.predicted)} • actual ${sideName(last.actual)} • hand #${last.hand}`;
     }
-    return {actual,beforeHands:Number(state.hands?.length)||0,hand,models,before:Object.fromEntries(Object.keys(models).map(k=>[k,Number(model(k,models[k].name).predictions)||0])),dedicated,stamp:Date.now()+':'+Math.random()};
-  }
-  function bump(key,name,p,actual){
-    const m=model(key,name),win=p.side===actual;
-    m.predictions=(Number(m.predictions)||0)+1;if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
-    m.splits ||= {};const add=id=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n++;if(win)z.w++;else z.l++;};
-    if(p.color==='red'||p.color==='black')add('color:'+p.color);if(p.phase)add('phase:'+p.phase);if(key==='metav23')add('learning:'+(p.learningStage||'before'));
-    [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
-    m.last={predicted:p.side,actual,win,hand:p.hand,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,v100Fallback:true};
-  }
-  function gradeDedicated(d,actual){
-    if(actual!=='P'&&actual!=='B')return;
-    for(const x of Object.values(d||{})){
+    let live='CURRENT STATUS: WAIT — no Derived Road prediction locked';
+    if(p?.side==='P'||p?.side==='B'){
+      live=`CURRENT STATUS: LOCKED ${sideName(p.side)} for hand #${p.hand}`;
+    }else{
       try{
-        const a=x.ref,after=(Number(a.wins)||0)+(Number(a.losses)||0),q=x.pending;if(after>x.before||!q||(q.side!=='P'&&q.side!=='B'))continue;
-        if(q.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;a.pending=null;
-        if(Array.isArray(a.ledger)){a.ledger.push({...q,actual,correct:q.side===actual,settledAt:Date.now(),v100Fallback:true});if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600)}
+        const z=typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI():null;
+        if(z?.side==='P'||z?.side==='B') live=`CURRENT STATUS: ${sideName(z.side)} available • waiting for pre-result lock`;
       }catch(e){}
     }
+    box.innerHTML=`<div style="color:#8ff0b3">${result}</div><div style="margin-top:3px;color:var(--muted)">${live}</div>`;
   }
-  function syncVisible(){
-    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
-    const map={specialistv20:['v20Verified','v20VerifiedDetail'],blackctxv22:['v22Verified','v22VerifiedDetail'],metav23:['v23Verified','v23VerifiedDetail'],focusv26:['focusV26Verified','focusV26VerifiedDetail']};
-    for(const [k,[rid,did]] of Object.entries(map)){const m=acc().models[k]||{},n=Number(m.predictions)||0,w=Number(m.wins)||0,l=Number(m.losses)||0,wait=Number(m.waits)||0;const r=document.getElementById(rid),d=document.getElementById(did);if(r)r.textContent=n?(100*w/n).toFixed(1)+'%':'—';if(d)d.textContent=`${w}W–${l}L • N=${n} • WAIT=${wait}`;}
-    try{window.__V72_MAIN_FUTURE__?.render?.();window.__rawSequenceMatchV96?.render?.();window.__historical3RoadFutureMatch?.render?.();window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
-  }
-  function finalize(s){
-    if(!s||window.__v100Done===s.stamp)return;window.__v100Done=s.stamp;
-    const hs=state.hands||[],last=hs[hs.length-1];if(hs.length!==s.beforeHands+1||!last||last.r!==s.actual)return;
-    if(s.actual==='P'||s.actual==='B')for(const [key,p] of Object.entries(s.models)){if((Number(model(key,p.name).predictions)||0)<=s.before[key])bump(key,p.name,p,s.actual)}
-    gradeDedicated(s.dedicated,s.actual);
-    try{persist()}catch(e){};syncVisible();
-  }
-  function bind(btn,forced){if(!btn||btn.__v100Capture)return;btn.__v100Capture=true;btn.addEventListener('click',function(){const actual=forced||this.dataset?.result;if(!['P','B','T'].includes(actual))return;const s=snapshot(actual);setTimeout(()=>finalize(s),0)},true)}
-  function install(){document.querySelectorAll('[data-result]').forEach(b=>bind(b));bind(document.getElementById('previewP'),'P');bind(document.getElementById('previewB'),'B');syncVisible()}
-  install();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,50));setTimeout(install,350);setTimeout(install,1200);
-  window.__V100_ACCURACY_CAPTURE__={version:V,install,snapshot,finalize,syncVisible,domFallback:true,postCommitFallback:true,doubleCountGuard:true};
-})();
-</script>
 
-
-<script id="v101-canonical-accuracy-normalizer">
-(function(){
-  'use strict';
-  const V=101;
-  const clone=o=>{try{return JSON.parse(JSON.stringify(o||{}))}catch(e){return {}}};
-  function A(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:V};
-    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {}; state.accuracyVerified.version=V; return state.accuracyVerified;
+  // Refresh the display after the existing authoritative settlement completes.
+  // The wrapped function itself still performs all counting exactly as before.
+  const oldSettle=window.__settleVerifiedPredictions;
+  if(typeof oldSettle==='function'&&!oldSettle.__v101DerivedDisplay){
+    const w=function(actual){const r=oldSettle.apply(this,arguments);try{paint()}catch(e){}return r};
+    w.__v101DerivedDisplay=true;window.__settleVerifiedPredictions=w;
   }
-  function defs(){return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]}
-  function pbN(){try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}}
-  function sideFrom(get){try{const x=get?.()||{};return (x.side==='P'||x.side==='B')?{side:x.side,strength:Number(x.strength)||0}:null}catch(e){return null}}
-  function snap(actual){
-    const a=A(),hand=pbN()+1,base={},pick={};
-    for(const [key,name,get] of defs()){
-      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
-      base[key]={predictions:Number(m.predictions)||0,wins:Number(m.wins)||0,losses:Number(m.losses)||0,last10:[...(m.last10||[])],last25:[...(m.last25||[])],last50:[...(m.last50||[])],splits:clone(m.splits),last:clone(m.last)};
-      const q=a.pending?.[key];
-      if(q&&(q.side==='P'||q.side==='B')&&Number(q.hand)===hand)pick[key]={...q};
-      else {const g=sideFrom(get);if(g)pick[key]={...g,hand,color:String(state.currentShoeColor||'combined').toLowerCase(),phase:hand-1<18?'early':hand-1<36?'middle':'late',learningStage:(Number(state.metaWalkV23?.totalUpdates)||0)>0?'after':'before'};}
-    }
-    const dedicated={};
-    const ds={future:window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__,raw:window.__rawSequenceMatchV96,hist3:window.__historical3RoadFutureMatch,matcher:window.__V86_MATCHER_ACCURACY__};
-    for(const [k,api] of Object.entries(ds)){try{const z=api?.accuracy?.();if(z)dedicated[k]={ref:z,wins:Number(z.wins)||0,losses:Number(z.losses)||0,pending:z.pending&&['P','B'].includes(z.pending.side)?{...z.pending}:null}}catch(e){}}
-    return {actual,hand,beforeHands:Number(state.hands?.length)||0,base,pick,dedicated,stamp:Date.now()+':'+Math.random()};
+  const oldArm=window.__armVerifiedPredictions;
+  if(typeof oldArm==='function'&&!oldArm.__v101DerivedDisplay){
+    const w=function(){const r=oldArm.apply(this,arguments);try{paint()}catch(e){}return r};
+    w.__v101DerivedDisplay=true;window.__armVerifiedPredictions=w;
   }
-  function addSplit(s,id,win){const z=s[id]||(s[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;}
-  function normalizeModel(key,p,b,actual){
-    const def=defs().find(d=>d[0]===key),name=def?.[1]||key,m=A().models[key]||(A().models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
-    const win=!!p&&p.side===actual,scored=!!p;
-    m.predictions=b.predictions+(scored?1:0);m.wins=b.wins+(scored&&win?1:0);m.losses=b.losses+(scored&&!win?1:0);
-    m.last10=[...b.last10];m.last25=[...b.last25];m.last50=[...b.last50];m.splits=clone(b.splits);
-    if(scored){
-      for(const n of [10,25,50]){const k='last'+n;m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)}
-      if(p.color==='red'||p.color==='black')addSplit(m.splits,'color:'+p.color,win);if(p.phase)addSplit(m.splits,'phase:'+p.phase,win);if(key==='metav23')addSplit(m.splits,'learning:'+(p.learningStage||'before'),win);
-      m.last={predicted:p.side,actual,win,hand:p.hand||0,lockedAt:p.lockedAt||null,settledAt:Date.now(),strength:Number(p.strength)||0,color:p.color,phase:p.phase,v101Canonical:true};
-    } else m.last=b.last&&Object.keys(b.last).length?b.last:m.last;
-  }
-  function finalize(s){
-    if(!s||window.__v101Done===s.stamp)return;window.__v101Done=s.stamp;
-    if(s.actual!=='P'&&s.actual!=='B')return;
-    const hs=state.hands||[],last=hs[hs.length-1];if(hs.length!==s.beforeHands+1||!last||last.r!==s.actual)return;
-    for(const [key,b] of Object.entries(s.base))normalizeModel(key,s.pick[key]||null,b,s.actual);
-    for(const d of Object.values(s.dedicated||{})){try{const a=d.ref,q=d.pending,scored=!!q;a.wins=d.wins+(scored&&q.side===s.actual?1:0);a.losses=d.losses+(scored&&q.side!==s.actual?1:0)}catch(e){}}
-    const a=A();a.__v101LastCanonical={hand:s.hand,actual:s.actual,at:Date.now(),scored:Object.keys(s.pick)};
-    try{persist()}catch(e){}
-    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.();window.renderVerifiedAccuracy?.();window.__V72_MAIN_FUTURE__?.render?.();window.__rawSequenceMatchV96?.render?.();window.__historical3RoadFutureMatch?.render?.();window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
-  }
-  function bind(btn,forced){if(!btn||btn.__v101Canonical)return;btn.__v101Canonical=true;btn.addEventListener('click',function(){const actual=forced||this.dataset?.result;if(!['P','B','T'].includes(actual))return;const s=snap(actual);setTimeout(()=>finalize(s),30)},true)}
-  function install(){document.querySelectorAll('[data-result]').forEach(b=>bind(b));bind(document.getElementById('previewP'),'P');bind(document.getElementById('previewB'),'B')}
-  install();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,50));setTimeout(install,350);setTimeout(install,1200);
-  window.__V101_ACCURACY_CANONICAL__={version:V,install,snap,finalize,exactlyOnce:true,normalizesLegacyDoubleCounts:true};
-})();
-</script>
-
-<script id="v102-ai-accuracy-counts-fixed">
-(function(){
-  'use strict';
-  const V=102;
-  function acc(){
-    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object') state.accuracyVerified={models:{},pending:{},ties:0,version:V};
-    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {}; state.accuracyVerified.version=V;
-    return state.accuracyVerified;
-  }
-  function defs(){ return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]; }
-  function pbCount(){ try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0} }
-  function clone(o){try{return JSON.parse(JSON.stringify(o||{}))}catch(e){return {}}}
-  function freshModel(name){return {name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}}}
-  function getSide(get){try{const x=get?.()||{};return (x.side==='P'||x.side==='B')?{side:x.side,strength:Number(x.strength)||0}:null}catch(e){return null}}
-  function context(){const n=pbCount();return {color:String(state.currentShoeColor||'combined').toLowerCase(),phase:n<18?'early':n<36?'middle':'late',learningStage:(Number(state.metaWalkV23?.totalUpdates)||0)>0?'after':'before'};}
-  function snap(actual){
-    const a=acc(), ctx=context(), hand=pbCount()+1, base={}, picks={};
-    for(const [key,name,get] of defs()){
-      const m=a.models[key]||(a.models[key]=freshModel(name));
-      base[key]={wins:+m.wins||0,losses:+m.losses||0,predictions:+m.predictions||0,waits:+m.waits||0,last10:[...(m.last10||[])],last25:[...(m.last25||[])],last50:[...(m.last50||[])],splits:clone(m.splits),last:clone(m.last)};
-      const g=getSide(get);
-      if(g) picks[key]={...g,hand,...ctx,lockedAt:Date.now()};
-    }
-    return {actual,hand,beforeLen:(state.hands||[]).length,base,picks,id:`${Date.now()}:${Math.random()}`};
-  }
-  function bumpSplit(s,id,win){const z=s[id]||(s[id]={w:0,l:0,n:0});z.n=(+z.n||0)+1;if(win)z.w=(+z.w||0)+1;else z.l=(+z.l||0)+1;}
-  function normalize(key,b,p,actual){
-    const def=defs().find(x=>x[0]===key), m=acc().models[key]||(acc().models[key]=freshModel(def?.[1]||key));
-    const scored=!!p, win=scored&&p.side===actual;
-    m.wins=b.wins+(win?1:0); m.losses=b.losses+(scored&&!win?1:0); m.predictions=b.predictions+(scored?1:0); m.waits=b.waits;
-    m.last10=[...b.last10];m.last25=[...b.last25];m.last50=[...b.last50];m.splits=clone(b.splits);
-    if(scored){
-      for(const n of [10,25,50]){const k='last'+n;m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)}
-      if(p.color==='red'||p.color==='black')bumpSplit(m.splits,'color:'+p.color,win);
-      if(p.phase)bumpSplit(m.splits,'phase:'+p.phase,win);
-      if(key==='metav23')bumpSplit(m.splits,'learning:'+(p.learningStage||'before'),win);
-      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,v102:true};
-    }else if(b.last&&Object.keys(b.last).length)m.last=b.last;
-  }
-  function modelText(key){
-    const m=acc().models[key]||freshModel(key), n=(+m.wins||0)+(+m.losses||0), pct=n?(100*(+m.wins||0)/n).toFixed(1)+'%':'—';
-    return `Accuracy: ${pct} • ${+m.wins||0}W-${+m.losses||0}L • N=${n} • WAIT=${+m.waits||0}`;
-  }
-  function renderDerivedAccuracy(){
-    const a=document.getElementById('derivedIndependentTestScore'); if(a)a.textContent=modelText('derivedorig');
-    const b=document.getElementById('adaptiveMainDerivedTestScore'); if(b)b.textContent=modelText('derivedmain');
-  }
-  function renderAll(){try{window.renderVerifiedAccuracy?.()}catch(e){};try{renderDerivedAccuracy()}catch(e){}}
-  function finalize(s){
-    if(!s||s.actual==='T'||!['P','B'].includes(s.actual)||window.__v102Done===s.id)return;
-    const hs=state.hands||[], last=hs[hs.length-1];
-    if(hs.length!==s.beforeLen+1||!last||last.r!==s.actual)return;
-    window.__v102Done=s.id;
-    for(const [key,b] of Object.entries(s.base)) normalize(key,b,s.picks[key]||null,s.actual);
-    const a=acc(); a.__v102Last={hand:s.hand,actual:s.actual,scored:Object.keys(s.picks),at:Date.now()};
-    try{persist()}catch(e){}
-    renderAll();
-    // Re-arm the next hand only after this hand is normalized.
-    setTimeout(()=>{try{window.__armVerifiedPredictions?.()}catch(e){};renderDerivedAccuracy()},50);
-  }
-  function bind(btn){
-    if(!btn||btn.__v102Accuracy)return; btn.__v102Accuracy=true;
-    btn.addEventListener('click',function(){const actual=this.dataset?.result;if(!['P','B','T'].includes(actual))return;const s=snap(actual);setTimeout(()=>finalize(s),45)},true);
-  }
-  function install(){document.querySelectorAll('button[data-result="P"],button[data-result="B"],button[data-result="T"]').forEach(bind);renderDerivedAccuracy();}
-  install();
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,30));
-  setTimeout(install,400);setTimeout(install,1200);
   const oldRender=window.render;
-  if(typeof oldRender==='function'&&!oldRender.__v102Accuracy){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(renderDerivedAccuracy,0);return r};w.__v102Accuracy=true;window.render=w;}
-  window.__V102_AI_ACCURACY__={version:V,snap,finalize,install,render:renderAll,exactlyOnce:true,source:'canonical accuracyVerified ledger'};
+  if(typeof oldRender==='function'&&!oldRender.__v101DerivedDisplay){
+    const w=function(){const r=oldRender.apply(this,arguments);try{paint()}catch(e){}return r};
+    w.__v101DerivedDisplay=true;window.render=w;try{render=w}catch(e){}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(paint,100));else setTimeout(paint,100);
+  setTimeout(paint,600);setTimeout(paint,1600);
+  window.__V101_DERIVED_DISPLAY_ONLY__={enabled:true,model:KEY,countLogicChanged:false,predictionLogicChanged:false,paint};
 })();
 </script>
-
-
-<script id="v103-derived-display-accuracy-sync-fixed">
-(function(){
-  'use strict';
-  const V=103;
-  function compute(){
-    try{
-      if(typeof derivedRoadSequenceAI!=='function') return {side:null,strength:0,base:null,final:null};
-      const x0=derivedRoadSequenceAI()||{};
-      const seed={...x0,strength:Number(x0.confidence)||Number(x0.strength)||0};
-      const xc=window.__slV10Signal?window.__slV10Signal('derivedorig',seed):seed;
-      const side=(xc?.side==='P'||xc?.side==='B')?xc.side:null;
-      const strength=side?(Number(xc?.strength)||Number(x0.confidence)||Number(x0.strength)||0):0;
-      return {side,strength,base:x0,final:xc||seed};
-    }catch(e){console.error('V103 derived compute',e);return {side:null,strength:0,base:null,final:null};}
-  }
-  function paint(q){
-    try{
-      q=q||compute();
-      const x0=q.base||{};
-      const pred=document.getElementById('derivedIndependentPrediction');
-      const agree=document.getElementById('derivedIndependentAgreement');
-      const conf=document.getElementById('derivedIndependentConfidence');
-      if(pred) pred.textContent='Prediction: '+(q.side==='P'?'PLAYER':q.side==='B'?'BANKER':'WAIT');
-      if(agree){
-        if((Number(x0.ready)||0)<2) agree.textContent=`Agreement: building live road previews (${Number(x0.ready)||0}/3 ready)`;
-        else agree.textContent=`Agreement: ${x0.winner||0} of 3 roads • Player ${Number(x0.pVotes)||0} / Banker ${Number(x0.bVotes)||0}`;
-      }
-      const wt=document.getElementById('derivedIndependentWeights');
-      if(wt&&Array.isArray(x0.roads)) wt.textContent='Live road weights: '+x0.roads.map(r=>`${r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach'} ${Math.round((r.reliability??.5)*100)}%`).join(' • ');
-      if(conf) conf.textContent=q.side?`Adaptive road confidence: ${Math.round(q.strength)}%`:'Adaptive road confidence: — • WAIT / conflicting mapped continuations';
-      // Store the exact signal that is visible on the card. Accuracy must use this same object.
-      window.__V103_DERIVED_VISIBLE__={side:q.side,strength:q.strength,hand:(typeof currentSequence==='function'?currentSequence().filter(x=>x==='P'||x==='B').length+1:null),at:Date.now()};
-      return q;
-    }catch(e){console.error('V103 derived paint',e);return q;}
-  }
-  function authoritative(){ return paint(compute()); }
-  function rewireAccuracyGetter(){
-    try{
-      const defs=window.__accuracyModelDefs;
-      if(!Array.isArray(defs))return;
-      for(let i=0;i<defs.length;i++){
-        if(defs[i]?.[0]!=='derivedorig')continue;
-        if(defs[i][2]?.__v103)return;
-        const g=function(){const q=authoritative();return {side:q.side,strength:q.strength};};
-        g.__v103=true;
-        defs[i][2]=g;
-      }
-    }catch(e){console.error('V103 accuracy rewire',e);}
-  }
-  function install(){rewireAccuracyGetter();authoritative();}
-  const oldRender=window.render;
-  if(typeof oldRender==='function'&&!oldRender.__v103DerivedSync){
-    const w=function(){const r=oldRender.apply(this,arguments);try{install()}catch(e){};return r;};
-    w.__v103DerivedSync=true; window.render=w;
-  }
-  // Capture-phase result hook: synchronously repaint first, so the signal graded for this
-  // result is guaranteed to be the same PLAYER/BANKER/WAIT the user can see.
-  function bind(b){
-    if(!b||b.__v103DerivedSync)return;b.__v103DerivedSync=true;
-    b.addEventListener('click',()=>{try{authoritative()}catch(e){}},true);
-  }
-  function bindAll(){document.querySelectorAll('button[data-result="P"],button[data-result="B"],button[data-result="T"]').forEach(bind);install();}
-  bindAll();
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bindAll,20));
-  setTimeout(bindAll,250);setTimeout(bindAll,900);
-  window.__V103_DERIVED_SYNC__={version:V,compute,paint,authoritative,install,rule:'displayed signal equals scored signal'};
-})();
-</script>
-
 </body>
 </html>
