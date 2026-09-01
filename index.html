@@ -14990,5 +14990,75 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v103-derived-display-accuracy-sync-fixed">
+(function(){
+  'use strict';
+  const V=103;
+  function compute(){
+    try{
+      if(typeof derivedRoadSequenceAI!=='function') return {side:null,strength:0,base:null,final:null};
+      const x0=derivedRoadSequenceAI()||{};
+      const seed={...x0,strength:Number(x0.confidence)||Number(x0.strength)||0};
+      const xc=window.__slV10Signal?window.__slV10Signal('derivedorig',seed):seed;
+      const side=(xc?.side==='P'||xc?.side==='B')?xc.side:null;
+      const strength=side?(Number(xc?.strength)||Number(x0.confidence)||Number(x0.strength)||0):0;
+      return {side,strength,base:x0,final:xc||seed};
+    }catch(e){console.error('V103 derived compute',e);return {side:null,strength:0,base:null,final:null};}
+  }
+  function paint(q){
+    try{
+      q=q||compute();
+      const x0=q.base||{};
+      const pred=document.getElementById('derivedIndependentPrediction');
+      const agree=document.getElementById('derivedIndependentAgreement');
+      const conf=document.getElementById('derivedIndependentConfidence');
+      if(pred) pred.textContent='Prediction: '+(q.side==='P'?'PLAYER':q.side==='B'?'BANKER':'WAIT');
+      if(agree){
+        if((Number(x0.ready)||0)<2) agree.textContent=`Agreement: building live road previews (${Number(x0.ready)||0}/3 ready)`;
+        else agree.textContent=`Agreement: ${x0.winner||0} of 3 roads • Player ${Number(x0.pVotes)||0} / Banker ${Number(x0.bVotes)||0}`;
+      }
+      const wt=document.getElementById('derivedIndependentWeights');
+      if(wt&&Array.isArray(x0.roads)) wt.textContent='Live road weights: '+x0.roads.map(r=>`${r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach'} ${Math.round((r.reliability??.5)*100)}%`).join(' • ');
+      if(conf) conf.textContent=q.side?`Adaptive road confidence: ${Math.round(q.strength)}%`:'Adaptive road confidence: — • WAIT / conflicting mapped continuations';
+      // Store the exact signal that is visible on the card. Accuracy must use this same object.
+      window.__V103_DERIVED_VISIBLE__={side:q.side,strength:q.strength,hand:(typeof currentSequence==='function'?currentSequence().filter(x=>x==='P'||x==='B').length+1:null),at:Date.now()};
+      return q;
+    }catch(e){console.error('V103 derived paint',e);return q;}
+  }
+  function authoritative(){ return paint(compute()); }
+  function rewireAccuracyGetter(){
+    try{
+      const defs=window.__accuracyModelDefs;
+      if(!Array.isArray(defs))return;
+      for(let i=0;i<defs.length;i++){
+        if(defs[i]?.[0]!=='derivedorig')continue;
+        if(defs[i][2]?.__v103)return;
+        const g=function(){const q=authoritative();return {side:q.side,strength:q.strength};};
+        g.__v103=true;
+        defs[i][2]=g;
+      }
+    }catch(e){console.error('V103 accuracy rewire',e);}
+  }
+  function install(){rewireAccuracyGetter();authoritative();}
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v103DerivedSync){
+    const w=function(){const r=oldRender.apply(this,arguments);try{install()}catch(e){};return r;};
+    w.__v103DerivedSync=true; window.render=w;
+  }
+  // Capture-phase result hook: synchronously repaint first, so the signal graded for this
+  // result is guaranteed to be the same PLAYER/BANKER/WAIT the user can see.
+  function bind(b){
+    if(!b||b.__v103DerivedSync)return;b.__v103DerivedSync=true;
+    b.addEventListener('click',()=>{try{authoritative()}catch(e){}},true);
+  }
+  function bindAll(){document.querySelectorAll('button[data-result="P"],button[data-result="B"],button[data-result="T"]').forEach(bind);install();}
+  bindAll();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(bindAll,20));
+  setTimeout(bindAll,250);setTimeout(bindAll,900);
+  window.__V103_DERIVED_SYNC__={version:V,compute,paint,authoritative,install,rule:'displayed signal equals scored signal'};
+})();
+</script>
+
 </body>
 </html>
