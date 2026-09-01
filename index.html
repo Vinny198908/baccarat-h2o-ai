@@ -4606,13 +4606,12 @@ function gptMirrorMarkSuffixScore(a,b,limit=7){
   for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])h++;
   return h/n;
 }
-const __GPT_MIRROR_V3_RUNTIME__={cacheKey:null,cacheValue:null,readyAt:(typeof performance!=='undefined'?performance.now():Date.now())+1400};
+const __GPT_MIRROR_V3_RUNTIME__={cacheKey:null,cacheValue:null,armed:false};
 function gptMirrorV3FamilyLock(){
   const liveRaw=currentSequence().filter(x=>'PBT'.includes(x)).join('');
   const livePB=liveRaw.replace(/T/g,'');
-  const now=(typeof performance!=='undefined'?performance.now():Date.now());
-  if(now<__GPT_MIRROR_V3_RUNTIME__.readyAt){
-    return {qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'startup defer',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
+  if(!__GPT_MIRROR_V3_RUNTIME__.armed){
+    return {qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'V3 arms after the next entered hand',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
   }
   let libStamp=''; try{const L=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[]; libStamp=String(L.length)}catch(e){}
   const cacheKey=liveRaw+'|'+libStamp;
@@ -4741,7 +4740,8 @@ function gptMirrorSignal(){
 
   // V3 is a gated recognition layer, not a replacement predictor. It earns one
   // additional independent vote only after all four evidence families converge.
-  const v3=gptMirrorV3FamilyLock();
+  let v3={qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'V3 unavailable',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
+  try{v3=gptMirrorV3FamilyLock();}catch(e){console.warn('GPT Mirror V3 isolated error',e);}
   if(v3.qualified){
     add('v3family','V3 Family Lock',{side:v3.side},Math.min(88,Math.max(62,v3.score)),1.18,
       `${v3.confirmations}/4 confirmations • ${v3.roadAgree}/${v3.roadReady} roads • ${v3.shoeId} @ ${v3.pos}`);
@@ -4875,7 +4875,21 @@ function bindGPTMirrorControls(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{bindGPTMirrorControls();setTimeout(()=>{renderGPTMirrorAI();armGPTMirrorPrediction();},250)});
 else setTimeout(()=>{bindGPTMirrorControls();renderGPTMirrorAI();armGPTMirrorPrediction();},250);
-setTimeout(()=>{try{__GPT_MIRROR_V3_RUNTIME__.cacheKey=null;__GPT_MIRROR_V3_RUNTIME__.cacheValue=null;renderGPTMirrorAI();}catch(e){console.warn('GPT Mirror V3 deferred scan',e)}},1700);
+// V121 LOAD-SAFE ARMING: V3 never executes during initial page restoration/render.
+// It becomes eligible only after the user enters a new result. Capture phase arms
+// before the existing result handler commits the hand; all startup renders stay V2-only.
+(function installGPTMirrorV3LiveArm(){
+  const arm=()=>{try{__GPT_MIRROR_V3_RUNTIME__.armed=true;__GPT_MIRROR_V3_RUNTIME__.cacheKey=null;__GPT_MIRROR_V3_RUNTIME__.cacheValue=null;}catch(e){}};
+  const install=()=>{
+    document.querySelectorAll('[data-result],#previewP,#previewB').forEach(el=>{
+      if(!el||el.__gptMirrorV3ArmBound)return;
+      el.__gptMirrorV3ArmBound=true;
+      el.addEventListener('click',arm,true);
+    });
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true}); else install();
+})();
+
 
 // --- MASTER BOT AI V1: color-aware, road-aware, phase-aware continuous learning ---
 function ensureBotState(){
