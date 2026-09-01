@@ -375,6 +375,23 @@
 <div class="future-final" id="futureFinal">Likely answer: WAIT — building evidence</div>
 <div class="future-note" id="futureNote">Tests both hypothetical next results without saving either one. It compares the projected Main Road with Big Eye Boy, Small Road, and Cockroach Road output, then discards both previews until the real hand is entered.</div>
 </div>
+
+<div class="future-test" id="historical3RoadFutureTest" style="border-color:#6a5acd">
+  <div class="future-test-head">
+    <div class="future-test-title">🧭 Historical 3-Road Future Match</div>
+    <div class="future-test-speed" id="hist3Speed">Saved-road point-in-time scan</div>
+  </div>
+  <div class="future-paths">
+    <div class="future-path"><strong>HISTORICAL MATCHES</strong><div class="future-main" id="hist3MatchText">Building 3-road history evidence…</div><div class="future-score" id="hist3MatchCount">0</div></div>
+    <div class="future-path"><strong>NEXT MAIN ROAD</strong><div class="future-main" id="hist3OutcomeText">Player 0 • Banker 0</div><div class="future-score" id="hist3Prediction">WAIT</div></div>
+  </div>
+  <div id="hist3AccuracyRow" style="margin-top:8px;padding:8px 10px;border:1px solid #303743;border-radius:10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <strong>Accuracy Verified:</strong><span id="hist3AccuracyPct">—</span><span id="hist3AccuracyWL">0W-0L</span><span id="hist3AccuracyN">N=0</span><span id="hist3AccuracyWait">WAIT=0</span>
+    <button id="resetHist3Accuracy" style="margin-left:auto;font-size:10px;padding:4px 7px" type="button">Reset score</button>
+  </div>
+  <div class="future-final" id="hist3Final">Best prediction: WAIT — building saved 3-road evidence</div>
+  <div class="future-note" id="hist3Note">Uses only Big Eye Boy + Small Road + Cockroach Road states available at each historical hand, then reads the actual next Player/Banker Main Road result. Exact/longer 3-road matches carry more weight; weak or split evidence returns WAIT.</div>
+</div>
 <div class="derived-roads">
 <div class="mini">
 <div class="mini-title">Big Eye Boy</div>
@@ -13810,27 +13827,26 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{persist()}catch(e){}
     try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
   }
-  // Capture-phase listener guarantees grading occurs before the core handler appends the actual result.
-  document.querySelectorAll('[data-result]').forEach(btn=>{
-    if(btn.__v77Accuracy)return; btn.__v77Accuracy=true;
-    btn.addEventListener('click',()=>{try{grade(btn.dataset.result)}catch(e){console.error('V77 grade',e)}},true);
-  });
-  // Preview P/B buttons also commit real results in this build.
-  [['previewP','P'],['previewB','B']].forEach(([id,actual])=>{
-    const b=document.getElementById(id); if(!b||b.__v77Accuracy)return; b.__v77Accuracy=true;
-    b.addEventListener('click',()=>{try{grade(actual)}catch(e){console.error('V77 preview grade',e)}},true);
-  });
-  // Disable the older verified settle hook to prevent double-counting. Keep arm hook for compatibility,
-  // then overwrite pending with one authoritative fresh snapshot after each committed render.
-  window.__settleVerifiedPredictions=function(){};
-  const armCompat=window.__armVerifiedPredictions;
-  window.__armVerifiedPredictions=function(){try{freshLocks()}catch(e){console.error('V77 arm',e)}};
+  // V84 PERMANENT ACCURACY PATH: grade only through the core pre-result settle hook.
+  // This removes the competing capture-listener path that could either bypass grading or double count.
+  // The core P/B/T buttons and preview commits already call __settleVerifiedPredictions(actual) exactly
+  // once before appending the result, so this is the single authoritative scoring path.
+  window.__settleVerifiedPredictions=function(actual){
+    try{
+      const a=acc();
+      const eventKey=`${currentSequence().length+1}:${String(actual||'')}:${state.hands.length}`;
+      if(a.__lastSettleEvent===eventKey)return;
+      a.__lastSettleEvent=eventKey;
+      grade(actual);
+    }catch(e){console.error('V84 permanent accuracy settle',e)}
+  };
+  window.__armVerifiedPredictions=function(){try{freshLocks()}catch(e){console.error('V84 permanent accuracy arm',e)}};
   const oldRender=window.render;
   if(typeof oldRender==='function'&&!oldRender.__v77Accuracy){
     const w=function(){const r=oldRender.apply(this,arguments);setTimeout(()=>{try{freshLocks()}catch(e){}},0);return r};w.__v77Accuracy=true;window.render=w;
   }
   setTimeout(freshLocks,300);setTimeout(freshLocks,1200);
-  window.__V77_ACCURACY_FIX__={version:77,directCaptureGrade:true,singleSettlePath:true,doubleCountGuard:true};
+  window.__V77_ACCURACY_FIX__={version:84,directCaptureGrade:false,coreSettleGrade:true,singleSettlePath:true,doubleCountGuard:true,permanent:true};
 })();
 </script>
 
@@ -14326,5 +14342,104 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 </script>
 
+
+<script id="v95-historical-3-road-future-match">
+(function(){
+  'use strict';
+  const CACHE=new Map();
+  const WINDOWS=[6,10,15,20];
+  const fresh=()=>({wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,lastSettledKey:null,ledger:[]});
+  function acc(){
+    if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true){if(!window.__HIST3_ACC_SIM__)window.__HIST3_ACC_SIM__=fresh();return window.__HIST3_ACC_SIM__;}
+    if(!state.historical3RoadAccuracy||typeof state.historical3RoadAccuracy!=='object')state.historical3RoadAccuracy=fresh();
+    const a=state.historical3RoadAccuracy;['wins','losses','waits','ties'].forEach(k=>{if(!Number.isFinite(a[k]))a[k]=0});if(!Array.isArray(a.ledger))a.ledger=[];return a;
+  }
+  function pbN(){try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}}
+  function roadsFromSeq(seq){const h=seq.map(r=>({r}));return {bigEye:deriveRoad(h,1),small:deriveRoad(h,2),roach:deriveRoad(h,3)}}
+  function roadSuffixSimilarity(a,b,w){
+    a=a||[];b=b||[];const n=Math.min(w,a.length,b.length);if(n<3)return null;
+    let same=0;for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])same++;
+    return {sim:same/n,n};
+  }
+  function pointSimilarity(cur,hist){
+    let num=0,den=0,used=0,bestWindow=0;
+    for(const w of WINDOWS){
+      let wn=0,wd=0,roads=0;
+      for(const key of ['bigEye','small','roach']){const z=roadSuffixSimilarity(cur[key],hist[key],w);if(z){const rw=z.n/w;wn+=z.sim*rw;wd+=rw;roads++;}}
+      if(roads<2||!wd)continue;
+      const sim=wn/wd,ww=w*w*(roads/3);num+=sim*ww;den+=ww;used=Math.max(used,roads);if(sim>=.70)bestWindow=Math.max(bestWindow,w);
+    }
+    return {sim:den?num/den:0,roads:used,bestWindow};
+  }
+  function historicalPoints(shoe){
+    const seq=String(shoe&&shoe.sequence||'').toUpperCase().replace(/[^PBT]/g,'');if(seq.length<7)return [];
+    const key=seq;let hit=CACHE.get(key);if(hit)return hit;
+    const pts=[];
+    for(let i=4;i<seq.length-1;i++){
+      let j=i+1;while(j<seq.length&&seq[j]==='T')j++;if(j>=seq.length)break;
+      const next=seq[j];if(next!=='P'&&next!=='B')continue;
+      const prefix=seq.slice(0,i+1).split('');const roads=roadsFromSeq(prefix);
+      if((roads.bigEye.length+roads.small.length+roads.roach.length)<8)continue;
+      pts.push({i,roads,next});
+    }
+    CACHE.set(key,pts);return pts;
+  }
+  function test(){
+    const t0=(performance&&performance.now)?performance.now():Date.now();
+    const cur=roadsFromSeq(currentSequence());
+    const lib=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[];
+    const matches=[];
+    for(let si=0;si<lib.length;si++){
+      const shoe=lib[si];let best=null;
+      for(const pt of historicalPoints(shoe)){
+        const q=pointSimilarity(cur,pt.roads);if(q.roads<2||q.sim<.66)continue;
+        const quality=q.sim*(1+Math.min(20,q.bestWindow)/80);
+        if(!best||quality>best.quality)best={shoeIndex:si,point:pt.i,next:pt.next,sim:q.sim,bestWindow:q.bestWindow,roads:q.roads,quality};
+      }
+      if(best)matches.push(best); // one best point per shoe prevents one shoe dominating
+    }
+    matches.sort((a,b)=>b.quality-a.quality);const top=matches.slice(0,40);
+    let p=0,b=0,totalW=0;
+    for(const m of top){const w=Math.pow(Math.max(0,m.sim-.55),2)*(1+Math.min(20,m.bestWindow)/20);totalW+=w;if(m.next==='P')p+=w;else b+=w;}
+    const rawN=top.length,den=p+b,pPct=den?100*p/den:50,bPct=den?100*b/den:50,edge=Math.abs(pPct-bPct);
+    const avgSim=rawN?100*top.reduce((z,m)=>z+m.sim,0)/rawN:0;
+    let side=null;
+    if(rawN>=4&&avgSim>=70&&edge>=10)side=pPct>bPct?'P':'B';
+    const conf=side?Math.min(95,Math.round(50+edge*.7+Math.min(15,rawN)*.8+(avgSim-70)*.35)):0;
+    const elapsed=Math.round(((performance&&performance.now)?performance.now():Date.now())-t0);
+    return {side,pPct,bPct,edge,conf,matches:rawN,avgSim,bestWindow:top[0]?.bestWindow||0,elapsed,top};
+  }
+  function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+  function renderAcc(){const a=acc(),n=a.wins+a.losses;set('hist3AccuracyPct',n?(100*a.wins/n).toFixed(1)+'%':'—');set('hist3AccuracyWL',`${a.wins}W-${a.losses}L`);set('hist3AccuracyN',`N=${n}`);set('hist3AccuracyWait',`WAIT=${a.waits}`)}
+  function render(){
+    const x=test();set('hist3Speed',`Saved-road point-in-time scan • ${x.elapsed} ms`);set('hist3MatchCount',String(x.matches));
+    set('hist3MatchText',x.matches?`${x.matches} qualifying saved-shoe matches • avg similarity ${x.avgSim.toFixed(1)}% • best window ${x.bestWindow||'—'}`:'No qualifying saved 3-road matches yet');
+    set('hist3OutcomeText',`Player ${x.pPct.toFixed(1)}% • Banker ${x.bPct.toFixed(1)}%`);set('hist3Prediction',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
+    if(x.side)set('hist3Final',`Best prediction: ${x.side==='P'?'PLAYER':'BANKER'} • historical 3-road edge ${x.edge.toFixed(1)} pts • confidence ${x.conf}%`);
+    else set('hist3Final',`Best prediction: WAIT — ${x.matches<4?'not enough independent historical matches':x.avgSim<70?'match quality is too weak':'historical next results are too split'}`);
+    set('hist3Note','Leakage-safe point-in-time matching • one best match per saved shoe • Big Eye + Small + Roach only • actual next P/B Main Road result supplies the historical label.');renderAcc();return x;
+  }
+  function arm(){
+    const a=acc(),n=pbN(),x=test();
+    if(!(x.side==='P'||x.side==='B')){a.pending=null;if(a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n}renderAcc();return;}
+    a.lastWaitHandN=null;a.pending={side:x.side,handN:n,matches:x.matches,avgSim:x.avgSim,edge:x.edge,conf:x.conf,armedAt:Date.now()};renderAcc();
+  }
+  function settle(actual){
+    const a=acc();if(!['P','B','T'].includes(actual))return;
+    const eventKey=`${pbN()+1}:${actual}:${state.hands.length}`;if(a.lastSettledKey===eventKey)return;a.lastSettledKey=eventKey;
+    const q=a.pending;a.pending=null;if(actual==='T'){a.ties++;renderAcc();return}if(!q)return;
+    const correct=q.side===actual;if(correct)a.wins++;else a.losses++;a.ledger.push({...q,actual,correct,settledAt:Date.now()});if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600);
+    try{if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true&&typeof persist==='function')persist()}catch(e){}renderAcc();
+  }
+  function installHooks(){
+    const oa=window.__armVerifiedPredictions;if(typeof oa==='function'&&!oa.__hist3){const w=function(){let r=oa.apply(this,arguments);try{arm()}catch(e){console.warn('Hist3 arm',e)}return r};w.__hist3=true;window.__armVerifiedPredictions=w;}
+    const os=window.__settleVerifiedPredictions;if(typeof os==='function'&&!os.__hist3){const w=function(actual){let r;try{r=os.apply(this,arguments)}finally{try{settle(actual)}catch(e){console.warn('Hist3 settle',e)}}return r};w.__hist3=true;window.__settleVerifiedPredictions=w;}
+  }
+  function bindReset(){const b=document.getElementById('resetHist3Accuracy');if(b&&!b.__hist3){b.__hist3=true;b.addEventListener('click',()=>{if(!confirm('Reset only the Historical 3-Road Future Match accuracy?'))return;state.historical3RoadAccuracy=fresh();try{if(typeof persist==='function')persist()}catch(e){}render();arm();});}}
+  function sync(){try{installHooks();bindReset();render()}catch(e){console.warn('Historical 3-road future match',e)}}
+  window.__historical3RoadFutureMatch={version:95,test,render,arm,settle,accuracy:acc,pointInTime:true,roads:['Big Eye Boy','Small Road','Cockroach Road']};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(sync,30);setTimeout(()=>{installHooks();arm();render()},400)});else{setTimeout(sync,30);setTimeout(()=>{installHooks();arm();render()},400)}
+})();
+</script>
 </body>
 </html>
