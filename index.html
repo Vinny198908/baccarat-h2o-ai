@@ -14787,5 +14787,208 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 })();
 
 </script>
+
+<script id="v100-accuracy-capture-final">
+(function(){
+  'use strict';
+  const V=100;
+  const DOM={
+    seqv2:{id:'seqAiSide'}, color:{id:'colorAiSide'}, roadpreview:{id:'roadAiSide'}, seqdup:{id:'seqDupSide'}, consensus:{id:'consensusSide'},
+    bot:{id:'botDecision'}, bestestimate:{id:'bestSide'}, specialistv20:{id:'v20Pick'}, blackctxv22:{id:'v22Pick'}, metav23:{id:'v23Pick'},
+    focusv26:{id:'focusV26Pick'}, contextv25:{id:'v25Pick'}, metav50:{id:'ms50Pick',gate:()=>String(document.getElementById('ms50Tier')?.textContent||'').toUpperCase().includes('QUALIFIED')},
+    derivedorig:{id:'derivedIndependentPrediction'}
+  };
+  const sideOf=t=>{t=String(t||'').toUpperCase();if(/\bPLAYER\b|^P$/.test(t))return 'P';if(/\bBANKER\b|^B$/.test(t))return 'B';return null};
+  function acc(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:V};
+    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {}; state.accuracyVerified.version=V; return state.accuracyVerified;
+  }
+  function defs(){return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]}
+  function model(key,name){const a=acc();return a.models[key]||(a.models[key]={name:name||key,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}})}
+  function pbN(){try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}}
+  function context(){const n=pbN(),color=String(state.currentShoeColor||'combined').toLowerCase(),u=Number(state.metaWalkV23?.totalUpdates)||0;return {color,phase:n<18?'early':n<36?'middle':'late',learningUpdates:u,learningStage:u>0?'after':'before'}}
+  function getterSide(key,get){let x=null;try{x=get?.()}catch(e){};const s=x?.side;return (s==='P'||s==='B')?{side:s,strength:Number(x?.strength)||0}:null}
+  function domSide(key){const d=DOM[key];if(!d)return null;if(d.gate&&!d.gate())return null;const e=document.getElementById(d.id);if(!e)return null;const s=sideOf(e.textContent);return s?{side:s,strength:0}:null}
+  function snapshot(actual){
+    const a=acc(),c=context(),hand=pbN()+1,models={};
+    for(const [key,name,get] of defs()){
+      const g=getterSide(key,get),d=domSide(key),pick=g||d;
+      if(pick)models[key]={name,side:pick.side,strength:pick.strength,hand,...c};
+    }
+    // Dedicated counters use their already-armed pre-result pending records.
+    const dedicated={};
+    for(const [name,api] of Object.entries({future:window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__,raw:window.__rawSequenceMatchV96,hist3:window.__historical3RoadFutureMatch,matcher:window.__V86_MATCHER_ACCURACY__})){
+      try{const z=api?.accuracy?.();if(z)dedicated[name]={before:(Number(z.wins)||0)+(Number(z.losses)||0),pending:z.pending?{...z.pending}:null,ref:z}}catch(e){}
+    }
+    return {actual,beforeHands:Number(state.hands?.length)||0,hand,models,before:Object.fromEntries(Object.keys(models).map(k=>[k,Number(model(k,models[k].name).predictions)||0])),dedicated,stamp:Date.now()+':'+Math.random()};
+  }
+  function bump(key,name,p,actual){
+    const m=model(key,name),win=p.side===actual;
+    m.predictions=(Number(m.predictions)||0)+1;if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
+    m.splits ||= {};const add=id=>{const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});z.n++;if(win)z.w++;else z.l++;};
+    if(p.color==='red'||p.color==='black')add('color:'+p.color);if(p.phase)add('phase:'+p.phase);if(key==='metav23')add('learning:'+(p.learningStage||'before'));
+    [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
+    m.last={predicted:p.side,actual,win,hand:p.hand,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase,v100Fallback:true};
+  }
+  function gradeDedicated(d,actual){
+    if(actual!=='P'&&actual!=='B')return;
+    for(const x of Object.values(d||{})){
+      try{
+        const a=x.ref,after=(Number(a.wins)||0)+(Number(a.losses)||0),q=x.pending;if(after>x.before||!q||(q.side!=='P'&&q.side!=='B'))continue;
+        if(q.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;a.pending=null;
+        if(Array.isArray(a.ledger)){a.ledger.push({...q,actual,correct:q.side===actual,settledAt:Date.now(),v100Fallback:true});if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600)}
+      }catch(e){}
+    }
+  }
+  function syncVisible(){
+    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+    const map={specialistv20:['v20Verified','v20VerifiedDetail'],blackctxv22:['v22Verified','v22VerifiedDetail'],metav23:['v23Verified','v23VerifiedDetail'],focusv26:['focusV26Verified','focusV26VerifiedDetail']};
+    for(const [k,[rid,did]] of Object.entries(map)){const m=acc().models[k]||{},n=Number(m.predictions)||0,w=Number(m.wins)||0,l=Number(m.losses)||0,wait=Number(m.waits)||0;const r=document.getElementById(rid),d=document.getElementById(did);if(r)r.textContent=n?(100*w/n).toFixed(1)+'%':'—';if(d)d.textContent=`${w}W–${l}L • N=${n} • WAIT=${wait}`;}
+    try{window.__V72_MAIN_FUTURE__?.render?.();window.__rawSequenceMatchV96?.render?.();window.__historical3RoadFutureMatch?.render?.();window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
+  }
+  function finalize(s){
+    if(!s||window.__v100Done===s.stamp)return;window.__v100Done=s.stamp;
+    const hs=state.hands||[],last=hs[hs.length-1];if(hs.length!==s.beforeHands+1||!last||last.r!==s.actual)return;
+    if(s.actual==='P'||s.actual==='B')for(const [key,p] of Object.entries(s.models)){if((Number(model(key,p.name).predictions)||0)<=s.before[key])bump(key,p.name,p,s.actual)}
+    gradeDedicated(s.dedicated,s.actual);
+    try{persist()}catch(e){};syncVisible();
+  }
+  function bind(btn,forced){if(!btn||btn.__v100Capture)return;btn.__v100Capture=true;btn.addEventListener('click',function(){const actual=forced||this.dataset?.result;if(!['P','B','T'].includes(actual))return;const s=snapshot(actual);setTimeout(()=>finalize(s),0)},true)}
+  function install(){document.querySelectorAll('[data-result]').forEach(b=>bind(b));bind(document.getElementById('previewP'),'P');bind(document.getElementById('previewB'),'B');syncVisible()}
+  install();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,50));setTimeout(install,350);setTimeout(install,1200);
+  window.__V100_ACCURACY_CAPTURE__={version:V,install,snapshot,finalize,syncVisible,domFallback:true,postCommitFallback:true,doubleCountGuard:true};
+})();
+</script>
+
+
+<script id="v101-canonical-accuracy-normalizer">
+(function(){
+  'use strict';
+  const V=101;
+  const clone=o=>{try{return JSON.parse(JSON.stringify(o||{}))}catch(e){return {}}};
+  function A(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:V};
+    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {}; state.accuracyVerified.version=V; return state.accuracyVerified;
+  }
+  function defs(){return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]}
+  function pbN(){try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}}
+  function sideFrom(get){try{const x=get?.()||{};return (x.side==='P'||x.side==='B')?{side:x.side,strength:Number(x.strength)||0}:null}catch(e){return null}}
+  function snap(actual){
+    const a=A(),hand=pbN()+1,base={},pick={};
+    for(const [key,name,get] of defs()){
+      const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+      base[key]={predictions:Number(m.predictions)||0,wins:Number(m.wins)||0,losses:Number(m.losses)||0,last10:[...(m.last10||[])],last25:[...(m.last25||[])],last50:[...(m.last50||[])],splits:clone(m.splits),last:clone(m.last)};
+      const q=a.pending?.[key];
+      if(q&&(q.side==='P'||q.side==='B')&&Number(q.hand)===hand)pick[key]={...q};
+      else {const g=sideFrom(get);if(g)pick[key]={...g,hand,color:String(state.currentShoeColor||'combined').toLowerCase(),phase:hand-1<18?'early':hand-1<36?'middle':'late',learningStage:(Number(state.metaWalkV23?.totalUpdates)||0)>0?'after':'before'};}
+    }
+    const dedicated={};
+    const ds={future:window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__,raw:window.__rawSequenceMatchV96,hist3:window.__historical3RoadFutureMatch,matcher:window.__V86_MATCHER_ACCURACY__};
+    for(const [k,api] of Object.entries(ds)){try{const z=api?.accuracy?.();if(z)dedicated[k]={ref:z,wins:Number(z.wins)||0,losses:Number(z.losses)||0,pending:z.pending&&['P','B'].includes(z.pending.side)?{...z.pending}:null}}catch(e){}}
+    return {actual,hand,beforeHands:Number(state.hands?.length)||0,base,pick,dedicated,stamp:Date.now()+':'+Math.random()};
+  }
+  function addSplit(s,id,win){const z=s[id]||(s[id]={w:0,l:0,n:0});z.n=(Number(z.n)||0)+1;if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;}
+  function normalizeModel(key,p,b,actual){
+    const def=defs().find(d=>d[0]===key),name=def?.[1]||key,m=A().models[key]||(A().models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+    const win=!!p&&p.side===actual,scored=!!p;
+    m.predictions=b.predictions+(scored?1:0);m.wins=b.wins+(scored&&win?1:0);m.losses=b.losses+(scored&&!win?1:0);
+    m.last10=[...b.last10];m.last25=[...b.last25];m.last50=[...b.last50];m.splits=clone(b.splits);
+    if(scored){
+      for(const n of [10,25,50]){const k='last'+n;m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)}
+      if(p.color==='red'||p.color==='black')addSplit(m.splits,'color:'+p.color,win);if(p.phase)addSplit(m.splits,'phase:'+p.phase,win);if(key==='metav23')addSplit(m.splits,'learning:'+(p.learningStage||'before'),win);
+      m.last={predicted:p.side,actual,win,hand:p.hand||0,lockedAt:p.lockedAt||null,settledAt:Date.now(),strength:Number(p.strength)||0,color:p.color,phase:p.phase,v101Canonical:true};
+    } else m.last=b.last&&Object.keys(b.last).length?b.last:m.last;
+  }
+  function finalize(s){
+    if(!s||window.__v101Done===s.stamp)return;window.__v101Done=s.stamp;
+    if(s.actual!=='P'&&s.actual!=='B')return;
+    const hs=state.hands||[],last=hs[hs.length-1];if(hs.length!==s.beforeHands+1||!last||last.r!==s.actual)return;
+    for(const [key,b] of Object.entries(s.base))normalizeModel(key,s.pick[key]||null,b,s.actual);
+    for(const d of Object.values(s.dedicated||{})){try{const a=d.ref,q=d.pending,scored=!!q;a.wins=d.wins+(scored&&q.side===s.actual?1:0);a.losses=d.losses+(scored&&q.side!==s.actual?1:0)}catch(e){}}
+    const a=A();a.__v101LastCanonical={hand:s.hand,actual:s.actual,at:Date.now(),scored:Object.keys(s.pick)};
+    try{persist()}catch(e){}
+    try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.();window.renderVerifiedAccuracy?.();window.__V72_MAIN_FUTURE__?.render?.();window.__rawSequenceMatchV96?.render?.();window.__historical3RoadFutureMatch?.render?.();window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
+  }
+  function bind(btn,forced){if(!btn||btn.__v101Canonical)return;btn.__v101Canonical=true;btn.addEventListener('click',function(){const actual=forced||this.dataset?.result;if(!['P','B','T'].includes(actual))return;const s=snap(actual);setTimeout(()=>finalize(s),30)},true)}
+  function install(){document.querySelectorAll('[data-result]').forEach(b=>bind(b));bind(document.getElementById('previewP'),'P');bind(document.getElementById('previewB'),'B')}
+  install();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,50));setTimeout(install,350);setTimeout(install,1200);
+  window.__V101_ACCURACY_CANONICAL__={version:V,install,snap,finalize,exactlyOnce:true,normalizesLegacyDoubleCounts:true};
+})();
+</script>
+
+<script id="v102-ai-accuracy-counts-fixed">
+(function(){
+  'use strict';
+  const V=102;
+  function acc(){
+    if(!state.accuracyVerified||typeof state.accuracyVerified!=='object') state.accuracyVerified={models:{},pending:{},ties:0,version:V};
+    state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {}; state.accuracyVerified.version=V;
+    return state.accuracyVerified;
+  }
+  function defs(){ return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[]; }
+  function pbCount(){ try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0} }
+  function clone(o){try{return JSON.parse(JSON.stringify(o||{}))}catch(e){return {}}}
+  function freshModel(name){return {name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}}}
+  function getSide(get){try{const x=get?.()||{};return (x.side==='P'||x.side==='B')?{side:x.side,strength:Number(x.strength)||0}:null}catch(e){return null}}
+  function context(){const n=pbCount();return {color:String(state.currentShoeColor||'combined').toLowerCase(),phase:n<18?'early':n<36?'middle':'late',learningStage:(Number(state.metaWalkV23?.totalUpdates)||0)>0?'after':'before'};}
+  function snap(actual){
+    const a=acc(), ctx=context(), hand=pbCount()+1, base={}, picks={};
+    for(const [key,name,get] of defs()){
+      const m=a.models[key]||(a.models[key]=freshModel(name));
+      base[key]={wins:+m.wins||0,losses:+m.losses||0,predictions:+m.predictions||0,waits:+m.waits||0,last10:[...(m.last10||[])],last25:[...(m.last25||[])],last50:[...(m.last50||[])],splits:clone(m.splits),last:clone(m.last)};
+      const g=getSide(get);
+      if(g) picks[key]={...g,hand,...ctx,lockedAt:Date.now()};
+    }
+    return {actual,hand,beforeLen:(state.hands||[]).length,base,picks,id:`${Date.now()}:${Math.random()}`};
+  }
+  function bumpSplit(s,id,win){const z=s[id]||(s[id]={w:0,l:0,n:0});z.n=(+z.n||0)+1;if(win)z.w=(+z.w||0)+1;else z.l=(+z.l||0)+1;}
+  function normalize(key,b,p,actual){
+    const def=defs().find(x=>x[0]===key), m=acc().models[key]||(acc().models[key]=freshModel(def?.[1]||key));
+    const scored=!!p, win=scored&&p.side===actual;
+    m.wins=b.wins+(win?1:0); m.losses=b.losses+(scored&&!win?1:0); m.predictions=b.predictions+(scored?1:0); m.waits=b.waits;
+    m.last10=[...b.last10];m.last25=[...b.last25];m.last50=[...b.last50];m.splits=clone(b.splits);
+    if(scored){
+      for(const n of [10,25,50]){const k='last'+n;m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)}
+      if(p.color==='red'||p.color==='black')bumpSplit(m.splits,'color:'+p.color,win);
+      if(p.phase)bumpSplit(m.splits,'phase:'+p.phase,win);
+      if(key==='metav23')bumpSplit(m.splits,'learning:'+(p.learningStage||'before'),win);
+      m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,v102:true};
+    }else if(b.last&&Object.keys(b.last).length)m.last=b.last;
+  }
+  function modelText(key){
+    const m=acc().models[key]||freshModel(key), n=(+m.wins||0)+(+m.losses||0), pct=n?(100*(+m.wins||0)/n).toFixed(1)+'%':'—';
+    return `Accuracy: ${pct} • ${+m.wins||0}W-${+m.losses||0}L • N=${n} • WAIT=${+m.waits||0}`;
+  }
+  function renderDerivedAccuracy(){
+    const a=document.getElementById('derivedIndependentTestScore'); if(a)a.textContent=modelText('derivedorig');
+    const b=document.getElementById('adaptiveMainDerivedTestScore'); if(b)b.textContent=modelText('derivedmain');
+  }
+  function renderAll(){try{window.renderVerifiedAccuracy?.()}catch(e){};try{renderDerivedAccuracy()}catch(e){}}
+  function finalize(s){
+    if(!s||s.actual==='T'||!['P','B'].includes(s.actual)||window.__v102Done===s.id)return;
+    const hs=state.hands||[], last=hs[hs.length-1];
+    if(hs.length!==s.beforeLen+1||!last||last.r!==s.actual)return;
+    window.__v102Done=s.id;
+    for(const [key,b] of Object.entries(s.base)) normalize(key,b,s.picks[key]||null,s.actual);
+    const a=acc(); a.__v102Last={hand:s.hand,actual:s.actual,scored:Object.keys(s.picks),at:Date.now()};
+    try{persist()}catch(e){}
+    renderAll();
+    // Re-arm the next hand only after this hand is normalized.
+    setTimeout(()=>{try{window.__armVerifiedPredictions?.()}catch(e){};renderDerivedAccuracy()},50);
+  }
+  function bind(btn){
+    if(!btn||btn.__v102Accuracy)return; btn.__v102Accuracy=true;
+    btn.addEventListener('click',function(){const actual=this.dataset?.result;if(!['P','B','T'].includes(actual))return;const s=snap(actual);setTimeout(()=>finalize(s),45)},true);
+  }
+  function install(){document.querySelectorAll('button[data-result="P"],button[data-result="B"],button[data-result="T"]').forEach(bind);renderDerivedAccuracy();}
+  install();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,30));
+  setTimeout(install,400);setTimeout(install,1200);
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v102Accuracy){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(renderDerivedAccuracy,0);return r};w.__v102Accuracy=true;window.render=w;}
+  window.__V102_AI_ACCURACY__={version:V,snap,finalize,install,render:renderAll,exactlyOnce:true,source:'canonical accuracyVerified ledger'};
+})();
+</script>
+
 </body>
 </html>
