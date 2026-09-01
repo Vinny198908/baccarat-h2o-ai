@@ -4606,11 +4606,20 @@ function gptMirrorMarkSuffixScore(a,b,limit=7){
   for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])h++;
   return h/n;
 }
+const __GPT_MIRROR_V3_RUNTIME__={cacheKey:null,cacheValue:null,readyAt:(typeof performance!=='undefined'?performance.now():Date.now())+1400};
 function gptMirrorV3FamilyLock(){
   const liveRaw=currentSequence().filter(x=>'PBT'.includes(x)).join('');
   const livePB=liveRaw.replace(/T/g,'');
-  const empty={qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'building',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0};
+  const now=(typeof performance!=='undefined'?performance.now():Date.now());
+  if(now<__GPT_MIRROR_V3_RUNTIME__.readyAt){
+    return {qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'startup defer',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
+  }
+  let libStamp=''; try{const L=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[]; libStamp=String(L.length)}catch(e){}
+  const cacheKey=liveRaw+'|'+libStamp;
+  if(__GPT_MIRROR_V3_RUNTIME__.cacheKey===cacheKey&&__GPT_MIRROR_V3_RUNTIME__.cacheValue) return __GPT_MIRROR_V3_RUNTIME__.cacheValue;
+  const empty={qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'building',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
   if(livePB.length<9)return {...empty,reason:`needs ${9-livePB.length} more P/B hands`};
+
   let libs=[]; try{libs=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[]}catch(e){}
   const uniq=[],seen=new Set();
   for(const shoe of libs){
@@ -4619,14 +4628,30 @@ function gptMirrorV3FamilyLock(){
     if(pb.length<12||seen.has(pb)||pb===livePB)continue; seen.add(pb); uniq.push({shoe,raw,pb});
   }
   if(!uniq.length)return {...empty,reason:'no saved shoes available'};
+
+  // PERFORMANCE FIX: never scan every historical position. Candidate endpoints come
+  // from exact recent suffix hits plus a small neighborhood around the current hand.
+  // This keeps Safari/iOS startup bounded even when a restored shoe already has many hands.
   const shortlist=[];
+  const suffixes=[];
+  for(const k of [10,8,6]) if(livePB.length>=k) suffixes.push({k,pat:livePB.slice(-k)});
   for(const item of uniq){
-    // Candidate position i means the historical prefix [0..i) is known and i is the next P/B result.
-    for(let i=9;i<item.pb.length;i++){
+    const positions=new Set();
+    const near=Math.min(item.pb.length-1,livePB.length);
+    for(let d=-4;d<=4;d++){const i=near+d;if(i>=9&&i<item.pb.length)positions.add(i);}
+    for(const {k,pat} of suffixes){
+      let pos=item.pb.indexOf(pat),count=0;
+      while(pos!==-1&&count<8){
+        const i=pos+k;
+        if(i>=9&&i<item.pb.length)positions.add(i);
+        pos=item.pb.indexOf(pat,pos+1);count++;
+      }
+    }
+    // Hard cap per shoe prevents pathological repeated-pattern shoes from exploding work.
+    for(const i of Array.from(positions).slice(0,18)){
       const hp=item.pb.slice(0,i);
       const seq=gptMirrorSuffixScore(livePB,hp); if(seq<.56)continue;
       const chop=gptMirrorTransitionScore(livePB,hp,10);
-      // Tie context is evaluated approximately against the raw prefix aligned by P/B count.
       let rawCut='',pbN=0;
       for(const ch of item.raw){ if(ch==='P'||ch==='B')pbN++; rawCut+=ch; if(pbN>=i)break; }
       const tie=gptMirrorTieContextScore(liveRaw,rawCut);
@@ -4637,7 +4662,10 @@ function gptMirrorV3FamilyLock(){
     }
   }
   shortlist.sort((a,b)=>b.pre-a.pre);
-  const top=shortlist.slice(0,14); if(!top.length)return {...empty,reason:'no family survived sequence/rhythm gate'};
+  const top=shortlist.slice(0,8); if(!top.length)return {...empty,reason:'no family survived sequence/rhythm gate'};
+
+  // Derived roads are the expensive part, so calculate them only for the best few
+  // sequence/rhythm candidates instead of for every possible library alignment.
   const liveHands=livePB.split('').map(r=>({r}));
   const liveRoads=[1,2,3].map(o=>{try{return deriveRoad(liveHands,o)||[]}catch(e){return []}});
   for(const c of top){
@@ -4654,20 +4682,19 @@ function gptMirrorV3FamilyLock(){
   top.sort((a,b)=>b.score-a.score);
   const best=top[0],second=top[1];
   const margin=best.score-(second?.score||0);
-  // Require all 4 evidence families. If a recent Tie does not exist in either
-  // context, the Tie confirmation is neutral-positive rather than invented evidence.
   const full=best.confirmations>=4&&best.roadReady>=2&&best.roadAgree>=2&&best.score>=.70;
   const separated=!second||margin>=.025||second.next===best.next;
-  // Same-side support among nearby top candidates prevents one accidental hit taking over.
   const close=top.filter(x=>x.score>=best.score-.035).slice(0,5);
   const sameSide=close.filter(x=>x.next===best.next).length;
   const support=sameSide>=Math.min(2,close.length);
   const qualified=!!(full&&separated&&support&&(best.next==='P'||best.next==='B'));
-  return {qualified,side:qualified?best.next:null,candidate:best.next,score:Math.round(best.score*100),confirmations:best.confirmations,
+  const result={qualified,side:qualified?best.next:null,candidate:best.next,score:Math.round(best.score*100),confirmations:best.confirmations,
     shoeId:best.item.shoe?.id||'saved-shoe',pos:best.i+1,reason:qualified?'family/location lock earned':
       `gate not earned: score ${Math.round(best.score*100)}%, confirmations ${best.confirmations}/4, roads ${best.roadAgree}/${best.roadReady}`,
     candidates:shortlist.length,seq:Math.round(best.seq*100),chop:Math.round(best.chop*100),tie:Math.round(best.tie*100),
     road:Math.round(best.road*100),roadReady:best.roadReady,roadAgree:best.roadAgree,margin:Math.round(margin*100),sameSide,closeN:close.length};
+  __GPT_MIRROR_V3_RUNTIME__.cacheKey=cacheKey; __GPT_MIRROR_V3_RUNTIME__.cacheValue=result;
+  return result;
 }
 
 function gptMirrorSignal(){
@@ -4848,6 +4875,7 @@ function bindGPTMirrorControls(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{bindGPTMirrorControls();setTimeout(()=>{renderGPTMirrorAI();armGPTMirrorPrediction();},250)});
 else setTimeout(()=>{bindGPTMirrorControls();renderGPTMirrorAI();armGPTMirrorPrediction();},250);
+setTimeout(()=>{try{__GPT_MIRROR_V3_RUNTIME__.cacheKey=null;__GPT_MIRROR_V3_RUNTIME__.cacheValue=null;renderGPTMirrorAI();}catch(e){console.warn('GPT Mirror V3 deferred scan',e)}},1700);
 
 // --- MASTER BOT AI V1: color-aware, road-aware, phase-aware continuous learning ---
 function ensureBotState(){
