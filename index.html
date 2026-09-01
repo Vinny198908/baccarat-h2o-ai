@@ -15131,6 +15131,79 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   };
 })();
 </script>
+\n<script id="v105-full-scan-runtime-ui-fix">
+(()=>{
+'use strict';
+if(window.__V105_FULL_SCAN_FIX__)return;
 
+// V105: keep V102's single authoritative result transaction, but restore every
+// legacy/newer panel's render hook exactly once per paint. V104's lean renderer
+// skipped legitimate panel hooks and could leave the lower half of the UI stale.
+const fullRender = window.__V104_LEGACY_RENDER__ || window.render;
+let rendering=false, rerender=false, scheduled=0;
+
+function runFullRender(){
+  scheduled=0;
+  if(rendering){rerender=true;return;}
+  rendering=true;
+  try{
+    if(typeof fullRender==='function') fullRender();
+  }catch(e){
+    console.error('V105 controlled full render',e);
+  }finally{
+    rendering=false;
+    if(rerender){
+      rerender=false;
+      clearTimeout(scheduled);
+      scheduled=setTimeout(runFullRender,0);
+    }
+  }
+}
+
+// Calls that occur during the same transaction collapse to one extra pass at most.
+function controlledRender(){
+  if(rendering){rerender=true;return;}
+  runFullRender();
+}
+window.render=controlledRender;try{render=controlledRender}catch(e){}
+
+// Prevent removed modules from being made visible again by old observer/render hooks.
+const removedIds=['verifiedAccuracyPanel','liveModelGovernorV34Panel','liveModelGovernorV32Panel','metaSelectorV48Panel','metaSelectorV49Panel','metaSelectorV50Panel','v58BotPanel','v60SeqDupPanel'];
+function scrubRemoved(){
+  for(const id of removedIds){
+    try{document.getElementById(id)?.remove()}catch(e){}
+  }
+}
+
+// Runtime watchdog: never let one optional UI failure stop the rest of the page load.
+window.addEventListener('error',ev=>{
+  try{console.warn('V105 optional runtime error:',ev.message||ev.error||'unknown')}catch(e){}
+});
+window.addEventListener('unhandledrejection',ev=>{
+  try{console.warn('V105 optional promise rejection:',ev.reason||'unknown')}catch(e){}
+});
+
+function initial(){
+  scrubRemoved();
+  controlledRender();
+  try{window.__armVerifiedPredictions?.()}catch(e){}
+  try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
+  try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(initial,20),{once:true});
+else setTimeout(initial,20);
+
+window.__V105_FULL_SCAN_FIX__={
+  enabled:true,
+  controlledFullRender:true,
+  allPanelHooksRestored:true,
+  reentrantRenderCollapsed:true,
+  v102SingleResultTransactionPreserved:true,
+  removedModulesRemainRemoved:true,
+  predictionLogicChanged:false,
+  accuracyLogicChanged:false
+};
+})();
+</script>
 </body>
 </html>
