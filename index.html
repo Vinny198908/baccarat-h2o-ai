@@ -14983,5 +14983,154 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   window.__V101_DERIVED_DISPLAY_ONLY__={enabled:true,model:KEY,countLogicChanged:false,predictionLogicChanged:false,paint};
 })();
 </script>
+
+<script id="v102-freeze-count-permanent-fix">
+(()=>{
+  'use strict';
+  if(window.__V102_FREEZE_COUNT_FIX__) return;
+
+  let busy=false, renderTimer=0, heavyTimer=0;
+  let lastTxnKey='';
+  const resultSelector='.main-buttons [data-result], #previewP, #previewB';
+
+  const actualFrom=(el)=>{
+    if(!el) return null;
+    const d=el.dataset&&el.dataset.result;
+    if(d==='P'||d==='B'||d==='T') return d;
+    if(el.id==='previewP') return 'P';
+    if(el.id==='previewB') return 'B';
+    return null;
+  };
+  const pbCount=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}};
+
+  function settleMainFuture(actual){
+    try{
+      const api=window.__V84_MAIN_FUTURE_TUNE__;
+      if(!api||typeof api.accuracy!=='function') return;
+      const a=api.accuracy(), q=a.pending;
+      a.pending=null;
+      if(actual==='T'){ a.ties=(Number(a.ties)||0)+1; return; }
+      if(!q || (actual!=='P'&&actual!=='B')) return;
+      const key=`${Number(q.handN)||0}->${(Number(q.handN)||0)+1}`;
+      if(a.__v102LastSettled===key) return;
+      a.__v102LastSettled=key;
+      const correct=q.side===actual;
+      if(correct) a.wins=(Number(a.wins)||0)+1; else a.losses=(Number(a.losses)||0)+1;
+      a.ledger=Array.isArray(a.ledger)?a.ledger:[];
+      a.ledger.push({...q,actual,correct,settledAt:Date.now()});
+      if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600);
+    }catch(e){console.warn('V102 future settle',e)}
+  }
+
+  function armMainFuture(){
+    try{
+      const api=window.__V84_MAIN_FUTURE_TUNE__;
+      if(!api||typeof api.accuracy!=='function'||typeof api.test!=='function') return;
+      const a=api.accuracy(), n=pbCount(), x=api.test();
+      if(!(x?.side==='P'||x?.side==='B')){
+        a.pending=null;
+        if(a.lastWaitHandN!==n){a.waits=(Number(a.waits)||0)+1;a.lastWaitHandN=n;}
+      }else{
+        a.lastWaitHandN=null;
+        a.pending={side:x.side,handN:n,edge:x.edge,p:x.p?.norm,b:x.b?.norm,reason:x.v84Gate?.reason||'',confirmation:x.v84Gate?.confirmation||'',armedAt:Date.now()};
+      }
+    }catch(e){console.warn('V102 future arm',e)}
+  }
+
+  function settleAll(actual){
+    // Exactly one pre-result settlement pass.
+    try{window.__settleVerifiedPredictions?.(actual)}catch(e){}
+    try{window.__settleAdaptiveDerivedRoads?.(actual)}catch(e){}
+    try{window.__settleAdaptiveOriginalDerivedRoads?.(actual)}catch(e){}
+    settleMainFuture(actual);
+    try{window.__V86_MATCHER_ACCURACY__?.settle?.(actual)}catch(e){}
+    try{settlePendingPrediction(actual)}catch(e){}
+    try{settleBotPrediction(actual)}catch(e){}
+  }
+
+  function schedulePostCommit(){
+    clearTimeout(renderTimer);
+    renderTimer=setTimeout(()=>{
+      try{window.render?.()}catch(e){console.error('V102 render',e)}
+      try{window.__armVerifiedPredictions?.()}catch(e){}
+      try{window.__armAdaptiveDerivedRoads?.()}catch(e){}
+      try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}
+      try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
+      armMainFuture();
+      try{window.renderVerifiedAccuracy?.()}catch(e){}
+      try{window.renderAdaptiveDerivedMain?.()}catch(e){}
+      try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
+      try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
+      try{persist()}catch(e){}
+      busy=false;
+    },0);
+
+    // Coalesce expensive optional work so rapid taps cannot create a backlog.
+    clearTimeout(heavyTimer);
+    heavyTimer=setTimeout(()=>{
+      try{if(state.kaggleLibraryEnabled!==false && typeof scoreWithKaggle==='function')scoreWithKaggle(false)}catch(e){}
+      try{if(typeof scheduleShoeMatcherLiveFollow==='function' && window.shoeMatcherFollowMode)scheduleShoeMatcherLiveFollow()}catch(e){}
+    },120);
+  }
+
+  function commit(actual, isPreview){
+    if(busy || !['P','B','T'].includes(actual)) return;
+    const beforeLen=Array.isArray(state?.hands)?state.hands.length:0;
+    const txnKey=`${beforeLen}:${pbCount()+1}:${actual}`;
+    if(lastTxnKey===txnKey) return;
+    lastTxnKey=txnKey;
+    busy=true;
+    try{
+      settleAll(actual);
+      state.hands.push({r:actual,pp:isPreview?false:!!state.pp,bp:isPreview?false:!!state.bp,special:isPreview?false:!!state.special,ts:Date.now()});
+      state.scanSnapshot=null;
+      if(!isPreview){
+        state.pp=state.bp=state.special=false;
+        document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
+      }
+      try{armNextPrediction()}catch(e){}
+      try{armBotPrediction()}catch(e){}
+      // Save the committed hand immediately; rendering/analysis happens after yielding the UI thread.
+      try{persist()}catch(e){}
+      schedulePostCommit();
+    }catch(e){
+      busy=false;
+      console.error('V102 result transaction',e);
+    }
+  }
+
+  // Capture at document level and stop all legacy target listeners from firing.
+  // This prevents duplicate settle/arm/render chains accumulated by older patches.
+  document.addEventListener('click',(ev)=>{
+    const el=ev.target?.closest?.(resultSelector);
+    if(!el)return;
+    const actual=actualFrom(el);if(!actual)return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+    commit(actual, el.id==='previewP'||el.id==='previewB');
+  },true);
+
+  // Undo/New Shoe can invalidate a pending lock. Re-arm from the refreshed history once.
+  const resync=()=>setTimeout(()=>{
+    try{window.__armVerifiedPredictions?.()}catch(e){}
+    try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
+    armMainFuture();
+    try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
+  },0);
+  document.getElementById('undoBtn')?.addEventListener('click',resync,false);
+  document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';busy=false;resync()},false);
+
+  window.__V102_FREEZE_COUNT_FIX__={
+    enabled:true,
+    singleAuthoritativeResultTransaction:true,
+    legacyResultListenersBlocked:true,
+    countSettleExactlyOnce:true,
+    coalescedHeavyWork:true,
+    uiYieldBeforeRender:true
+  };
+})();
+</script>
+
 </body>
 </html>
