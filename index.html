@@ -9539,8 +9539,8 @@ renderLibraryBackupStatus();
   function enforce(){ sweepRawArtifacts(); moveTools(); }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{enforce();setTimeout(enforce,250);setTimeout(enforce,1200);setTimeout(enforce,2500);});
   else {enforce();setTimeout(enforce,250);setTimeout(enforce,1200);setTimeout(enforce,2500);}
-  const obs=new MutationObserver(()=>{ if(!moving) queueMicrotask(enforce); });
-  obs.observe(document.body,{childList:true,subtree:true});
+  // V133 Chrome stability: removed continuous whole-document observer; timed enforce calls above are sufficient.
+  const obs={disconnect(){}};
   window.__v36MoveDiagnosticToolsToAbsoluteBottom=enforce;
 })();
 </script>
@@ -13875,8 +13875,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 
   removeVisibleDevPanels();
   if(typeof MutationObserver==='function'){
-    const mo=new MutationObserver(removeVisibleDevPanels);
-    mo.observe(document.documentElement,{childList:true,subtree:true});
+    // V133 Chrome stability: no continuous DOM observer; cleanup is handled by startup/render hardening.
+    const mo={disconnect(){}};
     window.__v69DevPanelObserver=mo;
   }
 })();
@@ -13971,8 +13971,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     setTimeout(enforce,700);
   }
 
-  const obs=new MutationObserver(schedule);
-  obs.observe(document.body,{childList:true,subtree:true});
+  // V133 Chrome stability: avoid observer↔reorder feedback loop during progressive startup.
+  const obs={disconnect(){}};
 
   window.__V71_PANEL_ORDER__={
     top:TOP_IDS.slice(),
@@ -15889,7 +15889,9 @@ function runOne(){
     window.__V129_PROGRESSIVE_STARTUP__.complete=true;
     window.__V129_PROGRESSIVE_STARTUP__.failed=failed.slice();
     setTimeout(()=>{try{status.remove()}catch(e){}},1800);
-    try{if(typeof window.render==='function')window.render()}catch(e){console.warn('V129 final render',e)}
+    // V133: coalesce one final paint instead of synchronously re-running the full wrapper chain.
+    clearTimeout(window.__v133FinalRenderTimer);
+    window.__v133FinalRenderTimer=setTimeout(()=>{try{if(typeof window.render==='function')window.render()}catch(e){console.warn('V133 final render',e)}},120);
     return;
   }
   const srcNode=nodes[i++];
@@ -15905,9 +15907,9 @@ function runOne(){
     failed.push({label,message:String(e&&e.message||e)});
     console.error('V129 isolated module failed',label,e);
   }
-  // Yield a frame between modules so Safari can paint/respond instead of locking startup.
-  if(typeof requestAnimationFrame==='function') requestAnimationFrame(()=>setTimeout(runOne,8));
-  else setTimeout(runOne,20);
+  // V133 Chrome stability: time-slice startup without requestAnimationFrame chaining.
+  // This avoids long rAF stalls and lets Chrome process input/paint between modules.
+  setTimeout(runOne,0);
 }
 window.__V129_PROGRESSIVE_STARTUP__={baseline:'V127',complete:false,total:nodes.length,failed};
 function start(){mountStatus();setTimeout(runOne,30)}
@@ -16007,5 +16009,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
+<script id="v133-chrome-startup-stability">
+window.__V133_CHROME_STARTUP_STABILITY__={enabled:true,continuousWholeDomObserversRemoved:true,progressiveLoaderTimeSliced:true,libraryPreserved:true,predictionLogicChanged:false};
+</script>
 </body>
 </html>
