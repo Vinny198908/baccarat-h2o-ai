@@ -16135,5 +16135,73 @@ window.__V135_CHROME_INPUT_QUEUE_ROOT_FIX__={
   libraryPreserved:true
 };
 </script>
+
+<!-- V137 LEAN CORE CLEANUP: remove heavy duplicate/history/bot modules; preserve Main Road Future Test -->
+<script id="v137LeanCoreCleanup">
+(function(){
+  'use strict';
+  const NULL_SIG=()=>({side:null,strength:0,confidence:0,qualified:false,status:'REMOVED',reason:'Removed in V137 lean core'});
+  function safeNoop(){ return null; }
+  function removeEl(el){ try{ if(el&&el.parentNode) el.parentNode.removeChild(el); }catch(e){} }
+  function removeByText(re){
+    try{
+      document.querySelectorAll('.analyzer,.future-test,.panel,.card,section').forEach(el=>{
+        const t=(el.textContent||'').replace(/\s+/g,' ').trim();
+        if(re.test(t)) removeEl(el);
+      });
+    }catch(e){}
+  }
+  function apply(){
+    try{
+      if(window.state){
+        state.kaggleLibraryEnabled=false;
+        if(state.kaggle) state.kaggle.last=null;
+      }
+    }catch(e){}
+    try{ if(window.__v136KaggleTimer){clearTimeout(window.__v136KaggleTimer);window.__v136KaggleTimer=null;} }catch(e){}
+    try{ window.scoreWithKaggle=safeNoop; scoreWithKaggle=safeNoop; }catch(e){}
+    try{ window.runDeepLibraryScan=safeNoop; }catch(e){}
+    try{ window.sequenceAIDuplicateSignal=NULL_SIG; sequenceAIDuplicateSignal=NULL_SIG; }catch(e){}
+    try{ window.sequenceDuplicateSignal=NULL_SIG; }catch(e){}
+    try{ window.highPoweredBotSignal=NULL_SIG; highPoweredBotSignal=NULL_SIG; }catch(e){}
+    try{ window.masterBotSignal=NULL_SIG; masterBotSignal=NULL_SIG; }catch(e){}
+    try{ window.__V137_REMOVED_MODULES__={
+      highPoweredBot:true,
+      sequenceDuplicate:true,
+      kaggle:true,
+      historyMatching:true,
+      deepLibraryScan:true,
+      historical3RoadFutureTest:true,
+      mainRoadFutureTestKept:true
+    }; }catch(e){}
+
+    ['kaggleControlPanel','historical3RoadFutureTest'].forEach(id=>removeEl(document.getElementById(id)));
+    removeByText(/High[- ]Powered Bot AI|High[- ]Powered Bot(?!.*Main Road Future Test)/i);
+    removeByText(/Sequence AI V2 Duplicate/i);
+    // Remove panels whose purpose is explicit historical/library matching, but never the preserved main future test.
+    try{
+      document.querySelectorAll('.analyzer').forEach(el=>{
+        const txt=(el.textContent||'');
+        if(/Kaggle|Deep Library|Historical 3[- ]Road|History Match|Library Match/i.test(txt) && !/Main Road Future Test/i.test(txt)) removeEl(el);
+      });
+    }catch(e){}
+
+    // Explicitly preserve/show Main Road Future Test.
+    try{
+      const main=document.getElementById('mainRoadFutureTest');
+      if(main){ main.style.display=''; main.hidden=false; }
+    }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{apply();setTimeout(apply,0);setTimeout(apply,250);});
+  else {apply();setTimeout(apply,0);setTimeout(apply,250);}
+  // Legacy startup code adds some panels late. Remove them if they reappear.
+  try{
+    const obs=new MutationObserver(()=>apply());
+    obs.observe(document.documentElement,{childList:true,subtree:true});
+    setTimeout(()=>obs.disconnect(),5000);
+  }catch(e){}
+})();
+</script>
+
 </body>
 </html>
