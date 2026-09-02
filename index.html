@@ -15539,22 +15539,33 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     }catch(e){console.warn('V102 future arm',e)}
   }
 
-  function settleAll(actual){
-    // Exactly one pre-result settlement pass. V102 is the authoritative live
-    // transaction handler, so GPT Mirror/V3 must settle and arm here too.
-    try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}
-    try{settleGPTMirrorPrediction(actual)}catch(e){console.warn('V127 Mirror settle',e)}
-    try{window.__settleVerifiedPredictions?.(actual)}catch(e){}
-    try{window.__settleAdaptiveDerivedRoads?.(actual)}catch(e){}
-    try{window.__settleAdaptiveOriginalDerivedRoads?.(actual)}catch(e){}
-    settleMainFuture(actual);
-    try{window.__V86_MATCHER_ACCURACY__?.settle?.(actual)}catch(e){}
-    try{settlePendingPrediction(actual)}catch(e){}
-    try{settleBotPrediction(actual)}catch(e){}
+  function settleAllQueued(actual, done){
+    // V135 ROOT FIX: no AI settlement chain is allowed to run inside the button event.
+    // Each independent ledger settles in its own macrotask so Chrome can paint/process
+    // input between modules. The hand is committed only after the pre-result ledgers settle.
+    const jobs=[
+      ()=>{try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}},
+      ()=>{try{settleGPTMirrorPrediction(actual)}catch(e){console.warn('V135 Mirror settle',e)}},
+      ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}},
+      ()=>{try{window.__settleAdaptiveDerivedRoads?.(actual)}catch(e){}},
+      ()=>{try{window.__settleAdaptiveOriginalDerivedRoads?.(actual)}catch(e){}},
+      ()=>{try{settleMainFuture(actual)}catch(e){}},
+      ()=>{try{window.__V86_MATCHER_ACCURACY__?.settle?.(actual)}catch(e){}},
+      ()=>{try{settlePendingPrediction(actual)}catch(e){}},
+      ()=>{try{settleBotPrediction(actual)}catch(e){}},
+    ];
+    let i=0;
+    const next=()=>{
+      if(i>=jobs.length){ try{done&&done()}catch(e){console.error('V135 commit continuation',e);busy=false;} return; }
+      const fn=jobs[i++];
+      try{fn()}catch(e){}
+      setTimeout(next,0);
+    };
+    setTimeout(next,0);
   }
 
   function schedulePostCommit(){
-    // V134 PERMANENT LIVE INPUT ARCHITECTURE:
+    // V135 CHROME ROOT INPUT ARCHITECTURE:
     // NEVER call window.render() from the result-entry transaction. That function is
     // a historical wrapper chain assembled by dozens of modules and was the remaining
     // source of Chrome lockups after a hand was entered.
@@ -15592,8 +15603,6 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         ()=>{try{window.renderVerifiedAccuracy?.()}catch(e){}},
         ()=>{try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}},
         ()=>{try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}},
-        ()=>{try{renderPatternLibrary()}catch(e){}},
-        ()=>{try{renderSeparateShoes()}catch(e){}},
       ];
       let j=0;
       const next=()=>{
@@ -15614,12 +15623,12 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     clearTimeout(window.__v134PersistTimer);
     window.__v134PersistTimer=setTimeout(()=>{try{persist()}catch(e){}},80);
 
-    // Optional library work is isolated well after the live transaction and coalesced.
+    // V135: never rescan/rerender the full library on every hand. Those datasets do not
+    // change just because a live result was entered. Matcher follow stays opt-in and delayed.
     clearTimeout(heavyTimer);
     heavyTimer=setTimeout(()=>{
-      try{if(state.kaggleLibraryEnabled!==false && typeof scoreWithKaggle==='function')scoreWithKaggle(false)}catch(e){}
-      try{if(typeof scheduleShoeMatcherLiveFollow==='function' && window.shoeMatcherFollowMode)scheduleShoeMatcherLiveFollow()}catch(e){}
-    },350);
+      try{if(typeof scheduleShoeMatcherLiveFollow==='function' && window.shoeMatcherFollowMode===true)scheduleShoeMatcherLiveFollow()}catch(e){}
+    },900);
   }
 
   function commit(actual, isPreview){
@@ -15629,21 +15638,22 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     if(lastTxnKey===txnKey) return;
     lastTxnKey=txnKey;
     busy=true;
-    try{
-      settleAll(actual);
-      state.hands.push({r:actual,pp:isPreview?false:!!state.pp,bp:isPreview?false:!!state.bp,special:isPreview?false:!!state.special,ts:Date.now()});
-      state.scanSnapshot=null;
-      if(!isPreview){
-        state.pp=state.bp=state.special=false;
-        document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
+    // V135: return from the click immediately. The pre-result accuracy ledgers settle
+    // as a time-sliced queue, then the hand commits once and the UI refresh is staged.
+    settleAllQueued(actual,()=>{
+      try{
+        state.hands.push({r:actual,pp:isPreview?false:!!state.pp,bp:isPreview?false:!!state.bp,special:isPreview?false:!!state.special,ts:Date.now()});
+        state.scanSnapshot=null;
+        if(!isPreview){
+          state.pp=state.bp=state.special=false;
+          document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
+        }
+        schedulePostCommit();
+      }catch(e){
+        busy=false;
+        console.error('V135 result transaction',e);
       }
-      // V134: do not calculate the next hand or stringify the ~1 MB state inside
-      // the input event. Both are queued by schedulePostCommit() after Chrome paints.
-      schedulePostCommit();
-    }catch(e){
-      busy=false;
-      console.error('V102 result transaction',e);
-    }
+    });
   }
 
   // Capture at document level and stop all legacy target listeners from firing.
@@ -16059,6 +16069,19 @@ window.__V134_PERMANENT_LIVE_INPUT_FIX__={
   stagedLivePanelRefresh:true,
   oneDebouncedPersistPerHand:true,
   heavyLibraryWorkIsolated:true,
+  predictionLogicChanged:false,
+  libraryPreserved:true
+};
+</script>
+
+<script id="v135-chrome-input-queue-root-fix">
+window.__V135_CHROME_INPUT_QUEUE_ROOT_FIX__={
+  enabled:true,
+  clickHandlerRunsAILogic:false,
+  settlementTimeSliced:true,
+  fullLibraryRenderPerHand:false,
+  kaggleRescanPerHand:false,
+  stagedLivePanelRefresh:true,
   predictionLogicChanged:false,
   libraryPreserved:true
 };
