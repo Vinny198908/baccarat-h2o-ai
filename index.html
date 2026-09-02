@@ -15554,31 +15554,72 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   }
 
   function schedulePostCommit(){
+    // V134 PERMANENT LIVE INPUT ARCHITECTURE:
+    // NEVER call window.render() from the result-entry transaction. That function is
+    // a historical wrapper chain assembled by dozens of modules and was the remaining
+    // source of Chrome lockups after a hand was entered.
     clearTimeout(renderTimer);
     renderTimer=setTimeout(()=>{
-      // Arm GPT Mirror from the newly committed history before rendering. The
-      // V3 result cache prevents render from repeating the same family scan.
-      try{armGPTMirrorPrediction()}catch(e){console.warn('V127 Mirror arm',e)}
-      try{window.render?.()}catch(e){console.error('V102 render',e)}
-      try{window.__armVerifiedPredictions?.()}catch(e){}
-      try{window.__armAdaptiveDerivedRoads?.()}catch(e){}
-      try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}
-      try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
-      armMainFuture();
-      try{window.renderVerifiedAccuracy?.()}catch(e){}
-      try{window.renderAdaptiveDerivedMain?.()}catch(e){}
-      try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
-      try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
-      try{persist()}catch(e){}
-      busy=false;
+      // Paint the absolutely essential live surfaces first, one small unit at a time.
+      const jobs=[
+        ()=>{try{renderRoad()}catch(e){}},
+        ()=>{try{renderDerived()}catch(e){}},
+        ()=>{try{renderHistory()}catch(e){}},
+        ()=>{try{renderStats()}catch(e){}},
+        ()=>{try{renderCurrentShoeColor()}catch(e){}},
+        ()=>{try{renderPreview()}catch(e){}},
+        ()=>{try{renderMainRoadFutureTest()}catch(e){}},
+        ()=>{try{renderDragonAlert()}catch(e){}},
+
+        // Arm the next-hand ledgers only after the committed hand is visible.
+        ()=>{try{armNextPrediction()}catch(e){}},
+        ()=>{try{armGPTMirrorPrediction()}catch(e){}},
+        ()=>{try{window.__armVerifiedPredictions?.()}catch(e){}},
+        ()=>{try{window.__armAdaptiveDerivedRoads?.()}catch(e){}},
+        ()=>{try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}},
+        ()=>{try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}},
+        ()=>{try{armMainFuture()}catch(e){}},
+
+        // Refresh live AI cards independently. A slow optional card can no longer
+        // block every other panel because each job yields back to Chrome first.
+        ()=>{try{renderSequenceAI()}catch(e){}},
+        ()=>{try{renderRoadPreviewAI()}catch(e){}},
+        ()=>{try{renderDerivedRoadPredictions()}catch(e){}},
+        ()=>{try{renderAdaptiveDerivedMain()}catch(e){}},
+        ()=>{try{renderColorPatternAI()}catch(e){}},
+        ()=>{try{renderGPTMirrorAI()}catch(e){}},
+        ()=>{try{renderAnalyzer()}catch(e){}},
+        ()=>{try{window.renderVerifiedAccuracy?.()}catch(e){}},
+        ()=>{try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}},
+        ()=>{try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}},
+        ()=>{try{renderPatternLibrary()}catch(e){}},
+        ()=>{try{renderSeparateShoes()}catch(e){}},
+      ];
+      let j=0;
+      const next=()=>{
+        if(j>=jobs.length){
+          busy=false;
+          return;
+        }
+        const fn=jobs[j++];
+        try{fn()}catch(e){}
+        // Yield between every unit. This is the key anti-freeze guarantee.
+        setTimeout(next,0);
+      };
+      next();
     },0);
 
-    // Coalesce expensive optional work so rapid taps cannot create a backlog.
+    // Exactly ONE state save per committed hand, delayed until after the click has
+    // returned so JSON serialization cannot block the button event itself.
+    clearTimeout(window.__v134PersistTimer);
+    window.__v134PersistTimer=setTimeout(()=>{try{persist()}catch(e){}},80);
+
+    // Optional library work is isolated well after the live transaction and coalesced.
     clearTimeout(heavyTimer);
     heavyTimer=setTimeout(()=>{
       try{if(state.kaggleLibraryEnabled!==false && typeof scoreWithKaggle==='function')scoreWithKaggle(false)}catch(e){}
       try{if(typeof scheduleShoeMatcherLiveFollow==='function' && window.shoeMatcherFollowMode)scheduleShoeMatcherLiveFollow()}catch(e){}
-    },120);
+    },350);
   }
 
   function commit(actual, isPreview){
@@ -15596,10 +15637,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         state.pp=state.bp=state.special=false;
         document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
       }
-      try{armNextPrediction()}catch(e){}
-      try{armBotPrediction()}catch(e){}
-      // Save the committed hand immediately; rendering/analysis happens after yielding the UI thread.
-      try{persist()}catch(e){}
+      // V134: do not calculate the next hand or stringify the ~1 MB state inside
+      // the input event. Both are queued by schedulePostCommit() after Chrome paints.
       schedulePostCommit();
     }catch(e){
       busy=false;
@@ -16011,6 +16050,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 <script id="v133-chrome-startup-stability">
 window.__V133_CHROME_STARTUP_STABILITY__={enabled:true,continuousWholeDomObserversRemoved:true,progressiveLoaderTimeSliced:true,libraryPreserved:true,predictionLogicChanged:false};
+</script>
+
+<script id="v134-permanent-live-input-fix">
+window.__V134_PERMANENT_LIVE_INPUT_FIX__={
+  enabled:true,
+  resultPathCallsLegacyFullRender:false,
+  stagedLivePanelRefresh:true,
+  oneDebouncedPersistPerHand:true,
+  heavyLibraryWorkIsolated:true,
+  predictionLogicChanged:false,
+  libraryPreserved:true
+};
 </script>
 </body>
 </html>
