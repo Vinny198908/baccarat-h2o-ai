@@ -387,7 +387,7 @@
 <div class="future-path"><strong>NEXT MAIN ROAD</strong><div class="future-main" id="hist3OutcomeText">Player 0 • Banker 0</div><div class="future-score" id="hist3Prediction">WAIT</div></div>
 </div>
 <div id="hist3AccuracyRow" style="margin-top:8px;padding:8px 10px;border:1px solid #303743;border-radius:10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-<strong>Accuracy Verified:</strong><span id="hist3AccuracyPct">—</span><span id="hist3AccuracyWL">0W-0L</span><span id="hist3AccuracyN">N=0</span><span id="hist3AccuracyWait">WAIT=0</span>
+<strong>Accuracy Verified:</strong><span id="hist3AccuracyPct">—</span><span id="hist3AccuracyWL">0W-0L</span><span id="hist3AccuracyN">N=0</span><span id="hist3AccuracyWait">WAIT=0</span><span id="hist3LastSettled">Last: —</span>
 <button id="resetHist3Accuracy" style="margin-left:auto;font-size:10px;padding:4px 7px" type="button">Reset score</button>
 </div>
 <div class="future-final" id="hist3Final">Best prediction: WAIT — building saved 3-road evidence</div>
@@ -1186,6 +1186,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     settleGPTMirrorPrediction(actual);
 
     state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
+    try{setTimeout(()=>window.__presetFingerprintGate?.render?.(),0)}catch(e){}
     state.scanSnapshot=null;
     state.pp=state.bp=state.special=false;
     document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
@@ -1214,6 +1215,7 @@ function commitPreviewResult(actual){
   settleBotPrediction(actual);
   settleGPTMirrorPrediction(actual);
   state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});
+  try{setTimeout(()=>window.__presetFingerprintGate?.render?.(),0)}catch(e){}
   state.scanSnapshot=null;
   armNextPrediction();
   armBotPrediction();
@@ -13638,19 +13640,34 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     return {side,pPct,bPct,edge,conf,matches:rawN,avgSim,bestWindow:top[0]?.bestWindow||0,elapsed,top};
   }
   function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-  function renderAcc(){const a=acc(),n=a.wins+a.losses;set('hist3AccuracyPct',n?(100*a.wins/n).toFixed(1)+'%':'—');set('hist3AccuracyWL',`${a.wins}W-${a.losses}L`);set('hist3AccuracyN',`N=${n}`);set('hist3AccuracyWait',`WAIT=${a.waits}`)}
+  function renderAcc(){
+    const a=acc(),n=a.wins+a.losses;
+    set('hist3AccuracyPct',n?(100*a.wins/n).toFixed(1)+'%':'—');
+    set('hist3AccuracyWL',`${a.wins}W-${a.losses}L`);
+    set('hist3AccuracyN',`N=${n}`);
+    set('hist3AccuracyWait',`WAIT=${a.waits}`);
+    const last=Array.isArray(a.ledger)&&a.ledger.length?a.ledger[a.ledger.length-1]:null;
+    set('hist3LastSettled',last?`Last: ${last.side==='P'?'PLAYER':'BANKER'} → ${last.actual==='P'?'PLAYER':last.actual==='B'?'BANKER':'TIE'} ${last.correct?'✓':'✗'}`:'Last: —');
+  }
   function render(){
     const x=test();set('hist3Speed',`Saved-road point-in-time scan • ${x.elapsed} ms`);set('hist3MatchCount',String(x.matches));
     set('hist3MatchText',x.matches?`${x.matches} qualifying saved-shoe matches • avg similarity ${x.avgSim.toFixed(1)}% • best window ${x.bestWindow||'—'}`:'No qualifying saved 3-road matches yet');
     set('hist3OutcomeText',`Player ${x.pPct.toFixed(1)}% • Banker ${x.bPct.toFixed(1)}%`);set('hist3Prediction',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
-    if(x.side)set('hist3Final',`Best prediction: ${x.side==='P'?'PLAYER':'BANKER'} • historical 3-road edge ${x.edge.toFixed(1)} pts • confidence ${x.conf}%`);
+    if(x.side)set('hist3Final',`LOCKED NEXT: ${x.side==='P'?'PLAYER':'BANKER'} • historical 3-road edge ${x.edge.toFixed(1)} pts • confidence ${x.conf}%`);
     else set('hist3Final',`Best prediction: WAIT — ${x.matches<8?'not enough independent historical matches':x.avgSim<76?'match quality is too weak':x.bestWindow<12?'no strong long-window road match':'historical next results are too split or verified accuracy gate blocked it'}`);
     set('hist3Note','Leakage-safe point-in-time matching • one best match per saved shoe • stricter 76%+ road quality + 12-mark long-window gate • confidence is capped by verified chronological accuracy, not similarity alone.');renderAcc();return x;
   }
   function arm(){
     const a=acc(),n=pbN(),x=test();
-    if(!(x.side==='P'||x.side==='B')){a.pending=null;if(a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n}renderAcc();return;}
-    a.lastWaitHandN=null;a.pending={side:x.side,handN:n,matches:x.matches,avgSim:x.avgSim,edge:x.edge,conf:x.conf,armedAt:Date.now()};renderAcc();
+    if(!(x.side==='P'||x.side==='B')){
+      a.pending=null;
+      if(a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n}
+      render(); // V157: keep the visible panel synchronized with the internally armed WAIT state.
+      return;
+    }
+    a.lastWaitHandN=null;
+    a.pending={side:x.side,handN:n,matches:x.matches,avgSim:x.avgSim,edge:x.edge,conf:x.conf,armedAt:Date.now()};
+    render(); // V157 critical fix: show the exact P/B call that was just locked for scoring.
   }
   function settle(actual){
     const a=acc();if(!['P','B','T'].includes(actual))return;
@@ -13665,7 +13682,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   }
   function bindReset(){const b=document.getElementById('resetHist3Accuracy');if(b&&!b.__hist3){b.__hist3=true;b.addEventListener('click',()=>{if(!confirm('Reset only the Historical 3-Road Future Match accuracy?'))return;state.historical3RoadAccuracy=fresh();try{if(typeof persist==='function')persist()}catch(e){}render();arm();});}}
   function sync(){try{installHooks();bindReset();render()}catch(e){console.warn('Historical 3-road future match',e)}}
-  window.__historical3RoadFutureMatch={version:95,test,render,arm,settle,accuracy:acc,pointInTime:true,roads:['Big Eye Boy','Small Road','Cockroach Road']};
+  window.__historical3RoadFutureMatch={version:157,test,render,arm,settle,accuracy:acc,pointInTime:true,visibleArmFix:true,roads:['Big Eye Boy','Small Road','Cockroach Road']};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(sync,30);setTimeout(()=>{installHooks();arm();render()},400)});else{setTimeout(sync,30);setTimeout(()=>{installHooks();arm();render()},400)}
 })();
 </script>
@@ -15096,7 +15113,16 @@ else boot();
    for(const x of a){const q=pb(x?.sequence);if(q.length<8||seen.has(q))continue;seen.add(q);out.push({sequence:q,id:x?.id||'',color:x?.shoeColor||''});}
    return out;
  }
- function current(){return pb((state?.hands||[]).map(h=>h?.r).join(''));}
+ function current(){
+   try{
+     if(typeof currentSequence==='function'){
+       const q=currentSequence();
+       if(Array.isArray(q)) return pb(q.join(''));
+       if(typeof q==='string') return pb(q);
+     }
+   }catch(e){}
+   return pb((state?.hands||[]).map(h=>typeof h==='string'?h:h?.r).join(''));
+ }
  const sniper={target:15,shoeKey:'',issued:0,lastQualifiedHand:-1};
  const accuracy={wins:0,losses:0,pending:null,pendingHand:-1,ledger:[]};
  function accuracyPct(){const n=accuracy.wins+accuracy.losses;return n?Math.round(accuracy.wins/n*1000)/10:0;}
@@ -15145,7 +15171,7 @@ else boot();
  }
  function evidence(){
    const cur=current(), lib=library(); resetSniperIfNeeded(cur);
-   if(cur.length<6)return {level:'BUILDING',pick:null,reason:'Enter at least 6 P/B hands.',independent:0,bestLen:0,rate:0,verified:0,lib:lib.length,issued:sniper.issued,target:sniper.target};
+   if(cur.length<6)return {level:'BUILDING',pick:null,reason:`Live shoe detected: ${cur.length} P/B hands. Need 6 before fingerprint matching starts.`,independent:0,bestLen:0,rate:0,verified:0,lib:lib.length,issued:sniper.issued,target:sniper.target,remaining:Math.max(0,sniper.target-sniper.issued),liveHands:cur.length,liveHands:cur.length};
    const votes=[]; let bestLen=0;
    // Suffix fingerprints, longest first. One vote maximum per independent exact-sequence shoe.
    for(const sh of lib){
@@ -15333,21 +15359,21 @@ else boot();
    const el=document.createElement('div'); el.className='analyzer'; el.id='presetFingerprintGateV145';
    el.style.borderColor='#4fd1a5'; el.innerHTML=`<div class="analyzer-title">🧬 Independent Preset Fingerprint Gate</div>
    <div class="analyzer-sub">Tests the preset-shoe hypothesis against deduplicated historical shoes. Evidence only; weak structure returns WAIT.</div>
-   <div class="analyzer-grid"><div class="analyzer-card"><span>PRESET EVIDENCE</span><strong id="pfgLevel">—</strong></div><div class="analyzer-card"><span>SNIPER DECISION</span><strong id="pfgPick">WAIT</strong></div><div class="analyzer-card"><span>QUALIFIED SPOTS</span><strong id="pfgQuota">0 / 15</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="pfgMatches">0</strong></div><div class="analyzer-card"><span>BEST FINGERPRINT</span><strong id="pfgLen">0 hands</strong></div><div class="analyzer-card"><span>CONTINUATION AGREEMENT</span><strong id="pfgRate">—</strong></div><div class="analyzer-card"><span>SHRUNK EVIDENCE</span><strong id="pfgVerified">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="pfgWins">0</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="pfgLosses">0</strong></div><div class="analyzer-card"><span>ACCURACY</span><strong id="pfgAcc">—</strong></div></div><div style="margin-top:8px"><button type="button" id="pfgResetAccuracy" class="btn">Reset Accuracy</button></div><div class="analyzer-sub" id="pfgNote" style="margin-top:8px">Building evidence…</div>`;
+   <div class="analyzer-grid"><div class="analyzer-card"><span>LIVE P/B HANDS</span><strong id="pfgLiveHands">0</strong></div><div class="analyzer-card"><span>PRESET EVIDENCE</span><strong id="pfgLevel">—</strong></div><div class="analyzer-card"><span>SNIPER DECISION</span><strong id="pfgPick">WAIT</strong></div><div class="analyzer-card"><span>QUALIFIED SPOTS</span><strong id="pfgQuota">0 / 15</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="pfgMatches">0</strong></div><div class="analyzer-card"><span>BEST FINGERPRINT</span><strong id="pfgLen">0 hands</strong></div><div class="analyzer-card"><span>CONTINUATION AGREEMENT</span><strong id="pfgRate">—</strong></div><div class="analyzer-card"><span>SHRUNK EVIDENCE</span><strong id="pfgVerified">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="pfgWins">0</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="pfgLosses">0</strong></div><div class="analyzer-card"><span>ACCURACY</span><strong id="pfgAcc">—</strong></div></div><div style="margin-top:8px"><button type="button" id="pfgResetAccuracy" class="btn">Reset Accuracy</button></div><div class="analyzer-sub" id="pfgNote" style="margin-top:8px">Building evidence…</div>`;
    host.parentNode.insertBefore(el,host);
    const rb=document.getElementById('pfgResetAccuracy'); if(rb&&!rb.__pfgResetBound){rb.__pfgResetBound=true;rb.addEventListener('click',resetAccuracy);}
-   const ub=document.getElementById('undoBtn'); if(ub&&!ub.__pfgUndoBound){ub.__pfgUndoBound=true;ub.addEventListener('click',()=>setTimeout(undoAccuracyGrade,0),false);}
-   const cb=document.getElementById('clearBtn'); if(cb&&!cb.__pfgClearBound){cb.__pfgClearBound=true;cb.addEventListener('click',()=>setTimeout(clearAccuracyPending,0),false);}
+   const ub=document.getElementById('undoBtn'); if(ub&&!ub.__pfgUndoBound){ub.__pfgUndoBound=true;ub.addEventListener('click',()=>setTimeout(()=>{undoAccuracyGrade();try{render()}catch(e){}},0),false);}
+   const cb=document.getElementById('clearBtn'); if(cb&&!cb.__pfgClearBound){cb.__pfgClearBound=true;cb.addEventListener('click',()=>setTimeout(()=>{clearAccuracyPending();try{render()}catch(e){}},0),false);}
    renderAccuracy();
  }
  function render(){ensure();const e=evidence(); const set=(id,v)=>{const x=document.getElementById(id);if(x)x.textContent=v};
-   set('pfgLevel',e.level);set('pfgPick',e.pick==='P'?'PLAYER':e.pick==='B'?'BANKER':'WAIT');set('pfgQuota',`${e.issued||0} / ${e.target||15}`);set('pfgMatches',e.independent);set('pfgLen',`${e.bestLen} hands`);set('pfgRate',e.independent?`${Math.round(e.rate*100)}%`:'—');set('pfgVerified',e.independent?`${Math.round(e.verified*100)}%`:'—');set('pfgNote',`${e.reason} ${e.remaining??15} target spots remain. Library: ${e.lib} unique P/B shoes. No weak bet is forced.`); armAccuracy(e); renderAccuracy(); return e;
+   set('pfgLiveHands',e.liveHands??current().length);set('pfgLevel',e.level);set('pfgPick',e.pick==='P'?'PLAYER':e.pick==='B'?'BANKER':'WAIT');set('pfgQuota',`${e.issued||0} / ${e.target||15}`);set('pfgMatches',e.independent);set('pfgLen',`${e.bestLen} hands`);set('pfgRate',e.independent?`${Math.round(e.rate*100)}%`:'—');set('pfgVerified',e.independent?`${Math.round(e.verified*100)}%`:'—');set('pfgNote',`${e.reason} ${e.remaining??15} target spots remain. Library: ${e.lib} unique P/B shoes. No weak bet is forced.`); armAccuracy(e); renderAccuracy(); return e;
  }
  const old=window.render;if(typeof old==='function'&&!old.__pfg145){const w=function(){const r=old.apply(this,arguments);try{render()}catch(e){console.warn('PFG145',e)}return r};w.__pfg145=true;window.render=w;}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,500));else setTimeout(render,500);
  window.__settlePresetFingerprintAccuracy=settleAccuracy;
  window.__resetPresetFingerprintAccuracy=resetAccuracy;
- window.__presetFingerprintGate={version:156,mode:"sniper-15-cross-shoe-validated-whitelist-accuracy-undo-safe",evidence,render,settleAccuracy,resetAccuracy,undoAccuracyGrade};
+ window.__presetFingerprintGate={version:158,mode:"sniper-15-live-state-refresh-fix",evidence,render,settleAccuracy,resetAccuracy,undoAccuracyGrade};
 })();
 </script>
 </body>
