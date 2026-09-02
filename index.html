@@ -14993,5 +14993,392 @@ async function run(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
 })();
-</script></body>
+</script>
+<script id="v140-mirror-97-shoe-preindex">
+(()=>{
+'use strict';
+
+/*
+ V140 MIRROR MEMORY PERFORMANCE FIX
+ ----------------------------------
+ Keep the user's saved 97-shoe memory, but stop rescanning it on every hand.
+
+ Indexes built once per active library stamp:
+   1) raw P/B/T suffix -> next-result counts (replaces findHistoricalMatches scan)
+   2) normalized P/B family entries + 3..12-gram occurrence maps
+   3) historical 3-road future states, built asynchronously in small chunks
+
+ Live input then performs indexed lookups only.
+*/
+
+const IDX = window.__GPT_MIRROR_MEMORY_INDEX_V140__ = window.__GPT_MIRROR_MEMORY_INDEX_V140__ || {
+  stamp: null,
+  familyReady: false,
+  roadReady: false,
+  roadBuilding: false,
+  entries: [],
+  grams: Object.create(null),
+  rawNext: Object.create(null),
+  roadStates: [],
+  roadExact: Object.create(null),
+  roadPairs: Object.create(null),
+  builtAt: 0,
+  roadBuiltAt: 0,
+  lastBuildMs: 0,
+  lastRoadBuildMs: 0
+};
+
+function v140Lib(){
+  try { return (typeof activePatternLibrary === 'function' ? activePatternLibrary() : []) || []; }
+  catch(e){ return []; }
+}
+function v140Stamp(){
+  const L=v140Lib();
+  let mode='none';
+  try{ mode=(state?.predictionLibraryMode||'')+'|'+(state?.currentShoeColor||''); }catch(e){}
+  const tail=L.slice(-3).map(x=>String(x?.id||x?.savedAt||x?.sequence?.length||'')).join(',');
+  return `${mode}|${L.length}|${tail}`;
+}
+function v140NormRaw(shoe){
+  let raw=shoe?.sequence||shoe?.results||shoe?.road||'';
+  if(Array.isArray(raw)) raw=raw.join('');
+  return String(raw||'').toUpperCase().replace(/[^PBT]/g,'');
+}
+function v140Push(map,key,val){
+  (map[key]||(map[key]=[])).push(val);
+}
+
+function v140BuildFamilyIndex(force=false){
+  const stamp=v140Stamp();
+  if(!force && IDX.stamp===stamp && IDX.familyReady) return IDX;
+
+  const t0=performance.now();
+  const libs=v140Lib(), entries=[], seenPB=new Set();
+  const grams=Object.create(null), rawNext=Object.create(null);
+  for(let k=3;k<=12;k++){ grams[k]=Object.create(null); rawNext[k]=Object.create(null); }
+
+  for(const shoe of libs){
+    const raw=v140NormRaw(shoe);
+    const pb=raw.replace(/T/g,'');
+    if(pb.length<3) continue;
+
+    // Raw P/B/T suffix lookup index for saved-history continuation.
+    for(let k=3;k<=12;k++){
+      if(raw.length<=k) continue;
+      const tab=rawNext[k];
+      for(let i=0;i+k<raw.length;i++){
+        const pat=raw.slice(i,i+k), nxt=raw[i+k];
+        const rec=tab[pat]||(tab[pat]={p:0,b:0,t:0,total:0});
+        if(nxt==='P')rec.p++; else if(nxt==='B')rec.b++; else if(nxt==='T')rec.t++;
+        rec.total++;
+      }
+    }
+
+    // Family recognition de-duplicates on P/B sequence, matching the old behavior.
+    if(pb.length<12 || seenPB.has(pb)) continue;
+    seenPB.add(pb);
+
+    const endByPB=[0];
+    let n=0;
+    for(let r=0;r<raw.length;r++){
+      if(raw[r]==='P'||raw[r]==='B'){ n++; endByPB[n]=r+1; }
+    }
+    const ei=entries.length;
+    entries.push({shoe,raw,pb,endByPB});
+
+    // Exact recent suffix occurrence maps. Endpoint i is the next-result position.
+    for(let k=3;k<=12;k++){
+      if(pb.length<=k) continue;
+      const tab=grams[k];
+      for(let pos=0;pos+k<pb.length;pos++){
+        const pat=pb.slice(pos,pos+k);
+        v140Push(tab,pat,{e:ei,i:pos+k});
+      }
+    }
+  }
+
+  IDX.stamp=stamp;
+  IDX.entries=entries;
+  IDX.grams=grams;
+  IDX.rawNext=rawNext;
+  IDX.familyReady=true;
+  IDX.roadReady=false;
+  IDX.roadBuilding=false;
+  IDX.roadStates=[];
+  IDX.roadExact=Object.create(null);
+  IDX.roadPairs=Object.create(null);
+  IDX.builtAt=Date.now();
+  IDX.lastBuildMs=Math.round(performance.now()-t0);
+
+  v140StartRoadIndex();
+  return IDX;
+}
+
+function v140RoadTriplet(prefix,off){
+  const hands=prefix.map(r=>({r}));
+  let before=[],pa=[],ba=[];
+  try{ before=deriveRoad(hands,off)||[]; }catch(e){}
+  try{ pa=deriveRoad(hands.concat([{r:'P'}]),off)||[]; }catch(e){}
+  try{ ba=deriveRoad(hands.concat([{r:'B'}]),off)||[]; }catch(e){}
+  const cur=before.length?before[before.length-1]:null;
+  const p=pa.length>before.length?pa[pa.length-1]:null;
+  const b=ba.length>before.length?ba[ba.length-1]:null;
+  return {cur,p,b};
+}
+function v140RoadKey(rows){
+  return rows.map(x=>`${x.cur||'-'}>${x.p||'-'}/${x.b||'-'}`).join('|');
+}
+function v140PairSig(rows,a,b){
+  const A=rows[a],B=rows[b];
+  if(!A?.p||!A?.b||!B?.p||!B?.b) return null;
+  return `${a}:${A.cur||'-'}>${A.p}/${A.b}|${b}:${B.cur||'-'}>${B.p}/${B.b}`;
+}
+function v140StartRoadIndex(){
+  if(!IDX.familyReady || IDX.roadBuilding || IDX.roadReady) return;
+  IDX.roadBuilding=true;
+  const stamp=IDX.stamp, t0=performance.now();
+
+  const jobs=[];
+  for(let e=0;e<IDX.entries.length;e++){
+    const pb=IDX.entries[e].pb;
+    for(let i=9;i<pb.length;i++) jobs.push({e,i});
+  }
+
+  let cursor=0;
+  const states=[], exact=Object.create(null), pairs=Object.create(null);
+  const schedule = fn => {
+    if(typeof requestIdleCallback==='function') requestIdleCallback(fn,{timeout:40});
+    else setTimeout(()=>fn({timeRemaining:()=>5,didTimeout:true}),0);
+  };
+
+  const step = deadline => {
+    // If the user changed shoe/library while building, abandon stale work.
+    if(IDX.stamp!==stamp){ IDX.roadBuilding=false; return; }
+
+    const chunkStart=performance.now();
+    let did=0;
+    while(cursor<jobs.length && did<20 && (performance.now()-chunkStart)<10){
+      const j=jobs[cursor++], item=IDX.entries[j.e], prefix=item.pb.slice(0,j.i).split('');
+      const rows=[1,2,3].map(off=>v140RoadTriplet(prefix,off));
+      const key=v140RoadKey(rows), actual=item.pb[j.i];
+      const id=states.length;
+      states.push({key,actual,rows});
+      const er=exact[key]||(exact[key]={P:0,B:0,ids:[]});
+      if(actual==='P')er.P++; else if(actual==='B')er.B++;
+      er.ids.push(id);
+      for(const [a,b] of [[0,1],[0,2],[1,2]]){
+        const sig=v140PairSig(rows,a,b);
+        if(sig) v140Push(pairs,sig,id);
+      }
+      did++;
+    }
+
+    if(cursor<jobs.length) schedule(step);
+    else{
+      IDX.roadStates=states;
+      IDX.roadExact=exact;
+      IDX.roadPairs=pairs;
+      IDX.roadReady=true;
+      IDX.roadBuilding=false;
+      IDX.roadBuiltAt=Date.now();
+      IDX.lastRoadBuildMs=Math.round(performance.now()-t0);
+      try{ console.info(`V140 Mirror road-memory index ready: ${states.length} historical states in ${IDX.lastRoadBuildMs}ms (chunked)`); }catch(e){}
+    }
+  };
+  schedule(step);
+}
+
+function v140Ensure(){
+  const stamp=v140Stamp();
+  if(!IDX.familyReady || IDX.stamp!==stamp) v140BuildFamilyIndex(true);
+  else if(!IDX.roadReady && !IDX.roadBuilding) v140StartRoadIndex();
+  return IDX;
+}
+
+/* Indexed replacement for the old library-wide continuation scan. */
+window.findHistoricalMatches = function(){
+  const cur=currentSequence();
+  if(cur.length<3) return {matches:0,len:0,p:0,b:0,t:0};
+  const ix=v140Ensure();
+  if(!ix.familyReady) return {matches:0,len:0,p:0,b:0,t:0};
+
+  const s=cur.join('');
+  for(let k=Math.min(12,s.length);k>=3;k--){
+    const pat=s.slice(-k);
+    const r=ix.rawNext[k]?.[pat];
+    if(r && (r.total>=2 || (k===3 && r.total>0))){
+      return {matches:r.total,len:k,p:r.p||0,b:r.b||0,t:r.t||0,pattern:pat,indexed:true};
+    }
+  }
+  return {matches:0,len:0,p:0,b:0,t:0,indexed:true};
+};
+
+/* Indexed replacement for the very expensive per-hand 3-road historical scan. */
+window.gptMirrorThreeRoadFutureInfluence = function(regime){
+  let future={};
+  try{ future=mainRoadFutureTest()||{}; }catch(e){ future={}; }
+
+  const defs=[['Eye',1],['Small',2],['Roach',3]], live=[];
+  for(const [name,off] of defs){
+    let sig={}; try{sig=derivedRoadSequencePatternSignal(off)||{};}catch(e){}
+    live.push({name,off,cur:sig.currentMark||sig.lastMark||null,p:sig.pMark||null,b:sig.bMark||null});
+  }
+  const ready=live.filter(x=>x.p&&x.b&&x.p!==x.b).length;
+  const liveKey=v140RoadKey(live), ix=v140Ensure();
+
+  if(!ix.roadReady){
+    const detail=live.map(x=>`${x.name}: now ${roadMarkLabel(x.cur)||'—'} • P→${roadMarkLabel(x.p)||'—'} / B→${roadMarkLabel(x.b)||'—'}`);
+    detail.push('Mirror 97-shoe road-memory index is building once in the background; live full-library rescanning is disabled.');
+    return {side:null,strength:0,pPct:50,bPct:50,edge:0,ready,detail,future,
+      pMain:future?.p?.main||'',bMain:future?.b?.main||'',learned:true,exactN:0,nearN:0,effectiveN:0,mainAgree:false,indexing:true};
+  }
+
+  const ex=ix.roadExact[liveKey]||{P:0,B:0,ids:[]};
+  const exactIds=new Set(ex.ids||[]);
+  const nearIds=new Set();
+  for(const [a,b] of [[0,1],[0,2],[1,2]]){
+    const sig=v140PairSig(live,a,b);
+    if(!sig) continue;
+    const arr=ix.roadPairs[sig]||[];
+    for(const id of arr) if(!exactIds.has(id)) nearIds.add(id);
+  }
+
+  let nearP=0,nearB=0;
+  for(const id of nearIds){
+    const actual=ix.roadStates[id]?.actual;
+    if(actual==='P')nearP++; else if(actual==='B')nearB++;
+  }
+
+  const exactN=(ex.P||0)+(ex.B||0), nearN=nearP+nearB;
+  const pEff=(ex.P||0)+nearP*.35, bEff=(ex.B||0)+nearB*.35, nEff=pEff+bEff;
+  const pPct=nEff?Math.round(100*pEff/nEff):50, bPct=100-pPct, edge=Math.abs(pPct-bPct);
+  let side=pPct>bPct?'P':bPct>pPct?'B':null;
+  const minEvidence=6;
+  if(ready<2||nEff<minEvidence||edge<10) side=null;
+
+  let mainAgree=false;
+  if(side&&(future.side==='P'||future.side==='B')) mainAgree=future.side===side;
+  let strength=side?Math.min(88,Math.round(52+edge*.55+Math.min(10,nEff*.45)+(mainAgree?3:0))):0;
+  if(regime?.transition&&strength) strength=Math.max(0,strength-5);
+
+  const detail=live.map(x=>`${x.name}: now ${roadMarkLabel(x.cur)||'—'} • P→${roadMarkLabel(x.p)||'—'} / B→${roadMarkLabel(x.b)||'—'}`);
+  detail.push(`Indexed learned futures: exact ${exactN} • near ${nearN} • effective ${nEff.toFixed(1)} • P ${pPct}% / B ${bPct}%`);
+  if(!side) detail.push(`WAIT road vote: requires 2 roads ready, ≥${minEvidence} effective prior matches, and ≥10% P/B separation.`);
+
+  return {side,strength,pPct,bPct,edge,ready,detail,future,pMain:future?.p?.main||'',bMain:future?.b?.main||'',
+    learned:true,exactN,nearN,effectiveN:nEff,mainAgree,indexed:true};
+};
+
+/* Indexed replacement for V3 family/location recognition. */
+window.gptMirrorV3FamilyLock = function(){
+  const liveRaw=currentSequence().filter(x=>'PBT'.includes(x)).join('');
+  const livePB=liveRaw.replace(/T/g,'');
+  const rt=window.__GPT_MIRROR_V3_RUNTIME__;
+
+  if(!rt?.armed){
+    return {qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'V3 arms after the next entered hand',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
+  }
+
+  const ix=v140Ensure();
+  const cacheKey=liveRaw+'|'+ix.stamp;
+  if(rt.cacheKey===cacheKey&&rt.cacheValue) return rt.cacheValue;
+
+  const empty={qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'building',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
+  if(livePB.length<9) return {...empty,reason:`needs ${9-livePB.length} more P/B hands`};
+  if(!ix.entries.length) return {...empty,reason:'no saved shoes available'};
+
+  const candidateKeys=new Set();
+  const candidates=[];
+
+  // Small position neighborhood: at most 9 positions per shoe.
+  for(let e=0;e<ix.entries.length;e++){
+    const item=ix.entries[e], near=Math.min(item.pb.length-1,livePB.length);
+    for(let d=-4;d<=4;d++){
+      const i=near+d;
+      if(i>=9&&i<item.pb.length){
+        const key=e+':'+i;
+        if(!candidateKeys.has(key)){candidateKeys.add(key);candidates.push({e,i});}
+      }
+    }
+  }
+
+  // Exact recent suffix hits are direct map lookups, not full-string scans.
+  for(const k of [10,8,6]){
+    if(livePB.length<k) continue;
+    const pat=livePB.slice(-k), hits=ix.grams[k]?.[pat]||[];
+    for(const h of hits.slice(0,64)){
+      const key=h.e+':'+h.i;
+      if(!candidateKeys.has(key)){candidateKeys.add(key);candidates.push({e:h.e,i:h.i});}
+    }
+  }
+
+  const shortlist=[];
+  const runA=gptMirrorRunSignature(livePB);
+  for(const c0 of candidates){
+    const item=ix.entries[c0.e], i=c0.i;
+    if(!item || item.pb===livePB) continue;
+    const hp=item.pb.slice(0,i);
+    const seq=gptMirrorSuffixScore(livePB,hp); if(seq<.56)continue;
+    const chop=gptMirrorTransitionScore(livePB,hp,10);
+    const rawCut=item.raw.slice(0,item.endByPB[i]||0);
+    const tie=gptMirrorTieContextScore(liveRaw,rawCut);
+    const runB=gptMirrorRunSignature(hp), run=runA&&runA===runB?1:.5;
+    const pre=.58*seq+.25*chop+.10*tie+.07*run;
+    if(pre>=.61) shortlist.push({item,i,hp,rawCut,seq,chop,tie,run,pre,next:item.pb[i]});
+  }
+
+  shortlist.sort((a,b)=>b.pre-a.pre);
+  const top=shortlist.slice(0,8);
+  if(!top.length) return {...empty,reason:'no family survived indexed sequence/rhythm gate'};
+
+  // Derived-road work remains only for the final best 8 candidates.
+  const liveHands=livePB.split('').map(r=>({r}));
+  const liveRoads=[1,2,3].map(o=>{try{return deriveRoad(liveHands,o)||[]}catch(e){return []}});
+  for(const c of top){
+    const hh=c.hp.split('').map(r=>({r})); let rsum=0,ready=0,hardAgree=0;
+    for(let q=0;q<3;q++){
+      let hr=[];try{hr=deriveRoad(hh,q+1)||[]}catch(e){}
+      const rs=gptMirrorMarkSuffixScore(liveRoads[q],hr,7);
+      if(liveRoads[q].length>=3&&hr.length>=3){ready++;rsum+=rs;if(rs>=.70)hardAgree++;}
+    }
+    c.roadReady=ready;c.road=ready?rsum/ready:0;c.roadAgree=hardAgree;
+    c.confirmations=(c.seq>=.72?1:0)+(c.chop>=.72?1:0)+(c.tie>=.65?1:0)+(ready>=2&&c.road>=.68&&hardAgree>=2?1:0);
+    c.score=.46*c.seq+.20*c.chop+.10*c.tie+.24*c.road;
+  }
+
+  top.sort((a,b)=>b.score-a.score);
+  const best=top[0],second=top[1];
+  const margin=best.score-(second?.score||0);
+  const full=best.confirmations>=4&&best.roadReady>=2&&best.roadAgree>=2&&best.score>=.70;
+  const separated=!second||margin>=.025||second.next===best.next;
+  const close=top.filter(x=>x.score>=best.score-.035).slice(0,5);
+  const sameSide=close.filter(x=>x.next===best.next).length;
+  const support=sameSide>=Math.min(2,close.length);
+  const qualified=!!(full&&separated&&support&&(best.next==='P'||best.next==='B'));
+
+  const result={qualified,side:qualified?best.next:null,candidate:best.next,score:Math.round(best.score*100),confirmations:best.confirmations,
+    shoeId:best.item.shoe?.id||'saved-shoe',pos:best.i+1,reason:qualified?'indexed family/location lock earned':
+      `gate not earned: score ${Math.round(best.score*100)}%, confirmations ${best.confirmations}/4, roads ${best.roadAgree}/${best.roadReady}`,
+    candidates:shortlist.length,seq:Math.round(best.seq*100),chop:Math.round(best.chop*100),tie:Math.round(best.tie*100),
+    road:Math.round(best.road*100),roadReady:best.roadReady,roadAgree:best.roadAgree,margin:Math.round(margin*100),sameSide,closeN:close.length,indexed:true};
+
+  rt.cacheKey=cacheKey; rt.cacheValue=result;
+  return result;
+};
+
+function v140Invalidate(){
+  IDX.stamp=null; IDX.familyReady=false; IDX.roadReady=false; IDX.roadBuilding=false;
+  try{ const rt=window.__GPT_MIRROR_V3_RUNTIME__; if(rt){rt.cacheKey=null;rt.cacheValue=null;} }catch(e){}
+}
+window.__invalidateMirror97IndexV140 = v140Invalidate;
+
+// Build the cheap sequence index after load. Heavy road-state indexing is chunked.
+const boot=()=>setTimeout(()=>{try{v140BuildFamilyIndex(true);}catch(e){console.warn('V140 Mirror index boot isolated',e);}},250);
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+else boot();
+
+})();
+</script>
+
+</body>
 </html>
