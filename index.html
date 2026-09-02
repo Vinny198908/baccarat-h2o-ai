@@ -1160,6 +1160,30 @@ function toggle(id,key){
 }
 toggle('ppBtn','pp'); toggle('bpBtn','bp'); toggle('specialBtn','special');
 
+
+// V136: Chrome 70-hand freeze root fix.
+// Commit each live result synchronously, but coalesce expensive UI/storage/library work.
+let __v136RenderTimer=null, __v136PersistTimer=null, __v136KaggleTimer=null;
+function __v136SchedulePostHandMaintenance(){
+  if(__v136RenderTimer) clearTimeout(__v136RenderTimer);
+  __v136RenderTimer=setTimeout(()=>{
+    __v136RenderTimer=null;
+    try{ render(); }catch(e){ console.error('V136 render',e); }
+  },120);
+
+  if(__v136PersistTimer) clearTimeout(__v136PersistTimer);
+  __v136PersistTimer=setTimeout(()=>{
+    __v136PersistTimer=null;
+    try{ persist(); }catch(e){ console.error('V136 persist',e); }
+  },650);
+
+  if(__v136KaggleTimer) clearTimeout(__v136KaggleTimer);
+  __v136KaggleTimer=setTimeout(()=>{
+    __v136KaggleTimer=null;
+    try{ if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false); }catch(e){ console.error('V136 kaggle',e); }
+  },1100);
+}
+
 document.querySelectorAll('[data-result]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const actual=btn.dataset.result;
@@ -1185,7 +1209,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     armBotPrediction();
     armGPTMirrorPrediction();
 
-    persist(); render();
+    __v136SchedulePostHandMaintenance();
 
     // Lock the NEXT hand only after the just-entered result is fully committed.
     try{ window.__armVerifiedPredictions?.(); }catch(e){}
@@ -1193,7 +1217,6 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     try{ window.__armAdaptiveOriginalDerivedRoads?.(); }catch(e){}
     try{ window.renderVerifiedAccuracy?.(); window.renderAdaptiveDerivedMain?.(); }catch(e){}
 
-    if(state.kaggleLibraryEnabled!==false) scoreWithKaggle(false);
   });
 });
 function commitPreviewResult(actual){
@@ -1210,8 +1233,7 @@ function commitPreviewResult(actual){
   armNextPrediction();
   armBotPrediction();
   armGPTMirrorPrediction();
-  persist();
-  render();
+  __v136SchedulePostHandMaintenance();
   try{ window.__armVerifiedPredictions?.(); }catch(e){}
   try{ window.__armAdaptiveDerivedRoads?.(); }catch(e){}
   try{ window.__armAdaptiveOriginalDerivedRoads?.(); }catch(e){}
@@ -15492,6 +15514,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   if(window.__V102_FREEZE_COUNT_FIX__) return;
 
   let busy=false, renderTimer=0, heavyTimer=0;
+  const pendingResults=[];
   let lastTxnKey='';
   const resultSelector='.main-buttons [data-result], #previewP, #previewB';
 
@@ -15565,6 +15588,21 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   }
 
   function schedulePostCommit(){
+    // V136: when live inputs are queued, do not repaint/save the whole app between them.
+    // Arm the next-hand ledgers, then immediately drain the FIFO. Final paint/save happens once idle.
+    if(pendingResults.length){
+      try{armNextPrediction()}catch(e){}
+      try{armGPTMirrorPrediction()}catch(e){}
+      try{window.__armVerifiedPredictions?.()}catch(e){}
+      try{window.__armAdaptiveDerivedRoads?.()}catch(e){}
+      try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}
+      try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
+      try{armMainFuture()}catch(e){}
+      busy=false;
+      const queued=pendingResults.shift();
+      if(queued) setTimeout(()=>commit(queued.actual,queued.isPreview),0);
+      return;
+    }
     // V135 CHROME ROOT INPUT ARCHITECTURE:
     // NEVER call window.render() from the result-entry transaction. That function is
     // a historical wrapper chain assembled by dozens of modules and was the remaining
@@ -15608,6 +15646,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       const next=()=>{
         if(j>=jobs.length){
           busy=false;
+          const queued=pendingResults.shift();
+          if(queued) setTimeout(()=>commit(queued.actual,queued.isPreview),0);
           return;
         }
         const fn=jobs[j++];
@@ -15621,7 +15661,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     // Exactly ONE state save per committed hand, delayed until after the click has
     // returned so JSON serialization cannot block the button event itself.
     clearTimeout(window.__v134PersistTimer);
-    window.__v134PersistTimer=setTimeout(()=>{try{persist()}catch(e){}},80);
+    window.__v134PersistTimer=setTimeout(()=>{try{persist()}catch(e){}},750);
 
     // V135: never rescan/rerender the full library on every hand. Those datasets do not
     // change just because a live result was entered. Matcher follow stays opt-in and delayed.
@@ -15632,7 +15672,11 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   }
 
   function commit(actual, isPreview){
-    if(busy || !['P','B','T'].includes(actual)) return;
+    if(!['P','B','T'].includes(actual)) return;
+    if(busy){
+      pendingResults.push({actual,isPreview:!!isPreview,queuedAt:Date.now()});
+      return;
+    }
     const beforeLen=Array.isArray(state?.hands)?state.hands.length:0;
     const txnKey=`${beforeLen}:${pbCount()+1}:${actual}`;
     if(lastTxnKey===txnKey) return;
@@ -15676,7 +15720,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
   },0);
   document.getElementById('undoBtn')?.addEventListener('click',resync,false);
-  document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';busy=false;resync()},false);
+  document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';busy=false;pendingResults.length=0;resync()},false);
 
   window.__V102_FREEZE_COUNT_FIX__={
     enabled:true,
@@ -15684,7 +15728,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     legacyResultListenersBlocked:true,
     countSettleExactlyOnce:true,
     coalescedHeavyWork:true,
-    uiYieldBeforeRender:true
+    uiYieldBeforeRender:true,
+    fifoInputQueue:true,
+    droppedClicksWhenBusy:false
   };
 })();
 </script>
@@ -16074,6 +16120,9 @@ window.__V134_PERMANENT_LIVE_INPUT_FIX__={
 };
 </script>
 
+<script id="v136-chrome-70-hand-freeze-fix">
+window.__V136_CHROME_70_HAND_FREEZE_FIX__={enabled:true,fifoInputQueue:true,droppedBusyClicks:false,debouncedPersistMs:750,predictionLogicChanged:false,libraryPreserved:true};
+</script>
 <script id="v135-chrome-input-queue-root-fix">
 window.__V135_CHROME_INPUT_QUEUE_ROOT_FIX__={
   enabled:true,
