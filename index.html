@@ -1179,6 +1179,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
     try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
     try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
+    try{ window.__settlePresetFingerprintAccuracy?.(actual); }catch(e){}
 
     settlePendingPrediction(actual);
     settleBotPrediction(actual);
@@ -1208,6 +1209,7 @@ function commitPreviewResult(actual){
   try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
   try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
   try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
+  try{ window.__settlePresetFingerprintAccuracy?.(actual); }catch(e){}
   settlePendingPrediction(actual);
   settleBotPrediction(actual);
   settleGPTMirrorPrediction(actual);
@@ -5345,8 +5347,10 @@ function verifyBotHeartbeat(){
   }
 }
 // PERFORMANCE FIX: heartbeat is cosmetic; keep it lightweight on mobile.
-setInterval(()=>{ if(!document.hidden) botHeartbeat(); },5000);
-setInterval(()=>{ if(!document.hidden) verifyBotHeartbeat(); },6500);
+if(document.getElementById('botLiveStrip')){
+  setInterval(()=>{ if(!document.hidden) botHeartbeat(); },5000);
+  setInterval(()=>{ if(!document.hidden) verifyBotHeartbeat(); },6500);
+}
 
 function renderMasterBot(){
   botHeartbeat();
@@ -15078,6 +15082,272 @@ else boot();
     removedFocusHooksScrubbed:true,
     removedTrainingCoreHooksScrubbed:true
   };
+})();
+</script>
+
+<script id="v145-independent-preset-fingerprint-gate">
+/* V156 Cross-Shoe Validated Pattern Whitelist + dedicated accuracy/reset + undo-safe grading — independent-shoe validation + no-edge memory + Sequence V2 + Main Road Future Test. */
+(()=>{
+ const esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+ const pb=x=>String(x||'').toUpperCase().replace(/[^PB]/g,'');
+ function library(){
+   const a=[...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])];
+   const seen=new Set(), out=[];
+   for(const x of a){const q=pb(x?.sequence);if(q.length<8||seen.has(q))continue;seen.add(q);out.push({sequence:q,id:x?.id||'',color:x?.shoeColor||''});}
+   return out;
+ }
+ function current(){return pb((state?.hands||[]).map(h=>h?.r).join(''));}
+ const sniper={target:15,shoeKey:'',issued:0,lastQualifiedHand:-1};
+ const accuracy={wins:0,losses:0,pending:null,pendingHand:-1,ledger:[]};
+ function accuracyPct(){const n=accuracy.wins+accuracy.losses;return n?Math.round(accuracy.wins/n*1000)/10:0;}
+ function settleAccuracy(actual){
+   actual=pb(actual).slice(-1); if(!accuracy.pending||!actual)return;
+   const pred=accuracy.pending, handN=current().length+1, win=actual===pred;
+   if(win)accuracy.wins++;else accuracy.losses++;
+   accuracy.ledger.push({handN,pred,actual,win});
+   if(accuracy.ledger.length>200)accuracy.ledger.shift();
+   accuracy.pending=null; accuracy.pendingHand=-1; renderAccuracy();
+ }
+ function armAccuracy(e){
+   const hand=current().length;
+   if(e&&e.pick&&(e.pick==='P'||e.pick==='B')&&accuracy.pendingHand!==hand){
+     accuracy.pending=e.pick; accuracy.pendingHand=hand;
+   }
+ }
+ function resetAccuracy(){
+   accuracy.wins=0;accuracy.losses=0;accuracy.pending=null;accuracy.pendingHand=-1;accuracy.ledger=[];renderAccuracy();
+ }
+ function undoAccuracyGrade(){
+   const now=current().length;
+   const last=accuracy.ledger[accuracy.ledger.length-1];
+   if(last && last.handN===now+1){
+     accuracy.ledger.pop();
+     if(last.win)accuracy.wins=Math.max(0,accuracy.wins-1);
+     else accuracy.losses=Math.max(0,accuracy.losses-1);
+   }
+   accuracy.pending=null; accuracy.pendingHand=-1;
+   try{armAccuracy(evidence())}catch(e){}
+   renderAccuracy();
+ }
+ function clearAccuracyPending(){
+   accuracy.pending=null;accuracy.pendingHand=-1;renderAccuracy();
+ }
+ function renderAccuracy(){
+   const n=accuracy.wins+accuracy.losses;
+   const set=(id,v)=>{const x=document.getElementById(id);if(x)x.textContent=v};
+   set('pfgWins',accuracy.wins);set('pfgLosses',accuracy.losses);set('pfgAcc',n?`${accuracyPct()}%`:'—');
+ }
+ function resetSniperIfNeeded(cur){
+   const first=(cur||'').slice(0,8), key=`${first}:${Math.max(0,(state?.hands||[]).length)===0?'new':'live'}`;
+   if(!sniper.shoeKey || (cur.length<=2 && sniper.lastQualifiedHand>2)){
+     sniper.shoeKey=key; sniper.issued=0; sniper.lastQualifiedHand=-1;
+   }
+ }
+ function evidence(){
+   const cur=current(), lib=library(); resetSniperIfNeeded(cur);
+   if(cur.length<6)return {level:'BUILDING',pick:null,reason:'Enter at least 6 P/B hands.',independent:0,bestLen:0,rate:0,verified:0,lib:lib.length,issued:sniper.issued,target:sniper.target};
+   const votes=[]; let bestLen=0;
+   // Suffix fingerprints, longest first. One vote maximum per independent exact-sequence shoe.
+   for(const sh of lib){
+     let hit=null;
+     for(let L=Math.min(18,cur.length);L>=6&&!hit;L--){
+       const key=cur.slice(-L);
+       for(let pos=0;(pos=sh.sequence.indexOf(key,pos))>=0;pos++){
+         const n=sh.sequence[pos+L];
+         if(n==='P'||n==='B'){hit={side:n,L,pos};break;}
+       }
+     }
+     if(hit){votes.push(hit);bestLen=Math.max(bestLen,hit.L);}
+   }
+   // Keep only evidence close to the strongest fingerprint so weak short matches cannot swamp it.
+   const floor=Math.max(6,bestLen-2), strong=votes.filter(v=>v.L>=floor);
+   const P=strong.filter(v=>v.side==='P').length,B=strong.filter(v=>v.side==='B').length,n=P+B;
+   const top=Math.max(P,B), rate=n?top/n:0, pick=P>B?'P':B>P?'B':null;
+   const verified=n?(.5+(rate-.5)*(n/(n+8))):.5;
+
+   // V150 pace-ranked Sniper: target ~15 opportunities without blindly accepting every MEDIUM match.
+   const hand=cur.length;
+   const progress=Math.min(1,Math.max(0,(hand-6)/48));
+   const remaining=Math.max(0,sniper.target-sniper.issued);
+
+   // V151 CORE-LOGIC FUSION. Reuse the actual internal evidence produced by the two
+   // strongest retained AIs rather than treating their final labels as simple votes.
+   // Sequence V2 contributes its rolling-window P/B continuation distribution, similarity
+   // quality, agreement, sample depth and best-match length. Main Road Future Test contributes
+   // its P-vs-B normalized future projection across Main Road + the three derived roads.
+   let seq={}; try{seq=typeof sequenceAISignal==='function'?(sequenceAISignal()||{}):{}}catch(e){seq={}}
+   let fut={}; try{fut=typeof mainRoadFutureTest==='function'?(mainRoadFutureTest()||{}):{}}catch(e){fut={}}
+
+   const agreement=Math.max(0,Math.min(1,(rate-.5)*2));
+   const verifiedEdge=Math.max(0,Math.min(1,(verified-.5)*4));
+   const lengthScore=Math.max(0,Math.min(1,(bestLen-6)/8));
+   const supportScore=Math.max(0,Math.min(1,n/6));
+   const fingerprintQuality=.42*agreement + .23*verifiedEdge + .20*lengthScore + .15*supportScore;
+
+   // Sequence V2's own P/B distribution is useful even when its very strict final gate returns WAIT.
+   const seqPB=(Number(seq.pPct)||0)+(Number(seq.bPct)||0);
+   const seqP=seqPB?Math.max(0,Math.min(1,(Number(seq.pPct)||0)/seqPB)):.5;
+   const seqB=1-seqP;
+   const seqEdge=Math.abs(seqP-seqB)*2;
+   const seqSimilarity=Math.max(0,Math.min(1,(Number(seq.similarityScore)||0)/100));
+   const seqWindowAgree=(Number(seq.totalWindows)||0)>0?Math.max(0,Math.min(1,(Number(seq.agreeWindows)||0)/(Number(seq.totalWindows)||1))):0;
+   const seqDepth=Math.max(0,Math.min(1,(Number(seq.matches)||0)/12));
+   const seqLen=Math.max(0,Math.min(1,(Number(seq.bestLen)||0)/18));
+   const seqQuality=.32*seqSimilarity+.24*seqWindowAgree+.18*seqDepth+.14*seqLen+.12*seqEdge;
+
+   // Main Road Future Test already blends Sequence V2 with the projected Eye/Small/Roach futures.
+   const futP=Math.max(0,Math.min(1,(Number(fut?.p?.norm)||50)/100));
+   const futB=Math.max(0,Math.min(1,(Number(fut?.b?.norm)||50)/100));
+   const futEdge=Math.max(0,Math.min(1,(Number(fut.edge)||0)/18));
+   const futEvidence=Math.max(0,Math.min(1,(Number(fut.evidence)||0)/5));
+   const readyRoads=Array.isArray(fut.roadSigs)?fut.roadSigs.filter(r=>r?.sig?.pMark&&r?.sig?.bMark&&r.sig.pMark!==r.sig.bMark).length:0;
+   const futQuality=.50*futEdge+.30*futEvidence+.20*Math.min(1,readyRoads/3);
+
+   // Dynamic source weights: weak/unready sources automatically lose influence. Fingerprint remains
+   // the anchor, while Sequence V2 and Future Test can substantially redirect a borderline candidate.
+   const wf=.46+.14*fingerprintQuality;
+   const ws=.10+.28*seqQuality;
+   const wr=.08+.24*futQuality;
+   const wz=wf+ws+wr||1;
+   const fpP=n?P/n:.5, fpB=n?B/n:.5;
+   let fusedP=(wf*fpP+ws*seqP+wr*futP)/wz;
+   let fusedB=(wf*fpB+ws*seqB+wr*futB)/wz;
+   let fusedPick=fusedP>fusedB?'P':fusedB>fusedP?'B':null;
+   let fusedRate=Math.max(fusedP,fusedB);
+   let fusedEdge=Math.abs(fusedP-fusedB);
+
+   // Reward genuine three-source agreement and penalize conflict. This captures the logic of the
+   // two top AIs without allowing either one to force a bet by itself.
+   const fpPick=pick;
+   const seqPick=seqP>seqB?'P':seqB>seqP?'B':null;
+   const futPick=futP>futB?'P':futB>futP?'B':null;
+   const dirs=[fpPick,seqQuality>=.20?seqPick:null,futQuality>=.18?futPick:null].filter(Boolean);
+   const agreeCount=fusedPick?dirs.filter(x=>x===fusedPick).length:0;
+   const sourceAgreement=dirs.length?agreeCount/dirs.length:0;
+   const conflictPenalty=dirs.length>=2&&sourceAgreement<.67?.08:0;
+   let quality=Math.max(0,Math.min(1,.52*fingerprintQuality+.28*seqQuality+.20*futQuality + (sourceAgreement===1&&dirs.length>=2?.07:0)-conflictPenalty));
+
+   // V152 PATTERN STATE MEMORY — recognize recurring structural families, not only exact suffixes.
+   // The state is intentionally translation-invariant: it describes runs/chops/repeat-flip behavior
+   // so the same structural pattern can match even when an exact P/B suffix is shifted.
+   function stateKeyAt(seq,end){
+     const x=seq.slice(0,end), tail=x.slice(-12); if(tail.length<7)return null;
+     const runs=[]; let c=1;
+     for(let i=1;i<tail.length;i++){if(tail[i]===tail[i-1])c++;else{runs.push(c);c=1;}} runs.push(c);
+     const trans=[]; for(let i=1;i<tail.length;i++)trans.push(tail[i]===tail[i-1]?'R':'F');
+     const lastRuns=runs.slice(-5).map(v=>Math.min(4,v)).join('');
+     const tf=trans.slice(-7).join('');
+     const flips=trans.slice(-6).filter(v=>v==='F').length;
+     const regime=flips>=5?'CHOP':flips<=2?'RUN':'MIX';
+     return `${regime}|${lastRuns}|${tf}`;
+   }
+   const liveState=stateKeyAt(cur,cur.length);
+   let stP=0,stB=0,stN=0; const stateShoes=new Set(), shoeBias=[];
+   if(liveState){
+     for(let si=0;si<lib.length;si++){
+       const sh=lib[si],q=sh.sequence; let shoeP=0,shoeB=0;
+       for(let end=7;end<q.length;end++){
+         if(stateKeyAt(q,end)!==liveState)continue;
+         const same=q[end]===q[end-1], side=same?cur[cur.length-1]:(cur[cur.length-1]==='P'?'B':'P');
+         if(side==='P'){stP++;shoeP++;} else if(side==='B'){stB++;shoeB++;} stN++;
+       }
+       if(shoeP+shoeB){
+         stateShoes.add(sh.id||`${si}:${q.slice(0,12)}`);
+         const total=shoeP+shoeB;
+         shoeBias.push({p:shoeP/total,b:shoeB/total,n:total});
+       }
+     }
+   }
+   const stRate=stN?Math.max(stP,stB)/stN:.5;
+   const stPick=stP>stB?'P':stB>stP?'B':null;
+   const stVerified=stN?(.5+(stRate-.5)*(stN/(stN+12))):.5;
+   const stCross=stateShoes.size;
+
+   // V154: independent-shoe validation. A state is not trusted just because pooled occurrences look good.
+   // Each historical shoe gets one directional vote; the pattern must generalize across shoes.
+   let shoeAgree=0,shoeOppose=0,shoeNeutral=0;
+   for(const z of shoeBias){
+     const lead=z.p>z.b?'P':z.b>z.p?'B':null;
+     if(!lead)shoeNeutral++; else if(lead===stPick)shoeAgree++; else shoeOppose++;
+   }
+   const decisiveShoes=shoeAgree+shoeOppose;
+   const crossRate=decisiveShoes?shoeAgree/decisiveShoes:.5;
+   const crossVerified=decisiveShoes?(.5+(crossRate-.5)*(decisiveShoes/(decisiveShoes+6))):.5;
+   const stSupport=Math.min(1,stN/20), stCrossScore=Math.min(1,decisiveShoes/10);
+   const stEdge=Math.max(0,(stVerified-.5)*4), crossEdge=Math.max(0,(crossVerified-.5)*4);
+   const stateQuality=.28*stEdge+.22*stSupport+.20*stCrossScore+.30*crossEdge;
+
+   // Only whitelist a pattern when BOTH pooled continuation and independent-shoe votes support it.
+   const noEdgeState=stN>=8 && (stVerified<.54 || decisiveShoes<4 || crossVerified<.535);
+   const reliableState=stN>=10 && decisiveShoes>=5 && stVerified>=.555 && crossVerified>=.555;
+   const strongState=stN>=14 && decisiveShoes>=7 && stVerified>=.575 && crossVerified>=.575;
+
+   // Pattern memory influences the fused probability only when it has meaningful repeated support.
+   if(stPick && reliableState && !noEdgeState){
+     const stateWeight=(strongState?.18:.10)+.30*stateQuality;
+     const sp=stPick==='P'?stVerified:1-stVerified;
+     const sb=1-sp;
+     const baseWeight=1;
+     const np=(fusedP*baseWeight+sp*stateWeight)/(baseWeight+stateWeight);
+     const nb=(fusedB*baseWeight+sb*stateWeight)/(baseWeight+stateWeight);
+     fusedP=np; fusedB=nb;
+   }
+   // Recompute direction after structural-memory influence.
+   const stateFusedPick=fusedP>fusedB?'P':fusedB>fusedP?'B':null;
+   const stateFusedRate=Math.max(fusedP,fusedB);
+   const stateFusedEdge=Math.abs(fusedP-fusedB);
+
+   fusedPick=stateFusedPick; fusedRate=stateFusedRate; fusedEdge=stateFusedEdge;
+   // Pattern-memory agreement adds quality; conflict with well-supported memory subtracts quality.
+   if(stPick && reliableState){
+     const stateAgree=stPick===fusedPick;
+     quality=Math.max(0,Math.min(1,quality+(stateAgree?.14*stateQuality:-.11*stateQuality)));
+   }
+   if(noEdgeState) quality=Math.max(0,quality-.10);
+
+   // Pace control: if behind the 15-pick trajectory, relax gradually. If ahead, tighten.
+   const expected=sniper.target*progress;
+   const deficit=Math.max(0,expected-sniper.issued);
+   const surplus=Math.max(0,sniper.issued-expected);
+   let threshold=.47 - Math.min(.13,deficit*.028) + Math.min(.045,surplus*.011);
+   threshold=Math.max(.35,Math.min(.58,threshold));
+
+   let level='LOW';
+   if(quality>=Math.max(.51,threshold+.055) && fusedRate>=.60 && fusedEdge>=.20 && sourceAgreement>=.67 && (!noEdgeState||sourceAgreement===1)) level='HIGH';
+   else if(!noEdgeState && quality>=threshold && fusedRate>=.565 && fusedEdge>=.13 && (sourceAgreement>=.50||dirs.length===1)) level='MEDIUM';
+
+   pick=fusedPick;
+   let qualified=!!pick&&(level==='HIGH'||level==='MEDIUM')&&sniper.issued<sniper.target;
+   // One decision per completed hand. Do not double-count repeated renders.
+   if(qualified && sniper.lastQualifiedHand===hand) qualified=false;
+   if(qualified){ sniper.issued++; sniper.lastQualifiedHand=hand; }
+
+   return {level,pick:qualified?pick:null,candidate:pick,independent:n,bestLen,rate,verified,quality,threshold,lib:lib.length,
+     fusedRate,sourceAgreement,seqQuality,futQuality,seqPick,futPick,stateQuality,stN,stPick,stVerified,stCross,decisiveShoes,crossRate,crossVerified,shoeAgree,shoeOppose,reliableState,strongState,noEdgeState,liveState,
+     issued:sniper.issued,target:sniper.target,remaining:Math.max(0,sniper.target-sniper.issued),
+     reason:n?`${n} deduplicated historical shoes match the live suffix at ${floor}-${bestLen} hands. Fusion ${Math.round(fusedRate*100)}% ${pick||'—'} • SeqV2 logic ${Math.round(seqQuality*100)}% • Future-road logic ${Math.round(futQuality*100)}% • validated pattern ${stN} hits/${decisiveShoes} decisive shoes/${Math.round(stVerified*100)}% pooled/${Math.round(crossVerified*100)}% cross-shoe ${stPick||'—'}${noEdgeState?' NO-EDGE':strongState?' STRONG':reliableState?' RELIABLE':''} • source agreement ${Math.round(sourceAgreement*100)}% • gate ${Math.round(quality*100)}/${Math.round(threshold*100)} • target 15.`:'No independent historical continuation match.'};
+ }
+ function ensure(){
+   if(document.getElementById('presetFingerprintGateV145'))return;
+   const host=document.getElementById('metaWalkV23')||document.querySelector('.analyzer'); if(!host)return;
+   const el=document.createElement('div'); el.className='analyzer'; el.id='presetFingerprintGateV145';
+   el.style.borderColor='#4fd1a5'; el.innerHTML=`<div class="analyzer-title">🧬 Independent Preset Fingerprint Gate</div>
+   <div class="analyzer-sub">Tests the preset-shoe hypothesis against deduplicated historical shoes. Evidence only; weak structure returns WAIT.</div>
+   <div class="analyzer-grid"><div class="analyzer-card"><span>PRESET EVIDENCE</span><strong id="pfgLevel">—</strong></div><div class="analyzer-card"><span>SNIPER DECISION</span><strong id="pfgPick">WAIT</strong></div><div class="analyzer-card"><span>QUALIFIED SPOTS</span><strong id="pfgQuota">0 / 15</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="pfgMatches">0</strong></div><div class="analyzer-card"><span>BEST FINGERPRINT</span><strong id="pfgLen">0 hands</strong></div><div class="analyzer-card"><span>CONTINUATION AGREEMENT</span><strong id="pfgRate">—</strong></div><div class="analyzer-card"><span>SHRUNK EVIDENCE</span><strong id="pfgVerified">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="pfgWins">0</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="pfgLosses">0</strong></div><div class="analyzer-card"><span>ACCURACY</span><strong id="pfgAcc">—</strong></div></div><div style="margin-top:8px"><button type="button" id="pfgResetAccuracy" class="btn">Reset Accuracy</button></div><div class="analyzer-sub" id="pfgNote" style="margin-top:8px">Building evidence…</div>`;
+   host.parentNode.insertBefore(el,host);
+   const rb=document.getElementById('pfgResetAccuracy'); if(rb&&!rb.__pfgResetBound){rb.__pfgResetBound=true;rb.addEventListener('click',resetAccuracy);}
+   const ub=document.getElementById('undoBtn'); if(ub&&!ub.__pfgUndoBound){ub.__pfgUndoBound=true;ub.addEventListener('click',()=>setTimeout(undoAccuracyGrade,0),false);}
+   const cb=document.getElementById('clearBtn'); if(cb&&!cb.__pfgClearBound){cb.__pfgClearBound=true;cb.addEventListener('click',()=>setTimeout(clearAccuracyPending,0),false);}
+   renderAccuracy();
+ }
+ function render(){ensure();const e=evidence(); const set=(id,v)=>{const x=document.getElementById(id);if(x)x.textContent=v};
+   set('pfgLevel',e.level);set('pfgPick',e.pick==='P'?'PLAYER':e.pick==='B'?'BANKER':'WAIT');set('pfgQuota',`${e.issued||0} / ${e.target||15}`);set('pfgMatches',e.independent);set('pfgLen',`${e.bestLen} hands`);set('pfgRate',e.independent?`${Math.round(e.rate*100)}%`:'—');set('pfgVerified',e.independent?`${Math.round(e.verified*100)}%`:'—');set('pfgNote',`${e.reason} ${e.remaining??15} target spots remain. Library: ${e.lib} unique P/B shoes. No weak bet is forced.`); armAccuracy(e); renderAccuracy(); return e;
+ }
+ const old=window.render;if(typeof old==='function'&&!old.__pfg145){const w=function(){const r=old.apply(this,arguments);try{render()}catch(e){console.warn('PFG145',e)}return r};w.__pfg145=true;window.render=w;}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,500));else setTimeout(render,500);
+ window.__settlePresetFingerprintAccuracy=settleAccuracy;
+ window.__resetPresetFingerprintAccuracy=resetAccuracy;
+ window.__presetFingerprintGate={version:156,mode:"sniper-15-cross-shoe-validated-whitelist-accuracy-undo-safe",evidence,render,settleAccuracy,resetAccuracy,undoAccuracyGrade};
 })();
 </script>
 </body>
