@@ -15098,11 +15098,11 @@ else boot();
    return out;
  }
  function current(){return pb((state?.hands||[]).map(h=>h?.r).join(''));}
- const sniper={target:15,shoeKey:'',issued:0,lastQualifiedHand:-1};
+ const sniper={target:15,shoeKey:'',issued:0,lastQualifiedHand:-1,lastDecision:null,lastDecisionLevel:'WAIT'};
  function resetSniperIfNeeded(cur){
    const first=(cur||'').slice(0,8), key=`${first}:${Math.max(0,(state?.hands||[]).length)===0?'new':'live'}`;
    if(!sniper.shoeKey || (cur.length<=2 && sniper.lastQualifiedHand>2)){
-     sniper.shoeKey=key; sniper.issued=0; sniper.lastQualifiedHand=-1;
+     sniper.shoeKey=key; sniper.issued=0; sniper.lastQualifiedHand=-1; sniper.lastDecision=null; sniper.lastDecisionLevel='WAIT';
    }
  }
  function evidence(){
@@ -15296,9 +15296,19 @@ else boot();
    const directRoute=level==='SELECTIVE' && directFingerprintPass && !(quality>=threshold && fusedRate>=.565 && fusedEdge>=.13 && (sourceAgreement>=.50||dirs.length===1) && !noEdgeState);
    pick=directRoute?fpPick:fusedPick;
    let qualified=!!pick&&(level==='STRONG'||level==='SELECTIVE')&&sniper.issued<sniper.target;
-   // One decision per completed hand. Do not double-count repeated renders.
-   if(qualified && sniper.lastQualifiedHand===hand) qualified=false;
-   if(qualified){ sniper.issued++; sniper.lastQualifiedHand=hand; }
+   // V170 permanent live-display fix: repeated renders on the SAME completed hand must
+   // preserve the already-qualified P/B decision instead of turning it back into WAIT.
+   // The quota increments only once when the hand first qualifies.
+   if(sniper.lastQualifiedHand===hand && sniper.lastDecision){
+     pick=sniper.lastDecision;
+     level=sniper.lastDecisionLevel||level;
+     qualified=true;
+   }else if(qualified){
+     sniper.issued++;
+     sniper.lastQualifiedHand=hand;
+     sniper.lastDecision=pick;
+     sniper.lastDecisionLevel=level;
+   }
 
    let waitReason='';
    if(!n) waitReason='WAIT — no independent historical continuation match.';
@@ -15320,7 +15330,7 @@ else boot();
    if(document.getElementById('presetFingerprintGateV145'))return;
    const host=document.getElementById('metaWalkV23')||document.querySelector('.analyzer'); if(!host)return;
    const el=document.createElement('div'); el.className='analyzer'; el.id='presetFingerprintGateV145';
-   el.style.borderColor='#4fd1a5'; el.innerHTML=`<div class="analyzer-title">🧬 Independent Preset Fingerprint Gate V164</div>
+   el.style.borderColor='#4fd1a5'; el.innerHTML=`<div class="analyzer-title">🧬 Independent Preset Fingerprint Gate V170</div>
    <div class="analyzer-sub">Tests the preset-shoe hypothesis against deduplicated historical shoes. STRONG keeps the strict multi-source gate; SELECTIVE can use strong independent fingerprint evidence when supporting AIs are neutral. Conflicting or weak evidence returns WAIT.</div>
    <div class="analyzer-grid"><div class="analyzer-card"><span>PRESET EVIDENCE</span><strong id="pfgLevel">—</strong></div><div class="analyzer-card"><span>SNIPER DECISION</span><strong id="pfgPick">WAIT</strong></div><div class="analyzer-card"><span>QUALIFIED SPOTS</span><strong id="pfgQuota">0 / 15</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="pfgMatches">0</strong></div><div class="analyzer-card"><span>BEST FINGERPRINT</span><strong id="pfgLen">0 hands</strong></div><div class="analyzer-card"><span>CONTINUATION AGREEMENT</span><strong id="pfgRate">—</strong></div><div class="analyzer-card"><span>SHRUNK EVIDENCE</span><strong id="pfgVerified">—</strong></div></div><div class="analyzer-sub" id="pfgNote" style="margin-top:8px">Building evidence…</div>`;
    host.parentNode.insertBefore(el,host);
@@ -15330,7 +15340,7 @@ else boot();
  }
  const old=window.render;if(typeof old==='function'&&!old.__pfg145){const w=function(){const r=old.apply(this,arguments);try{render()}catch(e){console.warn('PFG145',e)}return r};w.__pfg145=true;window.render=w;}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,500));else setTimeout(render,500);
- window.__presetFingerprintGate={version:164,mode:"strong-selective-independent-fingerprint",evidence,render};
+ window.__presetFingerprintGate={version:170,mode:"stable-live-fingerprint-decision",evidence,render};
 })();
 </script>
 
@@ -15820,23 +15830,45 @@ function liveRow(){
   return {shoe_id:'LIVE',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',target_pb:'',prior_hands:i,prior_non_tie_hands:nt.length,prior_player_count:nt.filter(x=>x==='P').length,prior_banker_count:nt.filter(x=>x==='B').length,prior_tie_count:arr.filter(x=>x==='T').length,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:runLen(nt),recent8_transition_rate:+tr.toFixed(4),regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_road_columns:cs.length,main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),big_eye_red_rate_8:+rate(rd.eye.slice(-8),'R').toFixed(4),small_road_tail_8:rd.small.slice(-8).join(''),small_red_rate_8:+rate(rd.small.slice(-8),'R').toFixed(4),cockroach_tail_8:rd.roach.slice(-8).join(''),cockroach_red_rate_8:+rate(rd.roach.slice(-8),'R').toFixed(4),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length};
 }
 function signal(){
-  if(!runtime.trained)return {side:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:runtime.lastError||'Press Build / Refresh Dataset to train and validate V162.'};
-  if(!runtime.qualified)return {side:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:runtime.report?.reason||'Cross-shoe validation gate failed.',report:runtime.report};
-  const r=liveRow(); if(r.prior_hands<WARMUP)return {side:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands before live ML scoring.`};
-  const z=ensemble(runtime.model,r), conf=Math.max(z.p,1-z.p), pass=conf>=runtime.cutoff && z.sources>=2, side=z.p>=.5?'P':'B';
-  const out={side:pass?side:null,rawSide:side,qualified:pass,strength:pass?+(conf*100).toFixed(1):0,confidence:+(conf*100).toFixed(1),status:pass?(side==='P'?'PLAYER':'BANKER'):'WAIT',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),evidence:z.evidence,sources:z.sources,cutoff:+(runtime.cutoff*100).toFixed(1),reason:pass?'Fresh V160-trained model cleared the live confidence gate.':'Fresh model is trained, but this hand does not clear the selective confidence gate.',report:runtime.report};
+  if(!runtime.trained)return {side:null,displaySide:null,rawSide:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:runtime.lastError||'Training has not completed yet.'};
+  const r=liveRow();
+  if(r.prior_hands<WARMUP)return {side:null,displaySide:null,rawSide:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands before live ML scoring.`,report:runtime.report};
+  const z=ensemble(runtime.model,r), conf=Math.max(z.p,1-z.p), side=z.p>=.5?'P':'B';
+  const selectivePass=conf>=runtime.cutoff && z.sources>=2;
+  // V170: the model always exposes its pre-result P/B lean after warmup.  Held-out validation
+  // still controls whether that lean is marked QUALIFIED; a failed validation no longer makes the
+  // ML panel look frozen or dead.  Other AIs are not controlled by this module.
+  const qualified=!!(runtime.qualified && selectivePass);
+  const displayPass=z.sources>=2 && conf>=.505;
+  const out={
+    side:displayPass?side:null,
+    displaySide:displayPass?side:null,
+    rawSide:side,
+    qualified,
+    experimental:!runtime.qualified,
+    strength:displayPass?+(conf*100).toFixed(1):0,
+    confidence:+(conf*100).toFixed(1),
+    status:displayPass?(side==='P'?'PLAYER':'BANKER'):'WAIT',
+    pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),
+    evidence:z.evidence,sources:z.sources,cutoff:+(runtime.cutoff*100).toFixed(1),
+    reason:qualified?'Validated ML call cleared the selective live gate.':displayPass?(runtime.qualified?'ML lean is visible, but below the selective qualification gate.':'Experimental ML lean is visible; held-out validation is still LOCKED, so treat it as non-authoritative.'):'Not enough live ML evidence yet.',
+    report:runtime.report
+  };
   runtime.lastSignal=out;return out;
 }
 function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
 function renderReport(){
   const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;
   const r=runtime.report;
-  panel.querySelector('.analyzer-title').textContent='🧠 ML Road Trainer V3 — Live V160 Cross-Shoe Trainer';
+  panel.querySelector('.analyzer-title').textContent='🧠 ML Road Trainer V170 — Live Prediction + Validation';
   const sub=panel.querySelector('.analyzer-sub');if(sub)sub.textContent='Connected directly to ML Training Dataset V160. Build / Refresh now rebuilds rows, trains two independent in-browser feature models, calibrates a selective gate on validation shoes, and tests that gate on completely held-out shoes. It cannot control other AIs.';
   const grid=panel.querySelector('.analyzer-grid');
-  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv155Status">${runtime.trained?(runtime.qualified?'QUALIFIED':'LOCKED / WAIT'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
+  let live=null;try{live=runtime.trained?signal():null}catch(e){}
+  const liveTxt=live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT';
+  const liveConf=Number.isFinite(Number(live?.confidence))?Number(live.confidence).toFixed(1)+'%':'—';
+  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv155Status">${runtime.trained?(runtime.qualified?'QUALIFIED':'EXPERIMENTAL / VALIDATION LOCK'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
   let note=document.getElementById('mlv155Note'); if(!note){note=document.createElement('div');note.id='mlv155Note';note.className='analyzer-sub';note.style.marginTop='8px';panel.appendChild(note)}
-  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${r.qualified?'VALIDATION PASS':'VALIDATION LOCK'}: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%. ${r.reason}`:'Press Build / Refresh Dataset below to run a fresh train → validation → held-out test cycle.';
+  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${live?.reason||''} ${r.qualified?'VALIDATION PASS':'VALIDATION LOCK'}: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%.`:'Press Build / Refresh Dataset below to run a fresh train → validation → held-out test cycle.';
 }
 function install(){
   const panel=document.getElementById('mlRoadTrainerV155');if(panel)renderReport();
@@ -15859,7 +15891,7 @@ function boot(){
     const panel=document.getElementById('mlRoadTrainerV155');
     if(panel){
       const t=panel.querySelector('.analyzer-title');
-      if(t)t.textContent='🧠 ML Road Trainer V3 — Live V160 Cross-Shoe Trainer';
+      if(t)t.textContent='🧠 ML Road Trainer V170 — Live Prediction + Validation';
       panel.dataset.connected='v163';
     }
     if(api&&typeof api.trainAndValidate==='function'){
@@ -15877,7 +15909,7 @@ window.__V163_ML_AUTO_TRAIN__=true;
 })();
 </script>
 
-<script>window.__V164_FINGERPRINT_GATE_FIX__={version:164,selectiveIndependentFingerprint:true,strongGatePreserved:true};</script>
+<script>window.__V170_FINGER_ML_LIVE_FIX__={version:170,fingerprintDecisionPersistsPerHand:true,mlLiveLeanVisibleAfterWarmup:true,validationStillReported:true};</script>
 
 <script id="v165-permanent-walk-forward-removal">
 (function(){
@@ -16064,38 +16096,51 @@ function seqStylePredict(cur,library,gate=.60){
   if(!votes.length)return {side:null,conf:0,n:0};const best=Math.max(...votes.map(v=>v.L)),strong=votes.filter(v=>v.L>=Math.max(6,best-2));const P=strong.filter(v=>v.side==='P').length,B=strong.length-P,n=P+B;if(!n||P===B)return {side:null,conf:.5,n};const side=P>B?'P':'B',conf=Math.max(P,B)/n;return {side:n>=3&&conf>=gate?side:null,raw:side,conf,n};
 }
 function ensemblePredict(cur,lib,cfg){const a=structuralPredict(cur,lib,cfg.structGate,cfg.minShoes,cfg.minSupport),b=seqStylePredict(cur,lib,cfg.seqGate);let side=null,conf=0;if(a.side&&b.side&&a.side===b.side){side=a.side;conf=(a.conf*1.15+b.conf)/2.15;}else if(a.side&&!b.side){side=a.side;conf=a.conf*.96;}else if(b.side&&!a.side&&b.conf>=.72){side=b.side;conf=b.conf*.94;}return {side,conf,a,b};}
-function defaultCfg(){return {structGate:.60,seqGate:.60,minShoes:4,minSupport:3};}
+function mirrorReplayPredict(cur,lib,cfg){
+  const e=ensemblePredict(cur,lib,cfg),a=e.a||structuralPredict(cur,lib,cfg.structGate,cfg.minShoes,cfg.minSupport),b=e.b||seqStylePredict(cur,lib,cfg.seqGate);
+  // Mirror replay is deliberately selective: it learns only from pre-result evidence
+  // available at this hand and never sees the held-out shoe's next result.
+  if(!e.side)return {side:null,conf:0,a,b,e,reason:'ensemble wait'};
+  const agreeA=a.side===e.side, agreeB=b.side===e.side;
+  const independent=(agreeA?1:0)+(agreeB?1:0);
+  const conf=Math.max(e.conf||0,agreeA?(a.conf||0):0,agreeB?(b.conf||0):0);
+  const gate=Math.max(.60,Number(cfg.mirrorGate||.62));
+  if(independent<1||conf<gate)return {side:null,conf,a,b,e,reason:'mirror selective gate'};
+  if(a.side&&b.side&&a.side!==b.side)return {side:null,conf,a,b,e,reason:'source conflict'};
+  return {side:e.side,conf,a,b,e,reason:'validated replay agreement'};
+}
+function defaultCfg(){return {structGate:.60,seqGate:.60,mirrorGate:.62,minShoes:4,minSupport:3};}
 function loadCfg(){try{return {...defaultCfg(),...JSON.parse(localStorage.getItem(CFG_KEY)||'{}')}}catch(e){return defaultCfg();}}
 function split(shoes){const n=shoes.length,trainN=Math.max(1,Math.floor(n*.70)),valN=Math.max(1,Math.floor(n*.15));return {train:shoes.slice(0,trainN),val:shoes.slice(trainN,trainN+valN),test:shoes.slice(trainN+valN)};}
 function evalSet(test,train,cfg,maxShoes=Infinity){
-  const models={Structural:{w:0,l:0,wait:0,calls:0},SequenceStyle:{w:0,l:0,wait:0,calls:0},Ensemble:{w:0,l:0,wait:0,calls:0}};
-  const shoes=test.slice(0,maxShoes);for(const sh of shoes){const seq=sh.sequence;for(let i=6;i<Math.min(seq.length,55);i++){const actual=seq[i];if(actual!=='P'&&actual!=='B')continue;const cur=seq.slice(0,i);const preds={Structural:structuralPredict(cur,train,cfg.structGate,cfg.minShoes,cfg.minSupport),SequenceStyle:seqStylePredict(cur,train,cfg.seqGate),Ensemble:ensemblePredict(cur,train,cfg)};for(const [k,z] of Object.entries(preds)){if(!z.side){models[k].wait++;continue;}models[k].calls++;if(z.side===actual)models[k].w++;else models[k].l++;}}}
+  const models={Structural:{w:0,l:0,wait:0,calls:0},SequenceStyle:{w:0,l:0,wait:0,calls:0},Ensemble:{w:0,l:0,wait:0,calls:0},GPTMirrorReplay:{w:0,l:0,wait:0,calls:0}};
+  const shoes=test.slice(0,maxShoes);for(const sh of shoes){const seq=sh.sequence;for(let i=6;i<Math.min(seq.length,55);i++){const actual=seq[i];if(actual!=='P'&&actual!=='B')continue;const cur=seq.slice(0,i);const preds={Structural:structuralPredict(cur,train,cfg.structGate,cfg.minShoes,cfg.minSupport),SequenceStyle:seqStylePredict(cur,train,cfg.seqGate),Ensemble:ensemblePredict(cur,train,cfg),GPTMirrorReplay:mirrorReplayPredict(cur,train,cfg)};for(const [k,z] of Object.entries(preds)){if(!z.side){models[k].wait++;continue;}models[k].calls++;if(z.side===actual)models[k].w++;else models[k].l++;}}}
   for(const z of Object.values(models)){z.acc=z.calls?z.w/z.calls:0;z.perShoe=shoes.length?z.calls/shoes.length:0;}
   return {models,shoeCount:shoes.length};
 }
 function tune(train,val){
   let best=null;const gates=[.58,.60,.62,.64,.66],mins=[3,4,5],supports=[2,3,4];
-  for(const g of gates)for(const m of mins)for(const sp of supports){if(sp>m)continue;const cfg={structGate:g,seqGate:.60,minShoes:m,minSupport:sp};const r=evalSet(val,train,cfg);const z=r.models.Ensemble;const pace=z.perShoe,pacePenalty=Math.abs(pace-10)*.0035,score=z.acc-.50+Math.min(.025,z.calls/Math.max(1,val.length*400))-.5*pacePenalty;if(z.calls>=Math.max(20,val.length*3)&&(!best||score>best.score))best={cfg,r,score};}
+  for(const g of gates)for(const m of mins)for(const sp of supports)for(const mg of [.60,.62,.64,.66,.68]){if(sp>m)continue;const cfg={structGate:g,seqGate:.60,mirrorGate:mg,minShoes:m,minSupport:sp};const r=evalSet(val,train,cfg);const z=r.models.GPTMirrorReplay;const pace=z.perShoe,pacePenalty=Math.abs(pace-10)*.0045,score=z.acc-.50+Math.min(.025,z.calls/Math.max(1,val.length*400))-.55*pacePenalty;if(z.calls>=Math.max(18,val.length*2)&&(!best||score>best.score))best={cfg,r,score};}
   return best||{cfg:defaultCfg(),r:evalSet(val,train,defaultCfg()),score:0};
 }
 let running=false,last=null;
 function pct(x){return x?`${(x*100).toFixed(1)}%`:'—'}
 function card(name,z){return `<div class="analyzer-card"><span>${name}</span><strong>${pct(z.acc)}</strong><small style="display:block;color:var(--muted);margin-top:3px">${z.w}W-${z.l}L • ${z.calls} calls • ${z.perShoe.toFixed(1)}/shoe</small></div>`;}
 function ensure(){if(document.getElementById('aiReplayLabV167'))return;const anchor=document.getElementById('mlTrainingDatasetV159')||document.getElementById('currentShoeMatcherBox')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='aiReplayLabV167';d.style.cssText='margin-top:12px;border:1px solid rgba(49,183,255,.65)';d.innerHTML=`
-<div class="analyzer-title">🧪 AI Replay Training & Validation Lab V167</div>
-<div class="analyzer-sub">Replays saved shoes hand-by-hand. Test shoes are removed from the training pool before every prediction. Sequence AI V2 is never modified. Auto-Tune only learns selective gates for the V166-style structural matcher/ensemble, then freezes them before the unseen test.</div>
+<div class="analyzer-title">🧪 AI Replay Training & GPT Mirror Validation Lab V169</div>
+<div class="analyzer-sub">Replays saved shoes hand-by-hand. Test shoes are removed from the training pool before every prediction. Sequence AI V2 is never modified. Auto-Tune learns selective gates for the V166-style structural matcher/ensemble and a GPT Mirror replay gate, then freezes them before the unseen test. Sequence AI V2 remains untouched.</div>
 <div class="analyzer-grid"><div class="analyzer-card"><span>UNIQUE SHOES</span><strong id="labShoes">0</strong></div><div class="analyzer-card"><span>TRAIN / VALIDATE / TEST</span><strong id="labSplit">—</strong></div><div class="analyzer-card"><span>STATUS</span><strong id="labStatus">READY</strong></div></div>
 <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px"><button class="tiny-btn" id="labQuick">Quick Replay</button><button class="tiny-btn" id="labFull">Full Unseen Replay</button><button class="tiny-btn" id="labTune">Auto-Tune + Test</button><button class="tiny-btn" id="labApply" disabled>Apply Best Gate</button></div>
 <div class="analyzer-grid" id="labResults" style="margin-top:8px"></div>
-<div class="analyzer-sub" id="labNote" style="margin-top:8px">Goal: about 10 selective calls per shoe with the highest held-out accuracy. No simulated/random hands are used.</div>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);
+<div class="analyzer-sub" id="labNote" style="margin-top:8px">Goal: train GPT Mirror to be more selective using hand-by-hand saved-shoe replay, targeting about 10 strong calls per shoe. Held-out shoes are never used as training answers and no random hands are used.</div>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);
  const q=id=>d.querySelector(id);q('#labQuick').onclick=()=>run('quick');q('#labFull').onclick=()=>run('full');q('#labTune').onclick=()=>run('tune');q('#labApply').onclick=applyBest;renderMeta();}
 function renderMeta(){const s=uniqueShoes(),sp=split(s),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('labShoes',s.length);set('labSplit',`${sp.train.length} / ${sp.val.length} / ${sp.test.length}`);}
 function renderResult(r,label){const box=document.getElementById('labResults'),note=document.getElementById('labNote');if(!box)return;box.innerHTML=Object.entries(r.models).map(([k,z])=>card(k,z)).join('');if(note)note.textContent=`${label}: ${r.shoeCount} held-out shoes. Accuracy is graded only on pre-result P/B calls; WAIT is not counted as a win or loss.`;}
 function run(mode){if(running)return;running=true;const status=document.getElementById('labStatus');if(status)status.textContent='RUNNING';setTimeout(()=>{try{const shoes=uniqueShoes(),sp=split(shoes);if(shoes.length<12)throw new Error('Need at least 12 unique saved shoes.');if(mode==='quick'){const r=evalSet(sp.test,sp.train,loadCfg(),Math.min(5,sp.test.length));last={mode,r,cfg:loadCfg()};renderResult(r,'Quick replay');}
  else if(mode==='full'){const r=evalSet(sp.test,sp.train,loadCfg());last={mode,r,cfg:loadCfg()};renderResult(r,'Full unseen replay');}
- else {const t=tune(sp.train,sp.val);const r=evalSet(sp.test,sp.train,t.cfg);last={mode,r,cfg:t.cfg,tune:t};renderResult(r,'Auto-tuned then frozen unseen test');const a=document.getElementById('labApply');if(a)a.disabled=false;const n=document.getElementById('labNote');if(n)n.textContent+=` Tuned gate ${(t.cfg.structGate*100).toFixed(0)}%, min ${t.cfg.minShoes} shoes / ${t.cfg.minSupport} support. Apply only if you want V166 live matcher to use these validated thresholds.`;}
+ else {const t=tune(sp.train,sp.val);const r=evalSet(sp.test,sp.train,t.cfg);last={mode,r,cfg:t.cfg,tune:t};renderResult(r,'Auto-tuned then frozen unseen test');const a=document.getElementById('labApply');if(a)a.disabled=false;const n=document.getElementById('labNote');if(n)n.textContent+=` Tuned structural gate ${(t.cfg.structGate*100).toFixed(0)}%, Mirror replay gate ${(t.cfg.mirrorGate*100).toFixed(0)}%, min ${t.cfg.minShoes} shoes / ${t.cfg.minSupport} support. Apply Best Gate also gives GPT Mirror the validated replay profile.`;}
  if(status)status.textContent='DONE';}catch(e){if(status)status.textContent='ERROR';const n=document.getElementById('labNote');if(n)n.textContent=e.message||String(e);}finally{running=false;}},30);}
-function applyBest(){if(!last?.cfg)return;try{localStorage.setItem(CFG_KEY,JSON.stringify(last.cfg));window.__AI_REPLAY_LAB_V167_CONFIG__={...last.cfg};const n=document.getElementById('labNote');if(n)n.textContent=`Applied validated lab gates: structural ${(last.cfg.structGate*100).toFixed(0)}%, min ${last.cfg.minShoes} independent shoes, min ${last.cfg.minSupport} supporting shoes. Sequence AI V2 unchanged.`;}catch(e){}}
+function applyBest(){if(!last?.cfg)return;try{localStorage.setItem(CFG_KEY,JSON.stringify(last.cfg));window.__AI_REPLAY_LAB_V167_CONFIG__={...last.cfg};const mz=last?.r?.models?.GPTMirrorReplay||{};const profile={version:169,gate:last.cfg.mirrorGate||.62,accuracy:Number(mz.acc||0),calls:Number(mz.calls||0),perShoe:Number(mz.perShoe||0),wins:Number(mz.w||0),losses:Number(mz.l||0),shoeCount:Number(last?.r?.shoeCount||0),appliedAt:Date.now()};localStorage.setItem('baccarat_gpt_mirror_replay_profile_v169',JSON.stringify(profile));window.__GPT_MIRROR_REPLAY_PROFILE_V169__=profile;const n=document.getElementById('labNote');if(n)n.textContent=`Applied validated gates. GPT Mirror replay profile: ${(profile.accuracy*100).toFixed(1)}% (${profile.wins}W-${profile.losses}L), ${profile.perShoe.toFixed(1)} calls/shoe. Sequence AI V2 unchanged.`;}catch(e){}}
 // Make validated lab gates actually control the V166 live structural matcher's selective call threshold.
 try{
   const oldCore=window.shoeMatcherScanCore;
@@ -16117,10 +16162,44 @@ try{
   }
 }catch(e){}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensure,1200));else setTimeout(ensure,1200);
-window.__AIReplayTrainingLabV167={version:VERSION,uniqueShoes,split,evalSet,tune,loadCfg,sequenceV2Untouched:true,randomSimulation:false};
+window.__AIReplayTrainingLabV167={version:169,uniqueShoes,split,evalSet,tune,loadCfg,mirrorReplayPredict,sequenceV2Untouched:true,randomSimulation:false,gptMirrorReplayTraining:true};
 })();
 </script>
 
+
+<script id="v169-gpt-mirror-replay-integration">
+(function(){
+const KEY='baccarat_gpt_mirror_replay_profile_v169';
+function profile(){try{return window.__GPT_MIRROR_REPLAY_PROFILE_V169__||JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){return null}}
+const original=window.gptMirrorSignal;
+if(typeof original==='function'&&!original.__v169ReplayIntegrated){
+  const wrapped=function(){
+    const x=original.apply(this,arguments),p=profile();
+    if(!p||p.calls<20||p.accuracy<.52)return x;
+    let sm=null;try{sm=window.shoeMatcherScanCore?window.shoeMatcherScanCore():null}catch(e){}
+    const replaySide=sm?.nextSide;
+    x.replayTraining={enabled:true,accuracy:p.accuracy,calls:p.calls,perShoe:p.perShoe,side:replaySide||null,gate:p.gate};
+    if(!replaySide)return x;
+    // Replay training is a safety/confirmation layer. It never overrides a qualified
+    // Mirror call to the opposite side and never changes Sequence AI V2.
+    if(x.side&&x.side!==replaySide){
+      x.side=null;x.qualified=false;x.reason=`WAIT: GPT Mirror replay-trained structural gate conflicts with the live Mirror candidate. (${Math.round(p.accuracy*100)}% held-out replay profile)`;
+      x.confidence=Math.max(0,(x.confidence||0)-8);
+      return x;
+    }
+    if(x.side&&x.side===replaySide){
+      const bonus=p.accuracy>=.58?4:p.accuracy>=.55?3:2;
+      x.confidence=Math.min(91,(x.confidence||0)+bonus);
+      x.replayTraining.confirmed=true;
+    }
+    return x;
+  };
+  wrapped.__v169ReplayIntegrated=true;wrapped.__v169Original=original;
+  window.gptMirrorSignal=wrapped;try{gptMirrorSignal=wrapped}catch(e){}
+}
+window.__V169_GPT_MIRROR_REPLAY_TRAINING__={enabled:true,profileKey:KEY,sequenceV2Untouched:true,mode:'held-out replay confirmation + conflict WAIT'};
+})();
+</script>
 
 <script id="v168-chart-ai-live-refresh-wl-fix">
 window.__V168_CHART_AI_LIVE_REFRESH_WL_FIX__={
