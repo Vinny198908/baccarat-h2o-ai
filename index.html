@@ -14027,6 +14027,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       ()=>{try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}},
       ()=>{try{settleGPTMirrorPrediction(actual)}catch(e){console.warn('V135 Mirror settle',e)}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}},
+      // V168: direct Chart AI settlement in the authoritative pre-commit queue.
+      // settle() is idempotent, so an older wrapper cannot double-count it.
+      ()=>{try{window.__chartPatternRecognizerV156?.settle?.(actual)}catch(e){console.warn('V168 chart settle',e)}},
       ()=>{try{window.__settleAdaptiveDerivedRoads?.(actual)}catch(e){}},
       ()=>{try{window.__settleAdaptiveOriginalDerivedRoads?.(actual)}catch(e){}},
       ()=>{try{settleMainFuture(actual)}catch(e){}},
@@ -14054,6 +14057,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}
       try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
       try{armMainFuture()}catch(e){}
+      try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       busy=false;
       const queued=pendingResults.shift();
       if(queued) setTimeout(()=>commit(queued.actual,queued.isPreview),0);
@@ -14097,6 +14101,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         ()=>{try{window.renderVerifiedAccuracy?.()}catch(e){}},
         ()=>{try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}},
         ()=>{try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}},
+        // V168: direct live refresh; no dependency on the legacy full-render wrapper chain.
+        ()=>{try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart live refresh',e)}},
       ];
       let j=0;
       const next=()=>{
@@ -14174,6 +14180,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
     armMainFuture();
     try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
+    try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
   },0);
   document.getElementById('undoBtn')?.addEventListener('click',resync,false);
   document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';busy=false;pendingResults.length=0;resync()},false);
@@ -15512,20 +15519,37 @@ function scan(){
   };
 }
 function acc(){
-  try{return JSON.parse(localStorage.getItem(KEY)||'{"w":0,"l":0,"pending":null}')}catch(e){return {w:0,l:0,pending:null}}
+  let a;
+  try{a=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){a={}}
+  a.w=Number(a.w)||0; a.l=Number(a.l)||0;
+  a.pending=a.pending||null; a.last=a.last||null;
+  a.ledger=Array.isArray(a.ledger)?a.ledger:[];
+  a.lastSettledKey=String(a.lastSettledKey||'');
+  return a;
 }
 function saveAcc(a){try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){}}
 function arm(){
-  const a=acc(), s=scan();
-  if(!a.pending && s.side) {a.pending={side:s.side,n:currentSequence().length}; saveAcc(a)}
+  const a=acc(), s=scan(), n=currentSequence().filter(x=>x==='P'||x==='B').length;
+  if(!a.pending && s.side) {
+    a.pending={side:s.side,n,confidence:s.confidence,matches:s.matches,armedAt:Date.now()};
+    saveAcc(a);
+  }
 }
 function settle(actual){
-  if(actual!=='P'&&actual!=='B') return;
-  const a=acc();
-  if(a.pending){
-    if(a.pending.side===actual)a.w++; else a.l++;
-    a.pending=null; saveAcc(a);
-  }
+  if(actual!=='P'&&actual!=='B') return false;
+  const a=acc(), q=a.pending;
+  if(!q) return false;
+  const beforeN=currentSequence().filter(x=>x==='P'||x==='B').length;
+  const key=`${Number(q.n)||0}->${beforeN+1}:${actual}`;
+  if(a.lastSettledKey===key) return false;
+  a.lastSettledKey=key;
+  const win=q.side===actual;
+  if(win)a.w++; else a.l++;
+  a.last={predicted:q.side,actual,win,hand:beforeN+1,settledAt:Date.now()};
+  a.ledger.push({...q,actual,win,hand:beforeN+1,settledAt:Date.now()});
+  if(a.ledger.length>200)a.ledger.splice(0,a.ledger.length-200);
+  a.pending=null; saveAcc(a);
+  return true;
 }
 function ensurePanel(){
   if(document.getElementById('chartPatternRecognizerV156')) return;
@@ -15546,7 +15570,10 @@ function ensurePanel(){
       <div class="analyzer-card"><span>MAIN ROAD MATCH</span><strong id="cprMain">—</strong></div>
       <div class="analyzer-card"><span>PLAYER CONTINUATION</span><strong id="cprP">—</strong></div>
       <div class="analyzer-card"><span>BANKER CONTINUATION</span><strong id="cprB">—</strong></div>
-      <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">0-0 • —</strong></div>
+      <div class="analyzer-card"><span>WINS</span><strong id="cprWins">0 W</strong></div>
+      <div class="analyzer-card"><span>LOSSES</span><strong id="cprLosses">0 L</strong></div>
+      <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">—</strong></div>
+      <div class="analyzer-card"><span>LAST GRADED</span><strong id="cprLast">—</strong></div>
     </div>
     <div class="analyzer-grid">
       <div class="analyzer-card"><span>BIG EYE</span><strong id="cprEye">—</strong></div>
@@ -15557,7 +15584,7 @@ function ensurePanel(){
     <button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;
   anchor.parentNode.insertBefore(el,anchor.nextSibling);
   const rb=el.querySelector('#cprReset');
-  if(rb) rb.addEventListener('click',()=>{saveAcc({w:0,l:0,pending:null});render()});
+  if(rb) rb.addEventListener('click',()=>{if(!confirm('Reset only Chart Pattern Recognizer W/L accuracy?'))return;saveAcc({w:0,l:0,pending:null,last:null,ledger:[],lastSettledKey:''});render()});
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
 function render(){
@@ -15573,8 +15600,12 @@ function render(){
   set('cprEye',s.eye!=null?s.eye+'%':'—');
   set('cprSmall',s.small!=null?s.small+'%':'—');
   set('cprRoach',s.roach!=null?s.roach+'%':'—');
-  set('cprAcc',`${a.w}-${a.l} • ${n?Math.round(a.w/n*100)+'%':'—'}`);
-  set('cprNote',s.note||'WAIT');
+  set('cprWins',`${a.w} W`);
+  set('cprLosses',`${a.l} L`);
+  set('cprAcc',n?`${Math.round(a.w/n*100)}% • ${a.w}W-${a.l}L • N=${n}`:'— • 0W-0L • N=0');
+  set('cprLast',a.last?`${a.last.win?'WIN ✓':'LOSS ✗'} #${a.last.hand}`:'—');
+  const lock=a.pending?` • LOCKED ${a.pending.side==='P'?'PLAYER':'BANKER'} for next P/B hand`:'';
+  set('cprNote',(s.note||'WAIT')+lock);
   try{arm()}catch(e){}
   return s;
 }
@@ -16090,5 +16121,18 @@ window.__AIReplayTrainingLabV167={version:VERSION,uniqueShoes,split,evalSet,tune
 })();
 </script>
 
+
+<script id="v168-chart-ai-live-refresh-wl-fix">
+window.__V168_CHART_AI_LIVE_REFRESH_WL_FIX__={
+  enabled:true,
+  chartRecognizerDirectLiveCommit:true,
+  directPostCommitRefresh:true,
+  idempotentAccuracySettlement:true,
+  separateWinsLosses:true,
+  lastGradedVisible:true,
+  predictionLogicChanged:false,
+  libraryPreserved:true
+};
+</script>
 </body>
 </html>
