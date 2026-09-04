@@ -387,7 +387,7 @@
 <div class="future-path"><strong>NEXT MAIN ROAD</strong><div class="future-main" id="hist3OutcomeText">Player 0 • Banker 0</div><div class="future-score" id="hist3Prediction">WAIT</div></div>
 </div>
 <div id="hist3AccuracyRow" style="margin-top:8px;padding:8px 10px;border:1px solid #303743;border-radius:10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-<strong>Accuracy Verified:</strong><span id="hist3AccuracyPct">—</span><span id="hist3AccuracyWL">0W-0L</span><span id="hist3AccuracyN">N=0</span><span id="hist3AccuracyWait">WAIT=0</span><span id="hist3LastSettled">Last: —</span>
+<strong>Accuracy Verified:</strong><span id="hist3AccuracyPct">—</span><span id="hist3AccuracyWL">0W-0L</span><span id="hist3AccuracyN">N=0</span><span id="hist3AccuracyWait">WAIT=0</span>
 <button id="resetHist3Accuracy" style="margin-left:auto;font-size:10px;padding:4px 7px" type="button">Reset score</button>
 </div>
 <div class="future-final" id="hist3Final">Best prediction: WAIT — building saved 3-road evidence</div>
@@ -1179,20 +1179,16 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
     try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
     try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
-    try{ window.__settlePresetFingerprintAccuracy?.(actual); }catch(e){}
 
     settlePendingPrediction(actual);
-    settleBotPrediction(actual);
     settleGPTMirrorPrediction(actual);
 
     state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
-    try{setTimeout(()=>window.__presetFingerprintGate?.render?.(),0)}catch(e){}
     state.scanSnapshot=null;
     state.pp=state.bp=state.special=false;
     document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
     armNextPrediction();
-    armBotPrediction();
-    armGPTMirrorPrediction();
+     armGPTMirrorPrediction();
 
     __v136SchedulePostHandMaintenance();
 
@@ -1210,12 +1206,10 @@ function commitPreviewResult(actual){
   try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
   try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
   try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
-  try{ window.__settlePresetFingerprintAccuracy?.(actual); }catch(e){}
   settlePendingPrediction(actual);
   settleBotPrediction(actual);
   settleGPTMirrorPrediction(actual);
   state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});
-  try{setTimeout(()=>window.__presetFingerprintGate?.render?.(),0)}catch(e){}
   state.scanSnapshot=null;
   armNextPrediction();
   armBotPrediction();
@@ -5318,9 +5312,10 @@ function settleBotPrediction(actual){
   state.bot.pending=null;
 }
 function armBotPrediction(){
+  return; // V160: High-Powered Bot removed; compatibility no-op
   ensureBotState();
   state.bot.learning=true;
-  const b=masterBotSignal();
+  const b=({qualified:false,side:null,confidence:0,removed:true});
   state.bot.pending=b.qualified?{side:b.side,confidence:b.confidence,phase:b.phase.key,hand:currentSequence().length+1,color:state.currentShoeColor||'none',specialists:(b.candidates||[]).map(c=>({name:c.name,side:c.side,strength:c.strength,reliability:c.weight}))}:null;
 }
 let botHeartbeatAt=Date.now();
@@ -5349,15 +5344,13 @@ function verifyBotHeartbeat(){
   }
 }
 // PERFORMANCE FIX: heartbeat is cosmetic; keep it lightweight on mobile.
-if(document.getElementById('botLiveStrip')){
-  setInterval(()=>{ if(!document.hidden) botHeartbeat(); },5000);
-  setInterval(()=>{ if(!document.hidden) verifyBotHeartbeat(); },6500);
-}
+/* V160: removed dead High-Powered Bot heartbeat timers */
 
 function renderMasterBot(){
+  return; // V160: High-Powered Bot removed; compatibility no-op
   botHeartbeat();
   ensureBotState();
-  const b0=masterBotSignal();
+  const b0=({qualified:false,side:null,confidence:0,removed:true});
   const bc=window.__slV10Signal?window.__slV10Signal('bot',{...b0,side:b0.qualified?b0.side:null,strength:b0.confidence||0}):{...b0,side:b0.qualified?b0.side:null,strength:b0.confidence||0};
   const b={...b0,qualified:!!bc.side,side:bc.side,confidence:bc.strength||0,selfLearning:bc.selfLearning,selfLearnRate:bc.selfLearnRate,selfLearnN:bc.selfLearnN,reason:bc.side?b0.reason:(bc.waitReason||b0.reason)};
   const decision=document.getElementById('botDecision'); if(!decision)return;
@@ -6000,7 +5993,7 @@ renderLibraryBackupStatus();
     ['derivedmain','Adaptive Derived Roads — Main-Road Mode',()=>{const x=adaptiveDerivedMainSignal();return window.__slV10Signal?window.__slV10Signal('derivedmain',x):x}],
     ['seqdup','Sequence AI V2 Duplicate',()=>{const x=sequenceAIDuplicateSignal();return window.__slV10Signal?window.__slV10Signal('seqdup',x):x}],
     ['consensus','AI Consensus',()=>{const x=consensusSignal();return window.__slV10Signal?window.__slV10Signal('consensus',x):x}],
-    ['bot','High-Powered Bot AI',()=>{const x=masterBotSignal(),y={side:x.qualified?x.side:null,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('bot',y):y}],
+    ['bot','High-Powered Bot AI',()=>{const x=({qualified:false,side:null,confidence:0,removed:true}),y={side:x.qualified?x.side:null,strength:x.confidence||0};return window.__slV10Signal?window.__slV10Signal('bot',y):y}],
     ['bestestimate','Best-Estimate Analyzer',()=>{const x=computeCombinedAnalyzer(),y={side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0};return window.__slV10Signal?window.__slV10Signal('bestestimate',y):y}],
     ['specialistv20','RED / BLACK Specialist V20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{},x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};return window.__slV10Signal?window.__slV10Signal('specialistv20',x):x}],
     ['metav23','Walk-Forward Meta Learner V23',()=>{const z=window.__metaWalkV23?.signal?.()||{},x={side:z.qualified?z.side:null,strength:z.qualified?(Number(z.confidence)||0):0};return window.__slV10Signal?window.__slV10Signal('metav23',x):x}],
@@ -6017,7 +6010,7 @@ renderLibraryBackupStatus();
           ['derivedmain',()=>adaptiveDerivedMainSignal()],
           ['seqdup',()=>sequenceAIDuplicateSignal()],
           ['consensus',()=>consensusSignal()],
-          ['bot',()=>{const x=masterBotSignal()||{};return {side:x.qualified?x.side:null,strength:Number(x.confidence)||0}}],
+          ['bot',()=>{const x=({qualified:false,side:null,confidence:0,removed:true})||{};return {side:x.qualified?x.side:null,strength:Number(x.confidence)||0}}],
           ['bestestimate',()=>{const x=computeCombinedAnalyzer()||{};return {side:x.qualified?x.side:null,strength:x.qualified?(Number(x.top)||0):0}}],
         ];
         let p=0,b=0,active=0;
@@ -6199,7 +6192,7 @@ renderLibraryBackupStatus();
       else if(key==='seqdup') x=sequenceAIDuplicateSignal();
       else if(key==='consensus') x=consensusSignal();
       else if(key==='bot'){
-        const z=masterBotSignal()||{};
+        const z=({qualified:false,side:null,confidence:0,removed:true})||{};
         x={side:z.qualified?z.side:null,strength:Number(z.confidence)||0};
       }
       else if(key==='bestestimate'){
@@ -6232,7 +6225,7 @@ renderLibraryBackupStatus();
           ['derivedmain',()=>adaptiveDerivedMainSignal()],
           ['seqdup',()=>sequenceAIDuplicateSignal()],
           ['consensus',()=>consensusSignal()],
-          ['bot',()=>{const q=masterBotSignal()||{};return {side:q.qualified?q.side:null,strength:Number(q.confidence)||0}}],
+          ['bot',()=>{const q=({qualified:false,side:null,confidence:0,removed:true})||{};return {side:q.qualified?q.side:null,strength:Number(q.confidence)||0}}],
           ['bestestimate',()=>{const q=computeCombinedAnalyzer()||{};return {side:q.qualified?q.side:null,strength:q.qualified?(Number(q.top)||0):0}}],
         ];
         let p=0,b=0,active=0;
@@ -7247,7 +7240,7 @@ renderLibraryBackupStatus();
       ['derivedmain','Adaptive Derived Roads',()=>adaptiveDerivedMainSignal()],
       ['seqdup','Sequence AI V2 Duplicate',()=>sequenceAIDuplicateSignal()],
       ['consensus','AI Consensus',()=>consensusSignal()],
-      ['bot','High-Powered Bot AI',()=>{const z=masterBotSignal();return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
+      ['bot','High-Powered Bot AI',()=>{const z=({qualified:false,side:null,confidence:0,removed:true});return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
       ['bestestimate','Best-Estimate Analyzer',()=>{const z=computeCombinedAnalyzer();return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0}}]
     ];
     const out=[];
@@ -7450,7 +7443,7 @@ renderLibraryBackupStatus();
       ['derivedmain',()=>adaptiveDerivedMainSignal()],
       ['seqdup',()=>sequenceAIDuplicateSignal()],
       ['consensus',()=>consensusSignal()],
-      ['bot',()=>{const z=masterBotSignal();return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
+      ['bot',()=>{const z=({qualified:false,side:null,confidence:0,removed:true});return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
       ['bestestimate',()=>{const z=computeCombinedAnalyzer();return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0}}],
       ['specialistv20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.confidence||0}}]
     ];
@@ -7625,7 +7618,7 @@ renderLibraryBackupStatus();
     return withRemoved(target,key,()=>{
       try{
         if(target==='bot'){
-          const z=masterBotSignal()||{};
+          const z=({qualified:false,side:null,confidence:0,removed:true})||{};
           return {side:z.qualified?z.side:null,strength:Number(z.confidence)||0};
         }
         const z=computeCombinedAnalyzer()||{};
@@ -8491,7 +8484,7 @@ renderLibraryBackupStatus();
       else if(k==='derivedmain')z=adaptiveDerivedMainSignal();
       else if(k==='seqdup')z=sequenceAIDuplicateSignal();
       else if(k==='consensus')z=consensusSignal();
-      else if(k==='bot'){const q=masterBotSignal();z={side:q.qualified?q.side:null,strength:q.confidence||0};}
+      else if(k==='bot'){const q=({qualified:false,side:null,confidence:0,removed:true});z={side:q.qualified?q.side:null,strength:q.confidence||0};}
       else if(k==='bestestimate'){const q=computeCombinedAnalyzer();z={side:q.qualified?q.side:null,strength:q.qualified?(Number(q.top)||Number(q.confidence)||0):0};}
       else if(k==='specialistv20'){const q=window.__redBlackSpecialistV20?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.qualified?(Number(q.confidence)||0):0};}
       else if(k==='blackctxv22'){const q=window.__blackContextV22?.signal?.()||{};z={side:q.qualified?q.side:null,strength:q.qualified?(Number(q.confidence)||0):0};}
@@ -9161,7 +9154,7 @@ renderLibraryBackupStatus();
       return window.__slV10Signal?window.__slV10Signal("consensus",x):x;
     }],
     ["bot","High-Powered Bot AI",()=>{
-      const x=masterBotSignal();
+      const x=({qualified:false,side:null,confidence:0,removed:true});
       const y={side:x?.qualified?x.side:null,strength:x?.qualified?(Number(x.confidence)||0):0};
       return window.__slV10Signal?window.__slV10Signal("bot",y):y;
     }],
@@ -13640,34 +13633,19 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     return {side,pPct,bPct,edge,conf,matches:rawN,avgSim,bestWindow:top[0]?.bestWindow||0,elapsed,top};
   }
   function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-  function renderAcc(){
-    const a=acc(),n=a.wins+a.losses;
-    set('hist3AccuracyPct',n?(100*a.wins/n).toFixed(1)+'%':'—');
-    set('hist3AccuracyWL',`${a.wins}W-${a.losses}L`);
-    set('hist3AccuracyN',`N=${n}`);
-    set('hist3AccuracyWait',`WAIT=${a.waits}`);
-    const last=Array.isArray(a.ledger)&&a.ledger.length?a.ledger[a.ledger.length-1]:null;
-    set('hist3LastSettled',last?`Last: ${last.side==='P'?'PLAYER':'BANKER'} → ${last.actual==='P'?'PLAYER':last.actual==='B'?'BANKER':'TIE'} ${last.correct?'✓':'✗'}`:'Last: —');
-  }
+  function renderAcc(){const a=acc(),n=a.wins+a.losses;set('hist3AccuracyPct',n?(100*a.wins/n).toFixed(1)+'%':'—');set('hist3AccuracyWL',`${a.wins}W-${a.losses}L`);set('hist3AccuracyN',`N=${n}`);set('hist3AccuracyWait',`WAIT=${a.waits}`)}
   function render(){
     const x=test();set('hist3Speed',`Saved-road point-in-time scan • ${x.elapsed} ms`);set('hist3MatchCount',String(x.matches));
     set('hist3MatchText',x.matches?`${x.matches} qualifying saved-shoe matches • avg similarity ${x.avgSim.toFixed(1)}% • best window ${x.bestWindow||'—'}`:'No qualifying saved 3-road matches yet');
     set('hist3OutcomeText',`Player ${x.pPct.toFixed(1)}% • Banker ${x.bPct.toFixed(1)}%`);set('hist3Prediction',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
-    if(x.side)set('hist3Final',`LOCKED NEXT: ${x.side==='P'?'PLAYER':'BANKER'} • historical 3-road edge ${x.edge.toFixed(1)} pts • confidence ${x.conf}%`);
+    if(x.side)set('hist3Final',`Best prediction: ${x.side==='P'?'PLAYER':'BANKER'} • historical 3-road edge ${x.edge.toFixed(1)} pts • confidence ${x.conf}%`);
     else set('hist3Final',`Best prediction: WAIT — ${x.matches<8?'not enough independent historical matches':x.avgSim<76?'match quality is too weak':x.bestWindow<12?'no strong long-window road match':'historical next results are too split or verified accuracy gate blocked it'}`);
     set('hist3Note','Leakage-safe point-in-time matching • one best match per saved shoe • stricter 76%+ road quality + 12-mark long-window gate • confidence is capped by verified chronological accuracy, not similarity alone.');renderAcc();return x;
   }
   function arm(){
     const a=acc(),n=pbN(),x=test();
-    if(!(x.side==='P'||x.side==='B')){
-      a.pending=null;
-      if(a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n}
-      render(); // V157: keep the visible panel synchronized with the internally armed WAIT state.
-      return;
-    }
-    a.lastWaitHandN=null;
-    a.pending={side:x.side,handN:n,matches:x.matches,avgSim:x.avgSim,edge:x.edge,conf:x.conf,armedAt:Date.now()};
-    render(); // V157 critical fix: show the exact P/B call that was just locked for scoring.
+    if(!(x.side==='P'||x.side==='B')){a.pending=null;if(a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n}renderAcc();return;}
+    a.lastWaitHandN=null;a.pending={side:x.side,handN:n,matches:x.matches,avgSim:x.avgSim,edge:x.edge,conf:x.conf,armedAt:Date.now()};renderAcc();
   }
   function settle(actual){
     const a=acc();if(!['P','B','T'].includes(actual))return;
@@ -13682,7 +13660,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   }
   function bindReset(){const b=document.getElementById('resetHist3Accuracy');if(b&&!b.__hist3){b.__hist3=true;b.addEventListener('click',()=>{if(!confirm('Reset only the Historical 3-Road Future Match accuracy?'))return;state.historical3RoadAccuracy=fresh();try{if(typeof persist==='function')persist()}catch(e){}render();arm();});}}
   function sync(){try{installHooks();bindReset();render()}catch(e){console.warn('Historical 3-road future match',e)}}
-  window.__historical3RoadFutureMatch={version:157,test,render,arm,settle,accuracy:acc,pointInTime:true,visibleArmFix:true,roads:['Big Eye Boy','Small Road','Cockroach Road']};
+  window.__historical3RoadFutureMatch={version:95,test,render,arm,settle,accuracy:acc,pointInTime:true,roads:['Big Eye Boy','Small Road','Cockroach Road']};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(sync,30);setTimeout(()=>{installHooks();arm();render()},400)});else{setTimeout(sync,30);setTimeout(()=>{installHooks();arm();render()},400)}
 })();
 </script>
@@ -14054,7 +14032,6 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       ()=>{try{settleMainFuture(actual)}catch(e){}},
       ()=>{try{window.__V86_MATCHER_ACCURACY__?.settle?.(actual)}catch(e){}},
       ()=>{try{settlePendingPrediction(actual)}catch(e){}},
-      ()=>{try{settleBotPrediction(actual)}catch(e){}},
     ];
     let i=0;
     const next=()=>{
@@ -15103,7 +15080,7 @@ else boot();
 </script>
 
 <script id="v145-independent-preset-fingerprint-gate">
-/* V156 Cross-Shoe Validated Pattern Whitelist + dedicated accuracy/reset + undo-safe grading — independent-shoe validation + no-edge memory + Sequence V2 + Main Road Future Test. */
+/* V154 Cross-Shoe Validated Pattern Whitelist — independent-shoe validation + no-edge memory + Sequence V2 + Main Road Future Test. */
 (()=>{
  const esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
  const pb=x=>String(x||'').toUpperCase().replace(/[^PB]/g,'');
@@ -15113,56 +15090,8 @@ else boot();
    for(const x of a){const q=pb(x?.sequence);if(q.length<8||seen.has(q))continue;seen.add(q);out.push({sequence:q,id:x?.id||'',color:x?.shoeColor||''});}
    return out;
  }
- function current(){
-   try{
-     if(typeof currentSequence==='function'){
-       const q=currentSequence();
-       if(Array.isArray(q)) return pb(q.join(''));
-       if(typeof q==='string') return pb(q);
-     }
-   }catch(e){}
-   return pb((state?.hands||[]).map(h=>typeof h==='string'?h:h?.r).join(''));
- }
+ function current(){return pb((state?.hands||[]).map(h=>h?.r).join(''));}
  const sniper={target:15,shoeKey:'',issued:0,lastQualifiedHand:-1};
- const accuracy={wins:0,losses:0,pending:null,pendingHand:-1,ledger:[]};
- function accuracyPct(){const n=accuracy.wins+accuracy.losses;return n?Math.round(accuracy.wins/n*1000)/10:0;}
- function settleAccuracy(actual){
-   actual=pb(actual).slice(-1); if(!accuracy.pending||!actual)return;
-   const pred=accuracy.pending, handN=current().length+1, win=actual===pred;
-   if(win)accuracy.wins++;else accuracy.losses++;
-   accuracy.ledger.push({handN,pred,actual,win});
-   if(accuracy.ledger.length>200)accuracy.ledger.shift();
-   accuracy.pending=null; accuracy.pendingHand=-1; renderAccuracy();
- }
- function armAccuracy(e){
-   const hand=current().length;
-   if(e&&e.pick&&(e.pick==='P'||e.pick==='B')&&accuracy.pendingHand!==hand){
-     accuracy.pending=e.pick; accuracy.pendingHand=hand;
-   }
- }
- function resetAccuracy(){
-   accuracy.wins=0;accuracy.losses=0;accuracy.pending=null;accuracy.pendingHand=-1;accuracy.ledger=[];renderAccuracy();
- }
- function undoAccuracyGrade(){
-   const now=current().length;
-   const last=accuracy.ledger[accuracy.ledger.length-1];
-   if(last && last.handN===now+1){
-     accuracy.ledger.pop();
-     if(last.win)accuracy.wins=Math.max(0,accuracy.wins-1);
-     else accuracy.losses=Math.max(0,accuracy.losses-1);
-   }
-   accuracy.pending=null; accuracy.pendingHand=-1;
-   try{armAccuracy(evidence())}catch(e){}
-   renderAccuracy();
- }
- function clearAccuracyPending(){
-   accuracy.pending=null;accuracy.pendingHand=-1;renderAccuracy();
- }
- function renderAccuracy(){
-   const n=accuracy.wins+accuracy.losses;
-   const set=(id,v)=>{const x=document.getElementById(id);if(x)x.textContent=v};
-   set('pfgWins',accuracy.wins);set('pfgLosses',accuracy.losses);set('pfgAcc',n?`${accuracyPct()}%`:'—');
- }
  function resetSniperIfNeeded(cur){
    const first=(cur||'').slice(0,8), key=`${first}:${Math.max(0,(state?.hands||[]).length)===0?'new':'live'}`;
    if(!sniper.shoeKey || (cur.length<=2 && sniper.lastQualifiedHand>2)){
@@ -15171,7 +15100,7 @@ else boot();
  }
  function evidence(){
    const cur=current(), lib=library(); resetSniperIfNeeded(cur);
-   if(cur.length<6)return {level:'BUILDING',pick:null,reason:`Live shoe detected: ${cur.length} P/B hands. Need 6 before fingerprint matching starts.`,independent:0,bestLen:0,rate:0,verified:0,lib:lib.length,issued:sniper.issued,target:sniper.target,remaining:Math.max(0,sniper.target-sniper.issued),liveHands:cur.length,liveHands:cur.length};
+   if(cur.length<6)return {level:'BUILDING',pick:null,reason:'Enter at least 6 P/B hands.',independent:0,bestLen:0,rate:0,verified:0,lib:lib.length,issued:sniper.issued,target:sniper.target};
    const votes=[]; let bestLen=0;
    // Suffix fingerprints, longest first. One vote maximum per independent exact-sequence shoe.
    for(const sh of lib){
@@ -15359,21 +15288,382 @@ else boot();
    const el=document.createElement('div'); el.className='analyzer'; el.id='presetFingerprintGateV145';
    el.style.borderColor='#4fd1a5'; el.innerHTML=`<div class="analyzer-title">🧬 Independent Preset Fingerprint Gate</div>
    <div class="analyzer-sub">Tests the preset-shoe hypothesis against deduplicated historical shoes. Evidence only; weak structure returns WAIT.</div>
-   <div class="analyzer-grid"><div class="analyzer-card"><span>LIVE P/B HANDS</span><strong id="pfgLiveHands">0</strong></div><div class="analyzer-card"><span>PRESET EVIDENCE</span><strong id="pfgLevel">—</strong></div><div class="analyzer-card"><span>SNIPER DECISION</span><strong id="pfgPick">WAIT</strong></div><div class="analyzer-card"><span>QUALIFIED SPOTS</span><strong id="pfgQuota">0 / 15</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="pfgMatches">0</strong></div><div class="analyzer-card"><span>BEST FINGERPRINT</span><strong id="pfgLen">0 hands</strong></div><div class="analyzer-card"><span>CONTINUATION AGREEMENT</span><strong id="pfgRate">—</strong></div><div class="analyzer-card"><span>SHRUNK EVIDENCE</span><strong id="pfgVerified">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="pfgWins">0</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="pfgLosses">0</strong></div><div class="analyzer-card"><span>ACCURACY</span><strong id="pfgAcc">—</strong></div></div><div style="margin-top:8px"><button type="button" id="pfgResetAccuracy" class="btn">Reset Accuracy</button></div><div class="analyzer-sub" id="pfgNote" style="margin-top:8px">Building evidence…</div>`;
+   <div class="analyzer-grid"><div class="analyzer-card"><span>PRESET EVIDENCE</span><strong id="pfgLevel">—</strong></div><div class="analyzer-card"><span>SNIPER DECISION</span><strong id="pfgPick">WAIT</strong></div><div class="analyzer-card"><span>QUALIFIED SPOTS</span><strong id="pfgQuota">0 / 15</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="pfgMatches">0</strong></div><div class="analyzer-card"><span>BEST FINGERPRINT</span><strong id="pfgLen">0 hands</strong></div><div class="analyzer-card"><span>CONTINUATION AGREEMENT</span><strong id="pfgRate">—</strong></div><div class="analyzer-card"><span>SHRUNK EVIDENCE</span><strong id="pfgVerified">—</strong></div></div><div class="analyzer-sub" id="pfgNote" style="margin-top:8px">Building evidence…</div>`;
    host.parentNode.insertBefore(el,host);
-   const rb=document.getElementById('pfgResetAccuracy'); if(rb&&!rb.__pfgResetBound){rb.__pfgResetBound=true;rb.addEventListener('click',resetAccuracy);}
-   const ub=document.getElementById('undoBtn'); if(ub&&!ub.__pfgUndoBound){ub.__pfgUndoBound=true;ub.addEventListener('click',()=>setTimeout(()=>{undoAccuracyGrade();try{render()}catch(e){}},0),false);}
-   const cb=document.getElementById('clearBtn'); if(cb&&!cb.__pfgClearBound){cb.__pfgClearBound=true;cb.addEventListener('click',()=>setTimeout(()=>{clearAccuracyPending();try{render()}catch(e){}},0),false);}
-   renderAccuracy();
  }
  function render(){ensure();const e=evidence(); const set=(id,v)=>{const x=document.getElementById(id);if(x)x.textContent=v};
-   set('pfgLiveHands',e.liveHands??current().length);set('pfgLevel',e.level);set('pfgPick',e.pick==='P'?'PLAYER':e.pick==='B'?'BANKER':'WAIT');set('pfgQuota',`${e.issued||0} / ${e.target||15}`);set('pfgMatches',e.independent);set('pfgLen',`${e.bestLen} hands`);set('pfgRate',e.independent?`${Math.round(e.rate*100)}%`:'—');set('pfgVerified',e.independent?`${Math.round(e.verified*100)}%`:'—');set('pfgNote',`${e.reason} ${e.remaining??15} target spots remain. Library: ${e.lib} unique P/B shoes. No weak bet is forced.`); armAccuracy(e); renderAccuracy(); return e;
+   set('pfgLevel',e.level);set('pfgPick',e.pick==='P'?'PLAYER':e.pick==='B'?'BANKER':'WAIT');set('pfgQuota',`${e.issued||0} / ${e.target||15}`);set('pfgMatches',e.independent);set('pfgLen',`${e.bestLen} hands`);set('pfgRate',e.independent?`${Math.round(e.rate*100)}%`:'—');set('pfgVerified',e.independent?`${Math.round(e.verified*100)}%`:'—');set('pfgNote',`${e.reason} ${e.remaining??15} target spots remain. Library: ${e.lib} unique P/B shoes. No weak bet is forced.`); return e;
  }
  const old=window.render;if(typeof old==='function'&&!old.__pfg145){const w=function(){const r=old.apply(this,arguments);try{render()}catch(e){console.warn('PFG145',e)}return r};w.__pfg145=true;window.render=w;}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,500));else setTimeout(render,500);
- window.__settlePresetFingerprintAccuracy=settleAccuracy;
- window.__resetPresetFingerprintAccuracy=resetAccuracy;
- window.__presetFingerprintGate={version:158,mode:"sniper-15-live-state-refresh-fix",evidence,render,settleAccuracy,resetAccuracy,undoAccuracyGrade};
+ window.__presetFingerprintGate={version:154,mode:"sniper-15-cross-shoe-validated-whitelist",evidence,render};
+})();
+</script>
+
+<script id="v155-ml-road-trainer-v2-validation-lock">
+(function(){
+  'use strict';
+  const REPORT={
+    version:155,
+    name:'ML Road Trainer V2',
+    status:'VALIDATION LOCK — WAIT',
+    uniqueShoes:97,
+    trainShoes:67,
+    validationShoes:9,
+    unseenTestShoes:21,
+    testRows:1083,
+    targetCallsPerShoe:10,
+    xgb:{overall:51.62,selective:48.95,avgCalls:9.05},
+    lgb:{overall:51.52,selective:48.19,avgCalls:9.19},
+    ensemble:{selective:49.20,avgCalls:8.90},
+    qualified:false,
+    reason:'Road-state ML did not beat a 50% baseline strongly enough on chronologically held-out, deduplicated shoes. It is intentionally prevented from issuing live Player/Banker picks.'
+  };
+  function ensure(){
+    if(document.getElementById('mlRoadTrainerV155')) return;
+    const anchor=document.getElementById('presetFingerprintGateV145') || document.querySelector('.analyzer');
+    if(!anchor) return;
+    const el=document.createElement('div');
+    el.className='analyzer';
+    el.id='mlRoadTrainerV155';
+    el.style.borderColor='#e6a23c';
+    el.innerHTML=`
+      <div class="analyzer-title">🧠 ML Road Trainer V2 — Cross-Shoe Validation Gate</div>
+      <div class="analyzer-sub">Experimental XGBoost + LightGBM road-state trainer. It reads sequence, streak/chop, ties, Big Road column structure, Big Eye/Small/Roach histories, hypothetical P/B road previews, and historical continuation evidence. It cannot control any existing AI.</div>
+      <div class="analyzer-grid">
+        <div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv155Status">LOCKED / WAIT</strong></div>
+        <div class="analyzer-card"><span>UNSEEN SHOES</span><strong>21</strong></div>
+        <div class="analyzer-card"><span>XGBOOST ALL CALLS</span><strong>51.6%</strong></div>
+        <div class="analyzer-card"><span>XGBOOST SELECTIVE</span><strong>48.9%</strong></div>
+        <div class="analyzer-card"><span>LIGHTGBM ALL CALLS</span><strong>51.5%</strong></div>
+        <div class="analyzer-card"><span>LIGHTGBM SELECTIVE</span><strong>48.2%</strong></div>
+        <div class="analyzer-card"><span>ENSEMBLE SELECTIVE</span><strong>49.2%</strong></div>
+        <div class="analyzer-card"><span>TARGET PACE</span><strong>≈10 / shoe</strong></div>
+      </div>
+      <div class="analyzer-sub" id="mlv155Note" style="margin-top:8px">
+        VALIDATION LOCK: the ML model failed the unseen-shoe qualification gate, so it returns WAIT and does not alter Sequence AI V2, Main Road Future Test, Mirror logic, buttons, library, or accuracy counters.
+      </div>`;
+    if(anchor.parentNode) anchor.parentNode.insertBefore(el,anchor);
+  }
+  function signal(){
+    return {side:null,strength:0,status:'WAIT',qualified:false,version:155,report:REPORT};
+  }
+  function render(){ensure();return signal();}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(render,450));
+  else setTimeout(render,450);
+  window.__mlRoadTrainerV2={version:155,signal,render,report:()=>REPORT,validationLocked:true,controlsExistingAI:false};
+})();
+</script>
+
+
+<script id="v156-ai-chart-pattern-recognizer">
+(function(){
+'use strict';
+const KEY='chart-pattern-recognizer-v156-accuracy';
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function pct(v){return Math.round(clamp(v,0,1)*100)}
+function arrSeq(s){return String(s||'').toUpperCase().replace(/[^PBT]/g,'').split('')}
+function pbOnly(a){return a.filter(x=>x==='P'||x==='B')}
+
+function runLensFromSeq(seq){
+  const a=pbOnly(seq), out=[];
+  for(const x of a){
+    if(!out.length || out[out.length-1].side!==x) out.push({side:x,n:1});
+    else out[out.length-1].n++;
+  }
+  return out;
+}
+function mainSignature(seq, maxCols=8){
+  const runs=runLensFromSeq(seq).slice(-maxCols);
+  return runs.map(x=>x.side+Math.min(9,x.n)).join('|');
+}
+function mainShape(seq,maxCols=8){
+  return runLensFromSeq(seq).slice(-maxCols).map(x=>x.n);
+}
+function suffixSimilarity(a,b,maxLen=18){
+  const A=a.slice(-maxLen), B=b.slice(-maxLen), n=Math.min(A.length,B.length);
+  if(!n) return 0;
+  let same=0, weighted=0, total=0;
+  for(let k=1;k<=n;k++){
+    const w=1+k/n;
+    total+=w;
+    if(A[A.length-k]===B[B.length-k]) same+=w;
+  }
+  return same/total;
+}
+function shapeSimilarity(a,b,maxCols=8){
+  const A=mainShape(a,maxCols), B=mainShape(b,maxCols), n=Math.min(A.length,B.length);
+  if(!n) return 0;
+  let score=0,total=0;
+  for(let k=1;k<=n;k++){
+    const x=A[A.length-k], y=B[B.length-k], w=1+k/n;
+    total+=w;
+    score+=w*(1-Math.min(1,Math.abs(x-y)/Math.max(1,Math.max(x,y))));
+  }
+  return score/total;
+}
+function derivedSimilarity(a,b,offset,maxLen=12){
+  try{
+    const A=deriveRoad(a.map(r=>({r})),offset);
+    const B=deriveRoad(b.map(r=>({r})),offset);
+    return suffixSimilarity(A,B,maxLen);
+  }catch(e){return 0}
+}
+function nextNonTie(seq,pos){
+  for(let i=pos;i<seq.length;i++) if(seq[i]==='P'||seq[i]==='B') return seq[i];
+  return null;
+}
+function scoreCandidate(cur,histPrefix){
+  // Primary weighting: Bead Plate + Main Road = 75%
+  const bead=suffixSimilarity(cur,histPrefix,20);
+  const main=shapeSimilarity(cur,histPrefix,9);
+  // Derived roads are confirmation only = 25%
+  const eye=derivedSimilarity(cur,histPrefix,1,12);
+  const small=derivedSimilarity(cur,histPrefix,2,10);
+  const roach=derivedSimilarity(cur,histPrefix,3,8);
+  const derived=(eye+small+roach)/3;
+  const primary=.40*bead+.35*main;
+  const support=.10*eye+.08*small+.07*roach;
+  return {score:primary+support,bead,main,eye,small,roach,derived};
+}
+function scan(){
+  let cur=[],lib=[];
+  try{cur=currentSequence()}catch(e){}
+  try{lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){}
+  if(cur.length<8 || !lib.length) return {ready:false,side:null,confidence:0,matches:0,note:cur.length<8?'Need at least 8 live results':'No saved shoes available'};
+  const candidates=[];
+  for(const shoe of lib){
+    const hist=arrSeq(shoe.sequence);
+    // compare against positions across the historical shoe, not only the front
+    const minPos=Math.max(7,cur.length-6);
+    for(let pos=minPos;pos<hist.length;pos++){
+      const nxt=nextNonTie(hist,pos);
+      if(!nxt) continue;
+      const pref=hist.slice(0,pos);
+      // keep historical position reasonably close to current maturity
+      const maturity=1-Math.min(1,Math.abs(pref.length-cur.length)/Math.max(18,cur.length));
+      const s=scoreCandidate(cur,pref);
+      const final=s.score*(.86+.14*maturity);
+      if(final>=.54) candidates.push({...s,score:final,next:nxt,shoeId:shoe.id||'',pos});
+    }
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  // cap domination from any one shoe/position family
+  const top=[]; const perShoe={};
+  for(const c of candidates){
+    const k=c.shoeId||'unknown';
+    perShoe[k]=(perShoe[k]||0);
+    if(perShoe[k]>=3) continue;
+    top.push(c); perShoe[k]++;
+    if(top.length>=24) break;
+  }
+  if(top.length<4) return {ready:false,side:null,confidence:0,matches:top.length,note:'Not enough strong historical chart matches'};
+  let p=0,b=0,w=0;
+  for(const c of top){
+    const wt=Math.pow(c.score,3);
+    if(c.next==='P')p+=wt; else if(c.next==='B')b+=wt;
+    w+=wt;
+  }
+  const pPct=w?p/w:.5, bPct=w?b/w:.5, edge=Math.abs(pPct-bPct);
+  const avg=top.reduce((s,x)=>s+x.score,0)/top.length;
+  const primaryAgree=top.slice(0,8).reduce((s,x)=>s+((x.next==='P'?pPct:bPct)>.5?1:0),0)/Math.min(8,top.length);
+  const conf=clamp(.45+edge*.70+(avg-.5)*.45+(top.length>=10?.04:0),.5,.88);
+  // Selective gate: requires both probability edge and good Bead/Main structural quality
+  const bestBead=top.slice(0,8).reduce((s,x)=>s+x.bead,0)/Math.min(8,top.length);
+  const bestMain=top.slice(0,8).reduce((s,x)=>s+x.main,0)/Math.min(8,top.length);
+  const side=(edge>=.12 && avg>=.61 && bestBead>=.62 && bestMain>=.58 && top.length>=6)?(bPct>pPct?'B':'P'):null;
+  return {
+    ready:true,side,confidence:side?pct(conf):0,matches:top.length,
+    pPct:pct(pPct),bPct:pct(bPct),
+    bead:pct(bestBead),main:pct(bestMain),
+    eye:pct(top.slice(0,8).reduce((s,x)=>s+x.eye,0)/Math.min(8,top.length)),
+    small:pct(top.slice(0,8).reduce((s,x)=>s+x.small,0)/Math.min(8,top.length)),
+    roach:pct(top.slice(0,8).reduce((s,x)=>s+x.roach,0)/Math.min(8,top.length)),
+    avgSimilarity:pct(avg),
+    note:side?'Qualified chart-pattern match':'WAIT — Bead Plate/Main Road agreement not strong enough'
+  };
+}
+function acc(){
+  try{return JSON.parse(localStorage.getItem(KEY)||'{"w":0,"l":0,"pending":null}')}catch(e){return {w:0,l:0,pending:null}}
+}
+function saveAcc(a){try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){}}
+function arm(){
+  const a=acc(), s=scan();
+  if(!a.pending && s.side) {a.pending={side:s.side,n:currentSequence().length}; saveAcc(a)}
+}
+function settle(actual){
+  if(actual!=='P'&&actual!=='B') return;
+  const a=acc();
+  if(a.pending){
+    if(a.pending.side===actual)a.w++; else a.l++;
+    a.pending=null; saveAcc(a);
+  }
+}
+function ensurePanel(){
+  if(document.getElementById('chartPatternRecognizerV156')) return;
+  const anchor=document.getElementById('mainRoadFutureTest') || document.querySelector('.future-test') || document.querySelector('.analyzer');
+  if(!anchor||!anchor.parentNode) return;
+  const el=document.createElement('div');
+  el.className='analyzer';
+  el.id='chartPatternRecognizerV156';
+  el.style.cssText='margin-top:12px;border:1px solid rgba(88,166,255,.55);';
+  el.innerHTML=`
+    <div class="analyzer-title">📈 AI Chart Pattern Recognizer V156</div>
+    <div class="analyzer-sub">Primary focus: <b>Bead Plate + Main Road</b>. Big Eye Boy, Small Road and Cockroach Road are supporting confirmation only. Searches saved shoes for similar chart structure and historical next results.</div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>NEXT CALL</span><strong id="cprSide">WAIT</strong></div>
+      <div class="analyzer-card"><span>CONFIDENCE</span><strong id="cprConf">—</strong></div>
+      <div class="analyzer-card"><span>STRONG MATCHES</span><strong id="cprMatches">0</strong></div>
+      <div class="analyzer-card"><span>BEAD PLATE MATCH</span><strong id="cprBead">—</strong></div>
+      <div class="analyzer-card"><span>MAIN ROAD MATCH</span><strong id="cprMain">—</strong></div>
+      <div class="analyzer-card"><span>PLAYER CONTINUATION</span><strong id="cprP">—</strong></div>
+      <div class="analyzer-card"><span>BANKER CONTINUATION</span><strong id="cprB">—</strong></div>
+      <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">0-0 • —</strong></div>
+    </div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>BIG EYE</span><strong id="cprEye">—</strong></div>
+      <div class="analyzer-card"><span>SMALL ROAD</span><strong id="cprSmall">—</strong></div>
+      <div class="analyzer-card"><span>COCKROACH</span><strong id="cprRoach">—</strong></div>
+    </div>
+    <div class="analyzer-sub" id="cprNote" style="margin-top:8px">Building chart-pattern evidence…</div>
+    <button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;
+  anchor.parentNode.insertBefore(el,anchor.nextSibling);
+  const rb=el.querySelector('#cprReset');
+  if(rb) rb.addEventListener('click',()=>{saveAcc({w:0,l:0,pending:null});render()});
+}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+function render(){
+  ensurePanel();
+  const s=scan(), a=acc(), n=a.w+a.l;
+  set('cprSide',s.side?(s.side==='P'?'PLAYER':'BANKER'):'WAIT');
+  set('cprConf',s.side?(s.confidence+'%'):'—');
+  set('cprMatches',String(s.matches||0));
+  set('cprBead',s.bead!=null?s.bead+'%':'—');
+  set('cprMain',s.main!=null?s.main+'%':'—');
+  set('cprP',s.pPct!=null?s.pPct+'%':'—');
+  set('cprB',s.bPct!=null?s.bPct+'%':'—');
+  set('cprEye',s.eye!=null?s.eye+'%':'—');
+  set('cprSmall',s.small!=null?s.small+'%':'—');
+  set('cprRoach',s.roach!=null?s.roach+'%':'—');
+  set('cprAcc',`${a.w}-${a.l} • ${n?Math.round(a.w/n*100)+'%':'—'}`);
+  set('cprNote',s.note||'WAIT');
+  try{arm()}catch(e){}
+  return s;
+}
+// Hook the main render without changing its existing behavior.
+try{
+  if(typeof window.render==='function' && !window.__cprV156WrappedRender){
+    const old=window.render;
+    window.render=function(){const r=old.apply(this,arguments);try{render()}catch(e){}return r};
+    window.__cprV156WrappedRender=true;
+  }
+}catch(e){}
+// Hook verified settlement if present; otherwise the visual AI still functions.
+try{
+  if(typeof window.__settleVerifiedPredictions==='function' && !window.__cprV156SettleWrapped){
+    const old=window.__settleVerifiedPredictions;
+    window.__settleVerifiedPredictions=function(actual){
+      const r=old.apply(this,arguments);
+      try{settle(actual)}catch(e){}
+      return r;
+    };
+    window.__cprV156SettleWrapped=true;
+  }
+}catch(e){}
+window.__chartPatternRecognizerV156={version:156,scan,render,accuracy:acc,settle,primary:['Bead Plate','Main Road'],support:['Big Eye Boy','Small Road','Cockroach Road'],selectiveGate:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,700));
+else setTimeout(render,700);
+})();
+</script>
+
+
+<script id="v157-remove-walk-forward">
+(function(){
+'use strict';
+function removeWalkForward(){
+  // Remove panels/cards/buttons whose visible content is Walk-Forward specific.
+  document.querySelectorAll('body *').forEach(function(el){
+    if(!el || !el.textContent) return;
+    const txt=(el.textContent||'').trim();
+    if(!/walk[\s-]*forward/i.test(txt)) return;
+    if(el.id && /chartPatternRecognizerV156/i.test(el.id)) return;
+    if(el.matches && el.matches('.analyzer, .analyzer-card, button')){
+      // Avoid removing a large parent that contains unrelated AIs.
+      if(el.children.length < 30) el.remove();
+    }
+  });
+  ['ms49RunWalkForward'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove()});
+}
+function disableSignals(){
+  const wait=()=>({side:null,qualified:false,strength:0,confidence:0,reason:'REMOVED in V157',removed:true});
+  try{window.walkForwardSignal=wait}catch(e){}
+  try{
+    if(window.__metaWalkV23){
+      window.__metaWalkV23.signal=wait;
+      window.__metaWalkV23.removed=true;
+    }
+  }catch(e){}
+}
+function run(){disableSignals();removeWalkForward()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(run,900));
+else setTimeout(run,900);
+window.__v157WalkForwardRemoved=true;
+})();
+</script>
+\n<script id="v159-ml-training-dataset">
+(function(){
+'use strict';
+const VERSION=160;
+function allShoes(){
+  const pools=[];
+  try{ if(Array.isArray(state.redPatternLibrary)) pools.push(...state.redPatternLibrary); }catch(e){}
+  try{ if(Array.isArray(state.blackPatternLibrary)) pools.push(...state.blackPatternLibrary); }catch(e){}
+  try{ if(!pools.length && typeof activePatternLibrary==='function') pools.push(...activePatternLibrary()); }catch(e){}
+  const seen=new Set(); return pools.filter(s=>s&&typeof s.sequence==='string'&&/^[PBT]+$/.test(s.sequence)&&!seen.has(s.sequence)&&seen.add(s.sequence));
+}
+function trans(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}
+function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}
+function rate(a,v){return a.length?a.filter(x=>x===v).length/a.length:0}
+function roads(seq){const h=[...seq].map(r=>({r}));return {eye:deriveRoad(h,1),small:deriveRoad(h,2),roach:deriveRoad(h,3)}}
+function row(shoe,i){
+ const pre=shoe.sequence.slice(0,i), target=shoe.sequence[i], nt=[...pre].filter(x=>x!=='T'), last8=nt.slice(-8), cs=buildBigRoadColumns([...pre].map(r=>({r}))), lens=cs.map(c=>c.length), rd=roads(pre);
+ const tr=last8.length>1?trans(last8)/(last8.length-1):0;
+ return {shoe_id:shoe.id||'',shoe_color:shoe.shoeColor||shoe.__color||'',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',target_outcome:target,target_pb:/[PB]/.test(target)?target:'',prior_hands:i,prior_non_tie_hands:nt.length,prior_player_count:nt.filter(x=>x==='P').length,prior_banker_count:nt.filter(x=>x==='B').length,prior_tie_count:[...pre].filter(x=>x==='T').length,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:run(nt),recent8_transition_rate:+tr.toFixed(4),regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_road_columns:cs.length,main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),big_eye_red_rate_8:+rate(rd.eye.slice(-8),'R').toFixed(4),small_road_tail_8:rd.small.slice(-8).join(''),small_red_rate_8:+rate(rd.small.slice(-8),'R').toFixed(4),cockroach_tail_8:rd.roach.slice(-8).join(''),cockroach_red_rate_8:+rate(rd.roach.slice(-8),'R').toFixed(4),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length};
+}
+function build(){const shoes=allShoes(),rows=[];shoes.forEach(s=>{for(let i=0;i<s.sequence.length;i++)rows.push(row(s,i))});return {shoes,rows}}
+function csv(rows){if(!rows.length)return '';const keys=Object.keys(rows[0]);const q=v=>'\"'+String(v??'').replaceAll('\"','\"\"')+'\"';return keys.map(q).join(',')+'\n'+rows.map(r=>keys.map(k=>q(r[k])).join(',')).join('\n')}
+function dl(name,text,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+function refresh(){const x=build(), pb=x.rows.filter(r=>r.target_pb).length, ties=x.rows.length-pb;set('mlShoes',String(x.shoes.length));set('mlRows',String(x.rows.length));set('mlPB',String(pb));set('mlTies',String(ties));set('mlStatus',x.shoes.length?'READY — leakage-safe hand-by-hand dataset':'Load shoe library first');window.__mlDatasetV159=x}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+function install(){if(document.getElementById('mlTrainingDatasetV159'))return;const anchor=document.getElementById('chartPatternRecognizerV156')||document.getElementById('mainRoadFutureTest')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='mlTrainingDatasetV159';d.style.cssText='margin-top:12px;border:1px solid rgba(46,204,113,.55)';d.innerHTML=`<div class="analyzer-title">🧠 ML Training Dataset V160</div><div class="analyzer-sub">Builds one training row per hand using only information available <b>before</b> that hand. Primary: Bead Plate + Main Road. Big Eye, Small Road and Cockroach are supporting features. Duplicate shoe sequences are removed.</div><div class="analyzer-grid"><div class="analyzer-card"><span>UNIQUE SHOES</span><strong id="mlShoes">0</strong></div><div class="analyzer-card"><span>TRAINING ROWS</span><strong id="mlRows">0</strong></div><div class="analyzer-card"><span>P/B LABELS</span><strong id="mlPB">0</strong></div><div class="analyzer-card"><span>TIE LABELS</span><strong id="mlTies">0</strong></div></div><div class="analyzer-sub" id="mlStatus">READY TO BUILD — press Build / Refresh Dataset</div><button id="mlBuild" style="margin-top:8px">Build / Refresh Dataset</button> <button id="mlCsv" style="margin-top:8px">Export ML CSV</button> <button id="mlJson" style="margin-top:8px">Export ML JSON</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#mlBuild').onclick=refresh;d.querySelector('#mlCsv').onclick=()=>{refresh();dl('baccarat_ml_training_dataset_v160.csv',csv(window.__mlDatasetV159.rows),'text/csv')};d.querySelector('#mlJson').onclick=()=>{refresh();dl('baccarat_ml_training_dataset_v160.json',JSON.stringify({version:VERSION,rule:'features use prefix only; split train/test by shoe_id',rows:window.__mlDatasetV159.rows},null,2),'application/json')};set('mlStatus','READY TO BUILD — press Build / Refresh Dataset')}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1100));else setTimeout(install,1100);
+window.__mlTrainingDatasetV159=window.__mlTrainingDatasetV160={version:VERSION,build,refresh,leakageSafe:true,splitBy:'shoe_id',primary:['Bead Plate','Main Road'],support:['Big Eye Boy','Small Road','Cockroach Road']};
+})();
+</script>\n
+
+<script id="v160-performance-cleanup">
+(function(){
+  'use strict';
+  const removeDeadPanels=()=>{
+    try{document.getElementById('masterBotPanel')?.remove();}catch(e){}
+    try{document.querySelectorAll('[id*="walkForward"],[id*="WalkForward"]').forEach(el=>{const p=el.closest?.('.analyzer'); if(p) p.remove();});}catch(e){}
+  };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',removeDeadPanels,{once:true}); else removeDeadPanels();
+  window.__V160_PERFORMANCE_CLEANUP__={version:160,botRemoved:true,walkForwardRemoved:true,mlBuildOnDemand:true};
+})();
+</script>
+
+<script id="v161-bot-live-path-lock">
+(function(){
+  const noop=()=>{};
+  const removedSignal=()=>({qualified:false,side:null,confidence:0,strength:0,removed:true,reason:'REMOVED'});
+  try{ window.masterBotSignal=removedSignal; }catch(e){}
+  try{ window.armBotPrediction=noop; }catch(e){}
+  try{ window.settleBotPrediction=noop; }catch(e){}
+  try{ window.renderMasterBot=noop; }catch(e){}
+  try{ window.botHeartbeat=noop; }catch(e){}
+  try{ if(window.state && window.state.bot){ window.state.bot.pending=null; window.state.bot.learning=false; } }catch(e){}
 })();
 </script>
 </body>
