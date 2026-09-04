@@ -15267,27 +15267,54 @@ else boot();
    let threshold=.47 - Math.min(.13,deficit*.028) + Math.min(.045,surplus*.011);
    threshold=Math.max(.35,Math.min(.58,threshold));
 
-   let level='LOW';
-   if(quality>=Math.max(.51,threshold+.055) && fusedRate>=.60 && fusedEdge>=.20 && sourceAgreement>=.67 && (!noEdgeState||sourceAgreement===1)) level='HIGH';
-   else if(!noEdgeState && quality>=threshold && fusedRate>=.565 && fusedEdge>=.13 && (sourceAgreement>=.50||dirs.length===1)) level='MEDIUM';
+   // V164: three-level gate. STRONG keeps the former strict fusion gate. SELECTIVE lets a
+   // genuinely independent exact fingerprint stand on its own when SeqV2 / Future Test are neutral,
+   // while still blocking a pick if BOTH strong supporting sources actively oppose it.
+   const directFingerprintPass=!!fpPick && bestLen>=6 && verified>=.54 && (
+     (n>=2 && rate>=.999) ||
+     (n>=3 && rate>=.666) ||
+     (n>=4 && rate>=.625)
+   );
+   const seqStrongOppose=seqQuality>=.35 && seqPick && seqPick!==fpPick;
+   const futStrongOppose=futQuality>=.35 && futPick && futPick!==fpPick;
+   const doubleStrongConflict=!!(seqStrongOppose && futStrongOppose);
 
-   pick=fusedPick;
-   let qualified=!!pick&&(level==='HIGH'||level==='MEDIUM')&&sniper.issued<sniper.target;
+   let level='WAIT';
+   if(quality>=Math.max(.51,threshold+.055) && fusedRate>=.60 && fusedEdge>=.20 && sourceAgreement>=.67 && (!noEdgeState||sourceAgreement===1)) level='STRONG';
+   else if(!noEdgeState && quality>=threshold && fusedRate>=.565 && fusedEdge>=.13 && (sourceAgreement>=.50||dirs.length===1)) level='SELECTIVE';
+   else if(directFingerprintPass && !doubleStrongConflict) level='SELECTIVE';
+
+   // For the direct-fingerprint SELECTIVE route, keep the exact historical fingerprint direction.
+   // Otherwise preserve the fused direction used by the former gate.
+   const directRoute=level==='SELECTIVE' && directFingerprintPass && !(quality>=threshold && fusedRate>=.565 && fusedEdge>=.13 && (sourceAgreement>=.50||dirs.length===1) && !noEdgeState);
+   pick=directRoute?fpPick:fusedPick;
+   let qualified=!!pick&&(level==='STRONG'||level==='SELECTIVE')&&sniper.issued<sniper.target;
    // One decision per completed hand. Do not double-count repeated renders.
    if(qualified && sniper.lastQualifiedHand===hand) qualified=false;
    if(qualified){ sniper.issued++; sniper.lastQualifiedHand=hand; }
 
+   let waitReason='';
+   if(!n) waitReason='WAIT — no independent historical continuation match.';
+   else if(!fpPick) waitReason=`WAIT — ${n} matching shoes split evenly on the next result.`;
+   else if(doubleStrongConflict) waitReason=`WAIT — fingerprint favors ${fpPick}, but both strong supporting sources oppose it.`;
+   else if(!directFingerprintPass && level==='WAIT') waitReason=`WAIT — fingerprint evidence is not strong enough yet (${n} matches, ${Math.round(rate*100)}% continuation, ${Math.round(verified*100)}% shrunk).`;
+   else if(level==='WAIT') waitReason=`WAIT — fusion is below the selective gate (${Math.round(fusedRate*100)}% lean, ${Math.round(fusedEdge*100)}-point edge).`;
+
+   const routeText=level==='STRONG'?'strict three-source fusion':directRoute?'independent fingerprint':'selective fusion';
+   const detail=n?`${n} deduplicated historical shoes match the live suffix at ${floor}-${bestLen} hands. Fingerprint ${Math.round(rate*100)}% ${fpPick||'—'} / shrunk ${Math.round(verified*100)}% • Fusion ${Math.round(fusedRate*100)}% ${fusedPick||'—'} • SeqV2 quality ${Math.round(seqQuality*100)}% • Future-road quality ${Math.round(futQuality*100)}% • source agreement ${Math.round(sourceAgreement*100)}% • quality gate ${Math.round(quality*100)}/${Math.round(threshold*100)}.`:'No independent historical continuation match.';
+
    return {level,pick:qualified?pick:null,candidate:pick,independent:n,bestLen,rate,verified,quality,threshold,lib:lib.length,
      fusedRate,sourceAgreement,seqQuality,futQuality,seqPick,futPick,stateQuality,stN,stPick,stVerified,stCross,decisiveShoes,crossRate,crossVerified,shoeAgree,shoeOppose,reliableState,strongState,noEdgeState,liveState,
+     directFingerprintPass,doubleStrongConflict,directRoute,route:routeText,
      issued:sniper.issued,target:sniper.target,remaining:Math.max(0,sniper.target-sniper.issued),
-     reason:n?`${n} deduplicated historical shoes match the live suffix at ${floor}-${bestLen} hands. Fusion ${Math.round(fusedRate*100)}% ${pick||'—'} • SeqV2 logic ${Math.round(seqQuality*100)}% • Future-road logic ${Math.round(futQuality*100)}% • validated pattern ${stN} hits/${decisiveShoes} decisive shoes/${Math.round(stVerified*100)}% pooled/${Math.round(crossVerified*100)}% cross-shoe ${stPick||'—'}${noEdgeState?' NO-EDGE':strongState?' STRONG':reliableState?' RELIABLE':''} • source agreement ${Math.round(sourceAgreement*100)}% • gate ${Math.round(quality*100)}/${Math.round(threshold*100)} • target 15.`:'No independent historical continuation match.'};
+     reason:qualified?`${level} ${pick} — ${routeText}. ${detail}`:`${waitReason} ${detail}`};
  }
  function ensure(){
    if(document.getElementById('presetFingerprintGateV145'))return;
    const host=document.getElementById('metaWalkV23')||document.querySelector('.analyzer'); if(!host)return;
    const el=document.createElement('div'); el.className='analyzer'; el.id='presetFingerprintGateV145';
-   el.style.borderColor='#4fd1a5'; el.innerHTML=`<div class="analyzer-title">🧬 Independent Preset Fingerprint Gate</div>
-   <div class="analyzer-sub">Tests the preset-shoe hypothesis against deduplicated historical shoes. Evidence only; weak structure returns WAIT.</div>
+   el.style.borderColor='#4fd1a5'; el.innerHTML=`<div class="analyzer-title">🧬 Independent Preset Fingerprint Gate V164</div>
+   <div class="analyzer-sub">Tests the preset-shoe hypothesis against deduplicated historical shoes. STRONG keeps the strict multi-source gate; SELECTIVE can use strong independent fingerprint evidence when supporting AIs are neutral. Conflicting or weak evidence returns WAIT.</div>
    <div class="analyzer-grid"><div class="analyzer-card"><span>PRESET EVIDENCE</span><strong id="pfgLevel">—</strong></div><div class="analyzer-card"><span>SNIPER DECISION</span><strong id="pfgPick">WAIT</strong></div><div class="analyzer-card"><span>QUALIFIED SPOTS</span><strong id="pfgQuota">0 / 15</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="pfgMatches">0</strong></div><div class="analyzer-card"><span>BEST FINGERPRINT</span><strong id="pfgLen">0 hands</strong></div><div class="analyzer-card"><span>CONTINUATION AGREEMENT</span><strong id="pfgRate">—</strong></div><div class="analyzer-card"><span>SHRUNK EVIDENCE</span><strong id="pfgVerified">—</strong></div></div><div class="analyzer-sub" id="pfgNote" style="margin-top:8px">Building evidence…</div>`;
    host.parentNode.insertBefore(el,host);
  }
@@ -15296,7 +15323,7 @@ else boot();
  }
  const old=window.render;if(typeof old==='function'&&!old.__pfg145){const w=function(){const r=old.apply(this,arguments);try{render()}catch(e){console.warn('PFG145',e)}return r};w.__pfg145=true;window.render=w;}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,500));else setTimeout(render,500);
- window.__presetFingerprintGate={version:154,mode:"sniper-15-cross-shoe-validated-whitelist",evidence,render};
+ window.__presetFingerprintGate={version:164,mode:"strong-selective-independent-fingerprint",evidence,render};
 })();
 </script>
 
@@ -15666,5 +15693,402 @@ window.__mlTrainingDatasetV159=window.__mlTrainingDatasetV160={version:VERSION,b
   try{ if(window.state && window.state.bot){ window.state.bot.pending=null; window.state.bot.learning=false; } }catch(e){}
 })();
 </script>
+
+<script id="v162-ml-road-trainer-live-dataset-connection">
+(function(){
+'use strict';
+const VERSION=162, WARMUP=6, TARGET_CALLS=10;
+let runtime={trained:false,qualified:false,report:null,model:null,cutoff:.56,lastError:'',lastSignal:null};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const sideOf=v=>{const s=String(v??'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':s==='T'||s==='TIE'?'T':''};
+function mapAdd(m,k,y){if(!k||!(y==='P'||y==='B'))return;let a=m.get(k);if(!a)m.set(k,a=[0,0]);if(y==='P')a[0]++;else a[1]++;}
+function mapProb(m,k){const a=m.get(k);if(!a)return null;const n=a[0]+a[1];return {p:(a[0]+2)/(n+4),n};}
+function bucket(n){n=Number(n)||0;return n>=6?'6+':n>=4?'4-5':n>=2?'2-3':String(n)}
+function tail(s,n){s=String(s||'');return s.slice(-n)}
+function buildModel(rows,kind){
+  const pb=rows.filter(r=>r.target_pb==='P'||r.target_pb==='B');
+  const pN=pb.filter(r=>r.target_pb==='P').length, prior=(pN+5)/(pb.length+10);
+  const maps={a:new Map(),b:new Map(),c:new Map(),d:new Map(),e:new Map(),f:new Map()};
+  for(const r of pb){
+    const y=r.target_pb;
+    if(kind==='seq'){
+      mapAdd(maps.a,'p10:'+tail(r.pb_tail_10,10),y);
+      mapAdd(maps.b,'p6:'+tail(r.pb_tail_6,6),y);
+      mapAdd(maps.c,'bead:'+tail(r.bead_tail_6,6),y);
+      mapAdd(maps.d,'reg:'+r.phase+'|'+r.regime+'|'+r.current_streak_side+'|'+bucket(r.current_streak_len),y);
+      mapAdd(maps.e,'tr:'+r.phase+'|'+Math.round((Number(r.recent8_transition_rate)||0)*4)/4+'|'+r.last_non_tie,y);
+      mapAdd(maps.f,'cnt:'+r.phase+'|'+Math.sign((Number(r.prior_player_count)||0)-(Number(r.prior_banker_count)||0)),y);
+    }else{
+      mapAdd(maps.a,'main:'+r.current_streak_side+'|'+r.main_last4_col_depths,y);
+      mapAdd(maps.b,'depth:'+r.phase+'|'+bucket(r.main_current_col_depth)+'|'+bucket(r.main_prev_col_depth),y);
+      mapAdd(maps.c,'eye:'+tail(r.big_eye_tail_8,6),y);
+      mapAdd(maps.d,'small:'+tail(r.small_road_tail_8,6),y);
+      mapAdd(maps.e,'roach:'+tail(r.cockroach_tail_8,6),y);
+      mapAdd(maps.f,'support:'+r.phase+'|'+r.support_ready_count+'|'+r.support_agreement_red,y);
+    }
+  }
+  return {kind,prior,maps,n:pb.length};
+}
+function modelProb(m,r){
+  const src=[];
+  const add=(mp,key,w)=>{const z=mapProb(mp,key);if(z){const rel=Math.min(1,z.n/6);src.push({p:z.p,w:w*rel,n:z.n});}};
+  if(m.kind==='seq'){
+    add(m.maps.a,'p10:'+tail(r.pb_tail_10,10),5.5); add(m.maps.b,'p6:'+tail(r.pb_tail_6,6),4.0);
+    add(m.maps.c,'bead:'+tail(r.bead_tail_6,6),2.4); add(m.maps.d,'reg:'+r.phase+'|'+r.regime+'|'+r.current_streak_side+'|'+bucket(r.current_streak_len),2.2);
+    add(m.maps.e,'tr:'+r.phase+'|'+Math.round((Number(r.recent8_transition_rate)||0)*4)/4+'|'+r.last_non_tie,1.6); add(m.maps.f,'cnt:'+r.phase+'|'+Math.sign((Number(r.prior_player_count)||0)-(Number(r.prior_banker_count)||0)),.8);
+  }else{
+    add(m.maps.a,'main:'+r.current_streak_side+'|'+r.main_last4_col_depths,4.2); add(m.maps.b,'depth:'+r.phase+'|'+bucket(r.main_current_col_depth)+'|'+bucket(r.main_prev_col_depth),2.2);
+    add(m.maps.c,'eye:'+tail(r.big_eye_tail_8,6),2.2); add(m.maps.d,'small:'+tail(r.small_road_tail_8,6),2.0); add(m.maps.e,'roach:'+tail(r.cockroach_tail_8,6),2.0);
+    add(m.maps.f,'support:'+r.phase+'|'+r.support_ready_count+'|'+r.support_agreement_red,1.3);
+  }
+  let num=m.prior*2.5, den=2.5, evidence=0;
+  for(const z of src){num+=z.p*z.w;den+=z.w;evidence+=z.w;}
+  const raw=num/den;
+  // Shrink sparse contexts toward 50% so confidence cannot be manufactured by tiny samples.
+  const shrink=Math.min(1,evidence/9);
+  return {p:.5+(raw-.5)*shrink,evidence,sources:src.length};
+}
+function ensemble(models,r){const a=modelProb(models.seq,r),b=modelProb(models.road,r);const ev=a.evidence+b.evidence;const wp=a.evidence/(ev||1);const p=ev?wp*a.p+(1-wp)*b.p:.5;return {p,seq:a.p,road:b.p,evidence:ev,sources:a.sources+b.sources};}
+function accuracy(preds){if(!preds.length)return {n:0,w:0,rate:0};let w=0;for(const z of preds)if((z.p>=.5?'P':'B')===z.y)w++;return {n:preds.length,w,rate:w/preds.length};}
+function predictRows(models,rows){return rows.filter(r=>(r.target_pb==='P'||r.target_pb==='B')&&Number(r.prior_hands)>=WARMUP).map(r=>{const z=ensemble(models,r);return {...z,y:r.target_pb,shoe:r.shoe_id,edge:Math.abs(z.p-.5)};});}
+function chooseCutoff(preds,shoeCount){if(!preds.length)return .60;const desired=Math.max(1,shoeCount*TARGET_CALLS), edges=preds.map(x=>x.edge).sort((a,b)=>b-a);const idx=Math.min(edges.length-1,desired-1);return clamp(.5+edges[idx],.515,.65);}
+function splitDataset(x){
+  const shoes=(x.shoes||[]).slice(); const ids=shoes.map((s,i)=>String(s.id||('shoe_'+i)));
+  const n=ids.length, nTrain=Math.max(1,Math.floor(n*.70)), nVal=Math.max(1,Math.floor(n*.10)), trainIds=new Set(ids.slice(0,nTrain)), valIds=new Set(ids.slice(nTrain,nTrain+nVal)), testIds=new Set(ids.slice(nTrain+nVal));
+  const by=(set)=>x.rows.filter(r=>set.has(String(r.shoe_id)));
+  return {train:by(trainIds),val:by(valIds),test:by(testIds),trainShoes:trainIds.size,valShoes:valIds.size,testShoes:testIds.size};
+}
+function trainAndValidate(){
+  try{
+    const api=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(!api?.build)throw new Error('V160 dataset builder unavailable');
+    setText('mlv155Status','TRAINING…');setText('mlv155Note','Rebuilding V160 rows and running held-out shoe validation…');
+    const x=api.build(); window.__mlDatasetV159=x;
+    if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique saved shoes for cross-shoe validation');
+    const sp=splitDataset(x); if(!sp.testShoes)throw new Error('No held-out test shoes available');
+    const trainModels={seq:buildModel(sp.train,'seq'),road:buildModel(sp.train,'road')};
+    const valPred=predictRows(trainModels,sp.val), cutoff=chooseCutoff(valPred,sp.valShoes);
+    const testPred=predictRows(trainModels,sp.test), all=accuracy(testPred), selective=accuracy(testPred.filter(z=>Math.max(z.p,1-z.p)>=cutoff));
+    const trainPB=sp.train.filter(r=>r.target_pb==='P'||r.target_pb==='B'); const p=trainPB.filter(r=>r.target_pb==='P').length, b=trainPB.length-p; const baseline=trainPB.length?Math.max(p,b)/trainPB.length:.5;
+    const minCalls=Math.max(30,sp.testShoes*4); const qualified=selective.n>=minCalls && selective.rate>=.53 && selective.rate>=baseline+.015;
+    const fullModels={seq:buildModel(x.rows,'seq'),road:buildModel(x.rows,'road')};
+    runtime={trained:true,qualified,cutoff,model:fullModels,lastError:'',lastSignal:null,report:{version:VERSION,uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,validationShoes:sp.valShoes,unseenTestShoes:sp.testShoes,testRows:testPred.length,overall:all,selective,baseline,cutoff,targetCallsPerShoe:TARGET_CALLS,qualified,reason:qualified?'PASS — held-out selective accuracy cleared the cross-shoe gate.':'WAIT — held-out selective accuracy did not clear the cross-shoe gate.'}};
+    renderReport();
+    return runtime.report;
+  }catch(e){runtime.trained=false;runtime.qualified=false;runtime.lastError=String(e?.message||e);renderReport();return null;}
+}
+function liveSequence(){
+  try{const a=state?.results||state?.hands||[];return a.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean).join('');}catch(e){return '';}
+}
+function transition(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}
+function runLen(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}
+function rate(a,v){return a.length?a.filter(x=>x===v).length/a.length:0}
+function liveRow(){
+  const pre=liveSequence(), arr=[...pre],nt=arr.filter(x=>x!=='T'),last8=nt.slice(-8),tr=last8.length>1?transition(last8)/(last8.length-1):0;
+  let cs=[],rd={eye:[],small:[],roach:[]};try{cs=buildBigRoadColumns(arr.map(r=>({r})))||[]}catch(e){};try{const h=arr.map(r=>({r}));rd={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}
+  const lens=cs.map(c=>c.length),i=arr.length;
+  return {shoe_id:'LIVE',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',target_pb:'',prior_hands:i,prior_non_tie_hands:nt.length,prior_player_count:nt.filter(x=>x==='P').length,prior_banker_count:nt.filter(x=>x==='B').length,prior_tie_count:arr.filter(x=>x==='T').length,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:runLen(nt),recent8_transition_rate:+tr.toFixed(4),regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_road_columns:cs.length,main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),big_eye_red_rate_8:+rate(rd.eye.slice(-8),'R').toFixed(4),small_road_tail_8:rd.small.slice(-8).join(''),small_red_rate_8:+rate(rd.small.slice(-8),'R').toFixed(4),cockroach_tail_8:rd.roach.slice(-8).join(''),cockroach_red_rate_8:+rate(rd.roach.slice(-8),'R').toFixed(4),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length};
+}
+function signal(){
+  if(!runtime.trained)return {side:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:runtime.lastError||'Press Build / Refresh Dataset to train and validate V162.'};
+  if(!runtime.qualified)return {side:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:runtime.report?.reason||'Cross-shoe validation gate failed.',report:runtime.report};
+  const r=liveRow(); if(r.prior_hands<WARMUP)return {side:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands before live ML scoring.`};
+  const z=ensemble(runtime.model,r), conf=Math.max(z.p,1-z.p), pass=conf>=runtime.cutoff && z.sources>=2, side=z.p>=.5?'P':'B';
+  const out={side:pass?side:null,rawSide:side,qualified:pass,strength:pass?+(conf*100).toFixed(1):0,confidence:+(conf*100).toFixed(1),status:pass?(side==='P'?'PLAYER':'BANKER'):'WAIT',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),evidence:z.evidence,sources:z.sources,cutoff:+(runtime.cutoff*100).toFixed(1),reason:pass?'Fresh V160-trained model cleared the live confidence gate.':'Fresh model is trained, but this hand does not clear the selective confidence gate.',report:runtime.report};
+  runtime.lastSignal=out;return out;
+}
+function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+function renderReport(){
+  const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;
+  const r=runtime.report;
+  panel.querySelector('.analyzer-title').textContent='🧠 ML Road Trainer V3 — Live V160 Cross-Shoe Trainer';
+  const sub=panel.querySelector('.analyzer-sub');if(sub)sub.textContent='Connected directly to ML Training Dataset V160. Build / Refresh now rebuilds rows, trains two independent in-browser feature models, calibrates a selective gate on validation shoes, and tests that gate on completely held-out shoes. It cannot control other AIs.';
+  const grid=panel.querySelector('.analyzer-grid');
+  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv155Status">${runtime.trained?(runtime.qualified?'QUALIFIED':'LOCKED / WAIT'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
+  let note=document.getElementById('mlv155Note'); if(!note){note=document.createElement('div');note.id='mlv155Note';note.className='analyzer-sub';note.style.marginTop='8px';panel.appendChild(note)}
+  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${r.qualified?'VALIDATION PASS':'VALIDATION LOCK'}: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%. ${r.reason}`:'Press Build / Refresh Dataset below to run a fresh train → validation → held-out test cycle.';
+}
+function install(){
+  const panel=document.getElementById('mlRoadTrainerV155');if(panel)renderReport();
+  const btn=document.getElementById('mlBuild');if(btn&&!btn.__v162){const old=btn.onclick;btn.onclick=function(){try{old&&old.call(this)}catch(e){};setTimeout(trainAndValidate,20)};btn.__v162=true;}
+  // Keep dataset exports intact; training only runs when the user explicitly refreshes the dataset.
+}
+const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v162ml){const w=function(){const x=oldRender.apply(this,arguments);try{if(runtime.trained)runtime.lastSignal=signal()}catch(e){}return x};w.__v162ml=true;window.render=w;}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1350));else setTimeout(install,1350);
+window.__mlRoadTrainerV2=window.__mlRoadTrainerV3={version:VERSION,signal,render:()=>{renderReport();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true};
+})();
+</script>
+
+
+<script id="v163-ml-auto-train-and-visible-status">
+(function(){
+'use strict';
+function boot(){
+  try{
+    const api=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;
+    const panel=document.getElementById('mlRoadTrainerV155');
+    if(panel){
+      const t=panel.querySelector('.analyzer-title');
+      if(t)t.textContent='🧠 ML Road Trainer V3 — Live V160 Cross-Shoe Trainer';
+      panel.dataset.connected='v163';
+    }
+    if(api&&typeof api.trainAndValidate==='function'){
+      api.trainAndValidate();
+      try{api.render&&api.render()}catch(e){}
+    }
+  }catch(e){
+    const n=document.getElementById('mlv155Note');
+    if(n)n.textContent='AUTO-TRAIN ERROR: '+String(e&&e.message||e);
+  }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1800),{once:true});
+else setTimeout(boot,1800);
+window.__V163_ML_AUTO_TRAIN__=true;
+})();
+</script>
+
+<script>window.__V164_FINGERPRINT_GATE_FIX__={version:164,selectiveIndependentFingerprint:true,strongGatePreserved:true};</script>
+
+<script id="v165-permanent-walk-forward-removal">
+(function(){
+  'use strict';
+  const wait=()=>({side:null,qualified:false,strength:0,confidence:0,removed:true,reason:'Walk-Forward removed in V165'});
+  function strip(){
+    try{
+      const directIds=['metaWalkV23','metaWalkV23Panel','ms49RunWalkForward'];
+      directIds.forEach(id=>document.getElementById(id)?.remove());
+      document.querySelectorAll('[id*="walkForward" i],[id*="WalkForward"],[data-module*="walk-forward" i]').forEach(el=>{
+        const panel=el.closest?.('.analyzer');
+        (panel||el).remove();
+      });
+      document.querySelectorAll('.analyzer').forEach(panel=>{
+        const t=(panel.textContent||'').toLowerCase();
+        if(t.includes('walk-forward meta learner')||t.includes('walk forward meta learner')) panel.remove();
+      });
+    }catch(e){}
+  }
+  function disable(){
+    try{window.walkForwardSignal=wait;}catch(e){}
+    try{
+      if(window.__metaWalkV23){
+        window.__metaWalkV23.signal=wait;
+        window.__metaWalkV23.learnCycle=()=>{};
+        window.__metaWalkV23.render=()=>{};
+        window.__metaWalkV23.removed=true;
+      }
+    }catch(e){}
+  }
+  function run(){disable();strip();}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(run,0),{once:true});
+  else setTimeout(run,0);
+  setTimeout(run,500);setTimeout(run,1500);setTimeout(run,3500);
+  try{
+    const mo=new MutationObserver(()=>run());
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+    setTimeout(()=>mo.disconnect(),12000);
+  }catch(e){}
+  window.__V165_WALK_FORWARD_REMOVED__={version:165,removed:true};
+})();
+</script>
+
+<script id="v166-shoe-matcher-structural-upgrade">
+(function(){
+'use strict';
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function pbv(s){return String(s||'').toUpperCase().replace(/[^PB]/g,'');}
+function rfPattern(s){const a=pbv(s);let o='';for(let i=1;i<a.length;i++)o+=a[i]===a[i-1]?'R':'F';return o;}
+function runs(s){const a=pbv(s);if(!a)return[];const out=[];let n=1;for(let i=1;i<a.length;i++){if(a[i]===a[i-1])n++;else{out.push(n);n=1;}}out.push(n);return out;}
+function weightedRecent(a,b,max=20){a=pbv(a).slice(-max);b=pbv(b).slice(-max);const n=Math.min(a.length,b.length);if(!n)return 0;let hit=0,den=0;for(let i=0;i<n;i++){const w=(i+1)*(i+1);den+=w;if(a[a.length-n+i]===b[b.length-n+i])hit+=w;}return den?hit/den:0;}
+function structuralScore(a,b,max=20){const A=rfPattern(a).slice(-(max-1)),B=rfPattern(b).slice(-(max-1));const n=Math.min(A.length,B.length);if(n<4)return 0;let hit=0,den=0;for(let i=0;i<n;i++){const w=(i+2);den+=w;if(A[A.length-n+i]===B[B.length-n+i])hit+=w;}return den?hit/den:0;}
+function runShapeScore(a,b){const A=runs(a).slice(-6),B=runs(b).slice(-6),n=Math.min(A.length,B.length);if(n<2)return 0;let sum=0,w=0;for(let i=0;i<n;i++){const x=A[A.length-n+i],y=B[B.length-n+i],ww=i+1;sum+=ww*(1-Math.min(1,Math.abs(x-y)/Math.max(1,x,y)));w+=ww;}return w?sum/w:0;}
+function adaptiveWindowScore(a,b){const wins=[6,8,10,12,15,20];let sum=0,w=0;for(const k of wins){if(pbv(a).length<k||pbv(b).length<k)continue;const A=pbv(a).slice(-k),B=pbv(b).slice(-k);let same=0;for(let i=0;i<k;i++)if(A[i]===B[i])same++;const literal=same/k;const shape=structuralScore(A,B,k);const q=.42*literal+.58*shape;const ww=k>=12?1.25:1;sum+=q*ww;w+=ww;}return w?sum/w:0;}
+function mainStructureScore(a,b){return .58*runShapeScore(a,b)+.42*structuralScore(a,b,18);}
+
+const oldRoadScore=window.shoeMatcherRoadScore||shoeMatcherRoadScore;
+window.shoeMatcherCandidateScore=shoeMatcherCandidateScore=function(bead,main,hist,pos){
+  const prefix=hist.slice(0,pos),prefixMain=shoeMatcherMainFromBead(prefix);
+  const recent=weightedRecent(bead,prefix,20);
+  const shape=structuralScore(bead,prefix,20);
+  const adaptive=adaptiveWindowScore(bead,prefix);
+  const mainShape=mainStructureScore(main,prefixMain);
+  const literalSuffix=shoeMatcherSuffixScore(bead,prefix);
+  const mainSuffix=shoeMatcherSuffixScore(main,prefixMain);
+  const pre=.18*recent+.24*shape+.18*adaptive+.18*mainShape+.10*literalSuffix+.06*mainSuffix;
+  const roads=pre>=.30?oldRoadScore(bead,prefix):0;
+  const maturity=bead.length>=20?1:.94;
+  const score=clamp((pre+.06*roads)*maturity,0,1);
+  return {score,recent,shape,adaptive,mainShape,literalSuffix,mainSuffix,roads,prefix,mature:bead.length>=20};
+};
+
+window.shoeMatcherScanCore=shoeMatcherScanCore=function(beadInput,mainInput){
+  const bead=shoeMatcherNormalize(beadInput,true);
+  const main=shoeMatcherNormalize(mainInput,false)||shoeMatcherMainFromBead(bead);
+  const lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=Math.max(8,bead.length+1));
+  if(bead.length<6)return {error:`NEED ${6-bead.length} MORE RESULT${6-bead.length===1?'':'S'}`,bead,main,libCount:lib.length};
+  if(!lib.length)return {error:'NO ELIGIBLE SAVED SHOES',bead,main,libCount:0};
+  const all=[];
+  lib.forEach((shoe,idx)=>{
+    const hist=shoeMatcherNormalize(shoe.sequence,true);if(hist.length<bead.length+1)return;
+    let best=null;
+    for(let pos=Math.max(6,bead.length-8);pos<hist.length;pos++){
+      const x=shoeMatcherCandidateScore(bead,main,hist,pos);
+      if(!best||x.score>best.score)best={...x,pos};
+    }
+    if(best){
+      if(shoeMatcherFollowMode&&bead.length>=20&&shoeMatcherLastResult?.best){
+        const prev=shoeMatcherLastResult.best;
+        const sameSaved=prev.shoe&&shoe&&(prev.shoe.id&&shoe.id?prev.shoe.id===shoe.id:prev.sequence===hist);
+        const expectedPos=prev.pos+Math.max(0,bead.length-shoeMatcherLastResult.bead.length);
+        if(sameSaved&&Math.abs(best.pos-expectedPos)<=1)best.score=clamp(best.score*1.05,0,1);
+      }
+      const continuation=hist.slice(best.pos),next=continuation[0]||null;
+      all.push({shoe,idx,sequence:hist,...best,continuation,next});
+    }
+  });
+  all.sort((a,b)=>b.score-a.score);
+  const best=all[0];if(!best)return {error:'NO MATCHABLE CONTINUATIONS',bead,main,libCount:lib.length};
+  const floor=Math.max(.40,best.score*.78);
+  const qualified=all.filter(x=>x.score>=floor).slice(0,12); // one best point per independent shoe
+  const top=qualified.length?qualified:all.slice(0,Math.min(7,all.length));
+  const votes={P:0,B:0,T:0},counts={P:0,B:0,T:0};
+  top.forEach(x=>{if(votes[x.next]!=null){const w=.45+.55*x.score*x.score;votes[x.next]+=w;counts[x.next]++;}});
+  const pbTotal=votes.P+votes.B;let nextSide=null,nextPct=0;
+  if(pbTotal>0){const side=votes.P>votes.B?'P':votes.B>votes.P?'B':null;const pct=side?100*votes[side]/pbTotal:50;const support=side?counts[side]:0;const independentPB=counts.P+counts.B;
+    if(side&&independentPB>=4&&support>=3&&pct>=60){nextSide=side;nextPct=Math.round(pct);}
+  }
+  let projected='';
+  for(let step=0;step<18;step++){
+    const v={P:0,B:0,T:0};let contributors=0;
+    top.forEach(x=>{const r=x.continuation[step];if(r&&v[r]!=null){v[r]+=.45+.55*x.score*x.score;contributors++;}});
+    const total=v.P+v.B+v.T;if(!total||contributors<3)break;
+    const side=['P','B','T'].sort((a,b)=>v[b]-v[a])[0],pct=v[side]/total;
+    if(pct<.60)break;projected+=side;
+  }
+  const sim=Math.round(best.score*100),evidence=top.length;
+  return {bead,main,libCount:lib.length,all,top,best,sim,evidence,nextSide,nextPct,projected,nextVotes:votes,eliteCount:0,eliteConflict:false,votePoolSize:top.length,independentCounts:counts,structuralV166:true,matchFloor:floor};
+};
+
+const oldRender=window.renderShoeMatcherResult||renderShoeMatcherResult;
+window.renderShoeMatcherResult=renderShoeMatcherResult=function(r){
+  oldRender(r);
+  if(!r||r.error||!r.structuralV166)return;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  const c=r.independentCounts||{P:0,B:0,T:0};
+  set('shoeMatcherConsensus',r.nextSide?`${r.nextPct}% • ${c[r.nextSide]}/${c.P+c.B} shoes`:`WAIT • P ${c.P} / B ${c.B}`);
+  set('shoeMatcherEvidence',`${r.top.length} independent shoes`);
+  const b=r.best;
+  set('shoeMatcherDetail',`V166 structural matcher scanned ${r.libCount} saved shoes. It weights the most recent hands, repeat/switch shape, adaptive 6/8/10/12/15/20-hand windows, Main Road run/column structure, and derived-road confirmation. One continuation vote maximum is taken from each saved shoe. ${r.nextSide?`${c[r.nextSide]} of ${c.P+c.B} independent P/B continuations support ${r.nextSide} at ${r.nextPct}%.`:`Independent continuations are not yet strong enough for a 60% selective call (P ${c.P}, B ${c.B}).`}`);
+  const lines=r.top.slice(0,6).map((x,i)=>{const color=x.shoe?.shoeColor?String(x.shoe.shoeColor).toUpperCase():'SAVED';return `${i+1}. Shoe #${x.idx+1} ${color} • ${Math.round(x.score*100)}% • shape ${Math.round((x.shape||0)*100)}% • main ${Math.round((x.mainShape||0)*100)}% • next ${x.next||'—'}`;});
+  set('shoeMatcherTopMatches',lines.join('  |  '));
+};
+
+const box=document.getElementById('currentShoeMatcherBox');
+if(box){const title=box.querySelector('.match-head b');if(title)title.textContent='🔎 Current Shoe Matcher V166 / Structural Continuation Predictor';}
+window.__SHOE_MATCHER_V166__={version:166,features:['recent weighted matching','repeat/switch structural matching','adaptive multi-window matching','Main Road run/column structure','one vote per independent shoe'],selectiveGate:'>=4 independent P/B shoes, >=3 supporting winning side, >=60% weighted agreement'};
+})();
+</script>
+
+<script id="v167-ai-replay-training-validation-lab">
+(function(){
+'use strict';
+const VERSION=167;
+const CFG_KEY='ai-replay-lab-v167-config';
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const pb=s=>String(s||'').toUpperCase().replace(/[^PB]/g,'');
+const allSeq=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+function uniqueShoes(){
+  const pools=[];
+  try{if(Array.isArray(state?.redPatternLibrary))pools.push(...state.redPatternLibrary.map(x=>({...x,__color:x.shoeColor||'RED'})));}catch(e){}
+  try{if(Array.isArray(state?.blackPatternLibrary))pools.push(...state.blackPatternLibrary.map(x=>({...x,__color:x.shoeColor||'BLACK'})));}catch(e){}
+  const seen=new Set(),out=[];
+  for(const x of pools){const q=allSeq(x?.sequence);if(q.length<12||seen.has(q))continue;seen.add(q);out.push({id:x?.id||`shoe_${out.length}`,sequence:q,color:x?.__color||x?.shoeColor||''});}
+  return out;
+}
+function runLens(seq){const a=[...pb(seq)],o=[];for(const x of a){if(!o.length||o[o.length-1].s!==x)o.push({s:x,n:1});else o[o.length-1].n++;}return o;}
+function rf(seq){const a=[...pb(seq)];let r='';for(let i=1;i<a.length;i++)r+=a[i]===a[i-1]?'R':'F';return r;}
+function suffixScore(a,b,max=20){a=pb(a);b=pb(b);const n=Math.min(max,a.length,b.length);if(!n)return 0;let w=0,t=0;for(let i=1;i<=n;i++){const wt=1+i/n; t+=wt; if(a[a.length-i]===b[b.length-i])w+=wt;}return w/t;}
+function rfScore(a,b,max=20){a=rf(a);b=rf(b);const n=Math.min(max,a.length,b.length);if(!n)return .5;let w=0,t=0;for(let i=1;i<=n;i++){const wt=1+i/n;t+=wt;if(a[a.length-i]===b[b.length-i])w+=wt;}return w/t;}
+function runShapeScore(a,b){const A=runLens(a).slice(-6).map(x=>Math.min(6,x.n)),B=runLens(b).slice(-6).map(x=>Math.min(6,x.n));const n=Math.min(A.length,B.length);if(!n)return 0;let d=0;for(let i=1;i<=n;i++)d+=Math.abs(A[A.length-i]-B[B.length-i]);return clamp(1-d/(n*5),0,1);}
+function recentTransition(seq,n=10){const a=[...pb(seq)].slice(-n);if(a.length<2)return .5;let k=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])k++;return k/(a.length-1);}
+function localCandidate(cur,hist,pos){
+  const pre=hist.slice(0,pos), pcur=pb(cur), ppre=pb(pre);
+  const recent=.32*suffixScore(pcur,ppre,12)+.28*rfScore(pcur,ppre,14)+.18*runShapeScore(pcur,ppre);
+  const tr=1-Math.abs(recentTransition(pcur)-recentTransition(ppre));
+  const windows=[6,8,10,12,15,20].filter(w=>pcur.length>=w&&ppre.length>=w);
+  let adaptive=.5;if(windows.length){adaptive=windows.reduce((z,w)=>z+.55*rfScore(pcur.slice(-w),ppre.slice(-w),w)+.45*suffixScore(pcur.slice(-w),ppre.slice(-w),w),0)/windows.length;}
+  return clamp(.40*recent+.22*adaptive+.18*tr+.20*runShapeScore(pcur,ppre),0,1);
+}
+function structuralPredict(cur,library,gate=.60,minShoes=4,minSupport=3){
+  cur=allSeq(cur);if(pb(cur).length<6)return {side:null,conf:0,n:0,p:0,b:0};
+  const rows=[];
+  for(const sh of library){const h=sh.sequence;let best=null;for(let pos=Math.max(6,pb(cur).length-8);pos<h.length;pos++){const next=h[pos];if(next!=='P'&&next!=='B')continue;const sc=localCandidate(cur,h,pos);if(!best||sc>best.sc)best={sc,next};}if(best)rows.push(best);}
+  rows.sort((a,b)=>b.sc-a.sc);if(!rows.length)return {side:null,conf:0,n:0,p:0,b:0};
+  const floor=Math.max(.40,rows[0].sc*.78),top=rows.filter(x=>x.sc>=floor).slice(0,12);let P=0,B=0,pn=0,bn=0;
+  for(const x of top){const w=.45+.55*x.sc*x.sc;if(x.next==='P'){P+=w;pn++;}else{B+=w;bn++;}}
+  const tot=P+B,side=P>B?'P':B>P?'B':null,conf=tot&&side?Math.max(P,B)/tot:0,support=side==='P'?pn:bn,n=pn+bn;
+  return {side:side&&n>=minShoes&&support>=minSupport&&conf>=gate?side:null,raw:side,conf,n,p:pn,b:bn};
+}
+function seqStylePredict(cur,library,gate=.60){
+  const c=pb(cur);if(c.length<6)return {side:null,conf:0,n:0};const votes=[];
+  for(const sh of library){const q=pb(sh.sequence);let hit=null;for(let L=Math.min(18,c.length);L>=6&&!hit;L--){const key=c.slice(-L);let pos=q.indexOf(key);while(pos>=0){const nx=q[pos+L];if(nx==='P'||nx==='B'){hit={side:nx,L};break;}pos=q.indexOf(key,pos+1);}}if(hit)votes.push(hit);}
+  if(!votes.length)return {side:null,conf:0,n:0};const best=Math.max(...votes.map(v=>v.L)),strong=votes.filter(v=>v.L>=Math.max(6,best-2));const P=strong.filter(v=>v.side==='P').length,B=strong.length-P,n=P+B;if(!n||P===B)return {side:null,conf:.5,n};const side=P>B?'P':'B',conf=Math.max(P,B)/n;return {side:n>=3&&conf>=gate?side:null,raw:side,conf,n};
+}
+function ensemblePredict(cur,lib,cfg){const a=structuralPredict(cur,lib,cfg.structGate,cfg.minShoes,cfg.minSupport),b=seqStylePredict(cur,lib,cfg.seqGate);let side=null,conf=0;if(a.side&&b.side&&a.side===b.side){side=a.side;conf=(a.conf*1.15+b.conf)/2.15;}else if(a.side&&!b.side){side=a.side;conf=a.conf*.96;}else if(b.side&&!a.side&&b.conf>=.72){side=b.side;conf=b.conf*.94;}return {side,conf,a,b};}
+function defaultCfg(){return {structGate:.60,seqGate:.60,minShoes:4,minSupport:3};}
+function loadCfg(){try{return {...defaultCfg(),...JSON.parse(localStorage.getItem(CFG_KEY)||'{}')}}catch(e){return defaultCfg();}}
+function split(shoes){const n=shoes.length,trainN=Math.max(1,Math.floor(n*.70)),valN=Math.max(1,Math.floor(n*.15));return {train:shoes.slice(0,trainN),val:shoes.slice(trainN,trainN+valN),test:shoes.slice(trainN+valN)};}
+function evalSet(test,train,cfg,maxShoes=Infinity){
+  const models={Structural:{w:0,l:0,wait:0,calls:0},SequenceStyle:{w:0,l:0,wait:0,calls:0},Ensemble:{w:0,l:0,wait:0,calls:0}};
+  const shoes=test.slice(0,maxShoes);for(const sh of shoes){const seq=sh.sequence;for(let i=6;i<Math.min(seq.length,55);i++){const actual=seq[i];if(actual!=='P'&&actual!=='B')continue;const cur=seq.slice(0,i);const preds={Structural:structuralPredict(cur,train,cfg.structGate,cfg.minShoes,cfg.minSupport),SequenceStyle:seqStylePredict(cur,train,cfg.seqGate),Ensemble:ensemblePredict(cur,train,cfg)};for(const [k,z] of Object.entries(preds)){if(!z.side){models[k].wait++;continue;}models[k].calls++;if(z.side===actual)models[k].w++;else models[k].l++;}}}
+  for(const z of Object.values(models)){z.acc=z.calls?z.w/z.calls:0;z.perShoe=shoes.length?z.calls/shoes.length:0;}
+  return {models,shoeCount:shoes.length};
+}
+function tune(train,val){
+  let best=null;const gates=[.58,.60,.62,.64,.66],mins=[3,4,5],supports=[2,3,4];
+  for(const g of gates)for(const m of mins)for(const sp of supports){if(sp>m)continue;const cfg={structGate:g,seqGate:.60,minShoes:m,minSupport:sp};const r=evalSet(val,train,cfg);const z=r.models.Ensemble;const pace=z.perShoe,pacePenalty=Math.abs(pace-10)*.0035,score=z.acc-.50+Math.min(.025,z.calls/Math.max(1,val.length*400))-.5*pacePenalty;if(z.calls>=Math.max(20,val.length*3)&&(!best||score>best.score))best={cfg,r,score};}
+  return best||{cfg:defaultCfg(),r:evalSet(val,train,defaultCfg()),score:0};
+}
+let running=false,last=null;
+function pct(x){return x?`${(x*100).toFixed(1)}%`:'—'}
+function card(name,z){return `<div class="analyzer-card"><span>${name}</span><strong>${pct(z.acc)}</strong><small style="display:block;color:var(--muted);margin-top:3px">${z.w}W-${z.l}L • ${z.calls} calls • ${z.perShoe.toFixed(1)}/shoe</small></div>`;}
+function ensure(){if(document.getElementById('aiReplayLabV167'))return;const anchor=document.getElementById('mlTrainingDatasetV159')||document.getElementById('currentShoeMatcherBox')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='aiReplayLabV167';d.style.cssText='margin-top:12px;border:1px solid rgba(49,183,255,.65)';d.innerHTML=`
+<div class="analyzer-title">🧪 AI Replay Training & Validation Lab V167</div>
+<div class="analyzer-sub">Replays saved shoes hand-by-hand. Test shoes are removed from the training pool before every prediction. Sequence AI V2 is never modified. Auto-Tune only learns selective gates for the V166-style structural matcher/ensemble, then freezes them before the unseen test.</div>
+<div class="analyzer-grid"><div class="analyzer-card"><span>UNIQUE SHOES</span><strong id="labShoes">0</strong></div><div class="analyzer-card"><span>TRAIN / VALIDATE / TEST</span><strong id="labSplit">—</strong></div><div class="analyzer-card"><span>STATUS</span><strong id="labStatus">READY</strong></div></div>
+<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px"><button class="tiny-btn" id="labQuick">Quick Replay</button><button class="tiny-btn" id="labFull">Full Unseen Replay</button><button class="tiny-btn" id="labTune">Auto-Tune + Test</button><button class="tiny-btn" id="labApply" disabled>Apply Best Gate</button></div>
+<div class="analyzer-grid" id="labResults" style="margin-top:8px"></div>
+<div class="analyzer-sub" id="labNote" style="margin-top:8px">Goal: about 10 selective calls per shoe with the highest held-out accuracy. No simulated/random hands are used.</div>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);
+ const q=id=>d.querySelector(id);q('#labQuick').onclick=()=>run('quick');q('#labFull').onclick=()=>run('full');q('#labTune').onclick=()=>run('tune');q('#labApply').onclick=applyBest;renderMeta();}
+function renderMeta(){const s=uniqueShoes(),sp=split(s),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('labShoes',s.length);set('labSplit',`${sp.train.length} / ${sp.val.length} / ${sp.test.length}`);}
+function renderResult(r,label){const box=document.getElementById('labResults'),note=document.getElementById('labNote');if(!box)return;box.innerHTML=Object.entries(r.models).map(([k,z])=>card(k,z)).join('');if(note)note.textContent=`${label}: ${r.shoeCount} held-out shoes. Accuracy is graded only on pre-result P/B calls; WAIT is not counted as a win or loss.`;}
+function run(mode){if(running)return;running=true;const status=document.getElementById('labStatus');if(status)status.textContent='RUNNING';setTimeout(()=>{try{const shoes=uniqueShoes(),sp=split(shoes);if(shoes.length<12)throw new Error('Need at least 12 unique saved shoes.');if(mode==='quick'){const r=evalSet(sp.test,sp.train,loadCfg(),Math.min(5,sp.test.length));last={mode,r,cfg:loadCfg()};renderResult(r,'Quick replay');}
+ else if(mode==='full'){const r=evalSet(sp.test,sp.train,loadCfg());last={mode,r,cfg:loadCfg()};renderResult(r,'Full unseen replay');}
+ else {const t=tune(sp.train,sp.val);const r=evalSet(sp.test,sp.train,t.cfg);last={mode,r,cfg:t.cfg,tune:t};renderResult(r,'Auto-tuned then frozen unseen test');const a=document.getElementById('labApply');if(a)a.disabled=false;const n=document.getElementById('labNote');if(n)n.textContent+=` Tuned gate ${(t.cfg.structGate*100).toFixed(0)}%, min ${t.cfg.minShoes} shoes / ${t.cfg.minSupport} support. Apply only if you want V166 live matcher to use these validated thresholds.`;}
+ if(status)status.textContent='DONE';}catch(e){if(status)status.textContent='ERROR';const n=document.getElementById('labNote');if(n)n.textContent=e.message||String(e);}finally{running=false;}},30);}
+function applyBest(){if(!last?.cfg)return;try{localStorage.setItem(CFG_KEY,JSON.stringify(last.cfg));window.__AI_REPLAY_LAB_V167_CONFIG__={...last.cfg};const n=document.getElementById('labNote');if(n)n.textContent=`Applied validated lab gates: structural ${(last.cfg.structGate*100).toFixed(0)}%, min ${last.cfg.minShoes} independent shoes, min ${last.cfg.minSupport} supporting shoes. Sequence AI V2 unchanged.`;}catch(e){}}
+// Make validated lab gates actually control the V166 live structural matcher's selective call threshold.
+try{
+  const oldCore=window.shoeMatcherScanCore;
+  if(typeof oldCore==='function'&&!oldCore.__v167LabGate){
+    const wrapped=function(){
+      const r=oldCore.apply(this,arguments);
+      if(!r||r.error||!r.structuralV166)return r;
+      const cfg=loadCfg(), c=r.independentCounts||{P:0,B:0,T:0}, v=r.nextVotes||{P:0,B:0};
+      const total=Number(v.P||0)+Number(v.B||0);
+      const raw=Number(v.P||0)>Number(v.B||0)?'P':Number(v.B||0)>Number(v.P||0)?'B':null;
+      const conf=total&&raw?Number(v[raw]||0)/total:0, support=raw?Number(c[raw]||0):0, n=Number(c.P||0)+Number(c.B||0);
+      r.nextSide=(raw&&n>=cfg.minShoes&&support>=cfg.minSupport&&conf>=cfg.structGate)?raw:null;
+      r.nextPct=raw?Math.round(conf*100):0;
+      r.v167AppliedGate={...cfg};
+      return r;
+    };
+    wrapped.__v167LabGate=true; wrapped.__v167Original=oldCore;
+    window.shoeMatcherScanCore=wrapped; try{shoeMatcherScanCore=wrapped}catch(e){}
+  }
+}catch(e){}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensure,1200));else setTimeout(ensure,1200);
+window.__AIReplayTrainingLabV167={version:VERSION,uniqueShoes,split,evalSet,tune,loadCfg,sequenceV2Untouched:true,randomSimulation:false};
+})();
+</script>
+
 </body>
 </html>
