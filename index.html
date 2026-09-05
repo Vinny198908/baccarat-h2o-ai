@@ -1018,7 +1018,7 @@ function load(){
       if(!state.h2o || typeof state.h2o!=='object') state.h2o={url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''};
       if(!state.h2o.url && DEFAULT_H2O_SCORE_URL) state.h2o.url=DEFAULT_H2O_SCORE_URL;
       if(!state.deepseek || typeof state.deepseek!=='object') state.deepseek={url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''};
-      if(typeof state.kaggleLibraryEnabled!=='boolean') state.kaggleLibraryEnabled=true;
+      if(typeof state.kaggleLibraryEnabled!=='boolean') state.kaggleLibraryEnabled=false;
       if(!state.kaggle || typeof state.kaggle!=='object') state.kaggle={last:null,error:''};
       if(!state.bot || typeof state.bot!=='object') state.bot={learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}};
       if(typeof state.bot.learning!=='boolean') state.bot.learning=true;
@@ -1799,6 +1799,7 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
     return false;
   }
   saveLocalLibraryBackup('shoe_saved');
+  try{window.__V184_QUEUE_ML_RETRAIN__?.('new '+saveColorName+' shoe saved');}catch(e){}
   if(!quiet) alert(`Saved ${seq.length} hands to the ${saveColorName} pattern library. A safety backup was also updated.`);
   return true;
 }
@@ -11695,92 +11696,50 @@ function ensure(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ensure,{once:true});else ensure();
 window.__V174_ML_PANEL_SHELL__=true;
 })();</script>
-<script id="v173-ai-chart-pattern-recognizer-deep-tune">
+<script id="v183-ai-chart-pattern-recognizer-true-reliability">
 (function(){
 'use strict';
 const KEY='chart-pattern-recognizer-v156-accuracy';
-const VERSION=173;
+const VERSION=184;
+const CACHE={sig:'',shoes:[],familyExact:new Map(),familyBroad:new Map()};
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function pct(v){return Math.round(clamp(v,0,1)*100)}
 function arrSeq(s){return String(s||'').toUpperCase().replace(/[^PBT]/g,'').split('')}
 function pbOnly(a){return a.filter(x=>x==='P'||x==='B')}
-function canonPB(s){return String(s||'').toUpperCase().replace(/[^PB]/g,'')}
 function runLensFromSeq(seq){const a=pbOnly(seq),out=[];for(const x of a){if(!out.length||out[out.length-1].side!==x)out.push({side:x,n:1});else out[out.length-1].n++}return out}
 function mainShape(seq,maxCols=9){return runLensFromSeq(seq).slice(-maxCols).map(x=>x.n)}
 function suffixSimilarity(a,b,maxLen=20){const A=a.slice(-maxLen),B=b.slice(-maxLen),n=Math.min(A.length,B.length);if(!n)return 0;let same=0,total=0;for(let k=1;k<=n;k++){const w=.7+1.6*k/n;total+=w;if(A[A.length-k]===B[B.length-k])same+=w}return same/total}
-function shapeSimilarity(a,b,maxCols=9){const A=mainShape(a,maxCols),B=mainShape(b,maxCols),n=Math.min(A.length,B.length);if(!n)return 0;let score=0,total=0;for(let k=1;k<=n;k++){const x=A[A.length-k],y=B[B.length-k],w=.8+1.4*k/n;total+=w;score+=w*(1-Math.min(1,Math.abs(x-y)/Math.max(1,Math.max(x,y))))}return score/total}
-function derivedSimilarity(a,b,offset,maxLen=12){try{const A=deriveRoad(a.map(r=>({r})),offset),B=deriveRoad(b.map(r=>({r})),offset);return suffixSimilarity(A,B,maxLen)}catch(e){return 0}}
+function shapeSimilarityValues(A,B,maxCols=9){A=A.slice(-maxCols);B=B.slice(-maxCols);const n=Math.min(A.length,B.length);if(!n)return 0;let score=0,total=0;for(let k=1;k<=n;k++){const x=A[A.length-k],y=B[B.length-k],w=.8+1.4*k/n;total+=w;score+=w*(1-Math.min(1,Math.abs(x-y)/Math.max(1,Math.max(x,y))))}return score/total}
 function nextNonTie(seq,pos){for(let i=pos;i<seq.length;i++)if(seq[i]==='P'||seq[i]==='B')return seq[i];return null}
-function scoreCandidate(cur,histPrefix){
-  const bead=suffixSimilarity(cur,histPrefix,22);
-  const main=shapeSimilarity(cur,histPrefix,10);
-  const eye=derivedSimilarity(cur,histPrefix,1,14),small=derivedSimilarity(cur,histPrefix,2,12),roach=derivedSimilarity(cur,histPrefix,3,10);
-  const primary=.44*bead+.36*main;
-  const support=.08*eye+.07*small+.05*roach;
-  return {score:primary+support,bead,main,eye,small,roach,primaryQuality:(.55*bead+.45*main)};
-}
-function uniqueLibrary(){
-  let lib=[];try{lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){}
-  const seen=new Set(),out=[];
-  for(const shoe of lib){const k=canonPB(shoe.sequence);if(k.length<12||seen.has(k))continue;seen.add(k);out.push(shoe)}
-  return out;
-}
-function scan(){
-  let cur=[];try{cur=currentSequence()}catch(e){}
-  const lib=uniqueLibrary();
-  if(cur.length<8||!lib.length)return {ready:false,side:null,confidence:0,matches:0,note:cur.length<8?'Need at least 8 live results':'No saved shoes available'};
-  const perShoeBest=[];
-  for(const shoe of lib){
-    const hist=arrSeq(shoe.sequence);let best=null;
-    const lo=Math.max(7,cur.length-10),hi=Math.min(hist.length-1,cur.length+12);
-    for(let pos=lo;pos<=hi;pos++){
-      const nxt=nextNonTie(hist,pos);if(!nxt)continue;
-      const pref=hist.slice(0,pos),maturity=1-Math.min(1,Math.abs(pbOnly(pref).length-pbOnly(cur).length)/Math.max(16,pbOnly(cur).length));
-      const z=scoreCandidate(cur,pref);const final=z.score*(.90+.10*maturity);
-      if(final<.535)continue;
-      const c={...z,score:final,next:nxt,shoeId:shoe.id||'',pos,maturity};
-      if(!best||c.score>best.score)best=c;
-    }
-    if(best)perShoeBest.push(best);
-  }
-  perShoeBest.sort((a,b)=>b.score-a.score);
-  const top=perShoeBest.slice(0,18);
-  if(top.length<5)return {ready:false,side:null,confidence:0,matches:top.length,note:'Not enough independent saved-shoe chart matches'};
-  let p=0,b=0,w=0;for(const c of top){const wt=Math.pow(Math.max(.001,c.score-.45),2.2);if(c.next==='P')p+=wt;else b+=wt;w+=wt}
-  const pRate=w?p/w:.5,bRate=w?b/w:.5,edge=Math.abs(pRate-bRate);
-  const sample=Math.min(10,top.length),best=top.slice(0,sample);
-  const avg=best.reduce((s,x)=>s+x.score,0)/sample;
-  const bead=best.reduce((s,x)=>s+x.bead,0)/sample,main=best.reduce((s,x)=>s+x.main,0)/sample;
-  const eye=best.reduce((s,x)=>s+x.eye,0)/sample,small=best.reduce((s,x)=>s+x.small,0)/sample,roach=best.reduce((s,x)=>s+x.roach,0)/sample;
-  const primary=.55*bead+.45*main;
-  const strongPrimary=primary>=.64&&main>=.62&&bead>=.55;
-  const exceptional=edge>=.22&&main>=.70&&bead>=.55&&avg>=.59;
-  const qualified=edge>=.14&&avg>=.595&&top.length>=7&&(strongPrimary||exceptional);
-  const side=qualified?(bRate>pRate?'B':'P'):null;
-  // Calibrated display confidence: continuation edge + structural quality + independent sample size; intentionally capped.
-  const nBoost=Math.min(.05,Math.max(0,top.length-6)*.004);
-  const conf=clamp(.50+edge*.42+(primary-.55)*.25+nBoost,.50,.75);
-  let note='WAIT — independent chart evidence below selective threshold';
-  if(side)note=`QUALIFIED ${side==='P'?'PLAYER':'BANKER'} — ${top.length} independent shoes, ${pct(edge)}-point continuation edge, ${pct(primary)}% primary structure`;
-  else if(edge>=.14&&!strongPrimary&&!exceptional)note=`WAIT — continuation edge exists, but Bead/Main structure is not strong enough (${pct(primary)}% primary)`;
-  return {ready:true,side,confidence:side?pct(conf):0,matches:top.length,pPct:pct(pRate),bPct:pct(bRate),bead:pct(bead),main:pct(main),eye:pct(eye),small:pct(small),roach:pct(roach),avgSimilarity:pct(avg),primaryQuality:pct(primary),edge:pct(edge),note};
-}
-function acc(){let a;try{a=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){a={}}a.w=Number(a.w)||0;a.l=Number(a.l)||0;a.pending=a.pending||null;a.last=a.last||null;a.ledger=Array.isArray(a.ledger)?a.ledger:[];a.lastSettledKey=String(a.lastSettledKey||'');return a}
+function tieContext(seq){const a=Array.isArray(seq)?seq:arrSeq(seq);const recent=a.slice(-8),tc=recent.filter(x=>x==='T').length;return {afterTie:a.at(-1)==='T',recentTies:tc,tieRate:recent.length?tc/recent.length:0}}
+function tieSimilarityCtx(A,B){const immediate=A.afterTie===B.afterTie?1:0;const density=1-Math.min(1,Math.abs(A.tieRate-B.tieRate)/.5);return .75*immediate+.25*density}
+function recentRegime(seq){const a=pbOnly(seq).slice(-12);if(a.length<4)return 'WARMUP';let changes=0,maxRun=1,run=1;for(let i=1;i<a.length;i++){if(a[i]!==a[i-1]){changes++;run=1}else{run++;maxRun=Math.max(maxRun,run)}}const tr=changes/Math.max(1,a.length-1);if(maxRun>=5||tr<=.30)return 'STREAK';if(tr>=.68)return 'CHOP';return 'MIXED'}
+function phaseBucketFromN(n){if(n<18)return 'EARLY';if(n<42)return 'MIDDLE';return 'LATE'}
+function exactSuffixPBValues(a,b,maxLen=12){let n=0;for(let i=1;i<=Math.min(maxLen,a.length,b.length);i++){if(a[a.length-i]!==b[b.length-i])break;n++}return n}
+function derivedSafe(seq,offset){try{return deriveRoad(seq.map(r=>({r})),offset)||[]}catch(e){return []}}
+function hashString(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
+function fullLibrary(){let lib=[];try{lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){}const seen=new Set(),out=[];for(const shoe of lib){const seq=String(shoe.sequence||'').toUpperCase().replace(/[^PBT]/g,'');if(seq.replace(/T/g,'').length<12||seen.has(seq))continue;seen.add(seq);out.push({...shoe,sequence:seq})}return out}
+function librarySignature(lib){return lib.map((s,i)=>`${s.id||i}:${s.sequence.length}:${hashString(s.sequence)}`).join('|')}
+function familyKeysFromParts(pb,shape,regime,phase,tie){const tail4=pb.slice(-4).join('');const shape3=shape.slice(-3).map(x=>Math.min(5,x)).join('.');return {exact:`${regime}|${phase}|${tie.afterTie?1:0}|${tail4}|${shape3}`,broad:`${regime}|${phase}|${tie.afterTie?1:0}|${shape3}`}}
+function makeStateFromSeq(pref){const pb=pbOnly(pref),shape=mainShape(pref,10),tie=tieContext(pref),regime=recentRegime(pref),phase=phaseBucketFromN(pb.length),keys=familyKeysFromParts(pb,shape,regime,phase,tie);return {pref,pb,shape,tie,regime,phase,keys,eye:derivedSafe(pref,1),small:derivedSafe(pref,2),roach:derivedSafe(pref,3)}}
+function getState(sc,pos){if(sc.states.has(pos))return sc.states.get(pos);const st=makeStateFromSeq(sc.hist.slice(0,pos));st.pos=pos;st.pbN=st.pb.length;sc.states.set(pos,st);return st}
+function addFamilyVote(holder,key,shoeKey,next){let m=holder.get(key);if(!m){m=new Map();holder.set(key,m)}let v=m.get(shoeKey);if(!v){v={P:0,B:0};m.set(shoeKey,v)}v[next]++}
+function finalizeFamilyVotes(holder){const out=new Map();for(const [key,shoeMap] of holder){let P=0,B=0;for(const v of shoeMap.values()){if(v.P>v.B)P++;else if(v.B>v.P)B++}out.set(key,{P,B,N:P+B})}return out}
+function rebuildCache(lib,sig){const exactVotes=new Map(),broadVotes=new Map(),shoes=[];for(let si=0;si<lib.length;si++){const shoe=lib[si],hist=arrSeq(shoe.sequence),shoeKey=String(shoe.id||`shoe-${si}-${hashString(shoe.sequence)}`),sc={shoe,hist,shoeKey,states:new Map(),byPbN:new Map()};let pbN=0;for(let pos=0;pos<hist.length;pos++){const a=hist[pos-1];if(a==='P'||a==='B')pbN++;if(pos<7)continue;let arr=sc.byPbN.get(pbN);if(!arr){arr=[];sc.byPbN.set(pbN,arr)}arr.push(pos);const nxt=nextNonTie(hist,pos);if(!nxt)continue;const pref=hist.slice(0,pos),pb=pbOnly(pref),tie=tieContext(pref),regime=recentRegime(pref),phase=phaseBucketFromN(pb.length),shape=mainShape(pref,10),keys=familyKeysFromParts(pb,shape,regime,phase,tie);addFamilyVote(exactVotes,keys.exact,shoeKey,nxt);addFamilyVote(broadVotes,keys.broad,shoeKey,nxt)}shoes.push(sc)}CACHE.sig=sig;CACHE.shoes=shoes;CACHE.familyExact=finalizeFamilyVotes(exactVotes);CACHE.familyBroad=finalizeFamilyVotes(broadVotes)}
+function ensureCache(){const lib=fullLibrary(),sig=librarySignature(lib);if(sig!==CACHE.sig)rebuildCache(lib,sig);return CACHE}
+function reliabilityFor(state,side){let r=CACHE.familyExact.get(state.keys.exact),level='EXACT';if(!r||r.N<8){r=CACHE.familyBroad.get(state.keys.broad);level='BROAD'}if(!r)return {rate:.5,N:0,P:0,B:0,level:'NONE'};const wins=side==='P'?r.P:r.B;return {rate:(wins+4)/(r.N+8),N:r.N,P:r.P,B:r.B,level}}
+function scoreCandidate(cur,hist){const bead=suffixSimilarity(cur.pref,hist.pref,22),main=shapeSimilarityValues(cur.shape,hist.shape,10),eye=suffixSimilarity(cur.eye,hist.eye,14),small=suffixSimilarity(cur.small,hist.small,12),roach=suffixSimilarity(cur.roach,hist.roach,10),tie=tieSimilarityCtx(cur.tie,hist.tie),primary=.44*bead+.36*main,support=.08*eye+.07*small+.05*roach,regimeMatch=cur.regime===hist.regime?1:(cur.regime==='MIXED'||hist.regime==='MIXED'?.58:.22),phaseMatch=cur.phase===hist.phase?1:((cur.phase==='MIDDLE'||hist.phase==='MIDDLE')?.62:.30),exactSuffix=exactSuffixPBValues(cur.pb,hist.pb,12),exactBonus=Math.min(.045,exactSuffix*.0045),contextAdjust=.91+.035*tie+.035*regimeMatch+.02*phaseMatch;return {score:(primary+support)*contextAdjust+exactBonus,bead,main,eye,small,roach,tie,primaryQuality:.55*bead+.45*main,regimeMatch,phaseMatch,exactSuffix}}
+function scan(){let cur=[];try{cur=currentSequence()}catch(e){}const curPbN=pbOnly(cur).length,cache=ensureCache();if(curPbN<8||!cache.shoes.length)return {ready:false,side:null,confidence:0,matches:0,note:curPbN<8?'Need at least 8 non-tie live results':'No saved shoes available'};const live=makeStateFromSeq(cur),perShoeBest=[];for(const sc of cache.shoes){let best=null;const lo=Math.max(7,curPbN-10),hi=curPbN+12;for(let n=lo;n<=hi;n++){const positions=sc.byPbN.get(n)||[];for(const pos of positions){const nxt=nextNonTie(sc.hist,pos);if(!nxt)continue;const hs=getState(sc,pos);if(live.tie.afterTie&&!hs.tie.afterTie)continue;const maturity=1-Math.min(1,Math.abs(hs.pbN-curPbN)/Math.max(16,curPbN)),z=scoreCandidate(live,hs),final=z.score*(.90+.10*maturity);if(final<.535)continue;const c={...z,score:final,next:nxt,shoeId:sc.shoeKey,pos,pbN:hs.pbN,maturity,afterTie:hs.tie.afterTie,recentTies:hs.tie.recentTies};if(!best||c.score>best.score)best=c}}if(best)perShoeBest.push(best)}perShoeBest.sort((a,b)=>b.score-a.score);const top=perShoeBest.slice(0,18);if(top.length<5)return {ready:false,side:null,confidence:0,matches:top.length,note:'Not enough independent saved-shoe chart matches'};let p=0,b=0,w=0;for(const c of top){const quality=clamp((c.score-.50)/.35,0,1),structural=clamp((c.primaryQuality-.50)/.35,0,1),regime=.55+.45*c.regimeMatch,phase=.65+.35*c.phaseMatch,exact=1+Math.min(.18,c.exactSuffix*.018),wt=(.16+.49*quality+.25*structural+.10*c.tie)*regime*phase*exact;if(c.next==='P')p+=wt;else b+=wt;w+=wt}const pRate=w?p/w:.5,bRate=w?b/w:.5,edge=Math.abs(pRate-bRate),sample=Math.min(10,top.length),best=top.slice(0,sample),avg=best.reduce((s,x)=>s+x.score,0)/sample,bead=best.reduce((s,x)=>s+x.bead,0)/sample,main=best.reduce((s,x)=>s+x.main,0)/sample,eye=best.reduce((s,x)=>s+x.eye,0)/sample,small=best.reduce((s,x)=>s+x.small,0)/sample,roach=best.reduce((s,x)=>s+x.roach,0)/sample,primary=.55*bead+.45*main,leader=bRate>pRate?'B':'P',leaderRate=Math.max(pRate,bRate),top6=top.slice(0,Math.min(6,top.length)),top6Agree=top6.length?top6.filter(c=>c.next===leader).length/top6.length:0,leadRows=top.filter(c=>c.next===leader),oppRows=top.filter(c=>c.next!==leader),tieRows=live.tie.afterTie?top.filter(c=>c.afterTie):[],tieLeaderRows=live.tie.afterTie?tieRows.filter(c=>c.next===leader):[],tieAgreement=live.tie.afterTie&&tieRows.length?tieLeaderRows.length/tieRows.length:1,leadAvg=leadRows.length?leadRows.reduce((s,c)=>s+c.score,0)/leadRows.length:0,oppAvg=oppRows.length?oppRows.reduce((s,c)=>s+c.score,0)/oppRows.length:0,separation=leadAvg-oppAvg,regimeAvg=best.reduce((s,x)=>s+x.regimeMatch,0)/sample,phaseAvg=best.reduce((s,x)=>s+x.phaseMatch,0)/sample,exactAvg=best.reduce((s,x)=>s+x.exactSuffix,0)/sample,rel=reliabilityFor(live,leader),strongPrimary=primary>=.62&&main>=.62&&bead>=.54,outcomeValidated=leaderRate>=.67&&top6Agree>=.667,qualityValidated=avg>=.585&&separation>=0,contextValidated=regimeAvg>=.54&&phaseAvg>=.55,reliabilityValidated=rel.N>=8&&rel.rate>=.58,tieValidated=!live.tie.afterTie||(tieRows.length>=4&&tieAgreement>=.65),qualified=strongPrimary&&outcomeValidated&&qualityValidated&&contextValidated&&reliabilityValidated&&tieValidated,side=qualified?leader:null,nBoost=Math.min(.035,Math.max(0,top.length-7)*.003),conf=clamp(.50+(leaderRate-.50)*.58+(primary-.55)*.14+Math.max(0,separation)*.32+Math.max(0,rel.rate-.50)*.18+nBoost,.50,.78);let note='WAIT — next-result evidence is not validated';if(side)note=`QUALIFIED ${side==='P'?'PLAYER':'BANKER'} — ${pct(leaderRate)}% matched-shoe agreement • historical family ${pct(rel.rate)}% (N=${rel.N}, ${rel.level})`;else if(!outcomeValidated)note=`WAIT — matched next results split ${pct(pRate)}% Player / ${pct(bRate)}% Banker (top-6 ${pct(top6Agree)}%)`;else if(!strongPrimary)note=`WAIT — Bead/Main structure is too weak (${pct(primary)}% primary)`;else if(!qualityValidated)note='WAIT — opposite-side matches are as strong as or stronger than the proposed side';else if(!contextValidated)note='WAIT — regime/phase context differs too much from the live shoe';else if(!reliabilityValidated)note=`WAIT — historical pattern family has not proven enough independent reliability (${pct(rel.rate)}%, N=${rel.N}, ${rel.level})`;else if(!tieValidated)note=`WAIT — after-Tie continuations do not agree strongly enough (${pct(tieAgreement)}%, N=${tieRows.length})`;if(side&&live.tie.afterTie)note+=` • AFTER-TIE ${pct(tieAgreement)}% (N=${tieRows.length})`;return {ready:true,side,confidence:side?pct(conf):0,matches:top.length,pPct:pct(pRate),bPct:pct(bRate),bead:pct(bead),main:pct(main),eye:pct(eye),small:pct(small),roach:pct(roach),avgSimilarity:pct(avg),primaryQuality:pct(primary),edge:pct(edge),outcomeAgreement:pct(leaderRate),top6Agreement:pct(top6Agree),separation:+separation.toFixed(4),afterTie:live.tie.afterTie,tieMatches:tieRows.length,tieAgreement:pct(tieAgreement),reliability:pct(rel.rate),reliabilityN:rel.N,reliabilityLevel:rel.level,reliabilityP:rel.P,reliabilityB:rel.B,regime:live.regime,phase:live.phase,regimeMatch:pct(regimeAvg),phaseMatch:pct(phaseAvg),exactSuffix:+exactAvg.toFixed(1),cacheShoes:cache.shoes.length,note}}
+function acc(){let a;try{a=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){a={}}a.w=Number(a.w)||0;a.l=Number(a.l)||0;a.pending=a.pending||null;a.last=a.last||null;a.ledger=Array.isArray(a.ledger)?a.ledger:[];a.gradedIds=Array.isArray(a.gradedIds)?a.gradedIds:[];return a}
 function saveAcc(a){try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){}}
-function arm(){const a=acc(),s=scan(),n=pbOnly(currentSequence()).length;if(!a.pending&&s.side){a.pending={side:s.side,n,confidence:s.confidence,matches:s.matches,edge:s.edge,primaryQuality:s.primaryQuality,armedAt:Date.now()};saveAcc(a)}}
-function settle(actual){if(actual!=='P'&&actual!=='B')return false;const a=acc(),q=a.pending;if(!q)return false;const beforeN=pbOnly(currentSequence()).length;const key=`${Number(q.n)||0}->${beforeN+1}:${actual}`;if(a.lastSettledKey===key)return false;a.lastSettledKey=key;const win=q.side===actual;if(win)a.w++;else a.l++;a.last={predicted:q.side,actual,win,hand:beforeN+1,settledAt:Date.now()};a.ledger.push({...q,actual,win,hand:beforeN+1,settledAt:Date.now()});if(a.ledger.length>300)a.ledger.splice(0,a.ledger.length-300);a.pending=null;saveAcc(a);return true}
-function ensurePanel(){
-  if(document.getElementById('chartPatternRecognizerV156'))return;
-  const anchor=document.getElementById('mainRoadFutureTest')||document.querySelector('.future-test')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;
-  const el=document.createElement('div');el.className='analyzer';el.id='chartPatternRecognizerV156';el.style.cssText='margin-top:12px;border:1px solid rgba(88,166,255,.55);';
-  el.innerHTML=`<div class="analyzer-title">📈 AI Chart Pattern Recognizer V173</div><div class="analyzer-sub">Deep-tuned independent-shoe matcher. Primary focus: <b>Bead Plate + Main Road</b>. Big Eye Boy, Small Road and Cockroach Road confirm structure. Only the single best point-in-time match from each deduplicated saved shoe can vote, reducing one-shoe domination.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT CALL</span><strong id="cprSide">WAIT</strong></div><div class="analyzer-card"><span>CALIBRATED CONFIDENCE</span><strong id="cprConf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="cprMatches">0</strong></div><div class="analyzer-card"><span>BEAD PLATE MATCH</span><strong id="cprBead">—</strong></div><div class="analyzer-card"><span>MAIN ROAD MATCH</span><strong id="cprMain">—</strong></div><div class="analyzer-card"><span>PRIMARY QUALITY</span><strong id="cprPrimary">—</strong></div><div class="analyzer-card"><span>PLAYER CONTINUATION</span><strong id="cprP">—</strong></div><div class="analyzer-card"><span>BANKER CONTINUATION</span><strong id="cprB">—</strong></div><div class="analyzer-card"><span>CONTINUATION EDGE</span><strong id="cprEdge">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="cprWins">0 W</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="cprLosses">0 L</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">—</strong></div><div class="analyzer-card"><span>LAST GRADED</span><strong id="cprLast">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>BIG EYE</span><strong id="cprEye">—</strong></div><div class="analyzer-card"><span>SMALL ROAD</span><strong id="cprSmall">—</strong></div><div class="analyzer-card"><span>COCKROACH</span><strong id="cprRoach">—</strong></div></div><div class="analyzer-sub" id="cprNote" style="margin-top:8px">Building independent chart evidence…</div><button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;
-  anchor.parentNode.insertBefore(el,anchor.nextSibling);const rb=el.querySelector('#cprReset');if(rb)rb.addEventListener('click',()=>{if(!confirm('Reset only Chart Pattern Recognizer W/L accuracy?'))return;saveAcc({w:0,l:0,pending:null,last:null,ledger:[],lastSettledKey:''});render()});
-}
+function arm(){const a=acc(),s=scan(),n=pbOnly(currentSequence()).length;/* Never clear an older pending lock here: render may run before the settle hook. The old prediction must grade first. */if(!a.pending&&s.side){a.pending={id:`cpr-${n}-${s.side}-${Date.now()}`,side:s.side,n,targetPbN:n+1,confidence:s.confidence,matches:s.matches,edge:s.edge,primaryQuality:s.primaryQuality,reliability:s.reliability,reliabilityN:s.reliabilityN,armedAt:Date.now()};saveAcc(a)}}
+function settle(actual){if(actual!=='P'&&actual!=='B')return false;const a=acc(),q=a.pending;if(!q||!q.id)return false;if(a.gradedIds.includes(q.id)){a.pending=null;saveAcc(a);return false}const win=q.side===actual,hand=Number(q.targetPbN)||((Number(q.n)||0)+1);a.gradedIds.push(q.id);if(a.gradedIds.length>500)a.gradedIds.splice(0,a.gradedIds.length-500);if(win)a.w++;else a.l++;a.last={predictionId:q.id,predicted:q.side,actual,win,hand,settledAt:Date.now()};a.ledger.push({...q,actual,win,hand,settledAt:Date.now()});if(a.ledger.length>300)a.ledger.splice(0,a.ledger.length-300);a.pending=null;saveAcc(a);try{setTimeout(()=>{try{arm()}catch(e){}},0)}catch(e){}return true}
+function ensurePanel(){if(document.getElementById('chartPatternRecognizerV156'))return;const anchor=document.getElementById('mainRoadFutureTest')||document.querySelector('.future-test')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const el=document.createElement('div');el.className='analyzer';el.id='chartPatternRecognizerV156';el.style.cssText='margin-top:12px;border:1px solid rgba(88,166,255,.55);';el.innerHTML=`<div class="analyzer-title">📈 AI Chart Pattern Recognizer V184 — True Reliability</div><div class="analyzer-sub">Bead Plate + Main Road remain primary. Historical matching is aligned by non-tie P/B maturity, Tie placement is preserved, derived-road features are cached, and PATTERN RELIABILITY is now calculated from independent saved-shoe outcomes for the same pattern family instead of current-match agreement.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT CALL</span><strong id="cprSide">WAIT</strong></div><div class="analyzer-card"><span>CALIBRATED CONFIDENCE</span><strong id="cprConf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="cprMatches">0</strong></div><div class="analyzer-card"><span>BEAD PLATE MATCH</span><strong id="cprBead">—</strong></div><div class="analyzer-card"><span>MAIN ROAD MATCH</span><strong id="cprMain">—</strong></div><div class="analyzer-card"><span>PRIMARY QUALITY</span><strong id="cprPrimary">—</strong></div><div class="analyzer-card"><span>PLAYER CONTINUATION</span><strong id="cprP">—</strong></div><div class="analyzer-card"><span>BANKER CONTINUATION</span><strong id="cprB">—</strong></div><div class="analyzer-card"><span>CONTINUATION EDGE</span><strong id="cprEdge">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="cprWins">0 W</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="cprLosses">0 L</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">—</strong></div><div class="analyzer-card"><span>LAST GRADED</span><strong id="cprLast">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>BIG EYE</span><strong id="cprEye">—</strong></div><div class="analyzer-card"><span>SMALL ROAD</span><strong id="cprSmall">—</strong></div><div class="analyzer-card"><span>COCKROACH</span><strong id="cprRoach">—</strong></div><div class="analyzer-card"><span>TIE CONTEXT</span><strong id="cprTie">NORMAL</strong></div><div class="analyzer-card"><span>AFTER-TIE AGREEMENT</span><strong id="cprTieAgree">—</strong></div><div class="analyzer-card"><span>PATTERN RELIABILITY</span><strong id="cprReliability">—</strong></div><div class="analyzer-card"><span>REGIME / PHASE</span><strong id="cprContext">—</strong></div></div><div class="analyzer-sub" id="cprNote" style="margin-top:8px">Building independent chart evidence…</div><button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;anchor.parentNode.insertBefore(el,anchor.nextSibling);const rb=el.querySelector('#cprReset');if(rb)rb.addEventListener('click',()=>{if(!confirm('Reset only Chart Pattern Recognizer W/L accuracy?'))return;saveAcc({w:0,l:0,pending:null,last:null,ledger:[],gradedIds:[]});render()})}
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function render(){ensurePanel();const s=scan(),a=acc(),n=a.w+a.l;set('cprSide',s.side?(s.side==='P'?'PLAYER':'BANKER'):'WAIT');set('cprConf',s.side?(s.confidence+'%'):'—');set('cprMatches',String(s.matches||0));set('cprBead',s.bead!=null?s.bead+'%':'—');set('cprMain',s.main!=null?s.main+'%':'—');set('cprPrimary',s.primaryQuality!=null?s.primaryQuality+'%':'—');set('cprP',s.pPct!=null?s.pPct+'%':'—');set('cprB',s.bPct!=null?s.bPct+'%':'—');set('cprEdge',s.edge!=null?s.edge+' pts':'—');set('cprEye',s.eye!=null?s.eye+'%':'—');set('cprSmall',s.small!=null?s.small+'%':'—');set('cprRoach',s.roach!=null?s.roach+'%':'—');set('cprWins',`${a.w} W`);set('cprLosses',`${a.l} L`);set('cprAcc',n?`${Math.round(a.w/n*100)}% • ${a.w}W-${a.l}L • N=${n}`:'— • 0W-0L • N=0');set('cprLast',a.last?`${a.last.win?'WIN ✓':'LOSS ✗'} #${a.last.hand}`:'—');const lock=a.pending?` • LOCKED ${a.pending.side==='P'?'PLAYER':'BANKER'} for next P/B hand`:'';set('cprNote',(s.note||'WAIT')+lock);try{arm()}catch(e){}return s}
-try{if(typeof window.render==='function'&&!window.__cprV173WrappedRender){const old=window.render;window.render=function(){const r=old.apply(this,arguments);try{render()}catch(e){}return r};window.__cprV173WrappedRender=true}}catch(e){}
-try{if(typeof window.__settleVerifiedPredictions==='function'&&!window.__cprV173SettleWrapped){const old=window.__settleVerifiedPredictions;window.__settleVerifiedPredictions=function(actual){const r=old.apply(this,arguments);try{settle(actual)}catch(e){}return r};window.__cprV173SettleWrapped=true}}catch(e){}
-window.__chartPatternRecognizerV156={version:VERSION,scan,render,accuracy:acc,settle,primary:['Bead Plate','Main Road'],support:['Big Eye Boy','Small Road','Cockroach Road'],independentPerShoe:true,selectiveGate:true};
+function render(){ensurePanel();const s=scan(),a=acc(),n=a.w+a.l;set('cprSide',s.side?(s.side==='P'?'PLAYER':'BANKER'):'WAIT');set('cprConf',s.side?(s.confidence+'%'):'—');set('cprMatches',String(s.matches||0));set('cprBead',s.bead!=null?s.bead+'%':'—');set('cprMain',s.main!=null?s.main+'%':'—');set('cprPrimary',s.primaryQuality!=null?s.primaryQuality+'%':'—');set('cprP',s.pPct!=null?s.pPct+'%':'—');set('cprB',s.bPct!=null?s.bPct+'%':'—');set('cprEdge',s.edge!=null?s.edge+' pts':'—');set('cprEye',s.eye!=null?s.eye+'%':'—');set('cprSmall',s.small!=null?s.small+'%':'—');set('cprRoach',s.roach!=null?s.roach+'%':'—');set('cprTie',s.afterTie?'AFTER TIE':'NORMAL');set('cprTieAgree',s.afterTie?`${s.tieAgreement}% • N=${s.tieMatches}`:'—');set('cprReliability',s.reliability!=null?`${s.reliability}% • N=${s.reliabilityN||0} ${s.reliabilityLevel||''}`:'—');set('cprContext',s.regime?`${s.regime} / ${s.phase}`:'—');set('cprWins',`${a.w} W`);set('cprLosses',`${a.l} L`);set('cprAcc',n?`${Math.round(a.w/n*100)}% • ${a.w}W-${a.l}L • N=${n}`:'— • 0W-0L • N=0');set('cprLast',a.last?`${a.last.win?'WIN ✓':'LOSS ✗'} #${a.last.hand}`:'—');const lock=a.pending?` • LOCKED ${a.pending.side==='P'?'PLAYER':'BANKER'} for P/B #${a.pending.targetPbN}`:'';set('cprNote',(s.note||'WAIT')+lock);try{arm()}catch(e){}return s}
+try{if(typeof window.render==='function'&&!window.__cprV183WrappedRender){const old=window.render;window.render=function(){const r=old.apply(this,arguments);try{render()}catch(e){}return r};window.__cprV183WrappedRender=true}}catch(e){}
+try{if(typeof window.__settleVerifiedPredictions==='function'&&!window.__cprV183SettleWrapped){const old=window.__settleVerifiedPredictions;window.__settleVerifiedPredictions=function(actual){const r=old.apply(this,arguments);try{settle(actual)}catch(e){}return r};window.__cprV183SettleWrapped=true}}catch(e){}
+window.__chartPatternRecognizerV156={version:VERSION,scan,render,accuracy:acc,settle,primary:['Bead Plate','Main Road'],support:['Big Eye Boy','Small Road','Cockroach Road'],trueHistoricalReliability:true,pbMaturityAligned:true,tieAwareDedup:true,cachedHistoryFeatures:true,deterministicGrading:true,tieContext:true,independentPerShoe:true,selectiveGate:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,700));else setTimeout(render,700);
 })();
 </script>
@@ -11984,31 +11943,63 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 window.__mlRoadTrainerV2=window.__mlRoadTrainerV3={version:VERSION,signal,render:()=>{renderReport();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true};
 })();
 </script>
-<script id="v163-ml-auto-train-and-visible-status">
+<script id="v184-ml-safe-train-queue">
 (function(){
 'use strict';
-function boot(){
+let timer=null, queuedReason='', running=false;
+function panelStatus(msg){
   try{
-    const api=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;
     const panel=document.getElementById('mlRoadTrainerV155');
     if(panel){
       const t=panel.querySelector('.analyzer-title');
       if(t)t.textContent='🧠 ML Road Trainer V175 — Live Prediction + Validation';
-      panel.dataset.connected='v163';
+      panel.dataset.connected='v184-safe-queue';
     }
-    if(api&&typeof api.trainAndValidate==='function'){
-      api.trainAndValidate();
-      try{api.render&&api.render()}catch(e){}
-    }
-  }catch(e){
     const n=document.getElementById('mlv155Note');
-    if(n)n.textContent='AUTO-TRAIN ERROR: '+String(e&&e.message||e);
+    if(n && msg)n.textContent=msg;
+  }catch(e){}
+}
+function runQueued(){
+  timer=null;
+  const api=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;
+  if(!api||typeof api.trainAndValidate!=='function'){
+    panelStatus('ML trainer is ready. Use Build / Refresh Dataset when training controls are available.');
+    return;
+  }
+  if(running){
+    queueTrain(queuedReason||'queued');
+    return;
+  }
+  running=true;
+  const reason=queuedReason||'saved shoe';
+  queuedReason='';
+  panelStatus('Queued library update is training now ('+reason+').');
+  try{
+    api.trainAndValidate();
+    try{api.render&&api.render()}catch(e){}
+  }catch(e){
+    panelStatus('TRAINING ERROR: '+String(e&&e.message||e));
+  }finally{
+    running=false;
+    if(queuedReason) queueTrain(queuedReason);
   }
 }
-const scheduleBoot=()=>{const run=()=>boot(); if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:4500}); else setTimeout(run,2200);};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',scheduleBoot,{once:true});
-else scheduleBoot();
-window.__V163_ML_AUTO_TRAIN__=true;
+function queueTrain(reason='library update'){
+  queuedReason=String(reason||'library update');
+  if(timer)clearTimeout(timer);
+  timer=setTimeout(()=>{
+    const start=()=>runQueued();
+    if('requestIdleCallback' in window)requestIdleCallback(start,{timeout:5000});
+    else start();
+  },1800);
+  panelStatus('New library data queued for ML retraining. Live input remains available.');
+}
+function boot(){
+  panelStatus('ML trainer ready. Startup auto-training is OFF; saved shoes queue one background-safe rebuild.');
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
+window.__V184_QUEUE_ML_RETRAIN__=queueTrain;
+window.__V184_ML_SAFE_QUEUE__={queueTrain,get running(){return running},get queued(){return !!timer||!!queuedReason},startupAutoTrain:false};
 })();
 </script>
 <script>window.__V173_LAYOUT_REMOVAL_FIX__={version:172,fingerprintGateRemoved:true,historical3RoadRemoved:true,adaptiveMainDerivedRemoved:true,mlRoadTrainerBottom:true};</script>
@@ -12440,6 +12431,38 @@ window.__V177_RELIABILITY_SCAN__={
     movePreviewRoadToTop();
   }
   window.addEventListener('pageshow', movePreviewRoadToTop);
+})();
+</script>
+
+
+<script id="v184-full-scan-runtime-hardening">
+(function(){
+'use strict';
+function harden(){
+  try{
+    if(typeof state==='object'&&state){
+      state.kaggleLibraryEnabled=false;
+      if(state.kaggle&&typeof state.kaggle==='object'){
+        state.kaggle.last=null;
+        state.kaggle.error='';
+      }
+    }
+  }catch(e){}
+  try{
+    const toggle=document.getElementById('kaggleLibraryToggle');
+    if(toggle){toggle.checked=false;toggle.disabled=true;toggle.title='Disabled for live stability; library duplicate tools remain separate.'}
+  }catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',harden,{once:true});else harden();
+setTimeout(harden,400);
+window.__V184_FULL_SCAN_FIX__={
+  version:184,
+  chartPatternTrueReliability:true,
+  startupMLAutoTrain:false,
+  queuedRetrainAfterVerifiedSave:true,
+  legacyLiveKaggleScoring:false,
+  v139SelfTestQueryGated:true
+};
 })();
 </script>
 
