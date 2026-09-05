@@ -1760,7 +1760,8 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
     const existing=state[key][duplicateIndex]||{};
     const savedWhen=existing.savedAt ? new Date(existing.savedAt).toLocaleString() : 'an earlier save';
     // Duplicate warnings are NEVER hidden, including Auto-save and screenshot saves.
-    alert(`DUPLICATE SHOE BLOCKED\n\nThis exact ${saveColorName} shoe is already saved.\nExisting copy: #${duplicateIndex+1} • ${savedWhen}\n\nNothing new was saved and your library count did not change.`);
+    const savedSource=String(existing.source||'manual').toUpperCase();
+    alert(`SHOE ALREADY IN LIBRARY\n\nThis exact ${saveColorName} shoe is already stored.\nExisting copy: #${duplicateIndex+1} • ${savedWhen} • ${savedSource}\n\nNo duplicate copy was added. If this shoe came from a screenshot, V171 no longer pre-saves screenshots, so new screenshot shoes can now be saved normally.`);
     return false;
   }
   state[key].push(makeShoeRecord(seq,source));
@@ -5842,7 +5843,10 @@ document.getElementById('applyScanBtn').onclick=()=>{
   if(state.backtest) state.backtest.pending=null;
   if(state.h2o) state.h2o.last=null;
   if(state.dragon) state.dragon.lastAlertKey='';
-  if(state.autoSaveLibrary && scanDetected.length>=4) saveSequenceToLibrary(scanDetected,'screenshot',true);
+  // V171 LIBRARY SAVE FIX: applying a screenshot only reconstructs the live shoe.
+  // Do NOT auto-save here, otherwise pressing Save Current Shoe immediately afterward
+  // is guaranteed to be blocked as an exact duplicate. Auto-save remains tied to
+  // the New Shoe transition, where the completed shoe is committed once.
   armNextPrediction();
   persist();render();
   document.getElementById('scanStatus').textContent='Roads rebuilt from the detected P/B/T history: Big Road, Big Eye Boy, Small Road, and Cockroach Road updated.';
