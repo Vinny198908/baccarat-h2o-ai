@@ -12369,5 +12369,79 @@ window.__V177_RELIABILITY_SCAN__={
   screenshotBlobCleanup:true
 };
 </script>
+
+<script id="v178-preview-road-visibility-guard">
+(function(){
+  function restorePreviewVisibility(){
+    const visual=document.querySelector('.road-preview');
+    if(visual){
+      visual.hidden=false;
+      visual.removeAttribute('aria-hidden');
+      visual.style.removeProperty('display');
+      visual.style.removeProperty('visibility');
+      visual.style.removeProperty('opacity');
+    }
+    const ai=document.getElementById('roadPreviewAiPanel');
+    if(ai){
+      ai.hidden=false;
+      ai.removeAttribute('aria-hidden');
+      ai.style.removeProperty('display');
+      ai.style.removeProperty('visibility');
+      ai.style.removeProperty('opacity');
+    }
+    try{ if(typeof renderPreview==='function') renderPreview(); }catch(e){}
+    try{ if(typeof renderRoadPreviewAI==='function') renderRoadPreviewAI(); }catch(e){}
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',restorePreviewVisibility,{once:true});
+  else restorePreviewVisibility();
+  window.addEventListener('pageshow',restorePreviewVisibility);
+})();
+</script>
+
+<script id="v179-preview-road-top-layout">
+(function(){
+  "use strict";
+  function movePreviewRoadToTop(){
+    const app = document.querySelector('.app');
+    const topbar = app && app.querySelector('.topbar');
+    if(!app || !topbar) return;
+
+    const candidates = [
+      document.getElementById('roadPreviewAiPanel'),
+      document.getElementById('roadPreviewPanel'),
+      document.getElementById('roadPreviewAI'),
+      document.getElementById('previewRoadPanel')
+    ].filter(Boolean);
+
+    // Fallback: locate the visible panel by its heading text without changing its logic.
+    if(!candidates.length){
+      const nodes = Array.from(app.querySelectorAll('section, .panel, .card, .future-test, div'));
+      const panel = nodes.find(el => {
+        const t = (el.textContent || '').trim();
+        return /Road Preview AI\s*[—-]\s*Historical Shoe Specialist/i.test(t) ||
+               /^Road Preview\b/i.test(t);
+      });
+      if(panel) candidates.push(panel);
+    }
+
+    // Keep the active preview block at the top; prediction code is untouched.
+    let anchor = topbar;
+    for(const panel of candidates){
+      if(panel && panel !== topbar && !panel.contains(topbar)){
+        anchor.insertAdjacentElement('afterend', panel);
+        anchor = panel;
+      }
+    }
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', movePreviewRoadToTop, {once:true});
+  } else {
+    movePreviewRoadToTop();
+  }
+  window.addEventListener('pageshow', movePreviewRoadToTop);
+})();
+</script>
+
 </body>
 </html>
