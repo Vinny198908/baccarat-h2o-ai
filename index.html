@@ -1770,14 +1770,26 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
   const duplicateIndex=state[key].findIndex(x=>x && x.sequence===s);
   if(duplicateIndex!==-1){
     const existing=state[key][duplicateIndex]||{};
-    const savedWhen=existing.savedAt ? new Date(existing.savedAt).toLocaleString() : 'an earlier save';
-    // V176: background Auto-save must be silent when the shoe was already saved manually.
-    // Manual saves still explain the duplicate so the user knows nothing was lost.
-    if(!quiet){
-      const savedSource=String(existing.source||'manual').toUpperCase();
-      alert(`SHOE ALREADY IN LIBRARY\n\nThis exact ${saveColorName} shoe is already stored.\nExisting copy: #${duplicateIndex+1} • ${savedWhen} • ${savedSource}\n\nNo duplicate copy was added.`);
+    // V186: manual Save Shoe remains independent from Auto-save. If Auto-save already
+    // captured this exact shoe, a manual click finalizes that existing record instead
+    // of failing or creating a duplicate.
+    if(source==='manual'){
+      existing.source='manual';
+      existing.manualSavedAt=new Date().toISOString();
+      if(!existing.savedAt) existing.savedAt=existing.manualSavedAt;
+      try{
+        persist();
+        saveLocalLibraryBackup('manual_finalize');
+      }catch(err){
+        console.error('V186 manual finalize failed',err);
+        if(!quiet) alert('The shoe is already present, but the manual-save update could not be written to browser storage.');
+        return false;
+      }
+      if(!quiet) alert(`Saved ${seq.length} hands to the ${saveColorName} pattern library.`);
+      return true;
     }
-    return false;
+    // Background Auto-save stays silent when the exact shoe already exists.
+    return true;
   }
 
   // V176 transactional save: do not leave a shoe looking saved in memory if browser storage fails.
@@ -2511,8 +2523,9 @@ try{
 
 
 document.getElementById('saveShoeBtn').onclick=()=>{
-  saveSequenceToLibrary(currentSequence(),'manual');
+  const ok=saveSequenceToLibrary(currentSequence(),'manual');
   renderPatternLibrary(); renderAnalyzer();
+  return ok;
 };
 document.getElementById('autoSaveBtn').onclick=()=>{
   state.autoSaveLibrary=!state.autoSaveLibrary;persist();renderPatternLibrary();
@@ -12466,5 +12479,38 @@ window.__V184_FULL_SCAN_FIX__={
 })();
 </script>
 
+\n<script id="v186-main-future-reset-fix">
+(function(){
+  function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,lastSettledKey:null,ledger:[]};}
+  function resetMainFuture(){
+    try{
+      if(typeof state==='object'&&state){
+        state.futureTestAccuracyV55=blank();
+        state.futureTestAccuracyV56=blank();
+        state.futureTestAccuracyV72=blank();
+        state.futureTestAccuracyV84=blank();
+      }
+      try{localStorage.removeItem('main-road-future-v55-optimized-accuracy')}catch(e){}
+      try{window.__V84_FUTURE_ACC_SIM__=blank()}catch(e){}
+      try{
+        const a=window.__V84_MAIN_FUTURE_TUNE__?.accuracy?.();
+        if(a) Object.assign(a,blank());
+      }catch(e){}
+      if(typeof persist==='function') persist();
+      if(typeof renderMainRoadFutureTest==='function') renderMainRoadFutureTest();
+      return true;
+    }catch(e){console.error('V186 Main Future reset failed',e);return false;}
+  }
+  const btn=document.getElementById('resetFutureAccuracy');
+  if(btn){
+    btn.onclick=function(){
+      if(!confirm('Reset only the Main Road Future Test accuracy?')) return false;
+      resetMainFuture();
+      return false;
+    };
+  }
+  window.__V186_REPAIR__={resetMainFuture};
+})();
+</script>\n
 </body>
 </html>
