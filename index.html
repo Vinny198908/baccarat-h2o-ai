@@ -288,7 +288,7 @@
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
 </div>
 <div class="analyzer" id="sequenceAiPanel">
-<div class="analyzer-title">Sequence AI V2 Analyzer — V190 Context Selector</div>
+<div class="analyzer-title">Sequence AI V2 Analyzer</div>
 <div class="analyzer-sub">High-selectivity saved-shoe P/B/T similarity engine. It gives substantially more weight to persistent long matches, mutes ambiguous historical continuations, and uses strict color-calibrated confidence gates (strictest on BLACK) to reject weak/conflicting bets. V49.2 keeps the strict qualification score, but also exposes the model’s best raw P/B lean when usable evidence exists so learning and verification are not starved by WAIT gates. Sequence AI V2 uses saved P/B/T shoe history only.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Sequence pick</span><strong id="seqAiSide">WAIT</strong></div>
@@ -1018,7 +1018,7 @@ function load(){
       if(!state.h2o || typeof state.h2o!=='object') state.h2o={url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''};
       if(!state.h2o.url && DEFAULT_H2O_SCORE_URL) state.h2o.url=DEFAULT_H2O_SCORE_URL;
       if(!state.deepseek || typeof state.deepseek!=='object') state.deepseek={url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''};
-      if(typeof state.kaggleLibraryEnabled!=='boolean') state.kaggleLibraryEnabled=true;
+      if(typeof state.kaggleLibraryEnabled!=='boolean') state.kaggleLibraryEnabled=false;
       if(!state.kaggle || typeof state.kaggle!=='object') state.kaggle={last:null,error:''};
       if(!state.bot || typeof state.bot!=='object') state.bot={learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}};
       if(typeof state.bot.learning!=='boolean') state.bot.learning=true;
@@ -1799,6 +1799,7 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
     return false;
   }
   saveLocalLibraryBackup('shoe_saved');
+  try{window.__V184_QUEUE_ML_RETRAIN__?.('new '+saveColorName+' shoe saved');}catch(e){}
   if(!quiet) alert(`Saved ${seq.length} hands to the ${saveColorName} pattern library. A safety backup was also updated.`);
   return true;
 }
@@ -11695,11 +11696,11 @@ function ensure(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ensure,{once:true});else ensure();
 window.__V174_ML_PANEL_SHELL__=true;
 })();</script>
-<script id="v189-ai-chart-pattern-recognizer-elite-repair">
+<script id="v183-ai-chart-pattern-recognizer-true-reliability">
 (function(){
 'use strict';
-const KEY='chart-pattern-recognizer-v189-accuracy';
-const VERSION=189;
+const KEY='chart-pattern-recognizer-v156-accuracy';
+const VERSION=184;
 const CACHE={sig:'',shoes:[],familyExact:new Map(),familyBroad:new Map()};
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
 function pct(v){return Math.round(clamp(v,0,1)*100)}
@@ -11728,18 +11729,17 @@ function rebuildCache(lib,sig){const exactVotes=new Map(),broadVotes=new Map(),s
 function ensureCache(){const lib=fullLibrary(),sig=librarySignature(lib);if(sig!==CACHE.sig)rebuildCache(lib,sig);return CACHE}
 function reliabilityFor(state,side){let r=CACHE.familyExact.get(state.keys.exact),level='EXACT';if(!r||r.N<8){r=CACHE.familyBroad.get(state.keys.broad);level='BROAD'}if(!r)return {rate:.5,N:0,P:0,B:0,level:'NONE'};const wins=side==='P'?r.P:r.B;return {rate:(wins+4)/(r.N+8),N:r.N,P:r.P,B:r.B,level}}
 function scoreCandidate(cur,hist){const bead=suffixSimilarity(cur.pref,hist.pref,22),main=shapeSimilarityValues(cur.shape,hist.shape,10),eye=suffixSimilarity(cur.eye,hist.eye,14),small=suffixSimilarity(cur.small,hist.small,12),roach=suffixSimilarity(cur.roach,hist.roach,10),tie=tieSimilarityCtx(cur.tie,hist.tie),primary=.44*bead+.36*main,support=.08*eye+.07*small+.05*roach,regimeMatch=cur.regime===hist.regime?1:(cur.regime==='MIXED'||hist.regime==='MIXED'?.58:.22),phaseMatch=cur.phase===hist.phase?1:((cur.phase==='MIDDLE'||hist.phase==='MIDDLE')?.62:.30),exactSuffix=exactSuffixPBValues(cur.pb,hist.pb,12),exactBonus=Math.min(.045,exactSuffix*.0045),contextAdjust=.91+.035*tie+.035*regimeMatch+.02*phaseMatch;return {score:(primary+support)*contextAdjust+exactBonus,bead,main,eye,small,roach,tie,primaryQuality:.55*bead+.45*main,regimeMatch,phaseMatch,exactSuffix}}
-function scan(){let cur=[];try{cur=currentSequence()}catch(e){}const curPbN=pbOnly(cur).length,cache=ensureCache();if(curPbN<8||!cache.shoes.length)return {ready:false,side:null,confidence:0,matches:0,note:curPbN<8?'Need at least 8 non-tie live results':'No saved shoes available'};const live=makeStateFromSeq(cur),perShoeBest=[];for(const sc of cache.shoes){let best=null;const lo=Math.max(7,curPbN-8),hi=curPbN+10;for(let n=lo;n<=hi;n++){const positions=sc.byPbN.get(n)||[];for(const pos of positions){const nxt=nextNonTie(sc.hist,pos);if(!nxt)continue;const hs=getState(sc,pos);if(live.tie.afterTie&&!hs.tie.afterTie)continue;const maturity=1-Math.min(1,Math.abs(hs.pbN-curPbN)/Math.max(14,curPbN)),z=scoreCandidate(live,hs),final=z.score*(.91+.09*maturity);if(final<.555||z.primaryQuality<.53)continue;const c={...z,score:final,next:nxt,shoeId:sc.shoeKey,pos,pbN:hs.pbN,maturity,afterTie:hs.tie.afterTie,recentTies:hs.tie.recentTies};if(!best||c.score>best.score)best=c}}if(best)perShoeBest.push(best)}perShoeBest.sort((a,b)=>b.score-a.score);const candidatePool=perShoeBest.slice(0,20);if(candidatePool.length<5)return {ready:false,side:null,confidence:0,matches:candidatePool.length,note:'Not enough independent saved-shoe chart matches'};
-const bestScore=candidatePool[0].score;let elite=candidatePool.filter((c,i)=>i<10&&c.score>=bestScore-.042&&c.primaryQuality>=.56);if(elite.length<5)elite=candidatePool.slice(0,Math.min(6,candidatePool.length));const top=elite;let p=0,b=0,w=0;for(const c of top){const distance=Math.exp((c.score-bestScore)/.030),quality=clamp((c.score-.54)/.28,0,1),structural=clamp((c.primaryQuality-.52)/.32,0,1),regime=.48+.52*c.regimeMatch,phase=.62+.38*c.phaseMatch,exact=1+Math.min(.24,c.exactSuffix*.024),tie=.75+.25*c.tie,wt=distance*(.12+.46*quality+.32*structural+.10*c.tie)*regime*phase*exact*tie;if(c.next==='P')p+=wt;else b+=wt;w+=wt}const pRate=w?p/w:.5,bRate=w?b/w:.5,edge=Math.abs(pRate-bRate),sample=top.length,best=top,avg=best.reduce((s,x)=>s+x.score,0)/sample,bead=best.reduce((s,x)=>s+x.bead,0)/sample,main=best.reduce((s,x)=>s+x.main,0)/sample,eye=best.reduce((s,x)=>s+x.eye,0)/sample,small=best.reduce((s,x)=>s+x.small,0)/sample,roach=best.reduce((s,x)=>s+x.roach,0)/sample,primary=.55*bead+.45*main,leader=bRate>pRate?'B':'P',leaderRate=Math.max(pRate,bRate),top5=top.slice(0,Math.min(5,top.length)),top5Agree=top5.length?top5.filter(c=>c.next===leader).length/top5.length:0,leadRows=top.filter(c=>c.next===leader),oppRows=top.filter(c=>c.next!==leader),tieRows=live.tie.afterTie?top.filter(c=>c.afterTie):[],tieLeaderRows=live.tie.afterTie?tieRows.filter(c=>c.next===leader):[],tieAgreement=live.tie.afterTie&&tieRows.length?tieLeaderRows.length/tieRows.length:1,leadAvg=leadRows.length?leadRows.reduce((s,c)=>s+c.score,0)/leadRows.length:0,oppAvg=oppRows.length?oppRows.reduce((s,c)=>s+c.score,0)/oppRows.length:0,separation=leadAvg-oppAvg,regimeAvg=best.reduce((s,x)=>s+x.regimeMatch,0)/sample,phaseAvg=best.reduce((s,x)=>s+x.phaseMatch,0)/sample,exactAvg=best.reduce((s,x)=>s+x.exactSuffix,0)/sample,rel=reliabilityFor(live,leader),localProof=clamp(.50+(leaderRate-.50)*.82+Math.max(0,separation)*.55,0,1),blendedReliability=rel.N>=8?(.58*rel.rate+.42*localProof):localProof,strongPrimary=primary>=.64&&main>=.64&&bead>=.55,outcomeValidated=leaderRate>=.69&&top5Agree>=.60&&edge>=.18,qualityValidated=avg>=.60&&separation>=-.006,contextValidated=regimeAvg>=.56&&phaseAvg>=.56,reliabilityValidated=(rel.N>=8&&rel.rate>=.53&&blendedReliability>=.59)||(leaderRate>=.78&&top5Agree>=.80&&primary>=.69),tieValidated=!live.tie.afterTie||(tieRows.length>=4&&tieAgreement>=.67),qualified=strongPrimary&&outcomeValidated&&qualityValidated&&contextValidated&&reliabilityValidated&&tieValidated,side=qualified?leader:null,nBoost=Math.min(.025,Math.max(0,top.length-5)*.004),conf=clamp(.50+(leaderRate-.50)*.62+(primary-.56)*.16+Math.max(0,separation)*.38+Math.max(0,blendedReliability-.50)*.16+nBoost,.50,.79);let note='WAIT — elite next-result evidence is not validated';if(side)note=`QUALIFIED ${side==='P'?'PLAYER':'BANKER'} — elite ${pct(leaderRate)}% agreement • family ${pct(rel.rate)}% (N=${rel.N}, ${rel.level}) • blended ${pct(blendedReliability)}%`;else if(!outcomeValidated)note=`WAIT — elite next results split ${pct(pRate)}% Player / ${pct(bRate)}% Banker (top-5 ${pct(top5Agree)}%)`;else if(!strongPrimary)note=`WAIT — Bead/Main structure is too weak (${pct(primary)}% primary)`;else if(!qualityValidated)note='WAIT — opposing elite matches are equally strong or stronger';else if(!contextValidated)note='WAIT — elite regime/phase context differs too much from the live shoe';else if(!reliabilityValidated)note=`WAIT — elite evidence is not independently reliable enough (family ${pct(rel.rate)}%, N=${rel.N}; blended ${pct(blendedReliability)}%)`;else if(!tieValidated)note=`WAIT — after-Tie elite continuations do not agree strongly enough (${pct(tieAgreement)}%, N=${tieRows.length})`;if(side&&live.tie.afterTie)note+=` • AFTER-TIE ${pct(tieAgreement)}% (N=${tieRows.length})`;return {ready:true,side,confidence:side?pct(conf):0,matches:top.length,pPct:pct(pRate),bPct:pct(bRate),bead:pct(bead),main:pct(main),eye:pct(eye),small:pct(small),roach:pct(roach),avgSimilarity:pct(avg),primaryQuality:pct(primary),edge:pct(edge),outcomeAgreement:pct(leaderRate),top6Agreement:pct(top5Agree),separation:+separation.toFixed(4),afterTie:live.tie.afterTie,tieMatches:tieRows.length,tieAgreement:pct(tieAgreement),reliability:pct(rel.rate),reliabilityN:rel.N,reliabilityLevel:rel.level,reliabilityP:rel.P,reliabilityB:rel.B,blendedReliability:pct(blendedReliability),regime:live.regime,phase:live.phase,regimeMatch:pct(regimeAvg),phaseMatch:pct(phaseAvg),exactSuffix:+exactAvg.toFixed(1),cacheShoes:cache.shoes.length,note}}
+function scan(){let cur=[];try{cur=currentSequence()}catch(e){}const curPbN=pbOnly(cur).length,cache=ensureCache();if(curPbN<8||!cache.shoes.length)return {ready:false,side:null,confidence:0,matches:0,note:curPbN<8?'Need at least 8 non-tie live results':'No saved shoes available'};const live=makeStateFromSeq(cur),perShoeBest=[];for(const sc of cache.shoes){let best=null;const lo=Math.max(7,curPbN-10),hi=curPbN+12;for(let n=lo;n<=hi;n++){const positions=sc.byPbN.get(n)||[];for(const pos of positions){const nxt=nextNonTie(sc.hist,pos);if(!nxt)continue;const hs=getState(sc,pos);if(live.tie.afterTie&&!hs.tie.afterTie)continue;const maturity=1-Math.min(1,Math.abs(hs.pbN-curPbN)/Math.max(16,curPbN)),z=scoreCandidate(live,hs),final=z.score*(.90+.10*maturity);if(final<.535)continue;const c={...z,score:final,next:nxt,shoeId:sc.shoeKey,pos,pbN:hs.pbN,maturity,afterTie:hs.tie.afterTie,recentTies:hs.tie.recentTies};if(!best||c.score>best.score)best=c}}if(best)perShoeBest.push(best)}perShoeBest.sort((a,b)=>b.score-a.score);const top=perShoeBest.slice(0,18);if(top.length<5)return {ready:false,side:null,confidence:0,matches:top.length,note:'Not enough independent saved-shoe chart matches'};let p=0,b=0,w=0;for(const c of top){const quality=clamp((c.score-.50)/.35,0,1),structural=clamp((c.primaryQuality-.50)/.35,0,1),regime=.55+.45*c.regimeMatch,phase=.65+.35*c.phaseMatch,exact=1+Math.min(.18,c.exactSuffix*.018),wt=(.16+.49*quality+.25*structural+.10*c.tie)*regime*phase*exact;if(c.next==='P')p+=wt;else b+=wt;w+=wt}const pRate=w?p/w:.5,bRate=w?b/w:.5,edge=Math.abs(pRate-bRate),sample=Math.min(10,top.length),best=top.slice(0,sample),avg=best.reduce((s,x)=>s+x.score,0)/sample,bead=best.reduce((s,x)=>s+x.bead,0)/sample,main=best.reduce((s,x)=>s+x.main,0)/sample,eye=best.reduce((s,x)=>s+x.eye,0)/sample,small=best.reduce((s,x)=>s+x.small,0)/sample,roach=best.reduce((s,x)=>s+x.roach,0)/sample,primary=.55*bead+.45*main,leader=bRate>pRate?'B':'P',leaderRate=Math.max(pRate,bRate),top6=top.slice(0,Math.min(6,top.length)),top6Agree=top6.length?top6.filter(c=>c.next===leader).length/top6.length:0,leadRows=top.filter(c=>c.next===leader),oppRows=top.filter(c=>c.next!==leader),tieRows=live.tie.afterTie?top.filter(c=>c.afterTie):[],tieLeaderRows=live.tie.afterTie?tieRows.filter(c=>c.next===leader):[],tieAgreement=live.tie.afterTie&&tieRows.length?tieLeaderRows.length/tieRows.length:1,leadAvg=leadRows.length?leadRows.reduce((s,c)=>s+c.score,0)/leadRows.length:0,oppAvg=oppRows.length?oppRows.reduce((s,c)=>s+c.score,0)/oppRows.length:0,separation=leadAvg-oppAvg,regimeAvg=best.reduce((s,x)=>s+x.regimeMatch,0)/sample,phaseAvg=best.reduce((s,x)=>s+x.phaseMatch,0)/sample,exactAvg=best.reduce((s,x)=>s+x.exactSuffix,0)/sample,rel=reliabilityFor(live,leader),strongPrimary=primary>=.62&&main>=.62&&bead>=.54,outcomeValidated=leaderRate>=.67&&top6Agree>=.667,qualityValidated=avg>=.585&&separation>=0,contextValidated=regimeAvg>=.54&&phaseAvg>=.55,reliabilityValidated=rel.N>=8&&rel.rate>=.58,tieValidated=!live.tie.afterTie||(tieRows.length>=4&&tieAgreement>=.65),qualified=strongPrimary&&outcomeValidated&&qualityValidated&&contextValidated&&reliabilityValidated&&tieValidated,side=qualified?leader:null,nBoost=Math.min(.035,Math.max(0,top.length-7)*.003),conf=clamp(.50+(leaderRate-.50)*.58+(primary-.55)*.14+Math.max(0,separation)*.32+Math.max(0,rel.rate-.50)*.18+nBoost,.50,.78);let note='WAIT — next-result evidence is not validated';if(side)note=`QUALIFIED ${side==='P'?'PLAYER':'BANKER'} — ${pct(leaderRate)}% matched-shoe agreement • historical family ${pct(rel.rate)}% (N=${rel.N}, ${rel.level})`;else if(!outcomeValidated)note=`WAIT — matched next results split ${pct(pRate)}% Player / ${pct(bRate)}% Banker (top-6 ${pct(top6Agree)}%)`;else if(!strongPrimary)note=`WAIT — Bead/Main structure is too weak (${pct(primary)}% primary)`;else if(!qualityValidated)note='WAIT — opposite-side matches are as strong as or stronger than the proposed side';else if(!contextValidated)note='WAIT — regime/phase context differs too much from the live shoe';else if(!reliabilityValidated)note=`WAIT — historical pattern family has not proven enough independent reliability (${pct(rel.rate)}%, N=${rel.N}, ${rel.level})`;else if(!tieValidated)note=`WAIT — after-Tie continuations do not agree strongly enough (${pct(tieAgreement)}%, N=${tieRows.length})`;if(side&&live.tie.afterTie)note+=` • AFTER-TIE ${pct(tieAgreement)}% (N=${tieRows.length})`;return {ready:true,side,confidence:side?pct(conf):0,matches:top.length,pPct:pct(pRate),bPct:pct(bRate),bead:pct(bead),main:pct(main),eye:pct(eye),small:pct(small),roach:pct(roach),avgSimilarity:pct(avg),primaryQuality:pct(primary),edge:pct(edge),outcomeAgreement:pct(leaderRate),top6Agreement:pct(top6Agree),separation:+separation.toFixed(4),afterTie:live.tie.afterTie,tieMatches:tieRows.length,tieAgreement:pct(tieAgreement),reliability:pct(rel.rate),reliabilityN:rel.N,reliabilityLevel:rel.level,reliabilityP:rel.P,reliabilityB:rel.B,regime:live.regime,phase:live.phase,regimeMatch:pct(regimeAvg),phaseMatch:pct(phaseAvg),exactSuffix:+exactAvg.toFixed(1),cacheShoes:cache.shoes.length,note}}
 function acc(){let a;try{a=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){a={}}a.w=Number(a.w)||0;a.l=Number(a.l)||0;a.pending=a.pending||null;a.last=a.last||null;a.ledger=Array.isArray(a.ledger)?a.ledger:[];a.gradedIds=Array.isArray(a.gradedIds)?a.gradedIds:[];return a}
 function saveAcc(a){try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){}}
 function arm(){const a=acc(),s=scan(),n=pbOnly(currentSequence()).length;/* Never clear an older pending lock here: render may run before the settle hook. The old prediction must grade first. */if(!a.pending&&s.side){a.pending={id:`cpr-${n}-${s.side}-${Date.now()}`,side:s.side,n,targetPbN:n+1,confidence:s.confidence,matches:s.matches,edge:s.edge,primaryQuality:s.primaryQuality,reliability:s.reliability,reliabilityN:s.reliabilityN,armedAt:Date.now()};saveAcc(a)}}
 function settle(actual){if(actual!=='P'&&actual!=='B')return false;const a=acc(),q=a.pending;if(!q||!q.id)return false;if(a.gradedIds.includes(q.id)){a.pending=null;saveAcc(a);return false}const win=q.side===actual,hand=Number(q.targetPbN)||((Number(q.n)||0)+1);a.gradedIds.push(q.id);if(a.gradedIds.length>500)a.gradedIds.splice(0,a.gradedIds.length-500);if(win)a.w++;else a.l++;a.last={predictionId:q.id,predicted:q.side,actual,win,hand,settledAt:Date.now()};a.ledger.push({...q,actual,win,hand,settledAt:Date.now()});if(a.ledger.length>300)a.ledger.splice(0,a.ledger.length-300);a.pending=null;saveAcc(a);try{setTimeout(()=>{try{arm()}catch(e){}},0)}catch(e){}return true}
-function ensurePanel(){if(document.getElementById('chartPatternRecognizerV156'))return;const anchor=document.getElementById('mainRoadFutureTest')||document.querySelector('.future-test')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const el=document.createElement('div');el.className='analyzer';el.id='chartPatternRecognizerV156';el.style.cssText='margin-top:12px;border:1px solid rgba(88,166,255,.55);';el.innerHTML=`<div class="analyzer-title">📈 AI Chart Pattern Recognizer V189 — Elite Match Selector</div><div class="analyzer-sub">Bead Plate + Main Road remain primary. V187 stops averaging a large mediocre match pool: it isolates the strongest independent saved-shoe neighbors, applies distance-weighted voting, preserves Tie/regime/phase context, and keeps independent historical reliability as a validation layer instead of a cosmetic score.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT CALL</span><strong id="cprSide">WAIT</strong></div><div class="analyzer-card"><span>CALIBRATED CONFIDENCE</span><strong id="cprConf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="cprMatches">0</strong></div><div class="analyzer-card"><span>BEAD PLATE MATCH</span><strong id="cprBead">—</strong></div><div class="analyzer-card"><span>MAIN ROAD MATCH</span><strong id="cprMain">—</strong></div><div class="analyzer-card"><span>PRIMARY QUALITY</span><strong id="cprPrimary">—</strong></div><div class="analyzer-card"><span>PLAYER CONTINUATION</span><strong id="cprP">—</strong></div><div class="analyzer-card"><span>BANKER CONTINUATION</span><strong id="cprB">—</strong></div><div class="analyzer-card"><span>CONTINUATION EDGE</span><strong id="cprEdge">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="cprWins">0 W</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="cprLosses">0 L</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">—</strong></div><div class="analyzer-card"><span>LAST GRADED</span><strong id="cprLast">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>BIG EYE</span><strong id="cprEye">—</strong></div><div class="analyzer-card"><span>SMALL ROAD</span><strong id="cprSmall">—</strong></div><div class="analyzer-card"><span>COCKROACH</span><strong id="cprRoach">—</strong></div><div class="analyzer-card"><span>TIE CONTEXT</span><strong id="cprTie">NORMAL</strong></div><div class="analyzer-card"><span>AFTER-TIE AGREEMENT</span><strong id="cprTieAgree">—</strong></div><div class="analyzer-card"><span>PATTERN RELIABILITY</span><strong id="cprReliability">—</strong></div><div class="analyzer-card"><span>REGIME / PHASE</span><strong id="cprContext">—</strong></div></div><div class="analyzer-sub" id="cprNote" style="margin-top:8px">Building independent chart evidence…</div><button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;anchor.parentNode.insertBefore(el,anchor.nextSibling);const rb=el.querySelector('#cprReset');if(rb)rb.addEventListener('click',()=>{if(!confirm('Reset only Chart Pattern Recognizer W/L accuracy?'))return;saveAcc({w:0,l:0,pending:null,last:null,ledger:[],gradedIds:[]});render()})}
+function ensurePanel(){if(document.getElementById('chartPatternRecognizerV156'))return;const anchor=document.getElementById('mainRoadFutureTest')||document.querySelector('.future-test')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const el=document.createElement('div');el.className='analyzer';el.id='chartPatternRecognizerV156';el.style.cssText='margin-top:12px;border:1px solid rgba(88,166,255,.55);';el.innerHTML=`<div class="analyzer-title">📈 AI Chart Pattern Recognizer V184 — True Reliability</div><div class="analyzer-sub">Bead Plate + Main Road remain primary. Historical matching is aligned by non-tie P/B maturity, Tie placement is preserved, derived-road features are cached, and PATTERN RELIABILITY is now calculated from independent saved-shoe outcomes for the same pattern family instead of current-match agreement.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT CALL</span><strong id="cprSide">WAIT</strong></div><div class="analyzer-card"><span>CALIBRATED CONFIDENCE</span><strong id="cprConf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="cprMatches">0</strong></div><div class="analyzer-card"><span>BEAD PLATE MATCH</span><strong id="cprBead">—</strong></div><div class="analyzer-card"><span>MAIN ROAD MATCH</span><strong id="cprMain">—</strong></div><div class="analyzer-card"><span>PRIMARY QUALITY</span><strong id="cprPrimary">—</strong></div><div class="analyzer-card"><span>PLAYER CONTINUATION</span><strong id="cprP">—</strong></div><div class="analyzer-card"><span>BANKER CONTINUATION</span><strong id="cprB">—</strong></div><div class="analyzer-card"><span>CONTINUATION EDGE</span><strong id="cprEdge">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="cprWins">0 W</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="cprLosses">0 L</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">—</strong></div><div class="analyzer-card"><span>LAST GRADED</span><strong id="cprLast">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>BIG EYE</span><strong id="cprEye">—</strong></div><div class="analyzer-card"><span>SMALL ROAD</span><strong id="cprSmall">—</strong></div><div class="analyzer-card"><span>COCKROACH</span><strong id="cprRoach">—</strong></div><div class="analyzer-card"><span>TIE CONTEXT</span><strong id="cprTie">NORMAL</strong></div><div class="analyzer-card"><span>AFTER-TIE AGREEMENT</span><strong id="cprTieAgree">—</strong></div><div class="analyzer-card"><span>PATTERN RELIABILITY</span><strong id="cprReliability">—</strong></div><div class="analyzer-card"><span>REGIME / PHASE</span><strong id="cprContext">—</strong></div></div><div class="analyzer-sub" id="cprNote" style="margin-top:8px">Building independent chart evidence…</div><button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;anchor.parentNode.insertBefore(el,anchor.nextSibling);const rb=el.querySelector('#cprReset');if(rb)rb.addEventListener('click',()=>{if(!confirm('Reset only Chart Pattern Recognizer W/L accuracy?'))return;saveAcc({w:0,l:0,pending:null,last:null,ledger:[],gradedIds:[]});render()})}
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
 function render(){ensurePanel();const s=scan(),a=acc(),n=a.w+a.l;set('cprSide',s.side?(s.side==='P'?'PLAYER':'BANKER'):'WAIT');set('cprConf',s.side?(s.confidence+'%'):'—');set('cprMatches',String(s.matches||0));set('cprBead',s.bead!=null?s.bead+'%':'—');set('cprMain',s.main!=null?s.main+'%':'—');set('cprPrimary',s.primaryQuality!=null?s.primaryQuality+'%':'—');set('cprP',s.pPct!=null?s.pPct+'%':'—');set('cprB',s.bPct!=null?s.bPct+'%':'—');set('cprEdge',s.edge!=null?s.edge+' pts':'—');set('cprEye',s.eye!=null?s.eye+'%':'—');set('cprSmall',s.small!=null?s.small+'%':'—');set('cprRoach',s.roach!=null?s.roach+'%':'—');set('cprTie',s.afterTie?'AFTER TIE':'NORMAL');set('cprTieAgree',s.afterTie?`${s.tieAgreement}% • N=${s.tieMatches}`:'—');set('cprReliability',s.reliability!=null?`${s.reliability}% • N=${s.reliabilityN||0} ${s.reliabilityLevel||''}`:'—');set('cprContext',s.regime?`${s.regime} / ${s.phase}`:'—');set('cprWins',`${a.w} W`);set('cprLosses',`${a.l} L`);set('cprAcc',n?`${Math.round(a.w/n*100)}% • ${a.w}W-${a.l}L • N=${n}`:'— • 0W-0L • N=0');set('cprLast',a.last?`${a.last.win?'WIN ✓':'LOSS ✗'} #${a.last.hand}`:'—');const lock=a.pending?` • LOCKED ${a.pending.side==='P'?'PLAYER':'BANKER'} for P/B #${a.pending.targetPbN}`:'';set('cprNote',(s.note||'WAIT')+lock);try{arm()}catch(e){}return s}
 try{if(typeof window.render==='function'&&!window.__cprV183WrappedRender){const old=window.render;window.render=function(){const r=old.apply(this,arguments);try{render()}catch(e){}return r};window.__cprV183WrappedRender=true}}catch(e){}
 try{if(typeof window.__settleVerifiedPredictions==='function'&&!window.__cprV183SettleWrapped){const old=window.__settleVerifiedPredictions;window.__settleVerifiedPredictions=function(actual){const r=old.apply(this,arguments);try{settle(actual)}catch(e){}return r};window.__cprV183SettleWrapped=true}}catch(e){}
-window.__chartPatternRecognizerV156={version:VERSION,scan,render,accuracy:acc,settle,primary:['Bead Plate','Main Road'],support:['Big Eye Boy','Small Road','Cockroach Road'],trueHistoricalReliability:true,pbMaturityAligned:true,tieAwareDedup:true,cachedHistoryFeatures:true,deterministicGrading:true,tieContext:true,independentPerShoe:true,selectiveGate:true,eliteNeighborSelector:true,distanceWeightedVoting:true};
+window.__chartPatternRecognizerV156={version:VERSION,scan,render,accuracy:acc,settle,primary:['Bead Plate','Main Road'],support:['Big Eye Boy','Small Road','Cockroach Road'],trueHistoricalReliability:true,pbMaturityAligned:true,tieAwareDedup:true,cachedHistoryFeatures:true,deterministicGrading:true,tieContext:true,independentPerShoe:true,selectiveGate:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,700));else setTimeout(render,700);
 })();
 </script>
@@ -11943,31 +11943,63 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 window.__mlRoadTrainerV2=window.__mlRoadTrainerV3={version:VERSION,signal,render:()=>{renderReport();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true};
 })();
 </script>
-<script id="v163-ml-auto-train-and-visible-status">
+<script id="v184-ml-safe-train-queue">
 (function(){
 'use strict';
-function boot(){
+let timer=null, queuedReason='', running=false;
+function panelStatus(msg){
   try{
-    const api=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;
     const panel=document.getElementById('mlRoadTrainerV155');
     if(panel){
       const t=panel.querySelector('.analyzer-title');
       if(t)t.textContent='🧠 ML Road Trainer V175 — Live Prediction + Validation';
-      panel.dataset.connected='v163';
+      panel.dataset.connected='v184-safe-queue';
     }
-    if(api&&typeof api.trainAndValidate==='function'){
-      api.trainAndValidate();
-      try{api.render&&api.render()}catch(e){}
-    }
-  }catch(e){
     const n=document.getElementById('mlv155Note');
-    if(n)n.textContent='AUTO-TRAIN ERROR: '+String(e&&e.message||e);
+    if(n && msg)n.textContent=msg;
+  }catch(e){}
+}
+function runQueued(){
+  timer=null;
+  const api=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;
+  if(!api||typeof api.trainAndValidate!=='function'){
+    panelStatus('ML trainer is ready. Use Build / Refresh Dataset when training controls are available.');
+    return;
+  }
+  if(running){
+    queueTrain(queuedReason||'queued');
+    return;
+  }
+  running=true;
+  const reason=queuedReason||'saved shoe';
+  queuedReason='';
+  panelStatus('Queued library update is training now ('+reason+').');
+  try{
+    api.trainAndValidate();
+    try{api.render&&api.render()}catch(e){}
+  }catch(e){
+    panelStatus('TRAINING ERROR: '+String(e&&e.message||e));
+  }finally{
+    running=false;
+    if(queuedReason) queueTrain(queuedReason);
   }
 }
-const scheduleBoot=()=>{const run=()=>boot(); if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:4500}); else setTimeout(run,2200);};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',scheduleBoot,{once:true});
-else scheduleBoot();
-window.__V163_ML_AUTO_TRAIN__=true;
+function queueTrain(reason='library update'){
+  queuedReason=String(reason||'library update');
+  if(timer)clearTimeout(timer);
+  timer=setTimeout(()=>{
+    const start=()=>runQueued();
+    if('requestIdleCallback' in window)requestIdleCallback(start,{timeout:5000});
+    else start();
+  },1800);
+  panelStatus('New library data queued for ML retraining. Live input remains available.');
+}
+function boot(){
+  panelStatus('ML trainer ready. Startup auto-training is OFF; saved shoes queue one background-safe rebuild.');
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
+window.__V184_QUEUE_ML_RETRAIN__=queueTrain;
+window.__V184_ML_SAFE_QUEUE__={queueTrain,get running(){return running},get queued(){return !!timer||!!queuedReason},startupAutoTrain:false};
 })();
 </script>
 <script>window.__V173_LAYOUT_REMOVAL_FIX__={version:172,fingerprintGateRemoved:true,historical3RoadRemoved:true,adaptiveMainDerivedRemoved:true,mlRoadTrainerBottom:true};</script>
@@ -12402,560 +12434,37 @@ window.__V177_RELIABILITY_SCAN__={
 })();
 </script>
 
-<script id="v180-forward-sequence-map">
+
+<script id="v184-full-scan-runtime-hardening">
 (function(){
 'use strict';
-const VERSION=180, HORIZON=10, MIN_LIVE=8, TOP_MATCHES=18, KEY='baccarat_forward_sequence_v180';
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const pb=s=>String(s||'').toUpperCase().replace(/[^PB]/g,'');
-const pct=x=>Math.round(100*x);
-function currentPB(){try{return pb((typeof currentSequence==='function'?currentSequence():[]).join(''))}catch(e){return ''}}
-function allShoes(){
-  const a=[];try{if(Array.isArray(state.redPatternLibrary))a.push(...state.redPatternLibrary)}catch(e){}
-  try{if(Array.isArray(state.blackPatternLibrary))a.push(...state.blackPatternLibrary)}catch(e){}
-  if(!a.length)try{if(typeof activePatternLibrary==='function')a.push(...activePatternLibrary())}catch(e){}
-  const seen=new Set(),out=[];
-  for(const s of a){const q=pb(s&&s.sequence);if(q.length<18||seen.has(q))continue;seen.add(q);out.push({id:s.id||'',sequence:q,color:s.shoeColor||s.__color||''})}
-  return out;
-}
-function liveShoes(){
-  let a=[];try{if(typeof activePatternLibrary==='function')a=activePatternLibrary()||[]}catch(e){}
-  if(!a.length)return allShoes();
-  const seen=new Set(),out=[];for(const s of a){const q=pb(s&&s.sequence);if(q.length<18||seen.has(q))continue;seen.add(q);out.push({id:s.id||'',sequence:q,color:s.shoeColor||s.__color||''})}return out;
-}
-function runSig(s){
-  if(!s)return [];
-  const out=[];let side=s[0],n=1;
-  for(let i=1;i<s.length;i++){if(s[i]===side)n++;else{out.push([side,n]);side=s[i];n=1}}
-  out.push([side,n]);return out;
-}
-function transition(s,n=8){const a=s.slice(-n);if(a.length<2)return .5;let x=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])x++;return x/(a.length-1)}
-function tailScore(a,b,w){if(a.length<w||b.length<w)return null;a=a.slice(-w);b=b.slice(-w);let num=0,den=0;for(let i=0;i<w;i++){const wt=1+i/w;den+=wt;if(a[i]===b[i])num+=wt}return num/den}
-function mainShapeScore(a,b){
-  const A=runSig(a).slice(-5),B=runSig(b).slice(-5),k=Math.min(A.length,B.length);if(!k)return .5;
-  let sum=0;for(let i=1;i<=k;i++){const x=A[A.length-i],y=B[B.length-i];const depth=1-Math.min(4,Math.abs(x[1]-y[1]))/4;sum+=depth*.72+(x[0]===y[0]?.28:0)}return sum/k;
-}
-function roadTail(s,offset){try{return (deriveRoad([...s].map(r=>({r})),offset)||[]).join('')}catch(e){return ''}}
-function rbSim(a,b,n){if(!a||!b)return .5;const w=Math.min(n,a.length,b.length);if(w<3)return .5;let z=0;for(let i=1;i<=w;i++)if(a[a.length-i]===b[b.length-i])z++;return z/w}
-function similarity(cur,pref,curRoads){
-  const ws=[[4,1.1],[6,1.5],[8,1.8],[10,1.9],[12,1.5],[16,.9]];let num=0,den=0;
-  for(const [w,wt] of ws){const z=tailScore(cur,pref,w);if(z!=null){num+=z*wt;den+=wt}}
-  const bead=den?num/den:.5, main=mainShapeScore(cur,pref), tr=1-Math.min(1,Math.abs(transition(cur)-transition(pref)));
-  let eye=.5,small=.5,roach=.5;
-  if(curRoads){eye=rbSim(curRoads.eye,roadTail(pref,1),10);small=rbSim(curRoads.small,roadTail(pref,2),9);roach=rbSim(curRoads.roach,roadTail(pref,3),8)}
-  return .45*bead+.27*main+.08*tr+.08*eye+.065*small+.055*roach;
-}
-function forecastFrom(cur,shoes){
-  if(cur.length<MIN_LIVE)return {ready:false,note:`Need ${MIN_LIVE-cur.length} more P/B results`,matches:[],positions:[],path:'??????????',stable:0};
-  const curRoads={eye:roadTail(cur,1),small:roadTail(cur,2),roach:roadTail(cur,3)}, matches=[];
-  for(const shoe of shoes){
-    const hist=shoe.sequence;let best=null;const lo=Math.max(MIN_LIVE,cur.length-12),hi=Math.min(hist.length-HORIZON,cur.length+15);
-    for(let pos=lo;pos<=hi;pos++){
-      const sc0=similarity(cur,hist.slice(0,pos),curRoads),maturity=1-Math.min(1,Math.abs(pos-cur.length)/Math.max(18,cur.length));
-      const sc=sc0*(.92+.08*maturity);if(sc<.56)continue;
-      if(!best||sc>best.score)best={score:sc,shoeId:shoe.id,pos,path:hist.slice(pos,pos+HORIZON)};
-    }
-    if(best)matches.push(best);
-  }
-  matches.sort((a,b)=>b.score-a.score);const top=matches.slice(0,TOP_MATCHES);
-  if(top.length<5)return {ready:false,note:'Not enough independent saved-shoe matches',matches:top,positions:[],path:'??????????',stable:0};
-  const positions=[];let path='',stable=0;
-  for(let h=0;h<HORIZON;h++){
-    let p=0,b=0,w=0,n=0;for(const m of top){const c=m.path[h];if(c!=='P'&&c!=='B')continue;const wt=Math.pow(Math.max(.001,m.score-.45),2.15);if(c==='P')p+=wt;else b+=wt;w+=wt;n++}
-    const pr=w?p/w:.5, side=pr>=.5?'P':'B', conf=Math.max(pr,1-pr), usable=n>=5&&conf>=.58;
-    positions.push({h:h+1,side,conf,p:pr,b:1-pr,n,usable});path+=usable?side:'?';if(h===stable&&usable)stable++;
-  }
-  const first=positions[0], qualified=first&&first.usable&&first.conf>=.61&&top.length>=7;
-  return {ready:true,matches:top,positions,path,stable,firstSide:qualified?first.side:null,firstConfidence:first?first.conf:0,note:qualified?`Near-term consensus ${first.side==='P'?'PLAYER':'BANKER'}; future positions remain context only until validation passes.`:'Future structure mapped; no qualified near-term consensus.'};
-}
-function fresh(){return {origins:{},scores:{1:{w:0,l:0},2:{w:0,l:0},3:{w:0,l:0},5:{w:0,l:0},10:{w:0,l:0}},validation:null,lastLibrarySig:'',resetAt:Date.now()}}
-function load(){let x;try{x=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){};if(!x||typeof x!=='object')x=fresh();x.origins=x.origins||{};x.scores=x.scores||fresh().scores;return x}
-function save(x){try{localStorage.setItem(KEY,JSON.stringify(x))}catch(e){}}
-function settleAndArm(fc){
-  const cur=currentPB(),n=cur.length,x=load();
-  for(const [originStr,o] of Object.entries(x.origins)){
-    const origin=+originStr;if(!o||!o.path)continue;
-    for(const h of [1,2,3,5,10]){
-      o.done=o.done||{};if(o.done[h]||n<origin+h)continue;const pred=o.path[h-1],actual=cur[origin+h-1];
-      if((pred==='P'||pred==='B')&&(actual==='P'||actual==='B')){const z=x.scores[h]||(x.scores[h]={w:0,l:0});pred===actual?z.w++:z.l++;}
-      o.done[h]=true;
-    }
-    if(n>=origin+HORIZON)delete x.origins[originStr];
-  }
-  if(fc&&fc.ready&&!x.origins[n])x.origins[n]={path:fc.path,createdAt:Date.now(),done:{}};
-  save(x);return x;
-}
-function librarySig(shoes){return `${shoes.length}:${shoes.slice(-5).map(s=>s.id||s.sequence.slice(0,6)).join('|')}`}
-function validate(){
-  const shoes=allShoes(),x=load();if(shoes.length<30){x.validation={pass:false,n:0,rate:0,baseline:.5,note:'Need at least 30 unique shoes'};save(x);render();return}
-  setText('fsValidation','RUNNING…');setText('fsNote','Running held-out cross-shoe validation. Live prediction logic is not changed during this test.');
-  setTimeout(()=>{
-    const cut=Math.max(20,Math.floor(shoes.length*.8)),train=shoes.slice(0,cut),test=shoes.slice(cut);let w=0,n=0,selected=0;
-    for(const sh of test){for(let pos=MIN_LIVE;pos<=sh.sequence.length-HORIZON;pos+=3){const f=forecastFrom(sh.sequence.slice(0,pos),train);if(!f.ready)continue;const z=f.positions[0];if(!z||!z.usable||z.conf<.60)continue;selected++;if(z.side===sh.sequence[pos])w++;n++;}}
-    let p=0,total=0;for(const sh of train){for(const c of sh.sequence){if(c==='P')p++;total++}}
-    const prior=total?p/total:.5,baseline=Math.max(prior,1-prior),rate=n?w/n:0,pass=n>=50&&rate>=.53&&rate>=baseline+.015;
-    x.validation={pass,n,w,rate,baseline,selected,testShoes:test.length,librarySig:librarySig(shoes),checkedAt:Date.now(),note:pass?'PASS — forward map earned permission to contribute as a supporting signal.':'FAIL — remains a context-only map; it cannot influence the final betting call.'};save(x);render();
-  },20);
-}
-function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function install(){
-  if(document.getElementById('forwardSequenceMapV180'))return;
-  const anchor=document.getElementById('chartPatternRecognizerV156')||document.getElementById('mainRoadFutureTest')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;
-  const d=document.createElement('div');d.className='analyzer';d.id='forwardSequenceMapV180';d.style.cssText='margin-top:12px;border:1px solid rgba(191,90,242,.65)';
-  d.innerHTML=`<div class="analyzer-title">🔭 10-Hand Forward Sequence Map V180</div><div class="analyzer-sub">Not another independent betting AI. It maps multiple possible P/B futures from independent saved-shoe matches, grades horizons +1/+2/+3/+5/+10, and is blocked from influencing final calls unless held-out validation passes.</div><div class="analyzer-grid"><div class="analyzer-card"><span>STATUS</span><strong id="fsStatus">BUILDING</strong></div><div class="analyzer-card"><span>STABLE HORIZON</span><strong id="fsStable">0</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="fsMatches">0</strong></div></div><div id="fsPath" style="margin-top:9px;display:grid;grid-template-columns:repeat(10,1fr);gap:4px"></div><div class="analyzer-grid"><div class="analyzer-card"><span>+1 SCORE</span><strong id="fs1">—</strong></div><div class="analyzer-card"><span>+2 SCORE</span><strong id="fs2">—</strong></div><div class="analyzer-card"><span>+3 SCORE</span><strong id="fs3">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>+5 SCORE</span><strong id="fs5">—</strong></div><div class="analyzer-card"><span>+10 SCORE</span><strong id="fs10">—</strong></div><div class="analyzer-card"><span>VALIDATION</span><strong id="fsValidation">NOT RUN</strong></div></div><div class="analyzer-sub" id="fsNote" style="margin-top:8px">Building future structure…</div><button id="fsValidate" style="margin-top:8px">Validate on Held-Out Shoes</button> <button id="fsReset" style="margin-top:8px">Reset Forward Scores</button>`;
-  anchor.parentNode.insertBefore(d,anchor.nextSibling);
-  d.querySelector('#fsValidate').onclick=validate;d.querySelector('#fsReset').onclick=()=>{if(!confirm('Reset only Forward Sequence Map live horizon scores?'))return;const x=load(),v=x.validation;const y=fresh();y.validation=v;save(y);render()};
-}
-function scoreText(z){const n=(z?.w||0)+(z?.l||0);return n?`${Math.round(100*z.w/n)}% • ${z.w}W-${z.l}L`:'—'}
-let lastKey='',lastForecast=null;
-function render(){
-  install();const cur=currentPB(),shoes=liveShoes(),key=cur+'|'+shoes.length+'|'+(state?.predictionLibraryMode||'')+'|'+(state?.currentShoeColor||'');
-  if(key!==lastKey){lastForecast=forecastFrom(cur,shoes);lastKey=key}
-  const f=lastForecast||forecastFrom(cur,shoes),x=settleAndArm(f),v=x.validation,validCurrent=!!(v&&v.pass&&v.librarySig===librarySig(allShoes()));
-  setText('fsStatus',f.ready?(validCurrent&&f.firstSide?(f.firstSide==='P'?'PLAYER':'BANKER'):'CONTEXT'):'BUILDING');setText('fsStable',String(f.stable||0));setText('fsMatches',String(f.matches?.length||0));
-  for(const h of [1,2,3,5,10])setText('fs'+h,scoreText(x.scores[h]));
-  setText('fsValidation',v?(v.pass?'PASS':'FAIL'):'NOT RUN');
-  const path=document.getElementById('fsPath');if(path){path.innerHTML='';for(let i=0;i<HORIZON;i++){const z=f.positions?.[i],c=document.createElement('div');const side=z&&z.usable?z.side:'?';c.style.cssText='padding:7px 2px;border-radius:8px;text-align:center;font-weight:900;background:#181c21;font-size:12px';c.textContent=`${i+1}:${side}`;c.title=z?`P ${pct(z.p)}% • B ${pct(z.b)}% • N=${z.n}`:'No stable consensus';path.appendChild(c)}}
-  let note=f.note||'Building future structure…';if(v)note+=` • Validation ${v.pass?'PASS':'FAIL'}: ${v.n||0} selective +1 tests at ${v.n?Math.round(100*v.rate):0}% vs ${Math.round(100*(v.baseline||.5))}% baseline. ${v.note||''}`;else note+=' • Run held-out validation before allowing this map to affect any betting decision.';setText('fsNote',note);
-  return {...f,validation:v,canInfluenceFinal:validCurrent&&!!f.firstSide,side:validCurrent?f.firstSide:null};
-}
-function signal(){const r=render();return {side:r.side||null,qualified:!!r.canInfluenceFinal,contextPath:r.path,stableHorizon:r.stable||0,confidence:r.firstConfidence?+(100*r.firstConfidence).toFixed(1):0,validation:r.validation||null};}
-try{if(typeof window.render==='function'&&!window.__V180ForwardWrapped){const old=window.render;window.render=function(){const r=old.apply(this,arguments);try{render()}catch(e){}return r};window.__V180ForwardWrapped=true}}catch(e){}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,1250),{once:true});else setTimeout(render,1250);
-window.__futureSequenceContextV180={version:VERSION,forecast:()=>forecastFrom(currentPB(),liveShoes()),validate,render,signal,contextOnlyUntilValidated:true,horizons:[1,2,3,5,10]};
-})();
-</script>
-
-
-<script id="v190-sequence-v2-context-selector">
-(function(){
-'use strict';
-const VERSION=190;
-let baseFn=null;
-
-function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
-function seq(){try{return currentSequence()}catch(e){return []}}
-function pb(a){return (a||[]).filter(x=>x==='P'||x==='B')}
-function phaseOf(n){return n<18?'EARLY':n<45?'MIDDLE':'LATE'}
-function recentTieInfo(a){
-  const n=a.length, last=a.lastIndexOf('T');
-  if(last<0)return {state:'NO RECENT TIE',distance:999};
-  const d=n-1-last;
-  return {state:d===0?'TIE JUST OCCURRED':d===1?'1 HAND AFTER TIE':d===2?'2 HANDS AFTER TIE':'RECENT TIE',distance:d};
-}
-function verified(){
+function harden(){
   try{
-    const m=state?.accuracyVerified?.models?.seqv2;
-    const n=Number(m?.predictions)||0,w=Number(m?.wins)||0;
-    return {n,w,rate:n?w/n:null};
-  }catch(e){return {n:0,w:0,rate:null}}
-}
-function chart(){
-  try{return window.__chartPatternRecognizerV156?.scan?.()||null}catch(e){return null}
-}
-function enhance(raw){
-  raw=raw||{side:null,strength:0};
-  const a=seq(), pbn=pb(a).length, tie=recentTieInfo(a), v=verified(), c=chart();
-  let side=raw.side, conf=Number(raw.strength)||0, reasons=[], conflict=false;
-
-  // 1) Live self-calibration: never let a weak verified record inflate confidence.
-  if(v.n>=20 && v.rate!=null){
-    const empirical=v.rate*100;
-    conf=Math.round(clamp(.65*conf+.35*empirical,0,90));
-    reasons.push(`live calibration ${Math.round(empirical)}% over N=${v.n}`);
-  }
-
-  // 2) Tie state is explicit. Immediately after a tie, require stronger evidence.
-  let required=60;
-  if(tie.distance<=2){required+=4; reasons.push(tie.state.toLowerCase());}
-
-  // 3) Exact shoe maturity/phase guard: late-shoe calls require stronger proof.
-  const phase=phaseOf(pbn);
-  if(phase==='LATE') required+=3;
-
-  // 4) Independent conflict management: Chart AI can veto a marginal V2 call,
-  // but never supplies V2's prediction.
-  if(side && c?.side && c.side!==side){
-    conflict=true;
-    if(conf<70 || Number(c.confidence||0)>=conf-3){
-      side=null;
-      reasons.push('independent Chart AI conflict');
+    if(typeof state==='object'&&state){
+      state.kaggleLibraryEnabled=false;
+      if(state.kaggle&&typeof state.kaggle==='object'){
+        state.kaggle.last=null;
+        state.kaggle.error='';
+      }
     }
-  }
-
-  // 5) Forward-result quality gate: moderate resemblance alone is not enough.
-  if(side && (Number(raw.similarityScore||0)<68 || Number(raw.agreeWindows||0)<3)){
-    side=null; reasons.push('forward evidence too shallow');
-  }
-  if(side && conf<required){
-    side=null; reasons.push(`calibrated confidence below ${required}% gate`);
-  }
-
-  return Object.assign({},raw,{
-    side,
-    strength:side?conf:0,
-    rawSide:raw.side||null,
-    rawStrength:Number(raw.strength)||0,
-    calibratedConfidence:conf,
-    tieContext:tie.state,
-    phase,
-    verifiedN:v.n,
-    verifiedRate:v.rate==null?null:Math.round(v.rate*1000)/10,
-    independentConflict:conflict,
-    selectorVersion:VERSION,
-    waitReason:side?'':(reasons.length?`WAIT: ${reasons.join(' • ')}.`:(raw.waitReason||'WAIT: evidence did not clear the enhanced selector.'))
-  });
-}
-
-function install(){
-  if(window.sequenceAISignal && window.sequenceAISignal.__v190) return true;
-  if(typeof window.sequenceAISignal!=='function' && typeof sequenceAISignal!=='function') return false;
-  if(!baseFn) baseFn=window.sequenceAISignal||sequenceAISignal;
-  const wrapped=function(){return enhance(baseFn.apply(this,arguments))};
-  wrapped.__v190=true;
-  window.sequenceAISignal=wrapped;
-  try{sequenceAISignal=wrapped}catch(e){}
-
-  const panel=document.getElementById('sequenceAiPanel');
-  if(panel){
-    const title=panel.querySelector('.analyzer-title');
-    const sub=panel.querySelector('.analyzer-sub');
-    if(title)title.textContent='Sequence AI V2 Analyzer — V190 Context Selector';
-    if(sub)sub.textContent='Original Sequence V2 matcher preserved. V190 adds live confidence calibration, forward-evidence depth checks, shoe-phase awareness, explicit Tie/after-Tie context, independent-shoe safeguards, and conflict-based WAIT protection.';
-    if(!document.getElementById('seqV190Context')){
-      const g=document.createElement('div');g.className='analyzer-grid';g.id='seqV190Context';
-      g.innerHTML='<div class="analyzer-card"><span>Tie context</span><strong id="seqV190Tie">—</strong></div><div class="analyzer-card"><span>Shoe phase</span><strong id="seqV190Phase">—</strong></div><div class="analyzer-card"><span>Selector</span><strong id="seqV190Selector">ACTIVE</strong></div>';
-      panel.appendChild(g);
-    }
-  }
-  return true;
-}
-
-function refresh(){
-  if(!install())return;
+  }catch(e){}
   try{
-    const s=window.sequenceAISignal();
-    const t=document.getElementById('seqV190Tie'); if(t)t.textContent=s.tieContext||'—';
-    const p=document.getElementById('seqV190Phase'); if(p)p.textContent=s.phase||'—';
+    const toggle=document.getElementById('kaggleLibraryToggle');
+    if(toggle){toggle.checked=false;toggle.disabled=true;toggle.title='Disabled for live stability; library duplicate tools remain separate.'}
   }catch(e){}
 }
-
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(refresh,900);setTimeout(refresh,1800)});
-else {setTimeout(refresh,500);setTimeout(refresh,1400)}
-window.__V190_SEQUENCE_SELECTOR__={version:VERSION,enhance,refresh,corePreserved:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',harden,{once:true});else harden();
+setTimeout(harden,400);
+window.__V184_FULL_SCAN_FIX__={
+  version:184,
+  chartPatternTrueReliability:true,
+  startupMLAutoTrain:false,
+  queuedRetrainAfterVerifiedSave:true,
+  legacyLiveKaggleScoring:false,
+  v139SelfTestQueryGated:true
+};
 })();
 </script>
 
-
-<script id="v192-hidden-structure-edge-waterflow">
-(function(){
-'use strict';
-const VERSION=192, KEY='baccarat.v191.hiddenStructure';
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
-const pb=s=>clean(s).replace(/T/g,'');
-const featureCache=new Map();
-let libMemo={sig:'',items:[]}, scanMemo={key:'',value:null}, renderTimer=0;
-function cur(){try{return clean(currentSequence().join(''))}catch(e){try{return clean(currentSequence())}catch(_){return''}}}
-function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
-function load(){try{return Object.assign({w:0,l:0,pending:null,last:null,survival:{},validation:null},JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {w:0,l:0,pending:null,last:null,survival:{},validation:null}}}
-function save(x){try{localStorage.setItem(KEY,JSON.stringify(x))}catch(e){} scanMemo.key='';}
-function activeLibRaw(){try{return activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}}
-function lib(){
- const raw=activeLibRaw();
- // Cheap signature: count + stable sequence hashes. Rebuild only when the active library changes.
- const sig=raw.length+'|'+raw.map(sh=>hash(clean(sh.sequence))).join('.');
- if(sig===libMemo.sig)return libMemo.items;
- const seen=new Set(),out=[];
- for(const sh of raw){const z=clean(sh.sequence);if(pb(z).length<14||seen.has(z))continue;seen.add(z);out.push({...sh,sequence:z,__key:sh.id||hash(z)})}
- libMemo={sig,items:out}; scanMemo.key='';
- return out;
-}
-function suffixSim(a,b,max=14){a=String(a);b=String(b);const n=Math.min(max,a.length,b.length);if(!n)return 0;let sc=0,tot=0;for(let i=1;i<=n;i++){const w=.65+1.65*i/n;tot+=w;if(a[a.length-i]===b[b.length-i])sc+=w}return sc/tot}
-function runShape(s){const a=pb(s),o=[];for(const x of a){if(!o.length||o[o.length-1][0]!==x)o.push([x,1]);else o[o.length-1][1]++}return o}
-function shapeSimRuns(A,B,max=8){A=A.slice(-max);B=B.slice(-max);const n=Math.min(A.length,B.length);if(!n)return 0;let sc=0,tot=0;for(let i=1;i<=n;i++){const x=A[A.length-i],y=B[B.length-i],w=.8+1.2*i/n;tot+=w;const side=x[0]===y[0]?1:0,depth=1-Math.min(1,Math.abs(x[1]-y[1])/Math.max(1,x[1],y[1]));sc+=w*(.42*side+.58*depth)}return sc/tot}
-function tieCtx(s){s=clean(s);const k=s.lastIndexOf('T'),d=k<0?99:s.length-1-k,r=s.slice(-10),rate=r.length?(r.match(/T/g)||[]).length/r.length:0;return {bucket:Math.min(4,d),rate,after:d===0}}
-function tieSimCtx(A,B){return .72*(A.bucket===B.bucket?1:0)+.28*(1-Math.min(1,Math.abs(A.rate-B.rate)/.45))}
-function roadStrings(s){try{const h=[...clean(s)].map(r=>({r}));return [deriveRoad(h,1)||[],deriveRoad(h,2)||[],deriveRoad(h,3)||[]].map(x=>x.join(''))}catch(e){return ['','','']}}
-function features(s,key){
- s=clean(s); const k=key||('s:'+hash(s)+':'+s.length);
- if(featureCache.has(k))return featureCache.get(k);
- const f={s,p:pb(s),runs:runShape(s),tie:tieCtx(s),roads:roadStrings(s)};
- featureCache.set(k,f);
- // Hard cap prevents a long session from growing memory forever.
- if(featureCache.size>7000){let n=0;for(const z of featureCache.keys()){featureCache.delete(z);if(++n>=1200)break}}
- return f;
-}
-function roadSimF(A,B){const v=[];for(let i=0;i<3;i++){if(A.roads[i].length>=4&&B.roads[i].length>=4)v.push(suffixSim(A.roads[i],B.roads[i],10))}return v.length?v.reduce((x,y)=>x+y,0)/v.length:.5}
-function scoreFeatures(A,B){return .27*suffixSim(A.s,B.s,14)+.25*suffixSim(A.p,B.p,16)+.20*shapeSimRuns(A.runs,B.runs,8)+.17*roadSimF(A,B)+.11*tieSimCtx(A.tie,B.tie)}
-function nextPB(s,cut){for(let i=cut;i<s.length;i++)if(s[i]==='P'||s[i]==='B')return {side:s[i],pos:i};return null}
-function settle(){const x=load(),s=cur(),n=pb(s).length;if(!x.pending||n<x.pending.targetPbN)return x;if(n!==x.pending.targetPbN){x.pending=null;save(x);return x}const actual=pb(s).at(-1);if(actual!=='P'&&actual!=='B')return x;const win=actual===x.pending.side;x[win?'w':'l']++;x.last={win,actual,side:x.pending.side,hand:n,at:Date.now()};const surv=x.survival||{};for(const c of x.pending.candidates||[]){const z=surv[c.shoeKey]||{streak:0,hits:0,misses:0};if(c.side===actual){z.streak=Math.min(8,(z.streak||0)+1);z.hits=(z.hits||0)+1}else{z.streak=0;z.misses=(z.misses||0)+1}surv[c.shoeKey]=z}x.survival=surv;x.pending=null;save(x);return x}
-function scan(){
- const s=cur(),L=lib(),pbn=pb(s).length,x=settle();
- const memoKey=s+'|'+libMemo.sig+'|'+(x.w||0)+'|'+(x.l||0)+'|'+(x.last?.at||0);
- if(scanMemo.key===memoKey&&scanMemo.value)return scanMemo.value;
- if(pbn<10||L.length<8){const z={side:null,status:'BUILDING',matches:0,note:'Need at least 10 P/B hands and 8 unique saved shoes.'};scanMemo={key:memoKey,value:z};return z}
- const currentF=features(s,'CURRENT:'+s);
- const cands=[];
- for(const sh of L){
-   let best=null;const H=sh.sequence,lo=Math.max(8,s.length-11),hi=Math.min(H.length-1,s.length+11);
-   for(let cut=lo;cut<=hi;cut++){
-     const nx=nextPB(H,cut);if(!nx)continue;
-     const hp=H.slice(0,cut), hpF=features(hp,'H:'+sh.__key+':'+cut);
-     const maturity=1-Math.min(1,Math.abs(hpF.p.length-pbn)/10);
-     let sc=.94*scoreFeatures(currentF,hpF)+.06*maturity;
-     const sv=x.survival?.[sh.__key];if(sv?.streak)sc+=Math.min(.035,.008*sv.streak);
-     if(!best||sc>best.score)best={score:clamp(sc,0,1),side:nx.side,shoeKey:sh.__key,shoeId:sh.id||sh.__key,cut,nextPos:nx.pos,survival:sv?.streak||0};
-   }
-   if(best)cands.push(best);
- }
- cands.sort((a,b)=>b.score-a.score);const elite=cands.filter(c=>c.score>=.67).slice(0,14);
- if(elite.length<5){const z={side:null,status:'NO LOCK',matches:elite.length,note:'Too few independent structural matches.'};scanMemo={key:memoKey,value:z};return z}
- let P=0,B=0,W=0;for(const c of elite){const w=c.score*c.score*(1+Math.min(.18,c.survival*.035));W+=w;if(c.side==='P')P+=w;else B+=w}
- const pp=W?P/W:.5,bp=W?B/W:.5,side=pp>=bp?'P':'B',agree=Math.max(pp,bp),edge=Math.abs(pp-bp),avg=elite.reduce((a,c)=>a+c.score,0)/elite.length,survivors=elite.filter(c=>c.survival>0).length;
- const locked=elite.length>=6&&agree>=.68&&edge>=.16&&avg>=.70;
- const z={side:locked?side:null,rawSide:side,locked,status:locked?'STRUCTURE LOCK':'WATCH',matches:elite.length,agreement:Math.round(agree*100),edge:Math.round(edge*100),quality:Math.round(avg*100),survivors,candidates:elite,pPct:Math.round(pp*100),bPct:Math.round(bp*100),note:locked?`${elite.length} independent shoe structures converge on ${side==='P'?'PLAYER':'BANKER'}; ${Math.round(agree*100)}% weighted agreement.`:'Structure is visible but has not cleared the lock gate.'};
- scanMemo={key:memoKey,value:z};return z;
-}
-function anchors(){
- let seq=null,fut=null;
- try{seq=window.sequenceAISignal?.()||null}catch(e){}
- // V192 integrity fix: use the actual active Main Future Road API first.
- try{const z=window.__V84_MAIN_FUTURE_TUNE__?.test?.()||window.mainRoadFutureTest?.();if(z?.side)fut={side:z.side,strength:z.strength||Math.max(z.p?.norm||0,z.b?.norm||0),source:'Main Future Road'}}catch(e){}
- // Fallback only if Main Future is unavailable.
- if(!fut)try{const z=window.__futureSequenceContextV180?.signal?.();if(z?.qualified&&z.side)fut={side:z.side,strength:z.confidence||0,source:'Forward Map'}}catch(e){}
- return {seq,fut};
-}
-function signal(){const st=scan(),a=anchors();const seqSide=a.seq?.side||null,futSide=a.fut?.side||null;let side=null,status=st.status,reason=st.note;if(st.side&&seqSide===st.side&&futSide===st.side){side=st.side;status='EDGE LOCK';reason=`Hidden structure + Sequence V2 + ${a.fut.source} agree on ${side==='P'?'PLAYER':'BANKER'}.`;}else if(st.side){status='STRUCTURE ONLY';const bits=[];if(seqSide!==st.side)bits.push('Sequence V2 not aligned');if(futSide!==st.side)bits.push('Main Future not aligned');reason=`${st.note} ${bits.join(' • ')} — WAIT.`}const x=load(),n=x.w+x.l;return {...st,side,status,reason,seqSide,futureSide:futSide,verifiedN:n,verifiedRate:n?Math.round(x.w/n*100):null,w:x.w,l:x.l,last:x.last};}
-function arm(r){if(!r?.side)return;const x=load(),targetPbN=pb(cur()).length+1;if(x.pending&&x.pending.targetPbN===targetPbN)return;x.pending={side:r.side,targetPbN,candidates:(r.candidates||[]).map(c=>({shoeKey:c.shoeKey,side:c.side})),at:Date.now()};save(x)}
-function set(id,v){const e=document.getElementById(id);if(e&&e.textContent!==String(v))e.textContent=v}
-function install(){if(document.getElementById('hiddenStructureV191')){const t=document.querySelector('#hiddenStructureV191 .analyzer-title');if(t)t.textContent='🧬 Hidden Shoe Structure Edge Engine V192 — Waterflow';return}const anchor=document.getElementById('sequenceAiPanel')||document.getElementById('mainRoadFutureTest')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='hiddenStructureV191';d.style.cssText='margin-top:12px;border:1px solid rgba(255,184,72,.75)';d.innerHTML=`<div class="analyzer-title">🧬 Hidden Shoe Structure Edge Engine V192 — Waterflow</div><div class="analyzer-sub">Cached structural matching: P/B/T order, Main Road run geometry, all 3 derived roads, Tie context, maturity and forward survival. EDGE LOCK still requires Hidden Structure + Sequence V2 + the actual Main Future Road to agree.</div><div class="analyzer-grid"><div class="analyzer-card"><span>DECISION</span><strong id="hsDecision">BUILDING</strong></div><div class="analyzer-card"><span>STRUCTURE SIDE</span><strong id="hsSide">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="hsMatches">0</strong></div><div class="analyzer-card"><span>STRUCTURE QUALITY</span><strong id="hsQuality">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>PLAYER / BANKER</span><strong id="hsVote">—</strong></div><div class="analyzer-card"><span>AGREEMENT</span><strong id="hsAgree">—</strong></div><div class="analyzer-card"><span>FORWARD SURVIVORS</span><strong id="hsSurvive">0</strong></div><div class="analyzer-card"><span>VERIFIED EDGE LOCK</span><strong id="hsAcc">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>SEQUENCE V2</span><strong id="hsSeq">—</strong></div><div class="analyzer-card"><span>MAIN FUTURE</span><strong id="hsFuture">—</strong></div><div class="analyzer-card"><span>LAST GRADED</span><strong id="hsLast">—</strong></div></div><div class="analyzer-sub" id="hsNote" style="margin-top:8px">Building hidden-structure evidence…</div><button id="hsReset" style="margin-top:8px">Reset V192 Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#hsReset').onclick=()=>{if(!confirm('Reset only Hidden Structure accuracy and survival memory?'))return;save({w:0,l:0,pending:null,last:null,survival:{},validation:null});scheduleRender(0)}}
-function fmtSide(s){return s==='P'?'PLAYER':s==='B'?'BANKER':'WAIT'}
-function renderNow(){renderTimer=0;install();const r=signal();set('hsDecision',r.status||'WAIT');set('hsSide',r.rawSide?fmtSide(r.rawSide):'—');set('hsMatches',String(r.matches||0));set('hsQuality',r.quality!=null?r.quality+'%':'—');set('hsVote',r.pPct!=null?`P ${r.pPct}% / B ${r.bPct}%`:'—');set('hsAgree',r.agreement!=null?r.agreement+'%':'—');set('hsSurvive',String(r.survivors||0));set('hsAcc',r.verifiedN?`${r.verifiedRate}% • ${r.w}W-${r.l}L • N=${r.verifiedN}`:'— • 0W-0L');set('hsSeq',fmtSide(r.seqSide));set('hsFuture',fmtSide(r.futureSide));set('hsLast',r.last?`${r.last.win?'WIN ✓':'LOSS ✗'} #${r.last.hand}`:'—');set('hsNote',r.reason||r.note||'WAIT');try{arm(r)}catch(e){}return r}
-function scheduleRender(delay=16){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{try{renderNow()}catch(e){console.warn('V192 render',e)}},delay)}
-function hook(){
- // Do not append another synchronous full-render wrapper. V102 intentionally keeps live input off that historical chain.
- const ra=window.renderAnalyzer;
- if(typeof ra==='function'&&!ra.__v192Waterflow){const w=function(){const z=ra.apply(this,arguments);scheduleRender(12);return z};w.__v192Waterflow=true;w.__v192Original=ra;window.renderAnalyzer=w;try{renderAnalyzer=w}catch(e){}}
-}
-function boot(){install();hook();scheduleRender(40)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,850),{once:true});else setTimeout(boot,250);
-setTimeout(hook,1700);
-window.__hiddenStructureEdgeV191=window.__hiddenStructureEdgeV192={version:VERSION,scan,signal,render:renderNow,scheduleRender,settle,assumption:'repeatable_or_semi_repeatable_structure_is_testable_not_assumed_true',independentPerShoe:true,tieAware:true,derivedRoadAware:true,forwardSurvival:true,cachedFeatures:true,cachedScan:true,actualMainFutureAnchor:true,anchors:['Sequence V2','Main Future Road']};
-})();
-</script>
-
-<script id="v193-main-future-3road-carbon-copy">
-/* V193 EXPERIMENT — carbon copy of the active Main Future Road with an added
-   3-derived-road future confirmation layer. It does NOT replace or alter the
-   original Main Future Road. Entire experiment is isolated to this script,
-   its panel, and localStorage key below so it can be removed cleanly. */
-(function(){
-'use strict';
-const VERSION=193;
-const KEY='main-future-3road-experiment-v193';
-const PANEL='mainFuture3RoadV193';
-let renderTimer=0;
-
-function fresh(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,last:null,ledger:[]}}
-function load(){
-  try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&typeof x==='object')return Object.assign(fresh(),x)}catch(e){}
-  return fresh();
-}
-function save(x){try{localStorage.setItem(KEY,JSON.stringify(x))}catch(e){}}
-function seq(){try{return currentSequence()}catch(e){return []}}
-function pbN(){return seq().filter(x=>x==='P'||x==='B').length}
-function sideName(s){return s==='P'?'PLAYER':s==='B'?'BANKER':'WAIT'}
-function getBase(){
-  try{
-    const api=window.__V84_MAIN_FUTURE_TUNE__;
-    if(api&&typeof api.test==='function')return api.test();
-    if(typeof window.mainRoadFutureTest==='function')return window.mainRoadFutureTest();
-  }catch(e){}
-  return null;
-}
-function roadArray(offset){try{return deriveRoad(state.hands,offset)||[]}catch(e){return []}}
-function markFor(side,offset){
-  try{
-    const p=previewFor(side)||{};
-    return offset===1?p.eye:offset===2?p.small:p.roach;
-  }catch(e){return null}
-}
-function trend(a){
-  const x=(a||[]).filter(v=>v==='R'||v==='B');
-  if(x.length<4)return {ready:false,pred:null,confidence:0,mode:'BUILDING',same:0,flip:0,n:0};
-  const start=Math.max(1,x.length-8);
-  let same=0,flip=0,total=0;
-  for(let i=start;i<x.length;i++){
-    const w=1+(i-start)*0.20;
-    total+=w;
-    if(x[i]===x[i-1])same+=w;else flip+=w;
-  }
-  if(total<=0)return {ready:false,pred:null,confidence:0,mode:'BUILDING',same:0,flip:0,n:0};
-  const diff=Math.abs(same-flip)/total;
-  const mode=same>=flip?'CONTINUE':'ALTERNATE';
-  const last=x[x.length-1];
-  const pred=mode==='CONTINUE'?last:(last==='R'?'B':'R');
-  return {ready:true,pred,confidence:Math.round((0.50+0.50*diff)*100),mode,same,flip,n:x.length};
-}
-function evaluateRoad(offset,label){
-  const arr=roadArray(offset),t=trend(arr),pm=markFor('P',offset),bm=markFor('B',offset);
-  if(!t.ready||!pm||!bm||pm===bm)return {label,ready:false,trend:t,pMark:pm,bMark:bm,pFit:0,bFit:0};
-  const strength=Math.max(0.25,Math.min(1,(t.confidence-50)/50));
-  return {label,ready:true,trend:t,pMark:pm,bMark:bm,pFit:pm===t.pred?strength:0,bFit:bm===t.pred?strength:0};
-}
-function test(){
-  const base=getBase();
-  if(!base)return {side:null,status:'BUILDING',reason:'Original Main Future Road is not ready.',roads:[],base:null};
-  const roads=[evaluateRoad(1,'BIG EYE'),evaluateRoad(2,'SMALL'),evaluateRoad(3,'ROACH')];
-  const ready=roads.filter(r=>r.ready);
-  let pFit=0,bFit=0,pVotes=0,bVotes=0;
-  ready.forEach(r=>{pFit+=r.pFit;bFit+=r.bFit;if(r.pFit>r.bFit)pVotes++;else if(r.bFit>r.pFit)bVotes++;});
-  const fitTotal=pFit+bFit;
-  const pDerived=fitTotal?Math.round(100*pFit/fitTotal):50;
-  const bDerived=100-pDerived;
-  const derivedSide=pDerived>bDerived?'P':bDerived>pDerived?'B':null;
-  const derivedEdge=Math.abs(pDerived-bDerived);
-  const baseP=Number(base.p&&base.p.norm)||50, baseB=Number(base.b&&base.b.norm)||50;
-  // Carbon-copy base stays dominant. Added road-future layer confirms/refuses it;
-  // it does not manufacture an opposite call by itself.
-  const pBlend=Math.round(baseP*0.70+pDerived*0.30);
-  const bBlend=Math.round(baseB*0.70+bDerived*0.30);
-  let side=base.side||null,status='WAIT',reason='';
-  if(!side){reason='Original Main Future Road is WAIT.';}
-  else if(ready.length<2){side=null;reason='Fewer than 2 of 3 derived-road futures are ready.';}
-  else if(!derivedSide){side=null;reason='The 3-road future layer is tied.';}
-  else if(derivedSide!==base.side){side=null;reason=`3-road future conflicts with original Main Future (${sideName(derivedSide)} vs ${sideName(base.side)}).`;}
-  else if(Math.max(pVotes,bVotes)<2){side=null;reason='Fewer than 2 derived roads independently confirm the same future.';}
-  else if(derivedEdge<18){side=null;reason=`3-road future separation ${derivedEdge} points is below the 18-point experiment gate.`;}
-  else {status='QUALIFIED';reason=`Original Main Future + ${Math.max(pVotes,bVotes)}/3 derived-road futures agree on ${sideName(side)}.`;}
-  return {version:VERSION,side,status,reason,base,roads,ready:ready.length,pVotes,bVotes,pDerived,bDerived,derivedSide,derivedEdge,pBlend,bBlend};
-}
-function install(){
-  if(document.getElementById(PANEL))return true;
-  const anchor=document.getElementById('mainRoadFutureTest');
-  if(!anchor||!anchor.parentNode)return false;
-  const d=document.createElement('div');d.className='future-test';d.id=PANEL;
-  d.style.cssText='margin-top:12px;border:1px solid rgba(111,168,255,.72)';
-  d.innerHTML=`<div class="future-test-title">🧪 Main Future Road COPY V193 — 3-Road Future Experiment</div>
-  <div class="future-test-sub">Carbon copy test only. The original Main Future Road is untouched. This copy adds a strict Big Eye + Small + Cockroach future-confirmation gate so we can compare results and delete the experiment cleanly if it does not help.</div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>EXPERIMENT CALL</span><strong id="mf3Call">WAIT</strong></div>
-    <div class="analyzer-card"><span>ORIGINAL MAIN FUTURE</span><strong id="mf3Base">—</strong></div>
-    <div class="analyzer-card"><span>3-ROAD FUTURE</span><strong id="mf3Derived">—</strong></div>
-    <div class="analyzer-card"><span>ROADS READY</span><strong id="mf3Ready">0/3</strong></div>
-  </div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>PLAYER FUTURE</span><strong id="mf3P">—</strong></div>
-    <div class="analyzer-card"><span>BANKER FUTURE</span><strong id="mf3B">—</strong></div>
-    <div class="analyzer-card"><span>ROAD VOTES P / B</span><strong id="mf3Votes">0 / 0</strong></div>
-    <div class="analyzer-card"><span>3-ROAD EDGE</span><strong id="mf3Edge">—</strong></div>
-  </div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>BIG EYE FUTURE</span><strong id="mf3Eye">—</strong></div>
-    <div class="analyzer-card"><span>SMALL FUTURE</span><strong id="mf3Small">—</strong></div>
-    <div class="analyzer-card"><span>ROACH FUTURE</span><strong id="mf3Roach">—</strong></div>
-    <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="mf3Acc">—</strong></div>
-  </div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>WINS / LOSSES</span><strong id="mf3WL">0W-0L</strong></div>
-    <div class="analyzer-card"><span>SAMPLE</span><strong id="mf3N">N=0</strong></div>
-    <div class="analyzer-card"><span>WAITS</span><strong id="mf3Waits">0</strong></div>
-    <div class="analyzer-card"><span>LAST GRADED</span><strong id="mf3Last">—</strong></div>
-  </div>
-  <div class="analyzer-sub" id="mf3Note" style="margin-top:8px">Building experiment evidence…</div>
-  <button id="mf3Reset" type="button" style="margin-top:8px">Reset COPY Accuracy</button>`;
-  anchor.parentNode.insertBefore(d,anchor.nextSibling);
-  d.querySelector('#mf3Reset').addEventListener('click',()=>{if(!confirm('Reset only the V193 carbon-copy accuracy?'))return;save(fresh());schedule(0)});
-  return true;
-}
-function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function roadText(r){if(!r||!r.ready)return 'BUILDING';return `${r.trend.mode} → ${r.trend.pred} • P:${r.pMark} B:${r.bMark}`}
-function renderNow(){
-  if(!install())return;
-  const x=test(),a=load(),n=a.wins+a.losses;
-  set('mf3Call',x.side?sideName(x.side):'WAIT');
-  set('mf3Base',x.base?`${sideName(x.base.side)} • P ${x.base.p?.norm??'—'} / B ${x.base.b?.norm??'—'}`:'—');
-  set('mf3Derived',x.derivedSide?sideName(x.derivedSide):'WAIT');set('mf3Ready',`${x.ready||0}/3`);
-  set('mf3P',Number.isFinite(x.pBlend)?x.pBlend+'%':'—');set('mf3B',Number.isFinite(x.bBlend)?x.bBlend+'%':'—');
-  set('mf3Votes',`${x.pVotes||0} / ${x.bVotes||0}`);set('mf3Edge',Number.isFinite(x.derivedEdge)?x.derivedEdge+' pts':'—');
-  const m={};(x.roads||[]).forEach(r=>m[r.label]=r);set('mf3Eye',roadText(m['BIG EYE']));set('mf3Small',roadText(m['SMALL']));set('mf3Roach',roadText(m['ROACH']));
-  set('mf3Acc',n?(100*a.wins/n).toFixed(1)+'%':'—');set('mf3WL',`${a.wins}W-${a.losses}L`);set('mf3N',`N=${n}`);set('mf3Waits',String(a.waits||0));
-  set('mf3Last',a.last?(a.last.correct?'WIN':'LOSS')+` #${a.last.handN}`:'—');set('mf3Note',x.reason||'WAIT');
-  return x;
-}
-function schedule(ms){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{try{renderNow()}catch(e){console.warn('V193 render',e)}},ms==null?0:ms)}
-function settle(actual){
-  if(!['P','B','T'].includes(actual))return;
-  const a=load(),q=a.pending;a.pending=null;
-  if(actual==='T'){a.ties++;save(a);return}
-  if(!q){save(a);return}
-  const correct=q.side===actual;if(correct)a.wins++;else a.losses++;
-  a.last={...q,actual,correct,settledAt:Date.now()};a.ledger.push(a.last);if(a.ledger.length>500)a.ledger.splice(0,a.ledger.length-500);save(a);
-}
-function arm(){
-  const a=load(),n=pbN(),x=test();
-  if(!(x.side==='P'||x.side==='B')){a.pending=null;if(a.lastWaitHandN!==n){a.waits++;a.lastWaitHandN=n}save(a);return}
-  a.lastWaitHandN=null;a.pending={side:x.side,handN:n,baseSide:x.base?.side||null,baseP:x.base?.p?.norm||0,baseB:x.base?.b?.norm||0,derivedSide:x.derivedSide,derivedEdge:x.derivedEdge,pVotes:x.pVotes,bVotes:x.bVotes,pBlend:x.pBlend,bBlend:x.bBlend,armedAt:Date.now()};save(a);
-}
-function bind(){
-  const nodes=[...document.querySelectorAll('[data-result]'),document.getElementById('previewP'),document.getElementById('previewB')].filter(Boolean);
-  nodes.forEach(btn=>{if(btn.__v193mf3)return;btn.__v193mf3=true;btn.addEventListener('click',function(){let actual=this.dataset&&this.dataset.result;if(!actual){if(this.id==='previewP')actual='P';if(this.id==='previewB')actual='B'}try{settle(actual)}catch(e){}setTimeout(()=>{try{arm();schedule(0)}catch(e){}},20)},true)});
-  const undo=document.getElementById('undoBtn');if(undo&&!undo.__v193mf3){undo.__v193mf3=true;undo.addEventListener('click',()=>setTimeout(()=>{const a=load();a.pending=null;save(a);arm();schedule(0)},25),false)}
-  const clear=document.getElementById('clearBtn');if(clear&&!clear.__v193mf3){clear.__v193mf3=true;clear.addEventListener('click',()=>setTimeout(()=>{const a=load();a.pending=null;a.lastWaitHandN=null;save(a);schedule(0)},25),false)}
-}
-function init(){if(!install())return false;bind();try{arm()}catch(e){}schedule(0);return true}
-window.__MAIN_FUTURE_3ROAD_EXPERIMENT_V193__={version:VERSION,test,render:renderNow,accuracy:load,isolated:true,originalMainFutureUntouched:true,deleteSurface:{scriptId:'v193-main-future-3road-carbon-copy',panelId:PANEL,storageKey:KEY}};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(init,300);setTimeout(init,1000);setTimeout(init,2200)});
-else {setTimeout(init,300);setTimeout(init,1000);setTimeout(init,2200)}
-})();
-</script>
-
-
-<script id="v194-chart-pattern-transition-experiment">
-(function(){
-'use strict';
-const VERSION=194, KEY='chart-pattern-recognizer-v194-transition-accuracy';
-const C={sig:'',shoes:[],stateCache:new Map(),lastSeq:'',lastScan:null};
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const pct=v=>Math.round(clamp(v,0,1)*100);
-const arrSeq=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'').split('');
-const pbOnly=a=>a.filter(x=>x==='P'||x==='B');
-function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36)}
-function suffixSim(a,b,n=16){a=a.slice(-n);b=b.slice(-n);const m=Math.min(a.length,b.length);if(!m)return 0;let s=0,w=0;for(let i=1;i<=m;i++){const z=.7+1.5*i/m;w+=z;if(a[a.length-i]===b[b.length-i])s+=z}return s/w}
-function runs(seq){const a=pbOnly(seq),o=[];for(const x of a){if(!o.length||o[o.length-1].side!==x)o.push({side:x,n:1});else o[o.length-1].n++}return o}
-function shape(seq,n=10){return runs(seq).slice(-n).map(x=>x.n)}
-function shapeSim(a,b,n=10){a=a.slice(-n);b=b.slice(-n);const m=Math.min(a.length,b.length);if(!m)return 0;let s=0,w=0;for(let i=1;i<=m;i++){const x=a[a.length-i],y=b[b.length-i],z=.8+1.4*i/m;w+=z;s+=z*(1-Math.min(1,Math.abs(x-y)/Math.max(1,x,y)))}return s/w}
-function regime(seq){const a=pbOnly(seq).slice(-12);if(a.length<4)return 'WARMUP';let ch=0,mr=1,r=1;for(let i=1;i<a.length;i++){if(a[i]===a[i-1]){r++;mr=Math.max(mr,r)}else{ch++;r=1}}const t=ch/Math.max(1,a.length-1);if(mr>=5||t<=.30)return 'STREAK';if(t>=.68)return 'CHOP';return 'MIXED'}
-function tieLandmark(seq){const a=arrSeq(seq),last=a.length-1,idx=a.lastIndexOf('T'),dist=idx<0?99:last-idx,after=idx===last;let prev='',next='';for(let i=idx-1;i>=0;i--)if(a[i]!=='T'){prev=a[i];break}for(let i=idx+1;i<a.length;i++)if(a[i]!=='T'){next=a[i];break}return {after,dist:Math.min(12,Math.max(0,dist)),recent:a.slice(-10).filter(x=>x==='T').length,prev,next}}
-function road(seq,o){try{return deriveRoad(arrSeq(seq).map(r=>({r})),o)||[]}catch(e){return []}}
-function transitions(a,n=10){a=a.slice(-n);if(a.length<2)return {rate:0,tail:a.join(''),run:0,alt:0};let ch=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])ch++;let r=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)r++;let alt=1;for(let i=a.length-1;i>0&&a[i]!==a[i-1];i--)alt++;return {rate:ch/(a.length-1),tail:a.join(''),run:r,alt};}
-function syncFingerprint(eye,small,roach){const rs=[eye,small,roach].map(x=>transitions(x,8)),last=[eye.at(-1),small.at(-1),roach.at(-1)],ready=last.filter(Boolean).length,red=last.filter(x=>x==='R').length;const changeBand=rs.map(x=>x.rate>=.66?'A':x.rate<=.34?'S':'M').join('');const runBand=rs.map(x=>x.run>=3?'L':x.run===2?'2':'1').join('');return {ready,red,changeBand,runBand,key:`${ready}|${red}|${changeBand}|${runBand}`,agreement:ready?Math.max(red,ready-red)/ready:0,rs}}
-function cluster(seq){const sh=shape(seq,8),rg=regime(seq),pb=pbOnly(arrSeq(seq)),last=pb.at(-1)||'',tr=transitions(pb,10),fail=(sh.length>=2&&sh.at(-2)>=3&&sh.at(-1)===1)?1:0;return `${rg}|${last}|${sh.slice(-5).map(x=>Math.min(6,x)).join('.') }|${tr.rate>=.66?'CH':tr.rate<=.34?'ST':'MX'}|F${fail}`}
-function state(seq){const s=Array.isArray(seq)?seq.join(''):String(seq||''),key=hash(s);if(C.stateCache.has(key))return C.stateCache.get(key);const a=arrSeq(s),pb=pbOnly(a),eye=road(a,1),small=road(a,2),roach=road(a,3),st={seq:a,pb,shape:shape(a,10),eye,small,roach,rg:regime(a),phase:pb.length<18?'EARLY':pb.length<42?'MIDDLE':'LATE',tie:tieLandmark(a),sync:syncFingerprint(eye,small,roach),cluster:cluster(a),n:pb.length};C.stateCache.set(key,st);if(C.stateCache.size>8000){let i=0;for(const k of C.stateCache.keys()){C.stateCache.delete(k);if(++i>=1500)break}}return st}
-function nextPB(seq,pos){for(let i=pos;i<seq.length;i++)if(seq[i]==='P'||seq[i]==='B')return seq[i];return null}
-function libraries(){let lib=[];try{lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){}const seen=new Set(),out=[];for(let i=0;i<lib.length;i++){const seq=String(lib[i].sequence||'').toUpperCase().replace(/[^PBT]/g,'');if(pbOnly(arrSeq(seq)).length<12||seen.has(seq))continue;seen.add(seq);out.push({id:String(lib[i].id||`shoe-${i}`),sequence:seq})}return out}
-function ensure(){const lib=libraries(),sig=lib.map(x=>`${x.id}:${x.sequence.length}:${hash(x.sequence)}`).join('|');if(sig===C.sig)return;C.sig=sig;C.shoes=lib.map(sh=>{const hist=arrSeq(sh.sequence),byN=new Map();let n=0;for(let pos=0;pos<hist.length;pos++){if(pos>0&&(hist[pos-1]==='P'||hist[pos-1]==='B'))n++;if(pos<7)continue;let x=byN.get(n);if(!x)byN.set(n,x=[]);x.push(pos)}return {id:sh.id,hist,byN}});C.lastSeq='';C.lastScan=null}
-function tieSim(a,b){let s=a.after===b.after?1:.25;s+=.45*(1-Math.min(1,Math.abs(a.dist-b.dist)/8));s+=.25*(1-Math.min(1,Math.abs(a.recent-b.recent)/4));return clamp(s/1.7,0,1)}
-function clusterSim(a,b){const A=a.split('|'),B=b.split('|');let s=0;for(let i=0;i<Math.min(A.length,B.length);i++)if(A[i]===B[i])s++;return s/Math.max(A.length,B.length)}
-function candidateScore(cur,hs){const main=shapeSim(cur.shape,hs.shape,10),bead=suffixSim(cur.seq,hs.seq,22),eye=suffixSim(cur.eye,hs.eye,14),small=suffixSim(cur.small,hs.small,12),roach=suffixSim(cur.roach,hs.roach,10),sync=cur.sync.key===hs.sync.key?1:(cur.sync.changeBand===hs.sync.changeBand?.78:cur.sync.red===hs.sync.red?.58:.28),cl=clusterSim(cur.cluster,hs.cluster),tie=tieSim(cur.tie,hs.tie),phase=cur.phase===hs.phase?1:.55,rg=cur.rg===hs.rg?1:.50;return {score:.24*bead+.22*main+.10*eye+.09*small+.08*roach+.11*sync+.10*cl+.03*tie+.015*phase+.015*rg,main,bead,eye,small,roach,sync,cl,tie,phase,rg}}
-function futureFingerprint(st,side){const nx=state(st.seq.concat(side));const added={eye:nx.eye.length>st.eye.length?nx.eye.at(-1):'',small:nx.small.length>st.small.length?nx.small.at(-1):'',roach:nx.roach.length>st.roach.length?nx.roach.at(-1):''};return {state:nx,added,key:`${added.eye||'-'}${added.small||'-'}${added.roach||'-'}|${nx.sync.key}|${nx.cluster}`}}
-function futureMatch(curFuture,histFuture){const a=curFuture,b=histFuture;let mark=0,m=0;for(const k of ['eye','small','roach']){if(a.added[k]&&b.added[k]){m++;if(a.added[k]===b.added[k])mark++}}const added=m?mark/m:.5;return .45*added+.30*(a.state.sync.key===b.state.sync.key?1:(a.state.sync.changeBand===b.state.sync.changeBand?.72:.35))+.25*clusterSim(a.state.cluster,b.state.cluster)}
-function scan(){ensure();let liveSeq=[];try{liveSeq=currentSequence()}catch(e){}const key=arrSeq(liveSeq).join('');if(key===C.lastSeq&&C.lastScan)return C.lastScan;const cur=state(liveSeq);if(cur.n<8||!C.shoes.length)return C.lastScan={ready:false,side:null,note:cur.n<8?'Need at least 8 non-tie live results':'No saved shoes'};const curP=futureFingerprint(cur,'P'),curB=futureFingerprint(cur,'B'),rows=[];for(const sh of C.shoes){let best=null;for(let n=Math.max(7,cur.n-8);n<=cur.n+10;n++){for(const pos of (sh.byN.get(n)||[])){const nxt=nextPB(sh.hist,pos);if(!nxt)continue;const hs=state(sh.hist.slice(0,pos)),z=candidateScore(cur,hs);if(z.score<.57||z.main<.48)continue;const histFuture=futureFingerprint(hs,nxt),fP=futureMatch(curP,histFuture),fB=futureMatch(curB,histFuture),future=nxt==='P'?fP:fB;const maturity=1-Math.min(1,Math.abs(hs.n-cur.n)/Math.max(14,cur.n));const survival=.72+.28*(.55*z.main+.45*z.cl);const score=z.score*(.88+.12*maturity)*survival*(.82+.18*future);const row={...z,score,nxt,shoe:sh.id,pos,maturity,survival,future,fP,fB};if(!best||score>best.score)best=row}}if(best)rows.push(best)}rows.sort((a,b)=>b.score-a.score);const top=rows.slice(0,Math.min(12,rows.length));if(top.length<5)return C.lastScan={ready:false,side:null,matches:top.length,note:'Not enough independent transition matches'};const best=top[0].score;let p=0,b=0,w=0;for(const r of top){const wt=Math.exp((r.score-best)/.032)*(.55+.45*r.score)*(.75+.25*r.future)*(.75+.25*r.survival);if(r.nxt==='P')p+=wt;else b+=wt;w+=wt}const pr=w?p/w:.5,br=w?b/w:.5,leader=pr>=br?'P':'B',lead=Math.max(pr,br),edge=Math.abs(pr-br);const avg=k=>top.reduce((s,x)=>s+(Number(x[k])||0),0)/top.length;const sync=avg('sync'),cl=avg('cl'),main=avg('main'),future=avg('future'),survival=avg('survival');const leadRows=top.filter(x=>x.nxt===leader),oppRows=top.filter(x=>x.nxt!==leader),sep=(leadRows.length?leadRows.reduce((s,x)=>s+x.score,0)/leadRows.length:0)-(oppRows.length?oppRows.reduce((s,x)=>s+x.score,0)/oppRows.length:0);const avgFP=top.reduce((s,x)=>s+x.fP,0)/top.length,avgFB=top.reduce((s,x)=>s+x.fB,0)/top.length;const futureVote=leader==='P'?avgFP:avgFB,futureOpp=leader==='P'?avgFB:avgFP,futureGap=futureVote-futureOpp;const qualified=lead>=.67&&edge>=.16&&main>=.57&&sync>=.50&&cl>=.50&&futureVote>=.53&&futureGap>=.025&&survival>=.58&&sep>=-.01;const conf=qualified?clamp(.52+(lead-.5)*.55+(main-.55)*.12+(sync-.5)*.08+(futureVote-.5)*.10+Math.max(0,futureGap)*.10,.52,.80):0;const result={ready:true,side:qualified?leader:null,confidence:pct(conf),matches:top.length,pPct:pct(pr),bPct:pct(br),main:pct(main),sync:pct(sync),cluster:pct(cl),future:pct(futureVote),futureOpp:pct(futureOpp),futureGap:+futureGap.toFixed(3),survival:pct(survival),tie:cur.tie.after?'AFTER TIE':`DIST ${cur.tie.dist}`,phase:`${cur.rg} / ${cur.phase}`,note:qualified?`QUALIFIED ${leader==='P'?'PLAYER':'BANKER'} — transition cluster + 3-road sync + future structure agree`:`WAIT — structure/future separation not strong enough`};C.lastSeq=key;C.lastScan=result;return result}
-function acc(){let a={};try{a=JSON.parse(localStorage.getItem(KEY)||'{}')||{}}catch(e){}a.w=+a.w||0;a.l=+a.l||0;a.pending=a.pending||null;a.last=a.last||null;a.gradedIds=Array.isArray(a.gradedIds)?a.gradedIds:[];return a}
-function save(a){try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){}}
-function arm(){const a=acc(),s=scan(),n=pbOnly(arrSeq(currentSequence())).length;if(!a.pending&&s.side){a.pending={side:s.side,target:n+1,id:`v194-${n}-${s.side}-${Date.now()}`};save(a)}}
-function settle(actual){if(actual!=='P'&&actual!=='B')return false;const a=acc(),q=a.pending;if(!q||!q.id)return false;if(a.gradedIds.includes(q.id)){a.pending=null;save(a);return false}const win=q.side===actual;if(win)a.w++;else a.l++;a.gradedIds.push(q.id);if(a.gradedIds.length>500)a.gradedIds.splice(0,a.gradedIds.length-500);a.last={win,predicted:q.side,actual,hand:q.target,predictionId:q.id};a.pending=null;save(a);setTimeout(()=>{try{render()}catch(e){}},0);return true}
-function set(id,v){const e=document.getElementById(id);if(e&&e.textContent!==String(v))e.textContent=String(v)}
-function ensurePanel(){if(document.getElementById('chartPatternRecognizerV194'))return;const anchor=document.getElementById('chartPatternRecognizerV156')||document.getElementById('mainRoadFutureTest')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const e=document.createElement('div');e.id='chartPatternRecognizerV194';e.className='analyzer';e.style.cssText='margin-top:12px;border:1px solid rgba(189,147,249,.7)';e.innerHTML=`<div class="analyzer-title">🧬 AI Chart Pattern Recognizer V195 — Transition / 3-Road Experiment (Scan Fix)</div><div class="analyzer-sub">Carbon-copy experiment. V189 remains untouched. Adds Main Road column geometry, chop↔streak transition clusters, failed streaks, 3-road synchronization, Tie landmarks, maturity/survival decay, recent-structure emphasis, and Player-vs-Banker future-road matching.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT CALL</span><strong id="cpr194Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="cpr194Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="cpr194N">0</strong></div><div class="analyzer-card"><span>MAIN GEOMETRY</span><strong id="cpr194Main">—</strong></div><div class="analyzer-card"><span>TRANSITION CLUSTER</span><strong id="cpr194Cluster">—</strong></div><div class="analyzer-card"><span>3-ROAD SYNC</span><strong id="cpr194Sync">—</strong></div><div class="analyzer-card"><span>FUTURE STRUCTURE</span><strong id="cpr194Future">—</strong></div><div class="analyzer-card"><span>FUTURE GAP</span><strong id="cpr194FutureGap">—</strong></div><div class="analyzer-card"><span>MATCH SURVIVAL</span><strong id="cpr194Survival">—</strong></div><div class="analyzer-card"><span>PLAYER NEXT</span><strong id="cpr194P">—</strong></div><div class="analyzer-card"><span>BANKER NEXT</span><strong id="cpr194B">—</strong></div><div class="analyzer-card"><span>TIE LANDMARK</span><strong id="cpr194Tie">—</strong></div><div class="analyzer-card"><span>REGIME / PHASE</span><strong id="cpr194Phase">—</strong></div><div class="analyzer-card"><span>WINS</span><strong id="cpr194W">0 W</strong></div><div class="analyzer-card"><span>LOSSES</span><strong id="cpr194L">0 L</strong></div><div class="analyzer-card"><span>ACCURACY</span><strong id="cpr194Acc">—</strong></div></div><div class="analyzer-sub" id="cpr194Note" style="margin-top:8px">Waiting for structure…</div><button id="cpr194Reset" style="margin-top:8px">Reset V194 Accuracy</button>`;anchor.parentNode.insertBefore(e,anchor.nextSibling);e.querySelector('#cpr194Reset').onclick=()=>{if(confirm('Reset only V194 experimental Pattern Recognizer accuracy?')){save({w:0,l:0,pending:null,last:null,gradedIds:[]});render()}}}
-let timer=0;function render(){ensurePanel();const s=scan(),a=acc(),n=a.w+a.l;set('cpr194Side',s.side?(s.side==='P'?'PLAYER':'BANKER'):'WAIT');set('cpr194Conf',s.side?`${s.confidence}%`:'—');set('cpr194N',s.matches||0);set('cpr194Main',s.main!=null?`${s.main}%`:'—');set('cpr194Cluster',s.cluster!=null?`${s.cluster}%`:'—');set('cpr194Sync',s.sync!=null?`${s.sync}%`:'—');set('cpr194Future',s.future!=null?`${s.future}%`:'—');set('cpr194FutureGap',s.futureGap!=null?`${Math.round(s.futureGap*100)} pts`:'—');set('cpr194Survival',s.survival!=null?`${s.survival}%`:'—');set('cpr194P',s.pPct!=null?`${s.pPct}%`:'—');set('cpr194B',s.bPct!=null?`${s.bPct}%`:'—');set('cpr194Tie',s.tie||'—');set('cpr194Phase',s.phase||'—');set('cpr194W',`${a.w} W`);set('cpr194L',`${a.l} L`);set('cpr194Acc',n?`${Math.round(100*a.w/n)}% • N=${n}`:'—');set('cpr194Note',(s.note||'WAIT')+(a.pending?` • LOCKED ${a.pending.side} for P/B #${a.pending.target}`:''));try{arm()}catch(e){}return s}
-function schedule(){clearTimeout(timer);timer=setTimeout(()=>{try{render()}catch(e){}},16)}
-try{if(typeof window.renderAnalyzer==='function'&&!window.__cpr194AnalyzerWrapped){const old=window.renderAnalyzer;window.renderAnalyzer=function(){const r=old.apply(this,arguments);schedule();return r};window.__cpr194AnalyzerWrapped=true}}catch(e){}
-try{if(typeof window.__settleVerifiedPredictions==='function'&&!window.__cpr194SettleWrapped){const old=window.__settleVerifiedPredictions;window.__settleVerifiedPredictions=function(actual){const r=old.apply(this,arguments);try{settle(actual)}catch(e){}return r};window.__cpr194SettleWrapped=true}}catch(e){}
-window.__chartPatternRecognizerV194=window.__chartPatternRecognizerV195={version:195,scan,render,accuracy:acc,experimental:true,baseline:'V189 untouched',features:['main-column-geometry','transition-clusters','failed-streaks','three-road-sync','tie-landmarks','maturity','match-survival','future-PB-road-structure']};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,900),{once:true});else setTimeout(render,900);
-})();
-
-</script>
 </body>
 </html>
