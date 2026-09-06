@@ -14067,13 +14067,12 @@ function scoreCandidate(cur,histPrefix,histLen){
   const transitions=runTransitionSimilarity(cur,histPrefix,10);
   const clusters=categoricalSuffixSimilarity(clusterSignature(cur),clusterSignature(histPrefix),16);
   const ties=tieSimilarity(cur,histPrefix);
-  const eye=derivedSimilarity(cur,histPrefix,1,14);
-  const small=derivedSimilarity(cur,histPrefix,2,12);
-  const roach=derivedSimilarity(cur,histPrefix,3,10);
-  const derived=(eye+small+roach)/3;
-  // Primary = Bead/Main/shape transitions/cluster regime. Derived roads remain confirmation only.
-  const score=.16*bead+.08*literal+.20*main+.17*rf+.14*transitions+.10*clusters+.05*ties+.04*eye+.03*small+.03*roach;
-  return {score,bead,literal,main,rf,transitions,clusters,ties,eye,small,roach,derived,flip};
+  // V188: Chart Pattern Recognizer uses ONLY Bead Plate + Main Road information.
+  // 30% Bead Plate: chronological P/B/T identity, literal alignment, tie placement.
+  // 70% Main Road structure: column/run shape, repeat/switch rhythm, run transitions, chop/run clusters.
+  // Big Eye Boy, Small Road and Cockroach Road have zero influence here.
+  const score=.20*bead+.07*literal+.03*ties+.25*main+.18*rf+.16*transitions+.11*clusters;
+  return {score,bead,literal,main,rf,transitions,clusters,ties,flip};
 }
 function scan(){
   let cur=[],lib=[];
@@ -14087,11 +14086,10 @@ function scan(){
     for(let pos=minPos;pos<hist.length;pos++){
       const rawNext=nextNonTie(hist,pos); if(!rawNext)continue;
       const pref=hist.slice(0,pos), s=scoreCandidate(cur,pref,hist.length);
-      const phase=phaseSimilarity(cur.length,pos,hist.length);
-      const final=s.score*(.91+.09*phase);
+      const final=s.score;
       if(final>=.50){
         const next=s.flip?(rawNext==='P'?'B':'P'):rawNext;
-        candidates.push({...s,phase,score:final,next,rawNext,shoeId:shoe.id||'',pos});
+        candidates.push({...s,score:final,next,rawNext,shoeId:shoe.id||'',pos});
       }
     }
   }
@@ -14107,16 +14105,16 @@ function scan(){
   const pPct=w?p/w:.5,bPct=w?b/w:.5,edge=Math.abs(pPct-bPct),K=Math.min(10,top.length),elite=top.slice(0,K);
   const av=k=>elite.reduce((z,x)=>z+Number(x[k]||0),0)/K;
   const avg=top.reduce((z,x)=>z+x.score,0)/top.length;
-  const bestBead=av('bead'),bestMain=av('main'),rf=av('rf'),transitions=av('transitions'),clusters=av('clusters'),ties=av('ties'),phase=av('phase');
-  const structural=.28*bestMain+.24*rf+.20*transitions+.16*clusters+.12*bestBead;
-  const support=(av('eye')+av('small')+av('roach'))/3;
-  const conf=clamp(.44+edge*.72+(structural-.5)*.48+(top.length>=12?.04:0),.50,.90);
+  const bestBead=av('bead'),bestMain=av('main'),rf=av('rf'),transitions=av('transitions'),clusters=av('clusters'),ties=av('ties');
+  // Final recognition evidence is intentionally independent of all three derived roads.
+  const structural=.36*bestMain+.26*rf+.23*transitions+.15*clusters;
+  const conf=clamp(.44+edge*.72+(structural-.5)*.48+(bestBead-.5)*.12+(top.length>=12?.04:0),.50,.90);
   // Selective gate requires continuation edge plus color-invariant structural agreement.
   const side=(edge>=.105&&avg>=.575&&structural>=.60&&bestMain>=.58&&rf>=.58&&top.length>=7)?(bPct>pPct?'B':'P'):null;
   return {ready:true,side,confidence:side?pct(conf):0,matches:top.length,pPct:pct(pPct),bPct:pct(bPct),
-    bead:pct(bestBead),main:pct(bestMain),eye:pct(av('eye')),small:pct(av('small')),roach:pct(av('roach')),
-    avgSimilarity:pct(avg),structural:pct(structural),rf:pct(rf),transitions:pct(transitions),clusters:pct(clusters),ties:pct(ties),phase:pct(phase),support:pct(support),
-    note:side?`V172 STRUCTURE MATCH • ${pct(structural)}% shape • ${pct(rf)}% repeat/switch • ${pct(clusters)}% regime • tie context ${pct(ties)}%`:`WAIT — V172 structural continuation is not strong enough (shape ${pct(structural)}%, edge ${pct(edge) }%)`};
+    bead:pct(bestBead),main:pct(bestMain),
+    avgSimilarity:pct(avg),structural:pct(structural),rf:pct(rf),transitions:pct(transitions),clusters:pct(clusters),ties:pct(ties),
+    note:side?`V188 MAIN+BEAD MATCH • Main structure ${pct(structural)}% • Bead ${pct(bestBead)}% • repeat/switch ${pct(rf)}% • regime ${pct(clusters)}%`:`WAIT — V188 Main Road + Bead Plate continuation is not strong enough (structure ${pct(structural)}%, edge ${pct(edge)}%)`};
 }
 function acc(){
   let a;
@@ -14160,8 +14158,8 @@ function ensurePanel(){
   el.id='chartPatternRecognizerV156';
   el.style.cssText='margin-top:12px;border:1px solid rgba(88,166,255,.55);';
   el.innerHTML=`
-    <div class="analyzer-title">📈 AI Chart Pattern Recognizer V172 — Structural / Color-Invariant</div>
-    <div class="analyzer-sub">Primary focus: <b>Bead Plate + Main Road structure</b>. Recognizes literal P/B patterns AND color-inverted equivalents, run-length shapes, repeat/switch rhythm, 1-2 / 2-1 / 2-2 transitions, chop/run clusters, tie placement, and shoe phase. Big Eye Boy, Small Road and Cockroach Road remain supporting confirmation only.</div>
+    <div class="analyzer-title">📈 AI Chart Pattern Recognizer V188 — Main Road + Bead Plate Only</div>
+    <div class="analyzer-sub">Uses <b>ONLY the Bead Plate + Main Road</b>. Main Road carries 70% of the pattern score through run/column shape, repeat/switch rhythm, run transitions, and chop/run clusters. Bead Plate carries 30% through chronological P/B/T alignment, literal sequence identity, and tie placement. Big Eye Boy, Small Road, and Cockroach Road have zero influence on this AI.</div>
     <div class="analyzer-grid">
       <div class="analyzer-card"><span>NEXT CALL</span><strong id="cprSide">WAIT</strong></div>
       <div class="analyzer-card"><span>CONFIDENCE</span><strong id="cprConf">—</strong></div>
@@ -14174,11 +14172,6 @@ function ensurePanel(){
       <div class="analyzer-card"><span>LOSSES</span><strong id="cprLosses">0 L</strong></div>
       <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">—</strong></div>
       <div class="analyzer-card"><span>LAST GRADED</span><strong id="cprLast">—</strong></div>
-    </div>
-    <div class="analyzer-grid">
-      <div class="analyzer-card"><span>BIG EYE</span><strong id="cprEye">—</strong></div>
-      <div class="analyzer-card"><span>SMALL ROAD</span><strong id="cprSmall">—</strong></div>
-      <div class="analyzer-card"><span>COCKROACH</span><strong id="cprRoach">—</strong></div>
     </div>
     <div class="analyzer-sub" id="cprNote" style="margin-top:8px">Building chart-pattern evidence…</div>
     <button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;
@@ -14197,9 +14190,6 @@ function render(){
   set('cprMain',s.main!=null?s.main+'%':'—');
   set('cprP',s.pPct!=null?s.pPct+'%':'—');
   set('cprB',s.bPct!=null?s.bPct+'%':'—');
-  set('cprEye',s.eye!=null?s.eye+'%':'—');
-  set('cprSmall',s.small!=null?s.small+'%':'—');
-  set('cprRoach',s.roach!=null?s.roach+'%':'—');
   set('cprWins',`${a.w} W`);
   set('cprLosses',`${a.l} L`);
   set('cprAcc',n?`${Math.round(a.w/n*100)}% • ${a.w}W-${a.l}L • N=${n}`:'— • 0W-0L • N=0');
@@ -14229,7 +14219,8 @@ try{
     window.__cprV156SettleWrapped=true;
   }
 }catch(e){}
-window.__chartPatternRecognizerV156=window.__chartPatternRecognizerV172={version:172,scan,render,accuracy:acc,settle,primary:['Bead Plate','Main Road structure','run/chop/cluster','tie context','shoe phase'],support:['Big Eye Boy','Small Road','Cockroach Road'],colorInvariant:true,selectiveGate:true};
+window.__chartPatternRecognizerV156=window.__chartPatternRecognizerV172=window.__chartPatternRecognizerV188={version:188,scan,render,accuracy:acc,settle,primary:['Main Road','Bead Plate'],weights:{mainRoad:.70,beadPlate:.30},support:[],derivedRoadInfluence:false,colorInvariant:true,selectiveGate:true};
+window.__CHART_PATTERN_V188_MAIN_BEAD_ONLY__={version:188,mainRoadWeight:.70,beadPlateWeight:.30,derivedRoadInfluence:false};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,700));
 else setTimeout(render,700);
 })();
@@ -14646,7 +14637,7 @@ function ensure(){if(document.getElementById('aiReplayLabV167'))return;const anc
  const q=id=>d.querySelector(id);q('#labQuick').onclick=()=>run('quick');q('#labFull').onclick=()=>run('full');q('#labTune').onclick=()=>run('tune');q('#labApply').onclick=applyBest;renderMeta();}
 function renderMeta(){const s=uniqueShoes(),sp=split(s),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('labShoes',s.length);set('labSplit',`${sp.train.length} / ${sp.val.length} / ${sp.test.length}`);}
 function renderResult(r,label){const box=document.getElementById('labResults'),note=document.getElementById('labNote');if(!box)return;box.innerHTML=Object.entries(r.models).map(([k,z])=>card(k,z)).join('');if(note)note.textContent=`${label}: ${r.shoeCount} held-out shoes. Accuracy is graded only on pre-result P/B calls; WAIT is not counted as a win or loss.`;}
-function run(mode){if(running)return;running=true;const status=document.getElementById('labStatus');if(status)status.textContent='RUNNING';setTimeout(()=>{try{const shoes=uniqueShoes(),sp=split(shoes);if(shoes.length<12)throw new Error('Need at least 12 unique saved shoes.');if(mode==='quick'){const r=evalSet(sp.test,sp.train,loadCfg(),Math.min(5,sp.test.length));last={mode,r,cfg:loadCfg()};renderResult(r,'Quick replay');}
+function run(mode){if(running)return;try{if(Array.isArray(state?.hands)&&state.hands.length){const status=document.getElementById('labStatus');if(status)status.textContent='PAUSED';const n=document.getElementById('labNote');if(n)n.textContent='Heavy replay/training is disabled while a live shoe has hands. Start it only between shoes so live play cannot freeze.';return;}}catch(e){}running=true;const status=document.getElementById('labStatus');if(status)status.textContent='RUNNING';setTimeout(()=>{try{const shoes=uniqueShoes(),sp=split(shoes);if(shoes.length<12)throw new Error('Need at least 12 unique saved shoes.');if(mode==='quick'){const r=evalSet(sp.test,sp.train,loadCfg(),Math.min(5,sp.test.length));last={mode,r,cfg:loadCfg()};renderResult(r,'Quick replay');}
  else if(mode==='full'){const r=evalSet(sp.test,sp.train,loadCfg());last={mode,r,cfg:loadCfg()};renderResult(r,'Full unseen replay');}
  else {const t=tune(sp.train,sp.val);const r=evalSet(sp.test,sp.train,t.cfg);last={mode,r,cfg:t.cfg,tune:t};renderResult(r,'Auto-tuned then frozen unseen test');const a=document.getElementById('labApply');if(a)a.disabled=false;const n=document.getElementById('labNote');if(n)n.textContent+=` Tuned structural gate ${(t.cfg.structGate*100).toFixed(0)}%, Mirror replay gate ${(t.cfg.mirrorGate*100).toFixed(0)}%, min ${t.cfg.minShoes} shoes / ${t.cfg.minSupport} support. Apply Best Gate also gives GPT Mirror the validated replay profile.`;}
  if(status)status.textContent='DONE';}catch(e){if(status)status.textContent='ERROR';const n=document.getElementById('labNote');if(n)n.textContent=e.message||String(e);}finally{running=false;}},30);}
@@ -14778,13 +14769,15 @@ function ensurePanel(){
   d.innerHTML=`<div class="analyzer-title">⚙️ MASTER ALL-AI TRAIN + REPLAY V171 — FULL LIBRARY</div>
   <div class="analyzer-sub">One cycle uses the full saved RED + BLACK library. Learning-capable engines are rebuilt/retrained; fixed-rule AIs are not secretly rewritten, but they are replay-tested and graded hand-by-hand. Sequence AI V2 remains unchanged while still being tested.</div>
   <div class="analyzer-grid"><div class="analyzer-card"><span>FULL LIBRARY</span><strong id="masterAllAIShoes">0</strong></div><div class="analyzer-card"><span>MODE</span><strong>TRAIN + TEST ALL</strong></div><div class="analyzer-card"><span>STATUS</span><strong id="masterAllAIStatus">READY</strong></div></div>
-  <button class="tiny-btn" id="masterAllAIRun" style="margin-top:9px;width:100%;font-weight:900">BUILD DATASET + TRAIN + REPLAY EVERY AI</button>
-  <div class="analyzer-sub" id="masterAllAINote" style="margin-top:8px">Build Dataset and Replay buttons below are also linked to this master cycle.</div>`;
+  <button class="tiny-btn" id="masterAllAIRun" style="margin-top:9px;width:100%;font-weight:900">RUN HEAVY TRAINING MANUALLY</button>
+  <div class="analyzer-sub" id="masterAllAINote" style="margin-top:8px">MANUAL ONLY — no other button launches this cycle. Run it between shoes, never during live hand entry.</div>`;
   anchor.parentNode.insertBefore(d,anchor.nextSibling);
   d.querySelector('#masterAllAIRun').onclick=()=>runMaster('master');
 }
 async function runMaster(source){
-  if(busy)return;busy=true;
+  if(busy)return;
+  try{if(Array.isArray(state?.hands)&&state.hands.length){txt('masterAllAIStatus','PAUSED');txt('masterAllAINote','Heavy all-AI training is blocked during an active live shoe to prevent freezing. Start a New Shoe first, then run training manually.');return;}}catch(e){}
+  busy=true;
   const btn=document.getElementById('masterAllAIRun');if(btn)btn.disabled=true;
   txt('masterAllAIStatus','RUNNING');txt('masterAllAINote','1/5 Building full-library dataset…');
   try{
@@ -14807,15 +14800,18 @@ async function runMaster(source){
 }
 function wire(){
   ensurePanel();updateMirrorCount();txt('masterAllAIShoes',String(fullLibraryCount()));
+  // V190: Heavy training tools are MANUAL ONLY. Do not hijack Build Dataset or Replay buttons.
   const build=document.getElementById('mlBuild');
-  if(build&&!build.__v171Master){build.__v171Master=true;build.textContent='Build Dataset + Train ALL AIs';build.onclick=()=>runMaster('dataset');}
+  if(build){build.textContent='Build / Refresh Dataset';build.removeAttribute('title');}
   const full=document.getElementById('labFull');
-  if(full&&!full.__v171Master){full.__v171Master=true;full.textContent='Replay + Train ALL AIs';full.onclick=()=>runMaster('replay');}
-  const quick=document.getElementById('labQuick');if(quick)quick.title='Quick replay remains a short diagnostic only.';
-  const lab=document.getElementById('aiReplayLabV167');if(lab){const sub=lab.querySelector('.analyzer-sub');if(sub)sub.textContent='FULL-LIBRARY master mode: Replay + Train ALL AIs launches dataset build, deep library learning, ML/recurrent training, GPT Mirror held-out tuning, then an all-current-AI hand-by-hand replay. Fixed-rule AIs are tested but their core logic is not rewritten. Sequence AI V2 remains unchanged.';}
+  if(full){full.textContent='Full Unseen Replay';full.title='Manual replay only; blocked during a live shoe.';}
+  const lab=document.getElementById('aiReplayLabV167');
+  if(lab){const sub=lab.querySelector('.analyzer-sub');if(sub)sub.textContent='MANUAL HEAVY TOOL. Full-library replay and tuning run only when you press their buttons, and are blocked during an active live shoe. Sequence AI V2 remains unchanged.';}
+  const master=document.getElementById('masterAllAITrainingV171');
+  // Keep both heavy panels out of the live-play render path by placing them at the bottom.
+  try{const parent=document.body; if(lab&&lab.parentNode)parent.appendChild(lab); if(master&&master.parentNode)parent.appendChild(master);}catch(e){}
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,2300),{once:true});else setTimeout(wire,2300);
-setTimeout(wire,4200);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,1800),{once:true});else setTimeout(wire,1800);
 window.__MASTER_ALL_AI_TRAINING_V171__={version:VERSION,run:runMaster,fullLibrary:true,sequenceV2Untouched:true,trainLearningCapable:true,replayFixedRule:true};
 })();
 </script>
@@ -14921,7 +14917,7 @@ window.__UniversalChopV173={version:VERSION,state:chopState,apply,install,allAI:
 <script id="v176-deep-stability-runtime-guard">
 (function(){
 'use strict';
-const D=window.__V176_RUNTIME_DIAGNOSTICS__={version:176,errors:[],startedAt:Date.now(),build:'V187_POST_SELECTIVE_SCAN_FIX'};
+const D=window.__V176_RUNTIME_DIAGNOSTICS__={version:176,errors:[],startedAt:Date.now(),build:'V188_POST_SELECTIVE_SCAN_FIX'};
 function push(kind,msg){D.errors.push({time:Date.now(),kind,msg:String(msg||'unknown')});if(D.errors.length>20)D.errors.shift();}
 window.addEventListener('error',e=>push('error',e?.message||e?.error));
 window.addEventListener('unhandledrejection',e=>push('promise',e?.reason?.message||e?.reason));
@@ -15204,10 +15200,45 @@ function health(){
   ensureMetaAccuracyDef();
   const dead=['masterBotPanel','consensusPanel','metaSelectorV49Panel','metaSelectorV50Panel','liveModelGovernorV32Panel','liveModelGovernorV34Panel','v58BotPanel','v60SeqDupPanel'];
   dead.forEach(id=>{try{document.getElementById(id)?.remove()}catch(e){}});
-  window.__V187_HEALTH__={version:VERSION,walkForwardRestored:!!window.__metaWalkV23,walkForwardPanelPresent:!!document.getElementById('metaWalkV23'),walkForwardAccuracyRegistered:Array.isArray(window.__accuracyModelDefs)&&window.__accuracyModelDefs.some(r=>String(r?.[0]||'').toLowerCase()==='metav23'),deadSequenceDuplicateUsedBySelectiveV23:false,sequenceV2CoreUntouched:true};
+  window.__V188_HEALTH__={version:VERSION,walkForwardRestored:!!window.__metaWalkV23,walkForwardPanelPresent:!!document.getElementById('metaWalkV23'),walkForwardAccuracyRegistered:Array.isArray(window.__accuracyModelDefs)&&window.__accuracyModelDefs.some(r=>String(r?.[0]||'').toLowerCase()==='metav23'),deadSequenceDuplicateUsedBySelectiveV23:false,sequenceV2CoreUntouched:true};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(health,2600),{once:true});else setTimeout(health,2600);
 setTimeout(health,5200);
+})();
+</script>
+
+<script id="v189-road-preview-specialist-to-top">
+(function(){
+'use strict';
+const VERSION=189;
+function moveTop(){
+  const road=document.getElementById('roadPreviewAiPanel');
+  if(!road||!road.parentNode)return false;
+  const parent=road.parentNode;
+  const top=parent.querySelector('.analyzer');
+  if(top && top!==road) parent.insertBefore(road,top);
+  window.__V189_LAYOUT__={version:VERSION,roadPreviewSpecialistTop:true,logicChanged:false};
+  return true;
+}
+function install(){
+  moveTop();
+  [300,900,1900,3800,6000].forEach(ms=>setTimeout(moveTop,ms));
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
+
+<script id="v190-training-freeze-guard">
+(function(){
+'use strict';
+function resetHeavyStatus(){
+  try{
+    const lab=document.getElementById('labStatus'); if(lab&&/RUNNING/i.test(lab.textContent||''))lab.textContent='READY';
+    const mst=document.getElementById('masterAllAIStatus'); if(mst&&/RUNNING/i.test(mst.textContent||''))mst.textContent='READY';
+  }catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(resetHeavyStatus,2600),{once:true});else setTimeout(resetHeavyStatus,2600);
+window.__V190_TRAINING_FREEZE_GUARD__={manualOnly:true,blockDuringLiveShoe:true,decoupledButtons:true};
 })();
 </script>
 </body>
