@@ -8,7 +8,7 @@
 <meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
 <meta content="#101114" name="theme-color"/>
 <link href="manifest.json" rel="manifest"/>
-<meta content="V178_ACCURACY_COUNTS_REPAIR" name="all-in-build"/>
+<meta content="V180_POST_CLEAN_SCAN_FIX" name="all-in-build"/>
 <title>All-In Style Baccarat Roadmap</title>
 <style>
   :root{
@@ -545,7 +545,7 @@
 <div class="analyzer" id="kaggleControlPanel">
 <div class="analyzer-title">Historical Library Control</div>
 <div style="margin-top:8px"><label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer"><input id="kaggleLibraryToggle" style="width:20px;height:20px" type="checkbox"/><span>Kaggle 200,000-Shoe Library</span></label></div>
-<div class="analyzer-sub" id="kaggleLibraryNote" style="margin-top:6px">When ON, Kaggle becomes a separate fourth evidence source for the High-Powered Bot. Sequence AI V2 and Sequence AI V2 Duplicate remain independent.</div>
+<div class="analyzer-sub" id="kaggleLibraryNote" style="margin-top:6px">When ON, Kaggle remains available only to supported historical-library diagnostics. Sequence AI V2 and Sequence AI V2 Duplicate remain independent.</div>
 </div>
 <div class="analyzer" id="instantLibraryLearnPanel" style="border-color:#57708f">
 <div class="analyzer-title">⚡ Deep Full-Library Learning V15 — All AI</div>
@@ -856,29 +856,7 @@
 <button class="tiny-btn" id="gptMirrorResetStats">Reset Mirror Accuracy</button>
 </div>
 </div>
-<div class="analyzer" id="masterBotPanel" style="border-color:#4a5d78">
-<div class="analyzer-title">🤖 High-Powered Bot AI — 3-Signal Core Fusion</div>
-<div class="bot-live-strip" id="botLiveStrip">
-<div class="bot-live-left"><span class="bot-live-dot"></span><span id="botLiveText">🟢 BOT AI LIVE — ALWAYS ON</span></div>
-<div class="bot-live-meta" id="botLiveMeta">Heartbeat starting…</div>
-</div>
-<div class="analyzer-sub">Combines the three retained core signals: Sequence AI V2, Sequence Duplicate, and Road Preview AI. The Bot dynamically weights evidence quality and returns WAIT when the retained sources conflict.</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Bot decision</span><strong id="botDecision">WAIT</strong></div>
-<div class="analyzer-card"><span>Bot confidence</span><strong id="botConfidence">—</strong></div>
-<div class="analyzer-card"><span>Shoe phase</span><strong id="botPhase">EARLY</strong></div>
-</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Sequence V2 matches</span><strong id="botPhaseSamples">0</strong></div>
-<div class="analyzer-card"><span>Road Preview matches</span><strong id="botRoadSamples">0</strong></div>
-<div class="analyzer-card"><span>Bot verified accuracy</span><strong id="botAccuracy">—</strong></div>
-</div>
-<div class="analyzer-sub" id="botNote" style="margin-top:8px">Enter hands to activate Sequence AI V2 + Sequence Duplicate + Road Preview AI fusion.</div>
-<div class="h2o-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
-<button class="tiny-btn" id="botLearningToggle">Learning: ON</button>
-<button class="tiny-btn" id="botResetStats">Reset Bot Stats</button>
-</div>
-</div>
+
 </div>
 <script>
 // ROAD ENGINE BUILD: 2026-08-17-road-preview-v3 + ultimate-bot-v8-smart-controller
@@ -10114,84 +10092,7 @@ window.__V24_DIAGNOSTIC_REPAIR__={
   };
 })();
 </script>
-<script data-v127-order="39" id="v46LeanTrainingFirstBot" type="application/x-v127-deferred">
-(()=>{
-  // V46 LEAN TRAINING-FIRST BOT
-  // Purpose: reduce redundant prediction logic while preserving all specialist/training panels.
-  // Active prediction sources: Sequence V2, Road Preview, RED/BLACK Specialist V20,
-  // Walk-Forward Meta V23, plus BLACK Context V22 only during BLACK shoes.
-  // Explicitly excluded from Bot voting because they are redundant/composite/weak in V44:
-  // Sequence Duplicate, Color Pattern direct vote, Adaptive Derived, Consensus, Focus composite,
-  // Knowledge V27 and Shadow V29 (kept advisory/training only), 
 
-  function leanSignal(){
-    try{ if(typeof ensureBotState==='function') ensureBotState(); }catch(e){}
-    const color=String(state?.shoeColor||state?.currentShoeColor||'').toLowerCase();
-    const phase=(typeof botPhaseInfo==='function'?botPhaseInfo():{key:'EARLY'});
-    const defs=[];
-    const seq=(typeof sequenceAISignal==='function'?sequenceAISignal():{})||{};
-    const road=(typeof roadPreviewAISignal==='function'?roadPreviewAISignal():{})||{};
-    const v20=window.__redBlackSpecialistV20?.signal?.()||{};
-    const v23=window.__metaWalkV23?.signal?.()||{};
-    const v22=window.__blackContextV22?.signal?.()||{};
-
-    const add=(key,name,z,base)=>{
-      const side=(z?.qualified===false)?null:z?.side;
-      if(side!=='P'&&side!=='B')return;
-      const strength=Math.max(0,Math.min(100,Number(z.confidence??z.strength)||0));
-      // Conservative weighting: confidence helps, but no single source dominates.
-      const weight=base*(0.72+0.28*(strength/100));
-      defs.push({key,name,side,strength,weight});
-    };
-    add('seqv2','Sequence AI V2',seq,1.00);
-    add('roadpreview','Road Preview AI',road,0.88);
-    add('specialistv20','RED / BLACK Specialist V20',v20,1.02);
-    add('metav23','Walk-Forward Meta Learner V23',v23,1.04);
-    if(color==='black') add('blackctxv22','BLACK Context Specialist V22',v22,1.06);
-
-    let p=0,b=0,total=0;
-    for(const x of defs){ total+=x.weight; x.side==='P'?p+=x.weight:b+=x.weight; }
-    const pVotes=defs.filter(x=>x.side==='P').length,bVotes=defs.filter(x=>x.side==='B').length;
-    const candidate=p>=b?'P':b>p?'B':null;
-    const supporters=candidate?defs.filter(x=>x.side===candidate):[];
-    const opp=candidate?defs.filter(x=>x.side!==candidate):[];
-    const edge=total?Math.abs(p-b)/total:0;
-    const avg=supporters.length?supporters.reduce((s,x)=>s+x.strength,0)/supporters.length:0;
-
-    let qualified=false,reason='';
-    if(defs.length<2) reason=`WAIT: only ${defs.length} independent trained source${defs.length===1?' is':'s are'} ready.`;
-    else if(supporters.length<2) reason='WAIT: no two independent trained sources agree.';
-    else if(edge<0.10) reason=`WAIT: trained-source edge ${Math.round(edge*100)}% is too small.`;
-    else if(avg<56) reason=`WAIT: agreeing trained sources average ${Math.round(avg)}% strength.`;
-    else { qualified=true; reason=`LEAN TRAINING-FIRST LOCK: ${supporters.length}/${defs.length} active trained sources support ${candidate==='P'?'PLAYER':'BANKER'}.`; }
-
-    const confidence=qualified?Math.min(88,Math.round(avg+Math.min(8,edge*16)+(supporters.length>=3?3:0))):Math.round(avg||0);
-    return {
-      side:qualified?candidate:null,candidate,confidence,qualified,reason,phase,
-      candidates:defs,agreement:defs.length?supporters.length/defs.length:0,
-      total:defs.length,agree:supporters.length,historicalSamples:0,
-      pScore:total?Math.round(p/total*100):0,bScore:total?Math.round(b/total*100):0,
-      seqV2:seq,roadPreview:road,specialistV20:v20,metaV23:v23,blackContextV22:v22,
-      fusion:'V46 Lean: Sequence V2 + Road Preview + V20 + V23 + V22 on BLACK',
-      leanTrainingFirstV46:true
-    };
-  }
-
-  // Override only the Bot fusion. Source AIs, training, diagnostics, Shadow and Knowledge stay intact.
-  window.__masterBotSignalPreV46=window.masterBotSignal||null;
-  try{ masterBotSignal=leanSignal; }catch(e){ window.masterBotSignal=leanSignal; }
-  window.masterBotSignal=leanSignal;
-  window.__leanTrainingFirstV46={signal:leanSignal,active:true};
-
-  function relabel(){
-    const title=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));
-    if(title) title.textContent='🤖 High-Powered Bot AI — V46 Lean Training-First Core';
-    const note=document.getElementById('kaggleLibraryNote');
-    if(note) note.textContent='V46 Bot voting is intentionally lean: Sequence V2 + Road Preview + V20 + V23, with V22 added only on BLACK shoes. Duplicate/Consensus/Adaptive/Focus do not get extra Bot votes. Shadow V29 and Knowledge V27 remain advisory/training only.';
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,100));else setTimeout(relabel,100);
-})();
-</script>
 <script data-v127-order="40" id="frozen-library-ai-v47" type="application/x-v127-deferred">
 /* ============================================================
    FROZEN LIBRARY AI V47 — repurposes Sequence AI V2 Duplicate
@@ -10433,197 +10334,8 @@ window.__V24_DIAGNOSTIC_REPAIR__={
   window.__FROZEN_LIBRARY_AI_V47_1_SCAN__={syntaxChecked:true,sharedTrainerIsolation:true,liveLearningInferenceBypass:true,probabilityUiFixed:true};
 })();
 </script>
-<script data-v127-order="43" id="meta-selector-v49" type="application/x-v127-deferred">
-/* ============================================================
-   META-SELECTOR AI V49 — CONTROLLED REPLAY + STRICT PRE-RESULT AUDIT
-   - Existing specialist AIs -> trained selector -> High-Powered Bot.
-   - Prediction is frozen BEFORE the next result is known.
-   - Completed outcomes first enter a replay buffer.
-   - Selector trust is recalibrated in batches, not rewritten after every hand.
-   - Replay window is bounded so stale history cannot dominate forever.
-   - Frozen Library AI V47 remains frozen and is not auto-retrained.
-   - Frozen V47 is withheld from selector control until independent evidence exists.
-   ============================================================ */
-(function(){
-  const VERSION=49;
-  const COMMIT_EVERY=12;
-  const MAX_REPLAY=240;
-  const MIN_DISAGREE_EVIDENCE=20;
-  const SOURCE_DEFS=[
-    ['seqv2','Sequence AI V2',()=>typeof sequenceAISignal==='function'?sequenceAISignal():{}],
-    ['roadpreview','Road Preview AI',()=>typeof roadPreviewAISignal==='function'?roadPreviewAISignal():{}],
-    ['specialistv20','RED / BLACK Specialist V20',()=>window.__redBlackSpecialistV20?.signal?.()||{}],
-    ['metav23','Walk-Forward Meta Learner V23',()=>window.__metaWalkV23?.signal?.()||{}],
-    ['blackctxv22','BLACK Context Specialist V22',()=>window.__blackContextV22?.signal?.()||{}]
-  ];
-  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-  const clone=x=>{try{return JSON.parse(JSON.stringify(x))}catch(e){return null}};
-  function pb(){try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B')}catch(e){return []}}
-  function color(){const q=String(state.currentShoeColor||state.shoeColor||'COMBINED').toUpperCase();return q.includes('RED')?'RED':q.includes('BLACK')?'BLACK':'COMBINED'}
-  function phase(){const n=pb().length;return n<18?'EARLY':n<36?'MIDDLE':'LATE'}
-  function regime(){const a=pb().slice(-12);if(a.length<6)return 'BUILDING';let sw=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])sw++;const r=sw/(a.length-1);return r>=.68?'CHOP':r<=.32?'RUN':'MIXED'}
-  function context(){return {color:color(),phase:phase(),regime:regime()}}
-  function ckey(c){return `${c.color}|${c.phase}|${c.regime}`}
-  function strength(z){return clamp(Number(z?.strength??z?.confidence??z?.top)||0,0,100)}
-  function valid(z){return z&&(z.side==='P'||z.side==='B')&&z.qualified!==false}
-  function S(){
-    state.metaSelectorV49 ||= {version:VERSION,replay:[],models:{},pairs:{},pending:null,settled:0,commits:0,committedRecords:0,audit:[],lastHandN:0,lastCommitAt:null};
-    const s=state.metaSelectorV49;s.version=VERSION;s.replay||=[];s.models||={};s.pairs||={};s.audit||=[];return s;
-  }
-  function sourceList(){
-    const c=color(),out=[];
-    for(const [key,name,fn] of SOURCE_DEFS){
-      if(key==='blackctxv22'&&c!=='BLACK')continue;
-      let z={};try{z=fn()||{}}catch(e){}
-      if(!valid(z))continue;
-      out.push({key,name,side:z.side,strength:strength(z)});
-    }
-    return out;
-  }
-  function bucket(obj,key){obj[key]||={w:0,l:0,n:0};return obj[key]}
-  function modelKey(k,c){return `${k}|${ckey(c)}`}
-  function pairKey(a,b,c){const [x,y]=[a,b].sort();return `${x}~${y}|${ckey(c)}`}
-  function posterior(b){if(!b||!b.n)return {rate:.5,n:0};return {rate:(b.w+6)/(b.n+12),n:b.n}}
-  function rebuild(){
-    const s=S();s.models={};s.pairs={};
-    const rows=s.replay.slice(-MAX_REPLAY);
-    for(const r of rows){
-      if(!r||!(r.actual==='P'||r.actual==='B')||!Array.isArray(r.sources))continue;
-      for(const x of r.sources){
-        const b=bucket(s.models,modelKey(x.key,r.context));b.n++;x.side===r.actual?b.w++:b.l++;
-      }
-      for(let i=0;i<r.sources.length;i++)for(let j=i+1;j<r.sources.length;j++){
-        const a=r.sources[i],b=r.sources[j];if(a.side===b.side)continue;
-        const pk=pairKey(a.key,b.key,r.context),q=s.pairs[pk]||(s.pairs[pk]={n:0,firstW:0,secondW:0});
-        const [first,second]=[a.key,b.key].sort();q.n++;
-        const winner=a.side===r.actual?a.key:b.key;
-        if(winner===first)q.firstW++;else if(winner===second)q.secondW++;
-      }
-    }
-    s.commits++;s.committedRecords=rows.length;s.lastCommitAt=Date.now();
-    try{if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true&&typeof persist==='function')persist()}catch(e){}
-  }
-  function maybeCommit(force){
-    const s=S();
-    const pending=Math.max(0,s.replay.length-s.committedRecords);
-    if(force||pending>=COMMIT_EVERY)rebuild();
-  }
-  function trust(x,c){
-    const p=posterior(S().models[modelKey(x.key,c)]);
-    let rate=p.rate;
-    // V144: A+ Training Core V42 was removed; no hidden reliability hook remains.
-    rate+=(x.strength-60)*0.0005;
-    return {rate:clamp(rate,.42,.62),n:p.n};
-  }
-  function pairEdge(a,b,c){
-    const q=S().pairs[pairKey(a.key,b.key,c)];if(!q||!q.n)return {edge:0,n:0};
-    const aFirst=[a.key,b.key].sort()[0]===a.key;
-    const aw=aFirst?q.firstW:q.secondW,bw=aFirst?q.secondW:q.firstW;
-    return {edge:(aw+5)/(q.n+10)-(bw+5)/(q.n+10),n:q.n};
-  }
-  function signal(){
-    const c=context(),sources=sourceList(),s=S();
-    if(sources.length<2)return {side:null,qualified:false,confidence:0,reason:`META WAIT: only ${sources.length} specialist source${sources.length===1?'':'s'} ready.`,metaSelectorV49:true,context:c,sources};
-    const scored=sources.map(x=>{
-      const t=trust(x,c);let adj=0,n=0,k=0;
-      for(const y of sources){if(y.key===x.key||y.side===x.side)continue;const pe=pairEdge(x,y,c);if(pe.n){adj+=pe.edge*Math.min(1,pe.n/18);n+=pe.n;k++;}}
-      if(k)adj/=k;
-      return {...x,trust:t.rate,learnedN:t.n,pairN:n,score:clamp(t.rate+adj*.18,.38,.66)};
-    }).sort((a,b)=>b.score-a.score||b.strength-a.strength);
-    const top=scored[0],second=scored[1],same=scored.filter(x=>x.side===top.side),opp=scored.filter(x=>x.side!==top.side);
-    const evidence=top.learnedN+top.pairN,margin=top.score-(second?.score??.5),avg=same.reduce((z,x)=>z+x.strength,0)/Math.max(1,same.length);
-    let qualified=false,reason='';
-    if(!opp.length&&same.length>=2){
-      qualified=top.score>=.49&&avg>=56;
-      reason=qualified?`META LOCK: ${same.length}/${scored.length} specialists agree; ${top.name} leads.`:'META WAIT: agreement exists but calibrated trust is still weak.';
-    }else if(evidence<MIN_DISAGREE_EVIDENCE)reason=`META WAIT: disagreement requires replay evidence; ${top.name} has N=${evidence}.`;
-    else if(top.score<.515)reason=`META WAIT: best replay-calibrated trust is ${Math.round(top.score*1000)/10}%.`;
-    else if(margin<.012&&top.pairN<18)reason='META WAIT: specialists are too close; more disagreement replay is required.';
-    else{qualified=true;reason=`META SELECT: ${top.name} leads ${c.color}/${c.phase}/${c.regime} at ${Math.round(top.score*1000)/10}% replay-calibrated trust.`;}
-    const conf=qualified?clamp(Math.round((50+(top.score-.5)*150+Math.max(0,top.strength-55)*.25)*10)/10,52,82):0;
-    return {side:qualified?top.side:null,candidate:top.side,qualified,confidence:conf,strength:conf,reason,metaSelectorV49:true,context:c,selectedModel:top.key,selectedName:top.name,selectedTrust:top.score,selectedEvidence:evidence,margin,sources:scored,agreement:same.length/scored.length,total:scored.length,agree:same.length,replayRecords:s.replay.length,committedRecords:s.committedRecords,commits:s.commits,fusion:'V49 controlled replay selector'};
-  }
-  function audit(type,msg,extra){const s=S();s.audit.push({at:Date.now(),type,msg,...(extra||{})});if(s.audit.length>80)s.audit.splice(0,s.audit.length-80)}
-  function finalizeSettlement(p,actual){
-    const s=S();
-    if(actual!=='P'&&actual!=='B'){audit('SKIP','Non P/B result skipped');return false}
-    if(!p?.sources?.length){audit('REJECT','No pre-result snapshot; outcome not learned');return false}
-    const now=pb(),handN=now.length;
-    if(handN<=p.handN)return false;
-    // Verify the newly appended P/B result equals the settlement argument.
-    const observed=now[p.handN];
-    if((observed==='P'||observed==='B')&&observed!==actual){audit('REJECT','Settlement did not match appended result',{observed,actual});return true}
-    const rec={context:clone(p.context),sources:clone(p.sources),actual,armedHandN:p.handN,settledHandN:handN,armedAt:p.armedAt,settledAt:Date.now()};
-    s.replay.push(rec);if(s.replay.length>MAX_REPLAY)s.replay.splice(0,s.replay.length-MAX_REPLAY);
-    s.settled++;audit('SETTLE','Outcome added to replay buffer',{actual,replay:s.replay.length});
-    maybeCommit(false);return true;
-  }
-  function arm(){
-    const s=S(),handN=pb().length;
-    // Core result handlers call settlement before appending the hand. Finish that
-    // captured settlement here, after the append and before arming the next hand.
-    if(s.deferredSettlement){
-      const d=s.deferredSettlement;s.deferredSettlement=null;
-      if(!finalizeSettlement(d.pending,d.actual))audit('REJECT','Deferred settlement still had no appended hand',{armed:d.pending?.handN,now:handN});
-    }
-    // A lower hand count means a new shoe began. Commit any buffered learning before continuing.
-    if(handN<s.lastHandN)maybeCommit(true);
-    s.lastHandN=handN;
-    const ss=sourceList();
-    s.pending={handN,context:context(),sources:ss.map(x=>({key:x.key,name:x.name,side:x.side,strength:x.strength})),armedAt:Date.now()};
-    audit('ARM','Pre-result snapshot stored',{handN,sources:ss.length});
-  }
-  function settle(actual){
-    const s=S(),p=s.pending;s.pending=null;
-    if(actual!=='P'&&actual!=='B'){audit('SKIP','Non P/B result skipped');return}
-    if(!p?.sources?.length){audit('REJECT','No pre-result snapshot; outcome not learned');return}
-    if(finalizeSettlement(p,actual))return;
-    // Normal live path: the core calls settle immediately before state.hands.push().
-    // Preserve the exact pre-result snapshot and finalize it in arm() after append.
-    s.deferredSettlement={pending:p,actual,queuedAt:Date.now()};
-    audit('QUEUE','Settlement captured; waiting for appended hand',{armed:p.handN,now:pb().length});
-  }
-  // Hook strict pre-result arm/settle after all prior accuracy hooks.
-  const oa=window.__armVerifiedPredictions;
-  if(typeof oa==='function'&&!oa.__metaSelectorV49){const w=function(){try{arm()}catch(e){}return oa.apply(this,arguments)};w.__metaSelectorV49=true;window.__armVerifiedPredictions=w}
-  const os=window.__settleVerifiedPredictions;
-  if(typeof os==='function'&&!os.__metaSelectorV49){const w=function(actual){let r;try{r=os.apply(this,arguments)}finally{try{settle(actual)}catch(e){}}return r};w.__metaSelectorV49=true;window.__settleVerifiedPredictions=w}
 
-  // High-Powered Bot consumes the controlled selector directly.
-  window.__masterBotSignalPreV49=window.masterBotSignal||null;
-  try{masterBotSignal=signal}catch(e){window.masterBotSignal=signal}window.masterBotSignal=signal;
 
-  function panel(){
-    let p=document.getElementById('metaSelectorV49Panel');
-    if(!p){p=document.createElement('div');p.id='metaSelectorV49Panel';p.className='analyzer';p.style.borderColor='#4fa3ff';
-      p.innerHTML=`<div class="analyzer-title">🎯 Meta-Selector AI V49 — Controlled Replay</div>
-      <div class="analyzer-sub">Strict pre-result learning. Verified outcomes enter a replay buffer; selector trust is recalibrated every ${COMMIT_EVERY} settled P/B hands or at a new shoe, instead of changing after every hand. Frozen Library AI V47 remains frozen.</div>
-      <div class="backtest-grid" style="margin-top:8px"><div class="bt-card"><strong id="ms49Pick">WAIT</strong><span>Selected AI</span></div><div class="bt-card"><strong id="ms49Trust">—</strong><span>Replay trust</span></div><div class="bt-card"><strong id="ms49Replay">0</strong><span>Replay outcomes</span></div><div class="bt-card"><strong id="ms49Commit">0</strong><span>Recalibrations</span></div></div>
-      <div class="analyzer-sub" id="ms49Reason" style="margin-top:8px"></div>
-      <div class="analyzer-sub" id="ms49Audit" style="margin-top:4px"></div>
-      <div class="rank-actions" style="margin-top:8px"><button class="tiny-btn" id="ms49CommitNow">Recalibrate From Replay Now</button><button class="tiny-btn" id="ms49RunWalkForward">Run Chronological Walk-Forward Test</button></div>`;
-      const old=document.getElementById('metaSelectorV48Panel');if(old)old.remove();
-      const bot=[...document.querySelectorAll('.analyzer')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(bot?.parentNode)bot.parentNode.insertBefore(p,bot);else document.body.appendChild(p);
-      p.querySelector('#ms49CommitNow')?.addEventListener('click',()=>{maybeCommit(true);panel()});
-      p.querySelector('#ms49RunWalkForward')?.addEventListener('click',()=>{
-        const b=document.getElementById('runFullLibraryBacktest');
-        if(b){b.click();setTimeout(()=>document.getElementById('fullLibraryBacktestPanel')?.scrollIntoView?.({behavior:'smooth',block:'start'}),100)}
-      });
-    }
-    try{const z=signal(),s=S(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
-      set('ms49Pick',z.selectedName||'WAIT');set('ms49Trust',z.selectedTrust?`${Math.round(z.selectedTrust*1000)/10}%`:'—');set('ms49Replay',s.replay.length);set('ms49Commit',s.commits);set('ms49Reason',z.reason||'Building replay evidence.');
-      const a=s.audit[s.audit.length-1];set('ms49Audit',a?`Audit: ${a.type} • ${a.msg}`:'Audit: waiting for first pre-result snapshot.');
-      const t=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(t)t.textContent='🤖 High-Powered Bot AI — V49 Controlled Meta-Controller';
-    }catch(e){}return p;
-  }
-  const oldRender=window.render;if(typeof oldRender==='function'&&!window.__metaSelectorV49RenderWrapped){window.render=function(){const r=oldRender.apply(this,arguments);try{panel()}catch(e){}return r};window.__metaSelectorV49RenderWrapped=true}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,120));else setTimeout(panel,120);setTimeout(panel,800);
-  window.__metaSelectorV49={version:VERSION,signal,arm,settle,state:S,rebuild,commitNow:()=>maybeCommit(true),sourceList,context,commitEvery:COMMIT_EVERY,maxReplay:MAX_REPLAY,strictPreResult:true};
-})();
-</script>
-<script data-v127-order="44" id="meta-selector-v49-build-tag" type="application/x-v127-deferred">
-window.__V49_CONTROLLED_META__={version:49,architecture:'existing specialists -> controlled replay selector -> High-Powered Bot',strictPreResult:true,settlementOrderFixed:true,replayBatch:12,maxReplay:240,chronologicalWalkForwardButton:true,frozenV47Preserved:true,autoRetrainFrozenModel:false};
-</script>
 <script data-v127-order="45" id="v49-2-prediction-availability-layer" type="application/x-v127-deferred">
 /* ============================================================
    V49.2 — PREDICTION AVAILABILITY LAYER
@@ -10732,256 +10444,8 @@ window.__V49_CONTROLLED_META__={version:49,architecture:'existing specialists ->
   window.__V49_2_PREDICTION_AVAILABILITY__={version:'49.2',rawPredictions:true,qualifiedPredictionsUnchanged:true,waitOnlyWhenNoUsableEvidence:true,preResultGrading:true,replayLearning:true};
 })();
 </script>
-<script data-v127-order="46" id="v49-3-meta-bot-compatibility-fix" type="application/x-v127-deferred">
-/* ============================================================
-   V49.3 — META/BOT COMPATIBILITY + RENDER SAFETY
-   Fixes the legacy High-Powered Bot UI/arming code so it can consume
-   the V49 Meta-Selector shape without throwing during render().
-   A render exception previously interrupted the post-result flow before
-   the NEXT pre-result snapshot could be armed.
-   ============================================================ */
-(function(){
-  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-  const phaseInfo=()=>{
-    let n=0;try{n=(typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B').length}catch(e){}
-    return n<18?{key:'EARLY',label:'EARLY'}:n<36?{key:'MIDDLE',label:'MIDDLE'}:{key:'LATE',label:'LATE'};
-  };
-  function compat(z){
-    z=z||{};
-    const c=z.context||{};
-    const ph={key:c.phase||phaseInfo().key,label:c.phase||phaseInfo().label};
-    const src=Array.isArray(z.sources)?z.sources:[];
-    const by=k=>src.find(x=>x.key===k)||{};
-    const side=z.side==='P'||z.side==='B'?z.side:null;
-    const conf=clamp(Number(z.confidence??z.strength)||0,0,100);
-    return {
-      ...z,
-      side,
-      qualified:!!side && z.qualified!==false,
-      confidence:conf,
-      strength:conf,
-      phase:ph,
-      phaseHist:z.phaseHist||{samples:Number(z.selectedEvidence)||0},
-      roadMem:z.roadMem||{samples:Number(by('roadpreview').learnedN||by('roadpreview').pairN)||0},
-      seqV2:z.seqV2||by('seqv2'),
-      sequenceDuplicate:z.sequenceDuplicate||{},
-      roadPreview:z.roadPreview||by('roadpreview'),
-      candidates:z.candidates||src.map(x=>({name:x.name||x.key,side:x.side,strength:Number(x.strength)||0,weight:Number(x.score||x.trust)||0})),
-      agree:Number.isFinite(Number(z.agree))?Number(z.agree):(side?src.filter(x=>x.side===side).length:0),
-      total:Number.isFinite(Number(z.total))?Number(z.total):src.length,
-      reason:z.reason||'Meta-Selector is building replay evidence.'
-    };
-  }
 
-  const meta=window.__metaSelectorV49;
-  if(meta?.signal){
-    const metaSignal=meta.signal.bind(meta);
-    const botCompat=function(){return compat(metaSignal()||{})};
-    botCompat.__v493Compat=true;
-    window.masterBotSignal=botCompat;
-    try{masterBotSignal=botCompat}catch(e){}
-  }
 
-  function safeArmBotPrediction(){
-    try{
-      if(typeof ensureBotState==='function')ensureBotState();
-      if(state?.bot)state.bot.learning=true;
-      const b=compat(window.masterBotSignal?.()||{});
-      if(!state?.bot)return;
-      state.bot.pending=b.qualified?{
-        side:b.side,
-        confidence:b.confidence,
-        phase:b.phase.key,
-        hand:(typeof currentSequence==='function'?currentSequence().length:0)+1,
-        color:state.currentShoeColor||'none',
-        specialists:(b.candidates||[]).map(c=>({name:c.name,side:c.side,strength:c.strength,reliability:c.weight}))
-      }:null;
-    }catch(e){
-      try{if(state?.bot)state.bot.pending=null}catch(_){}
-      console.warn('V49.3 safeArmBotPrediction',e);
-    }
-  }
-  window.armBotPrediction=safeArmBotPrediction;try{armBotPrediction=safeArmBotPrediction}catch(e){}
-
-  function safeRenderMasterBot(){
-    try{
-      if(typeof botHeartbeat==='function')botHeartbeat();
-      if(typeof ensureBotState==='function')ensureBotState();
-      const b=compat(window.masterBotSignal?.()||{});
-      const get=id=>document.getElementById(id);
-      const decision=get('botDecision');if(!decision)return;
-      decision.textContent=b.qualified?(b.side==='P'?'PLAYER':'BANKER'):'WAIT';
-      const conf=get('botConfidence');if(conf)conf.textContent=b.confidence?`${Math.round(b.confidence*10)/10}%`:'—';
-      const pe=get('botPhase');if(pe)pe.textContent=b.phase.label;
-      const ps=get('botPhaseSamples');if(ps)ps.textContent=b.phaseHist.samples||0;
-      const rs=get('botRoadSamples');if(rs)rs.textContent=b.roadMem.samples||0;
-      const acc=get('botAccuracy');if(acc)acc.textContent=state?.bot?.predictions?`${Math.round(state.bot.wins*100/state.bot.predictions)}% (${state.bot.wins}/${state.bot.predictions})`:'—';
-      const note=get('botNote');if(note){
-        const tier=b.rawPrediction?'RAW':'QUALIFIED';
-        note.textContent=b.qualified
-          ? `${tier} meta-selected ${b.side==='P'?'PLAYER':'BANKER'} • ${Math.round(b.confidence*10)/10}% confidence • ${b.selectedName||'best available specialist'}. ${b.reason||''}`
-          : (b.reason||'WAIT: no usable P/B evidence yet.');
-      }
-      const tog=get('botLearningToggle');if(tog){tog.textContent='Meta-Selector: ALWAYS ON';tog.disabled=true;}
-    }catch(e){console.warn('V49.3 safeRenderMasterBot',e)}
-  }
-  window.renderMasterBot=safeRenderMasterBot;try{renderMasterBot=safeRenderMasterBot}catch(e){}
-
-  // Ensure V49 simulation starts with a clean selector state so prior live
-  // replay cannot leak into a chronological test. Restore happens in V44.
-  window.__V49_3_META_BOT_FIX__={version:'49.3',legacyBotShapeCompatible:true,renderSafe:true,armSafe:true,preResultCycleProtected:true};
-})();
-</script>
-<script data-v127-order="47" id="v50-split-policy-qualified-bot" type="application/x-v127-deferred">
-/* ============================================================
-   V50 — SPLIT RED/BLACK POLICY + QUALIFIED BOT CONTROL
-   - Raw specialist P/B leans remain visible/learnable.
-   - ONLY replay-qualified selector calls can control the final Bot.
-   - RED and BLACK use separate trust buckets and promotion rules.
-   - Focus V26 is a primary RED specialist; BLACK is intentionally stricter.
-   - 
-   - Simulation uses an isolated empty V50 learner state so prior live replay
-     cannot leak into chronological full-library testing.
-   ============================================================ */
-(function(){
-  const VERSION=50, COMMIT_EVERY=12, MAX_REPLAY=240;
-  const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-  const clone=x=>{try{return JSON.parse(JSON.stringify(x))}catch(e){return null}};
-  const sideOf=v=>{const s=String(v||'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':null};
-  function strictOf(fn){return typeof fn==='function'?(fn.__v492Original||fn):null}
-  function call(fn){try{return typeof fn==='function'?(fn()||{}):{}}catch(e){return {}}}
-  function pb(){try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B')}catch(e){return []}}
-  function color(){const q=String(state.currentShoeColor||state.shoeColor||'COMBINED').toUpperCase();return q.includes('RED')?'RED':q.includes('BLACK')?'BLACK':'COMBINED'}
-  function phase(){const n=pb().length;return n<18?'EARLY':n<36?'MIDDLE':'LATE'}
-  function regime(){const a=pb().slice(-12);if(a.length<6)return 'BUILDING';let sw=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])sw++;const r=sw/(a.length-1);return r>=.68?'CHOP':r<=.32?'RUN':'MIXED'}
-  function context(){return {color:color(),phase:phase(),regime:regime()}}
-  function ckey(c){return `${c.color}|${c.phase}|${c.regime}`}
-  function blank(){return {version:VERSION,replay:[],models:{},pairs:{},pending:null,deferred:null,settled:0,commits:0,committedRecords:0,audit:[],lastHandN:0,createdAt:Date.now()}}
-  let simWasActive=false;
-  function S(){
-    const active=window.__FULL_LIBRARY_SIMULATION_ACTIVE__===true;
-    if(active){
-      if(!simWasActive||!window.__V50_SIM_STATE__)window.__V50_SIM_STATE__=blank();
-      simWasActive=true;return window.__V50_SIM_STATE__;
-    }
-    simWasActive=false;
-    state.metaSelectorV50 ||= blank();
-    const s=state.metaSelectorV50;s.version=VERSION;s.replay||=[];s.models||={};s.pairs||={};s.audit||=[];return s;
-  }
-  function strength(z){return clamp(Number(z?.strength??z?.confidence??z?.top)||0,0,100)}
-  function sourceDefs(){
-    const seqW=window.sequenceAISignal, roadW=window.roadPreviewAISignal;
-    const v20W=window.__redBlackSpecialistV20?.signal;
-    const v23W=window.__metaWalkV23?.signal;
-    const v22W=window.__blackContextV22?.signal;
-    return [
-      ['seqv2','Sequence AI V2',seqW,strictOf(seqW)],
-      ['roadpreview','Road Preview AI',roadW,strictOf(roadW)],
-      ['specialistv20','RED / BLACK Specialist V20',v20W,strictOf(v20W)],
-      ['metav23','Walk-Forward Meta Learner V23',v23W,strictOf(v23W)],
-      ['blackctxv22','BLACK Context Specialist V22',v22W,strictOf(v22W)]
-    ];
-  }
-  function sources(){
-    const c=color(),out=[];
-    for(const [key,name,rawFn,strictFn] of sourceDefs()){
-      if(key==='blackctxv22'&&c!=='BLACK')continue;
-      const raw=call(rawFn), strict=call(strictFn);
-      const rs=sideOf(raw.side)||sideOf(raw.candidate), ss=sideOf(strict.side);
-      const side=rs||ss;if(!side)continue;
-      const strictQualified=!!ss && strict.qualified!==false;
-      out.push({key,name,side,strength:strength(raw)||strength(strict),strictQualified,rawOnly:!strictQualified});
-    }
-    return out;
-  }
-  function bucket(obj,key){obj[key]||={w:0,l:0,n:0};return obj[key]}
-  function modelKey(k,c){return `${k}|${ckey(c)}`}
-  function pairKey(a,b,c){const [x,y]=[a,b].sort();return `${x}~${y}|${ckey(c)}`}
-  function posterior(b){if(!b||!b.n)return {rate:.5,n:0};return {rate:(b.w+6)/(b.n+12),n:b.n}}
-  function rebuild(){
-    const s=S();s.models={};s.pairs={};const rows=s.replay.slice(-MAX_REPLAY);
-    for(const r of rows){
-      if(!r||!sideOf(r.actual)||!Array.isArray(r.sources))continue;
-      for(const x of r.sources){const b=bucket(s.models,modelKey(x.key,r.context));b.n++;x.side===r.actual?b.w++:b.l++}
-      for(let i=0;i<r.sources.length;i++)for(let j=i+1;j<r.sources.length;j++){
-        const a=r.sources[i],b=r.sources[j];if(a.side===b.side)continue;
-        const q=s.pairs[pairKey(a.key,b.key,r.context)]||(s.pairs[pairKey(a.key,b.key,r.context)]={n:0,firstW:0,secondW:0});
-        const [first,second]=[a.key,b.key].sort();q.n++;const winner=a.side===r.actual?a.key:b.key;if(winner===first)q.firstW++;else if(winner===second)q.secondW++;
-      }
-    }
-    s.commits++;s.committedRecords=rows.length;s.lastCommitAt=Date.now();
-    try{if(window.__FULL_LIBRARY_SIMULATION_ACTIVE__!==true&&typeof persist==='function')persist()}catch(e){}
-  }
-  function maybeCommit(force){const s=S(),pending=Math.max(0,s.replay.length-s.committedRecords);if(force||pending>=COMMIT_EVERY)rebuild()}
-  function trust(x,c){
-    const p=posterior(S().models[modelKey(x.key,c)]);let rate=p.rate;
-    // Raw-only sources can teach the learner but do not get the same promotion power.
-    if(x.rawOnly)rate-=.012;
-    rate+=(x.strength-60)*0.00035;
-    // Policy preference from the 77-shoe test: Focus/V23 were strongest on RED.
-    if(c.color==='RED'&&x.key==='metav23')rate+=.010;
-    // BLACK has no proven dominant model, so no model receives a large prior boost.
-    if(c.color==='BLACK'&&x.key==='specialistv20')rate+=.004;
-    return {rate:clamp(rate,.40,.64),n:p.n};
-  }
-  function pairEdge(a,b,c){const q=S().pairs[pairKey(a.key,b.key,c)];if(!q||!q.n)return {edge:0,n:0};const aFirst=[a.key,b.key].sort()[0]===a.key;const aw=aFirst?q.firstW:q.secondW,bw=aFirst?q.secondW:q.firstW;return {edge:(aw+5)/(q.n+10)-(bw+5)/(q.n+10),n:q.n}}
-  function signal(){
-    const c=context(),ss=sources(),s=S();
-    if(!ss.length)return {side:null,candidate:null,qualified:false,confidence:0,reason:'V50 WAIT: no usable P/B evidence.',metaSelectorV50:true,context:c,sources:[]};
-    const scored=ss.map(x=>{const t=trust(x,c);let adj=0,k=0,pn=0;for(const y of ss){if(y.key===x.key||y.side===x.side)continue;const pe=pairEdge(x,y,c);if(pe.n){adj+=pe.edge*Math.min(1,pe.n/18);pn+=pe.n;k++}}if(k)adj/=k;return {...x,trust:t.rate,learnedN:t.n,pairN:pn,score:clamp(t.rate+adj*.16,.38,.67)}}).sort((a,b)=>b.score-a.score||Number(b.strictQualified)-Number(a.strictQualified)||b.strength-a.strength);
-    const top=scored[0], second=scored[1];
-    const same=scored.filter(x=>x.side===top.side), opp=scored.filter(x=>x.side!==top.side);
-    const strictSame=same.filter(x=>x.strictQualified), strictOpp=opp.filter(x=>x.strictQualified);
-    const evidence=top.learnedN+top.pairN, margin=top.score-(second?.score??.5);
-    const avgStrict=strictSame.reduce((a,x)=>a+x.strength,0)/Math.max(1,strictSame.length);
-    let qualified=false,reason='';
-    if(c.color==='RED'){
-      const v23=same.find(x=>x.key==='metav23'&&x.strictQualified);
-      if(strictSame.length>=2 && top.score>=.515 && avgStrict>=54 && (!strictOpp.length || margin>=.006)) qualified=true;
-      if(v23&&strictSame.length>=2&&top.score>=.508&&avgStrict>=53) qualified=true;
-      reason=qualified?`RED QUALIFIED: ${top.name} leads with ${strictSame.length} strict supporters.`:`RED LEARNING ONLY: ${top.name} leans ${top.side==='P'?'PLAYER':'BANKER'}, but strict support/trust is not strong enough yet.`;
-    }else if(c.color==='BLACK'){
-      // BLACK is intentionally harder to promote because the 77-shoe test had no strong BLACK specialist.
-      if(strictSame.length>=2 && evidence>=24 && top.score>=.535 && margin>=.012 && avgStrict>=55) qualified=true;
-      if(strictSame.length>=3 && evidence>=16 && top.score>=.525 && avgStrict>=55 && strictOpp.length<=1) qualified=true;
-      reason=qualified?`BLACK QUALIFIED: ${top.name} leads after stricter BLACK replay checks.`:`BLACK LEARNING ONLY: ${top.name} leans ${top.side==='P'?'PLAYER':'BANKER'}; BLACK requires stronger replay evidence and agreement.`;
-    }else{
-      if(strictSame.length>=2&&evidence>=18&&top.score>=.525&&avgStrict>=55)qualified=true;
-      reason=qualified?`QUALIFIED: ${top.name} leads.`:`LEARNING ONLY: ${top.name} is the best raw candidate, but qualification is not met.`;
-    }
-    const conf=qualified?clamp(Math.round((50+(top.score-.5)*165+Math.max(0,avgStrict-55)*.18)*10)/10,52,80):clamp(Math.round((50+Math.max(0,top.score-.5)*70)*10)/10,50,59);
-    return {side:qualified?top.side:null,candidate:top.side,rawSide:top.side,qualified,confidence:conf,strength:conf,reason,metaSelectorV50:true,context:c,selectedModel:top.key,selectedName:top.name,selectedTrust:top.score,selectedEvidence:evidence,margin,sources:scored,strictSupporters:strictSame.length,strictOpponents:strictOpp.length,replayRecords:s.replay.length,commits:s.commits,predictionTier:qualified?'QUALIFIED':'LEARNING',fusion:'V50 split-color selector'};
-  }
-  function audit(type,msg,extra){const s=S();s.audit.push({at:Date.now(),type,msg,...(extra||{})});if(s.audit.length>80)s.audit.splice(0,s.audit.length-80)}
-  function finalize(p,actual){const s=S();if(!sideOf(actual)||!p?.sources?.length)return false;const now=pb(),handN=now.length;if(handN<=p.handN)return false;const observed=now[p.handN];if(sideOf(observed)&&observed!==actual){audit('REJECT','Settlement mismatch',{observed,actual});return true}const rec={context:clone(p.context),sources:clone(p.sources),actual,armedHandN:p.handN,settledHandN:handN,armedAt:p.armedAt,settledAt:Date.now()};s.replay.push(rec);if(s.replay.length>MAX_REPLAY)s.replay.splice(0,s.replay.length-MAX_REPLAY);s.settled++;maybeCommit(false);audit('SETTLE','Outcome added to V50 replay',{actual,replay:s.replay.length});return true}
-  function arm(){const s=S(),handN=pb().length;if(s.deferred){const d=s.deferred;s.deferred=null;if(!finalize(d.pending,d.actual))audit('REJECT','Deferred V50 settlement still had no appended hand')}if(handN<s.lastHandN)maybeCommit(true);s.lastHandN=handN;const ss=sources();s.pending={handN,context:context(),sources:ss.map(x=>({key:x.key,name:x.name,side:x.side,strength:x.strength,strictQualified:x.strictQualified,rawOnly:x.rawOnly})),armedAt:Date.now()};audit('ARM','V50 pre-result snapshot stored',{handN,sources:ss.length})}
-  function settle(actual){const s=S(),p=s.pending;s.pending=null;if(!sideOf(actual))return;if(!p?.sources?.length){audit('REJECT','No V50 pre-result snapshot');return}if(finalize(p,actual))return;s.deferred={pending:p,actual,queuedAt:Date.now()};audit('QUEUE','V50 settlement waiting for appended hand',{handN:p.handN})}
-
-  // Wrap current verified hooks so V50 learns independently of V49 and includes Focus V26.
-  const oa=window.__armVerifiedPredictions;
-  if(typeof oa==='function'&&!oa.__metaSelectorV50){const w=function(){try{arm()}catch(e){console.warn('V50 arm',e)}return oa.apply(this,arguments)};w.__metaSelectorV50=true;window.__armVerifiedPredictions=w}
-  const os=window.__settleVerifiedPredictions;
-  if(typeof os==='function'&&!os.__metaSelectorV50){const w=function(actual){let r;try{r=os.apply(this,arguments)}finally{try{settle(actual)}catch(e){console.warn('V50 settle',e)}}return r};w.__metaSelectorV50=true;window.__settleVerifiedPredictions=w}
-
-  // Final Bot receives ONLY qualified V50 calls. Raw candidate remains visible in V50 panel.
-  function botSignal(){const z=signal();return {...z,side:z.qualified?z.side:null,strength:z.qualified?z.confidence:0,confidence:z.qualified?z.confidence:0}}
-  window.__metaSelectorV50={version:VERSION,signal,botSignal,arm,settle,state:S,rebuild,commitNow:()=>maybeCommit(true),sourceList:sources,context,governorInfluence:false,splitColorPolicies:true,rawLearning:true,qualifiedBotOnly:true};
-  window.masterBotSignal=botSignal;try{masterBotSignal=botSignal}catch(e){}
-
-  function panel(){
-    let p=document.getElementById('metaSelectorV50Panel');
-    if(!p){p=document.createElement('div');p.id='metaSelectorV50Panel';p.className='analyzer';p.style.borderColor='#4fa3ff';p.innerHTML=`<div class="analyzer-title">🎯 Meta-Selector AI V50 — Split RED / BLACK Policy</div><div class="analyzer-sub">Raw P/B leans stay visible and are learned from. Only QUALIFIED calls can control the High-Powered Bot. RED and BLACK have separate trust policies.</div><div class="backtest-grid" style="margin-top:8px"><div class="bt-card"><strong id="ms50Pick">WAIT</strong><span>Current candidate</span></div><div class="bt-card"><strong id="ms50Tier">LEARNING</strong><span>Bot tier</span></div><div class="bt-card"><strong id="ms50Trust">—</strong><span>Replay trust</span></div><div class="bt-card"><strong id="ms50Replay">0</strong><span>Replay outcomes</span></div></div><div class="analyzer-sub" id="ms50Reason" style="margin-top:8px"></div><div class="analyzer-sub" id="ms50Audit" style="margin-top:4px"></div>`;const old=document.getElementById('metaSelectorV49Panel');if(old)old.style.display='none';const bot=[...document.querySelectorAll('.analyzer')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(bot?.parentNode)bot.parentNode.insertBefore(p,bot);else document.body.appendChild(p)}
-    try{const z=signal(),s=S(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('ms50Pick',z.candidate?(z.candidate==='P'?'PLAYER':'BANKER'):'WAIT');set('ms50Tier',z.qualified?'QUALIFIED':'LEARNING ONLY');set('ms50Trust',z.selectedTrust?`${Math.round(z.selectedTrust*1000)/10}%`:'—');set('ms50Replay',s.replay.length);set('ms50Reason',z.reason);const a=s.audit[s.audit.length-1];set('ms50Audit',a?`Audit: ${a.type} • ${a.msg}`:'Audit: waiting for first pre-result snapshot.');const t=[...document.querySelectorAll('.analyzer-title')].find(e=>/High-Powered Bot AI/.test(e.textContent||''));if(t)t.textContent='🤖 High-Powered Bot AI — V50 Qualified Meta-Controller'}catch(e){}return p
-  }
-  // Render Bot safely: show raw candidate as LEARNING, but never arm it as a qualified Bot pick.
-  window.renderMasterBot=function(){try{if(typeof botHeartbeat==='function')botHeartbeat();if(typeof ensureBotState==='function')ensureBotState();const z=signal(),get=id=>document.getElementById(id),d=get('botDecision');if(!d)return;d.textContent=z.qualified?(z.side==='P'?'PLAYER':'BANKER'):(z.candidate?`${z.candidate==='P'?'PLAYER':'BANKER'} • LEARNING`:'WAIT');const c=get('botConfidence');if(c)c.textContent=z.qualified?`${Math.round(z.confidence*10)/10}%`:'—';const pe=get('botPhase');if(pe)pe.textContent=z.context?.phase||'—';const ps=get('botPhaseSamples');if(ps)ps.textContent=z.selectedEvidence||0;const rs=get('botRoadSamples');if(rs)rs.textContent=z.replayRecords||0;const note=get('botNote');if(note)note.textContent=z.reason||'';const tog=get('botLearningToggle');if(tog){tog.textContent='V50 META: ALWAYS ON';tog.disabled=true}}catch(e){console.warn('V50 render bot',e)}};try{renderMasterBot=window.renderMasterBot}catch(e){}
-  window.armBotPrediction=function(){try{if(typeof ensureBotState==='function')ensureBotState();const z=botSignal();if(state?.bot)state.bot.pending=z.qualified?{side:z.side,confidence:z.confidence,phase:z.context?.phase||'',hand:pb().length+1,color:state.currentShoeColor||'none',specialists:(z.sources||[]).map(x=>({name:x.name,side:x.side,strength:x.strength,reliability:x.score}))}:null}catch(e){try{if(state?.bot)state.bot.pending=null}catch(_){}}};try{armBotPrediction=window.armBotPrediction}catch(e){}
-
-  const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v50){const w=function(){const r=oldRender.apply(this,arguments);try{panel();window.renderMasterBot()}catch(e){}return r};w.__v50=true;w.__v50Original=oldRender;window.render=w;try{render=w}catch(e){}}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,120));else setTimeout(panel,120);setTimeout(()=>{try{window.__armVerifiedPredictions?.();panel()}catch(e){}},350);
-  window.__V50_SPLIT_POLICY__={version:50,rawLearning:true,qualifiedBotOnly:true,redBlackPoliciesSeparated:true,focusRedPriority:true,blackConservative:true,governorDiagnosticOnly:true,simulationStateIsolated:true,replayBatch:12,maxReplay:240};
-})();
-</script>
 <script data-v127-order="48" id="v51-structure-proof-random-baseline" type="application/x-v127-deferred">
 /* ============================================================
    V51 — STRUCTURE PROOF / RANDOM-BASELINE GATE
@@ -11768,365 +11232,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   else setTimeout(relabel,160);
 })();
 </script>
-<script data-v127-order="55" id="v58-high-powered-bot-bead-main-history-adaptive" type="application/x-v127-deferred">
-/* V58 HIGH POWERED BOT — focused engine only:
-   Bead Plate (chronological P/B/T) + Main Road structure + saved shoe history.
-   No Big Eye / Small / Cockroach inputs.
-   Adaptive: re-ranks historical matches after every hand, tracks phase,
-   match stability, breakaway/conflict, and returns WAIT on weak evidence. */
-(function(){
- const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
- const phase=n=>n<18?'EARLY':n<40?'MIDDLE':'LATE';
- function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return[]}}
- function lib(){try{return activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}}
 
- function mainShape(s){
-   const src=Array.isArray(s)?s:String(s||'').split(''); const a=src.filter(x=>x==='P'||x==='B'), cols=[];
-   if(!a.length)return '';
-   let last=a[0],run=1;
-   for(let i=1;i<a.length;i++){
-     if(a[i]===last)run++;
-     else{cols.push(last+Math.min(run,6));last=a[i];run=1}
-   }
-   cols.push(last+Math.min(run,6));
-   return cols.slice(-7).join('|');
- }
- function shapeSimilarity(a,b){
-   const A=a.split('|').filter(Boolean),B=b.split('|').filter(Boolean);
-   const n=Math.min(A.length,B.length); if(!n)return 0;
-   let z=0;
-   for(let i=1;i<=n;i++){
-     const x=A[A.length-i],y=B[B.length-i];
-     if(x[0]===y[0])z+=.55;
-     z+=.45*(1-Math.min(5,Math.abs(+x.slice(1)-(+y.slice(1))))/5);
-   }
-   return z/n;
- }
- function engine(){
-   const cur=seq(), L=lib(), n=cur.length;
-   if(n<8||!L.length)return {side:null,label:'WAIT',confidence:50,reason:'building',phase:phase(n),matches:0,stability:0};
-   const k=Math.min(12,n), pat=cur.slice(-k), curShape=mainShape(cur), curPos=(n-k)%6;
-   const cand=[];
-   L.forEach((shoe,si)=>{
-     const s=shoe.sequence||''; let best=null;
-     for(let i=0;i+k<s.length;i++){
-       let same=0;
-       for(let j=0;j<k;j++)if(s[i+j]===pat[j])same++;
-       const bead=same/k; if(bead<.72)continue;
-       const historicalPrefix=s.slice(0,i+k);
-       const road=shapeSimilarity(curShape,mainShape(historicalPrefix));
-       const pos=(i%6)===curPos?1:0;
-       const histPhase=phase(i+k), phaseFit=histPhase===phase(n)?1:.78;
-       const score=(.58*bead+.32*road+.10*pos)*phaseFit;
-       if(!best||score>best.score)best={score,next:s[i+k],bead,road,pos,i};
-     }
-     if(best)cand.push({...best,si});
-   });
-   cand.sort((a,b)=>b.score-a.score);
-   const top=cand.slice(0,Math.min(15,cand.length));
-   if(top.length<4)return {side:null,label:'WAIT',confidence:50,reason:'too few independent historical matches',phase:phase(n),matches:top.length,stability:0};
-   let P=0,B=0,T=0;
-   top.forEach((x,r)=>{const w=x.score*(1-r/(top.length*2)); if(x.next==='P')P+=w;else if(x.next==='B')B+=w;else T+=w});
-   const pb=P+B, side=P>=B?'P':'B', edge=pb?Math.abs(P-B)/pb:0;
-   const avg=top.reduce((q,x)=>q+x.score,0)/top.length;
-   const stability=clamp(Math.round(100*(avg*.65+Math.min(1,top.length/12)*.35)),0,100);
-   const confidence=clamp(Math.round(50+edge*28+(avg-.72)*30),50,72);
-   const weak=edge<.09||avg<.76||stability<55;
-   return {
-     side:weak?null:side,label:weak?'WAIT':side==='P'?'PLAYER':'BANKER',
-     confidence:weak?50:confidence,phase:phase(n),matches:top.length,stability,
-     beadQuality:Math.round(100*top.reduce((q,x)=>q+x.bead,0)/top.length),
-     mainRoadQuality:Math.round(100*top.reduce((q,x)=>q+x.road,0)/top.length),
-     samePosition:top.filter(x=>x.pos).length,
-     pPct:pb?Math.round(100*P/pb):50,bPct:pb?Math.round(100*B/pb):50,
-     reason:weak?'history is changing / evidence conflict':'Bead Plate + Main Road historical matches agree'
-   };
- }
- window.__highPoweredBotV58={
-   version:58,signal:engine,
-   sources:['BEAD_PLATE','MAIN_ROAD','SAVED_SHOE_HISTORY'],
-   excluded:['BIG_EYE','SMALL_ROAD','COCKROACH_ROAD'],
-   adaptive:true
- };
- window.highPoweredBotSignal=engine;
 
- function installPanel(){
-   if(document.getElementById('v58BotPanel'))return;
-   const host=document.querySelector('.wrap')||document.body;
-   const d=document.createElement('div');d.id='v58BotPanel';
-   d.style.cssText='margin:14px 0;padding:14px;border:1px solid #3b4658;border-radius:12px;background:#111827;color:#e5e7eb;font:14px system-ui';
-   d.innerHTML='<div style="font-weight:800;font-size:16px">⚡ High Powered Bot V58 — Adaptive Historical Structure</div><div id="v58BotPick" style="font-size:22px;font-weight:900;margin-top:8px">WAIT</div><div id="v58BotMeta" style="margin-top:6px;line-height:1.45;color:#cbd5e1"></div><div style="margin-top:7px;font-size:12px;color:#94a3b8">Inputs ONLY: Bead Plate + Main Road + saved shoe history. Re-ranks matches after every live result; weak/conflicting or unstable evidence = WAIT.</div>';
-   host.appendChild(d);
- }
- function renderBot(){
-   installPanel(); const x=engine();
-   const p=document.getElementById('v58BotPick'),m=document.getElementById('v58BotMeta');if(!p||!m)return;
-   p.textContent=x.side?`${x.label} • ${x.confidence}%`:'WAIT';
-   m.textContent=`${x.phase} shoe • ${x.matches} historical matches • stability ${x.stability}%`+
-     (x.beadQuality!=null?` • Bead ${x.beadQuality}% • Main Road ${x.mainRoadQuality}% • same-position ${x.samePosition}/${x.matches}`:'')+
-     ` • ${x.reason}`;
- }
- const oldRender=window.render;
- if(typeof oldRender==='function'&&!oldRender.__v58bot){
-   const w=function(){const r=oldRender.apply(this,arguments);try{renderBot()}catch(e){}return r};w.__v58bot=true;window.render=w;try{render=w}catch(e){}
- }
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(renderBot,180));else setTimeout(renderBot,180);
-})();
-</script>
-<script data-v127-order="56" id="v59-main-road-future-test-integration" type="application/x-v127-deferred">
-(function(){
- const base=window.highPoweredBotSignal;
- if(typeof base!=='function') return;
 
- function getSeq(){
-   try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return[]}
- }
- function roadShape(s){
-   const src=Array.isArray(s)?s:String(s||'').split(''); const a=src.filter(x=>x==='P'||x==='B'), c=[];
-   if(!a.length)return [];
-   let x=a[0],n=1;
-   for(let i=1;i<a.length;i++){
-     if(a[i]===x)n++; else{c.push([x,n]);x=a[i];n=1}
-   }
-   c.push([x,n]); return c.slice(-8);
- }
- function similarity(a,b){
-   const n=Math.min(a.length,b.length);if(!n)return 0;
-   let z=0;
-   for(let i=1;i<=n;i++){
-     const x=a[a.length-i],y=b[b.length-i];
-     if(x[0]===y[0])z+=.55;
-     z+=.45*(1-Math.min(6,Math.abs(x[1]-y[1]))/6);
-   }
-   return z/n;
- }
- function historicalFutureScore(hyp){
-   let L=[];try{L=activePatternLibrary()}catch(e){}
-   const target=roadShape(hyp); let sum=0,w=0,m=0;
-   for(const sh of L){
-     const s=(sh&&sh.sequence)||'';
-     for(let cut=8;cut<s.length;cut++){
-       const sc=similarity(target,roadShape(s.slice(0,cut)));
-       if(sc>=.78){sum+=sc*sc;w+=sc;m++;break}
-     }
-   }
-   return {score:w?sum/w:0,matches:m};
- }
- function signal(){
-   const x=base(), s=getSeq();
-   if(s.length<8)return Object.assign({},x,{mainFutureTest:{status:'BUILDING'}});
-   const b=historicalFutureScore(s.concat('B'));
-   const p=historicalFutureScore(s.concat('P'));
-   const delta=Math.abs(b.score-p.score);
-   const futureSide=b.score>p.score?'B':'P';
-   const futureStrength=Math.min(100,Math.round(50+delta*180));
-   const enough=Math.max(b.matches,p.matches)>=4 && delta>=.015;
-
-   let side=x.side, label=x.label, confidence=x.confidence||50, reason=x.reason||'';
-   if(x.side && enough){
-     if(x.side===futureSide){
-       confidence=Math.min(76,confidence+Math.min(5,Math.round(delta*100)));
-       reason+='; Main Road Future Test confirms';
-     }else{
-       side=null;label='WAIT';confidence=50;
-       reason+='; Main Road Future Test conflicts — WAIT';
-     }
-   }
-   return Object.assign({},x,{side,label,confidence,reason,
-     mainFutureTest:{
-       bankerScore:Math.round(b.score*100),
-       playerScore:Math.round(p.score*100),
-       bankerMatches:b.matches,playerMatches:p.matches,
-       side:enough?futureSide:null,
-       strength:futureStrength,
-       status:enough?(futureSide==='B'?'BANKER FUTURE':'PLAYER FUTURE'):'TOO CLOSE / WAIT'
-     }
-   });
- }
- window.highPoweredBotSignal=signal;
- window.__highPoweredBotV59={
-   version:59,
-   sources:['BEAD_PLATE','MAIN_ROAD','SAVED_SHOE_HISTORY','MAIN_ROAD_FUTURE_TEST'],
-   futureTestRole:'FINAL_CONFIRMATION_AND_CONFLICT_GATE',
-   derivedRoadsExcluded:true,
-   adaptive:true
- };
- function update(){
-   const x=signal(),m=document.getElementById('v58BotMeta');
-   if(!m||!x.mainFutureTest)return;
-   const f=x.mainFutureTest;
-   m.textContent += ` • Main Future: ${f.status} (B ${f.bankerScore}% / P ${f.playerScore}%)`;
- }
- const old=window.render;
- if(typeof old==='function'&&!old.__v59future){
-   const w=function(){const r=old.apply(this,arguments);setTimeout(update,0);return r};
-   w.__v59future=true;window.render=w;try{render=w}catch(e){}
- }
- setTimeout(update,250);
-})();
-</script>
-<script data-v127-order="57" id="v60-sequence-duplicate-high-bot-no-future-test" type="application/x-v127-deferred">
-(function(){
-  function getSeq(){
-    try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return[]}
-  }
-  function getLib(){
-    try{return activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}
-  }
-  const phase=n=>n<18?'EARLY':n<40?'MIDDLE':'LATE';
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-
-  function mainShape(s){
-    const src=Array.isArray(s)?s:String(s||'').split(''); const a=src.filter(x=>x==='P'||x==='B'), cols=[];
-    if(!a.length)return '';
-    let last=a[0], run=1;
-    for(let i=1;i<a.length;i++){
-      if(a[i]===last)run++;
-      else{cols.push(last+Math.min(run,6));last=a[i];run=1}
-    }
-    cols.push(last+Math.min(run,6));
-    return cols.slice(-7).join('|');
-  }
-
-  function shapeSimilarity(a,b){
-    const A=a.split('|').filter(Boolean),B=b.split('|').filter(Boolean);
-    const n=Math.min(A.length,B.length);
-    if(!n)return 0;
-    let z=0;
-    for(let i=1;i<=n;i++){
-      const x=A[A.length-i],y=B[B.length-i];
-      if(x[0]===y[0])z+=.55;
-      z+=.45*(1-Math.min(5,Math.abs(+x.slice(1)-(+y.slice(1))))/5);
-    }
-    return z/n;
-  }
-
-  function sequenceDuplicateSignalV60(){
-    const cur=getSeq(), L=getLib(), n=cur.length;
-    if(n<8||!L.length){
-      return {side:null,label:'WAIT',confidence:50,phase:phase(n),matches:0,stability:0,reason:'building'};
-    }
-
-    const k=Math.min(12,n);
-    const pat=cur.slice(-k);
-    const curShape=mainShape(cur);
-    const curPos=(n-k)%6;
-    const cand=[];
-
-    L.forEach((shoe,si)=>{
-      const s=shoe.sequence||'';
-      let best=null;
-      for(let i=0;i+k<s.length;i++){
-        let same=0;
-        for(let j=0;j<k;j++) if(s[i+j]===pat[j]) same++;
-        const bead=same/k;
-        if(bead<.72) continue;
-
-        const prefix=s.slice(0,i+k);
-        const road=shapeSimilarity(curShape,mainShape(prefix));
-        const pos=(i%6)===curPos?1:0;
-        const phaseFit=phase(i+k)===phase(n)?1:.78;
-        const score=(.58*bead+.32*road+.10*pos)*phaseFit;
-
-        if(!best||score>best.score){
-          best={score,next:s[i+k],bead,road,pos,si};
-        }
-      }
-      if(best)cand.push(best);
-    });
-
-    cand.sort((a,b)=>b.score-a.score);
-    const top=cand.slice(0,Math.min(15,cand.length));
-
-    if(top.length<4){
-      return {
-        side:null,label:'WAIT',confidence:50,phase:phase(n),
-        matches:top.length,stability:0,
-        reason:'too few independent historical matches'
-      };
-    }
-
-    let P=0,B=0,T=0;
-    top.forEach((x,r)=>{
-      const w=x.score*(1-r/(top.length*2));
-      if(x.next==='P')P+=w;
-      else if(x.next==='B')B+=w;
-      else T+=w;
-    });
-
-    const pb=P+B;
-    const side=P>=B?'P':'B';
-    const edge=pb?Math.abs(P-B)/pb:0;
-    const avg=top.reduce((q,x)=>q+x.score,0)/top.length;
-    const stability=clamp(Math.round(100*(avg*.65+Math.min(1,top.length/12)*.35)),0,100);
-    const confidence=clamp(Math.round(50+edge*28+(avg-.72)*30),50,72);
-    const weak=edge<.09||avg<.76||stability<55;
-
-    return {
-      side:weak?null:side,
-      label:weak?'WAIT':(side==='P'?'PLAYER':'BANKER'),
-      confidence:weak?50:confidence,
-      phase:phase(n),
-      matches:top.length,
-      stability,
-      beadQuality:Math.round(100*top.reduce((q,x)=>q+x.bead,0)/top.length),
-      mainRoadQuality:Math.round(100*top.reduce((q,x)=>q+x.road,0)/top.length),
-      samePosition:top.filter(x=>x.pos).length,
-      pPct:pb?Math.round(100*P/pb):50,
-      bPct:pb?Math.round(100*B/pb):50,
-      reason:weak?'history is changing / evidence conflict':'Bead Plate + Main Road historical matches agree'
-    };
-  }
-
-  window.sequenceAIDuplicateSignal = sequenceDuplicateSignalV60;
-  window.sequenceDuplicateSignal = sequenceDuplicateSignalV60;
-  window.__sequenceDuplicateV60 = {
-    version:60,
-    sources:['BEAD_PLATE','MAIN_ROAD','SAVED_SHOE_HISTORY'],
-    excluded:['MAIN_ROAD_FUTURE_TEST','BIG_EYE','SMALL_ROAD','COCKROACH_ROAD'],
-    adaptive:true,
-    mirrorsHighPoweredBotV58Core:true
-  };
-
-  function installPanel(){
-    if(document.getElementById('v60SeqDupPanel')) return;
-    const host=document.querySelector('.wrap')||document.body;
-    const d=document.createElement('div');
-    d.id='v60SeqDupPanel';
-    d.style.cssText='margin:14px 0;padding:14px;border:1px solid #3b4658;border-radius:12px;background:#111827;color:#e5e7eb;font:14px system-ui';
-    d.innerHTML='<div style="font-weight:800;font-size:16px">Sequence AI V2 Duplicate V60 — Adaptive Historical Structure</div><div id="v60SeqDupPick" style="font-size:22px;font-weight:900;margin-top:8px">WAIT</div><div id="v60SeqDupMeta" style="margin-top:6px;line-height:1.45;color:#cbd5e1"></div><div style="margin-top:7px;font-size:12px;color:#94a3b8">Inputs ONLY: Bead Plate + Main Road + saved shoe history. Main Road Future Test excluded.</div>';
-    host.appendChild(d);
-  }
-
-  function renderPanel(){
-    installPanel();
-    const x=sequenceDuplicateSignalV60();
-    const p=document.getElementById('v60SeqDupPick');
-    const m=document.getElementById('v60SeqDupMeta');
-    if(!p||!m)return;
-    p.textContent=x.side?`${x.label} • ${x.confidence}%`:'WAIT';
-    m.textContent=`${x.phase} shoe • ${x.matches} historical matches • stability ${x.stability}%`+
-      (x.beadQuality!=null?` • Bead ${x.beadQuality}% • Main Road ${x.mainRoadQuality}% • same-position ${x.samePosition}/${x.matches}`:'')+
-      ` • ${x.reason}`;
-  }
-
-  const oldRender=window.render;
-  if(typeof oldRender==='function'&&!oldRender.__v60seqdup){
-    const w=function(){
-      const r=oldRender.apply(this,arguments);
-      try{setTimeout(renderPanel,0)}catch(e){}
-      return r;
-    };
-    w.__v60seqdup=true;
-    window.render=w;
-    try{render=w}catch(e){}
-  }
-
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',()=>setTimeout(renderPanel,200));
-  } else setTimeout(renderPanel,200);
-})();
-</script>
 <script data-v127-order="58" id="v64-all-ai-tie-transition-learning-v60-base" type="application/x-v127-deferred">
 (function(){
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -12322,191 +11430,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   }
 })();
 </script>
-<script data-v127-order="59" id="v69-high-bot-v64-plus-bigeye-small" type="application/x-v127-deferred">
-(function(){
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  const phase=n=>n<18?'EARLY':n<40?'MIDDLE':'LATE';
 
-  function curSeq(){
-    try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return[]}
-  }
-  function library(){
-    try{return activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}
-  }
-  function hands(s){return s.split('').map(r=>({r}))}
-
-  function roadMarks(s,offset){
-    try{
-      if(typeof deriveRoad!=='function') return [];
-      return deriveRoad(hands(s),offset).map(x=>{
-        if(typeof x==='string') return String(x)[0].toUpperCase();
-        if(x&&typeof x==='object'){
-          const v=x.color||x.c||x.r||x.value||'';
-          return String(v)[0].toUpperCase();
-        }
-        return '';
-      }).filter(x=>x==='R'||x==='B');
-    }catch(e){return []}
-  }
-
-  function endingSimilarity(a,b,maxLen=10){
-    const n=Math.min(a.length,b.length,maxLen);
-    if(!n)return 0;
-    let same=0;
-    for(let i=1;i<=n;i++) if(a[a.length-i]===b[b.length-i]) same++;
-    return same/n;
-  }
-
-  function mainShape(s){
-    const src=Array.isArray(s)?s:String(s||'').split(''); const a=src.filter(x=>x==='P'||x==='B'), cols=[];
-    if(!a.length)return '';
-    let side=a[0],run=1;
-    for(let i=1;i<a.length;i++){
-      if(a[i]===side) run++;
-      else{cols.push(side+Math.min(run,6));side=a[i];run=1}
-    }
-    cols.push(side+Math.min(run,6));
-    return cols.slice(-7).join('|');
-  }
-
-  function shapeSimilarity(a,b){
-    const A=a.split('|').filter(Boolean), B=b.split('|').filter(Boolean);
-    const n=Math.min(A.length,B.length);
-    if(!n)return 0;
-    let score=0;
-    for(let i=1;i<=n;i++){
-      const x=A[A.length-i], y=B[B.length-i];
-      if(x[0]===y[0]) score+=.58;
-      score+=.42*(1-Math.min(5,Math.abs(+x.slice(1)-(+y.slice(1))))/5);
-    }
-    return score/n;
-  }
-
-  function rawHighBotV69(){
-    const cur=curSeq(), L=library(), n=cur.length;
-    if(n<8||!L.length){
-      return {side:null,label:'WAIT',confidence:50,phase:phase(n),matches:0,reason:'building history'};
-    }
-
-    const k=Math.min(12,n);
-    const pat=cur.slice(-k);
-    const curMain=mainShape(cur);
-    const curEye=roadMarks(cur.join(''),1);
-    const curSmall=roadMarks(cur.join(''),2);
-    const curPos=(n-k)%6;
-    const cand=[];
-
-    L.forEach((shoe,si)=>{
-      const s=shoe.sequence||'';
-      let best=null;
-
-      for(let i=0;i+k<s.length;i++){
-        let same=0;
-        for(let j=0;j<k;j++) if(s[i+j]===pat[j]) same++;
-        const bead=same/k;
-        if(bead<.72) continue;
-
-        const prefix=s.slice(0,i+k);
-        const main=shapeSimilarity(curMain,mainShape(prefix));
-        const eye=endingSimilarity(curEye,roadMarks(prefix,1),10) || .5;
-        const small=endingSimilarity(curSmall,roadMarks(prefix,2),10) || .5;
-        const pos=(i%6)===curPos?1:0;
-        const phaseFit=phase(i+k)===phase(n)?1:.78;
-
-        const score=(.43*bead + .24*main + .13*eye + .10*small + .10*pos)*phaseFit;
-        const next=s[i+k];
-        if(next!=='P'&&next!=='B'&&next!=='T') continue;
-
-        if(!best||score>best.score){
-          best={score,next,bead,main,eye,small,pos,si};
-        }
-      }
-      if(best)cand.push(best);
-    });
-
-    cand.sort((a,b)=>b.score-a.score);
-    const top=cand.slice(0,Math.min(15,cand.length));
-
-    if(top.length<4){
-      return {side:null,label:'WAIT',confidence:50,phase:phase(n),matches:top.length,reason:'too few historical matches'};
-    }
-
-    let P=0,B=0,T=0;
-    top.forEach((x,r)=>{
-      const w=x.score*(1-r/(top.length*2));
-      if(x.next==='P') P+=w;
-      else if(x.next==='B') B+=w;
-      else T+=w;
-    });
-
-    const pb=P+B;
-    const side=P>=B?'P':'B';
-    const edge=pb?Math.abs(P-B)/pb:0;
-    const avg=top.reduce((q,x)=>q+x.score,0)/top.length;
-    const eyeAvg=top.reduce((q,x)=>q+x.eye,0)/top.length;
-    const smallAvg=top.reduce((q,x)=>q+x.small,0)/top.length;
-    const stability=clamp(Math.round(100*(avg*.65+Math.min(1,top.length/12)*.35)),0,100);
-
-    const eyeWeak=curEye.length>=4 && eyeAvg<.52;
-    const smallWeak=curSmall.length>=4 && smallAvg<.52;
-    const strong=edge>=.09 && avg>=.75 && stability>=55 && !eyeWeak && !smallWeak;
-
-    let result={
-      side:strong?side:null,
-      label:strong?(side==='P'?'PLAYER':'BANKER'):'WAIT',
-      confidence:strong?clamp(Math.round(50+edge*28+(avg-.72)*30),50,75):50,
-      phase:phase(n),
-      matches:top.length,
-      stability,
-      pPct:pb?Math.round(100*P/pb):50,
-      bPct:pb?Math.round(100*B/pb):50,
-      beadQuality:Math.round(100*top.reduce((q,x)=>q+x.bead,0)/top.length),
-      mainQuality:Math.round(100*top.reduce((q,x)=>q+x.main,0)/top.length),
-      bigEyeQuality:Math.round(100*eyeAvg),
-      smallRoadQuality:Math.round(100*smallAvg),
-      samePosition:top.filter(x=>x.pos).length,
-      reason:strong
-        ? 'Bead Plate + Main Road + Big Eye + Small Road + saved shoe history'
-        : 'WAIT — evidence not strong enough'
-    };
-
-    try{
-      if(typeof window.tieTransitionEvidence==='function'){
-        const t=window.tieTransitionEvidence();
-        result.tieTransition=t;
-        result.tieAware=true;
-        if(t&&t.active&&t.side){
-          if(result.side && result.side!==t.side){
-            result.side=null;
-            result.label='WAIT';
-            result.confidence=50;
-            result.tieTransitionStatus='CONFLICT_WAIT';
-            result.reason+=' • post-tie history conflicts';
-          }else if(result.side===t.side){
-            result.confidence=clamp(result.confidence+Math.min(4,(t.edge||0)/8),0,100);
-            result.tieTransitionStatus='CONFIRMS';
-          }
-        }
-      }
-    }catch(e){}
-
-    return result;
-  }
-
-  window.highPoweredBotSignal=rawHighBotV69;
-  window.masterBotSignal=rawHighBotV69;
-  try{highPoweredBotSignal=rawHighBotV69}catch(e){}
-  try{masterBotSignal=rawHighBotV69}catch(e){}
-
-  window.__highPoweredBotV69={
-    version:69,
-    sources:['BEAD_PLATE','MAIN_ROAD','BIG_EYE_BOY','SMALL_ROAD','SAVED_SHOE_HISTORY'],
-    excluded:['COCKROACH_ROAD','MAIN_ROAD_FUTURE_TEST'],
-    adaptive:true,
-    tieAware:true
-  };
-})();
-</script>
 <style id="v69-clean-dev-panels">
 #v58BotPanel,
 #v60SeqDupPanel,
@@ -12515,173 +11439,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   display:none !important;
 }
 </style>
-<script data-v127-order="60" id="v69-runtime-compatibility-fix" type="application/x-v127-deferred">
-(function(){
-  const raw = window.highPoweredBotSignal;
-  if(typeof raw !== 'function') return;
 
-  function phaseObj(v){
-    const s=String(v||'EARLY').toUpperCase();
-    return {key:s.toLowerCase(),label:s};
-  }
 
-  function compatible(){
-    const x = raw.apply(this, arguments) || {};
-    const qualified = x.side==='P' || x.side==='B';
-    const samples = Number(x.matches)||0;
-
-    return {
-      ...x,
-      qualified,
-      candidate: qualified ? x.side : null,
-      strength: Number(x.confidence)||0,
-      samples,
-      windows:samples,
-      phase: phaseObj(x.phase),
-      phaseHist:{samples},
-      roadMem:{samples},
-      agree: qualified ? 1 : 0,
-      total: 1,
-      seqV2:{side:null,strength:0},
-      sequenceDuplicate:{side:null,strength:0},
-      roadPreview:{side:null,strength:0},
-      reason:x.reason || (qualified
-        ? 'V69 High Bot: Bead Plate + Main Road + Big Eye + Small Road + saved shoe history'
-        : 'WAIT — V69 evidence not strong enough')
-    };
-  }
-
-  compatible.__v69Compatible = true;
-  compatible.__base = raw;
-
-  window.highPoweredBotSignal = compatible;
-  window.masterBotSignal = compatible;
-  try{ highPoweredBotSignal = compatible; }catch(e){}
-  try{ masterBotSignal = compatible; }catch(e){}
-
-  window.__highPoweredBotV69.runtimeCompatibilityFixed = true;
-  window.__highPoweredBotV69.hiddenDevPanels = [
-    'v58BotPanel',
-    'v60SeqDupPanel',
-    'v64TieTransitionPanel',
-    'baccaratKnowledgeV27Panel'
-  ];
-
-  function removeVisibleDevPanels(){
-    ['v58BotPanel','v60SeqDupPanel','v64TieTransitionPanel','baccaratKnowledgeV27Panel']
-      .forEach(id=>{
-        const el=document.getElementById(id);
-        if(el) el.style.display='none';
-      });
-  }
-
-  removeVisibleDevPanels();
-  if(typeof MutationObserver==='function'){
-    // V133 Chrome stability: no continuous DOM observer; cleanup is handled by startup/render hardening.
-    const mo={disconnect(){}};
-    window.__v69DevPanelObserver=mo;
-  }
-})();
-</script>
-<script data-v127-order="61" id="v71-exact-ai-panel-order" type="application/x-v127-deferred">
-/* Exact UI order restored from the earlier working panel-order build.
-   UI ORDER ONLY — High Bot prediction/learning logic is unchanged. */
-(function(){
-  'use strict';
-  if(window.__V71_EXACT_AI_PANEL_ORDER__) return;
-  window.__V71_EXACT_AI_PANEL_ORDER__=true;
-
-  const TOP_IDS=[
-    'metaWalkV23',
-    'roadPreviewAiPanel',
-    'masterBotPanel'
-  ];
-
-  const BOTTOM_IDS=[
-    'liveModelGovernorV32',
-    'regimePhaseV39',
-    'verifiedAccuracyPanel',
-    'allAiLearningV10Panel',
-    'selfLearningV9Panel',
-    'colorPatternAiPanel'
-  ];
-
-  function ensureStacks(){
-    const app=document.querySelector('.app');
-    if(!app) return null;
-
-    let top=document.getElementById('v71TopAiStack');
-    if(!top){
-      top=document.createElement('div');
-      top.id='v71TopAiStack';
-      top.setAttribute('data-ui-order','top-priority-ai');
-      const bar=app.querySelector('.topbar');
-      if(bar && bar.nextSibling) app.insertBefore(top,bar.nextSibling);
-      else app.insertBefore(top,app.firstChild);
-    }
-
-    let bottom=document.getElementById('v71BottomAiStack');
-    if(!bottom){
-      bottom=document.createElement('div');
-      bottom.id='v71BottomAiStack';
-      bottom.setAttribute('data-ui-order','bottom-learning-audit');
-      app.appendChild(bottom);
-    }
-    return {app,top,bottom};
-  }
-
-  let moving=false;
-  function enforce(){
-    if(moving) return;
-    const stacks=ensureStacks();
-    if(!stacks) return;
-    moving=true;
-    try{
-      for(const id of TOP_IDS){
-        const el=document.getElementById(id);
-        if(el && el.parentNode!==stacks.top) stacks.top.appendChild(el);
-      }
-      for(const id of BOTTOM_IDS){
-        const el=document.getElementById(id);
-        if(el && el.parentNode!==stacks.bottom) stacks.bottom.appendChild(el);
-      }
-      if(stacks.bottom.parentNode===stacks.app && stacks.app.lastElementChild!==stacks.bottom){
-        stacks.app.appendChild(stacks.bottom);
-      }
-    }finally{
-      moving=false;
-    }
-  }
-
-  let timer=0;
-  function schedule(){
-    clearTimeout(timer);
-    timer=setTimeout(enforce,25);
-  }
-
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',()=>{
-      enforce();
-      setTimeout(enforce,150);
-      setTimeout(enforce,700);
-    });
-  }else{
-    enforce();
-    setTimeout(enforce,150);
-    setTimeout(enforce,700);
-  }
-
-  // V133 Chrome stability: avoid observer↔reorder feedback loop during progressive startup.
-  const obs={disconnect(){}};
-
-  window.__V71_PANEL_ORDER__={
-    top:TOP_IDS.slice(),
-    bottom:BOTTOM_IDS.slice(),
-    predictionLogicChanged:false,
-    highBotLogicChanged:false
-  };
-})();
-</script>
 
 \n<script data-v127-order="62" id="v72-v52-main-future-adaptive-current-shoe" type="application/x-v127-deferred">
 /* V72 — Restore Main Road Future Test to V52 core behavior.
@@ -13671,128 +12430,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 
 
 
-<script data-v127-order="78" id="remove-meta-selector-keep-walk-forward-v99" type="application/x-v127-deferred">
-/* V99: Remove standalone Meta-Selector controllers; preserve Walk-Forward V23. */
-(function(){
-  const disabledSignal=()=>({side:null,candidate:null,qualified:false,confidence:0,strength:0,disabled:true,reason:'Standalone Meta-Selector removed.'});
-  function clean(){
-    try{
-      // Remove standalone Meta-Selector panels only. Keep Walk-Forward V23.
-      ['metaSelectorV49Panel','metaSelectorV50Panel'].forEach(id=>document.getElementById(id)?.remove());
-      document.querySelectorAll('.analyzer').forEach(el=>{
-        const t=(el.querySelector('.analyzer-title')?.textContent||'').trim();
-        if(/^🎯?\s*Meta-Selector AI V(?:49|50)\b/i.test(t) || /^Meta-Selector AI V(?:49|50)\b/i.test(t)) el.remove();
-      });
 
-      // Make the retained V23 role unambiguous in the UI.
-      const wf=document.getElementById('metaWalkV23');
-      if(wf){
-        const title=wf.querySelector('.analyzer-title');
-        if(title) title.textContent='🧠 Walk-Forward Learner V23 — A-Grade Live';
-        const pickLabel=document.querySelector('#metaWalkV23 #v23Pick')?.previousElementSibling;
-        if(pickLabel) pickLabel.textContent='WALK-FORWARD DECISION';
-      }
 
-      // Remove V49/V50 from the shared verified-accuracy model registry.
-      if(Array.isArray(window.__accuracyModelDefs)){
-        for(let i=window.__accuracyModelDefs.length-1;i>=0;i--){
-          const k=String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase();
-          if(k==='metav49'||k==='metav50') window.__accuracyModelDefs.splice(i,1);
-        }
-      }
-
-      // Disable standalone selector APIs so later UI refreshes cannot use them.
-      if(window.__metaSelectorV49) window.__metaSelectorV49={version:49,removed:true,signal:disabledSignal,botSignal:disabledSignal};
-      if(window.__metaSelectorV50) window.__metaSelectorV50={version:50,removed:true,signal:disabledSignal,botSignal:disabledSignal};
-
-      // Restore the pre-Meta High-Powered Bot path captured by V49 when available.
-      const prior=window.__masterBotSignalPreV49;
-      if(typeof prior==='function'){
-        window.masterBotSignal=prior;
-        try{masterBotSignal=prior}catch(e){}
-      }
-
-      // Remove stale Meta-Selector-only control text if present.
-      const tog=document.getElementById('botLearningToggle');
-      if(tog && /meta-selector/i.test(tog.textContent||'')){
-        tog.textContent='Bot learning';
-        tog.disabled=false;
-      }
-    }catch(e){console.warn('V99 remove meta selector',e)}
-  }
-
-  const oldRender=window.render;
-  if(typeof oldRender==='function'&&!oldRender.__removeStandaloneMetaV99){
-    const wrapped=function(){const r=oldRender.apply(this,arguments);clean();return r};
-    wrapped.__removeStandaloneMetaV99=true;
-    window.render=wrapped;
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(clean,0));
-  else setTimeout(clean,0);
-  setTimeout(clean,250);setTimeout(clean,1000);
-  window.__REMOVE_STANDALONE_META_V99__={enabled:true,keepWalkForwardV23:true,removed:['Meta-Selector V49','Meta-Selector V50'],clean};
-})();
-</script>
-<script data-v127-order="79" id="v98-remove-consensus-seqdup-bot" type="application/x-v127-deferred">
-(()=>{
-  const REMOVED_KEYS=new Set(['seqdup','consensus','bot']);
-  const REMOVED_PATTERNS=[/Sequence AI V2 Duplicate/i,/Sequence Duplicate/i,/AI Consensus/i,/High-Powered Bot AI/i,/High-Powered Bot/i];
-  const nullSignal=()=>({side:null,candidate:null,qualified:false,confidence:0,strength:0,removed:true,reason:'REMOVED'});
-
-  function disableSignals(){
-    try{window.sequenceAIDuplicateSignal=nullSignal;}catch(e){}
-    try{sequenceAIDuplicateSignal=nullSignal;}catch(e){}
-    try{window.consensusSignal=nullSignal;}catch(e){}
-    try{consensusSignal=nullSignal;}catch(e){}
-    try{window.masterBotSignal=nullSignal;}catch(e){}
-    try{masterBotSignal=nullSignal;}catch(e){}
-  }
-
-  function stripModelDefs(){
-    try{
-      if(Array.isArray(window.__accuracyModelDefs)){
-        window.__accuracyModelDefs=window.__accuracyModelDefs.filter(x=>!REMOVED_KEYS.has(String(x?.[0]||'')));
-      }
-    }catch(e){}
-  }
-
-  function removePanels(){
-    const nodes=[...document.querySelectorAll('.analyzer, .panel, section, article, div')];
-    for(const el of nodes){
-      if(!el || el.dataset?.v98Removed==='1') continue;
-      const title=el.querySelector?.('.analyzer-title');
-      const txt=(title?.textContent || '').trim();
-      if(txt && REMOVED_PATTERNS.some(rx=>rx.test(txt))){
-        // Prefer the analyzer container; this avoids deleting a parent that contains other AIs.
-        const target=el.classList?.contains('analyzer')?el:(title?.closest?.('.analyzer')||el);
-        target.dataset.v98Removed='1';
-        target.remove();
-      }
-    }
-  }
-
-  function pruneAccuracyUI(){
-    // Remove any leftover cards/rows whose visible label is one of the removed AIs.
-    for(const el of [...document.querySelectorAll('[data-model], [data-ai], .accuracy-row, .bt-card, tr')]){
-      const key=String(el.dataset?.model||el.dataset?.ai||'').toLowerCase();
-      const txt=String(el.textContent||'');
-      if(REMOVED_KEYS.has(key) || REMOVED_PATTERNS.some(rx=>rx.test(txt))) el.remove();
-    }
-  }
-
-  function clean(){disableSignals();stripModelDefs();removePanels();pruneAccuracyUI();}
-  clean();
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{clean();setTimeout(clean,250);setTimeout(clean,1200)});
-  else {setTimeout(clean,50);setTimeout(clean,500);}
-  // Re-apply after renders so removed modules cannot be reinserted by older wrappers.
-  const oldRender=window.render;
-  if(typeof oldRender==='function'&&!oldRender.__v98RemovedModules){
-    const w=function(){const r=oldRender.apply(this,arguments);try{clean()}catch(e){}return r};
-    w.__v98RemovedModules=true;window.render=w;try{render=w}catch(e){}
-  }
-  window.__V98_REMOVED_MODULES__={consensus:true,sequenceDuplicate:true,highPoweredBot:true,walkForwardKept:true,metaSelectorRemoved:true};
-})();
-</script>
 <script data-v127-order="80" id="v100-stability-count-bestestimate-fix" type="application/x-v127-deferred">
 (()=>{
   'use strict';
@@ -15706,39 +14345,7 @@ else setTimeout(render,700);
 </script>
 
 
-<script id="v157-remove-walk-forward">
-(function(){
-'use strict';
-function removeWalkForward(){
-  // Remove panels/cards/buttons whose visible content is Walk-Forward specific.
-  document.querySelectorAll('body *').forEach(function(el){
-    if(!el || !el.textContent) return;
-    const txt=(el.textContent||'').trim();
-    if(!/walk[\s-]*forward/i.test(txt)) return;
-    if(el.id && /chartPatternRecognizerV156/i.test(el.id)) return;
-    if(el.matches && el.matches('.analyzer, .analyzer-card, button')){
-      // Avoid removing a large parent that contains unrelated AIs.
-      if(el.children.length < 30) el.remove();
-    }
-  });
-  ['ms49RunWalkForward'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove()});
-}
-function disableSignals(){
-  const wait=()=>({side:null,qualified:false,strength:0,confidence:0,reason:'REMOVED in V157',removed:true});
-  try{window.walkForwardSignal=wait}catch(e){}
-  try{
-    if(window.__metaWalkV23){
-      window.__metaWalkV23.signal=wait;
-      window.__metaWalkV23.removed=true;
-    }
-  }catch(e){}
-}
-function run(){disableSignals();removeWalkForward()}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(run,900));
-else setTimeout(run,900);
-window.__v157WalkForwardRemoved=true;
-})();
-</script>
+
 \n<script id="v159-ml-training-dataset">
 (function(){
 'use strict';
@@ -15770,30 +14377,9 @@ window.__mlTrainingDatasetV159=window.__mlTrainingDatasetV160={version:VERSION,b
 })();
 </script>\n
 
-<script id="v160-performance-cleanup">
-(function(){
-  'use strict';
-  const removeDeadPanels=()=>{
-    try{document.getElementById('masterBotPanel')?.remove();}catch(e){}
-    try{document.querySelectorAll('[id*="walkForward"],[id*="WalkForward"]').forEach(el=>{const p=el.closest?.('.analyzer'); if(p) p.remove();});}catch(e){}
-  };
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',removeDeadPanels,{once:true}); else removeDeadPanels();
-  window.__V160_PERFORMANCE_CLEANUP__={version:160,botRemoved:true,walkForwardRemoved:true,mlBuildOnDemand:true};
-})();
-</script>
 
-<script id="v161-bot-live-path-lock">
-(function(){
-  const noop=()=>{};
-  const removedSignal=()=>({qualified:false,side:null,confidence:0,strength:0,removed:true,reason:'REMOVED'});
-  try{ window.masterBotSignal=removedSignal; }catch(e){}
-  try{ window.armBotPrediction=noop; }catch(e){}
-  try{ window.settleBotPrediction=noop; }catch(e){}
-  try{ window.renderMasterBot=noop; }catch(e){}
-  try{ window.botHeartbeat=noop; }catch(e){}
-  try{ if(window.state && window.state.bot){ window.state.bot.pending=null; window.state.bot.learning=false; } }catch(e){}
-})();
-</script>
+
+
 
 <script id="v162-ml-road-trainer-live-dataset-connection">
 (function(){
@@ -15971,43 +14557,7 @@ window.__V163_ML_AUTO_TRAIN__=true;
 
 <script>window.__V170_FINGER_ML_LIVE_FIX__={version:170,fingerprintDecisionPersistsPerHand:true,mlLiveLeanVisibleAfterWarmup:true,validationStillReported:true};</script>
 
-<script id="v165-permanent-walk-forward-removal">
-(function(){
-  'use strict';
-  const wait=()=>({side:null,qualified:false,strength:0,confidence:0,removed:true,reason:'Walk-Forward removed in V165'});
-  function strip(){
-    try{
-      const directIds=['metaWalkV23','metaWalkV23Panel','ms49RunWalkForward'];
-      directIds.forEach(id=>document.getElementById(id)?.remove());
-      document.querySelectorAll('[id*="walkForward" i],[id*="WalkForward"],[data-module*="walk-forward" i]').forEach(el=>{
-        const panel=el.closest?.('.analyzer');
-        (panel||el).remove();
-      });
-      document.querySelectorAll('.analyzer').forEach(panel=>{
-        const t=(panel.textContent||'').toLowerCase();
-        if(t.includes('walk-forward meta learner')||t.includes('walk forward meta learner')) panel.remove();
-      });
-    }catch(e){}
-  }
-  function disable(){
-    try{window.walkForwardSignal=wait;}catch(e){}
-    try{
-      if(window.__metaWalkV23){
-        window.__metaWalkV23.signal=wait;
-        window.__metaWalkV23.learnCycle=()=>{};
-        window.__metaWalkV23.render=()=>{};
-        window.__metaWalkV23.removed=true;
-      }
-    }catch(e){}
-  }
-  function run(){disable();strip();}
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(run,0),{once:true});
-  else setTimeout(run,0);
-  setTimeout(run,500);setTimeout(run,1500);setTimeout(run,3500);
-  // V177: removed 12-second full-document MutationObserver; startup cleanup passes above are sufficient.
-  window.__V165_WALK_FORWARD_REMOVED__={version:165,removed:true};
-})();
-</script>
+
 
 <script id="v166-shoe-matcher-structural-upgrade">
 (function(){
@@ -16445,7 +14995,7 @@ function wrap(name){
     const w=function(){return apply(name,f.apply(this,arguments));};w.__chopV173=true;w.__original=f;window[name]=w;try{eval(`${name}=window[name]`)}catch(e){}
   }catch(e){}
 }
-const signals=['computeSignal','librarySignal','historyPatternSignal','roadStructureSignal','roadPreviewAISignal','sequenceAISignal','sequenceAIDuplicateSignal','sequenceAIDuplicateBaseSignal','sequenceH2OSignal','consensusSignal','derivedRoadSequencePatternSignal','adaptiveDerivedMainSignal','mainRoadHistorySignal','gptMirrorSignal','phaseHistoricalSignal','roadMemorySignal','botLiveRoadSignal','botLibraryMatchSignal','botHistoricalColorAdaptiveSignal','masterBotSignal','colorPatternAISignal','leanSignal','currentMainRoadSignal','botSignal','roadPreviewSignal','derivedRoadSignal','adaptiveDerivedSignal','walkForwardSignal','highPoweredBotSignal'];
+const signals=['computeSignal','librarySignal','historyPatternSignal','roadStructureSignal','roadPreviewAISignal','sequenceAISignal','derivedRoadSequencePatternSignal','adaptiveDerivedMainSignal','mainRoadHistorySignal','gptMirrorSignal','phaseHistoricalSignal','roadMemorySignal','colorPatternAISignal','currentMainRoadSignal','roadPreviewSignal','derivedRoadSignal','adaptiveDerivedSignal'];
 function install(){signals.forEach(wrap);ensurePanel();renderPanel();}
 function ensurePanel(){
   if(document.getElementById('universalChopV173'))return;
@@ -16574,7 +15124,7 @@ window.__AdaptiveGradesV175={version:VERSION,grades,render,target:'A',honestGrad
 <script id="v176-deep-stability-runtime-guard">
 (function(){
 'use strict';
-const D=window.__V176_RUNTIME_DIAGNOSTICS__={version:176,errors:[],startedAt:Date.now(),build:'V178_ACCURACY_COUNTS_REPAIR'};
+const D=window.__V176_RUNTIME_DIAGNOSTICS__={version:176,errors:[],startedAt:Date.now(),build:'V179_CLEAN_ACTIVE_AI_ONLY'};
 function push(kind,msg){D.errors.push({time:Date.now(),kind,msg:String(msg||'unknown')});if(D.errors.length>20)D.errors.shift();}
 window.addEventListener('error',e=>push('error',e?.message||e?.error));
 window.addEventListener('unhandledrejection',e=>push('promise',e?.reason?.message||e?.reason));
@@ -16597,7 +15147,7 @@ setTimeout(selfTest,9000);
     state.accuracyVerified.version=VERSION;
     return state.accuracyVerified;
   }
-  function defs(){return Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];}
+  function defs(){const removed=new Set(['seqdup','consensus','bot','metav23','metav49','metav50']);const rows=Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];const seen=new Set();return rows.filter(r=>{const k=String(r?.[0]||'').toLowerCase();if(!k||removed.has(k)||seen.has(k))return false;seen.add(k);return true;});}
   function model(key,name){
     const a=A();
     const m=a.models[key]||(a.models[key]={name:name||key,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
@@ -16702,5 +15252,81 @@ setTimeout(selfTest,9000);
   setTimeout(()=>{try{arm();refresh()}catch(e){console.error('V178 accuracy init',e)}},120);
 })();
 </script>
+
+<script id="v179-clean-active-ai-only">
+(function(){
+'use strict';
+const VERSION=179;
+const REMOVED=['High-Powered Bot','AI Consensus','Meta Selector','Walk Forward','Governor','Sequence AI V2 Duplicate'];
+function wait(name){return {side:null,qualified:false,strength:0,confidence:0,removed:true,reason:name+' REMOVED in V179'};}
+// Compatibility only: old shared code may still ask for these names. They return inert WAIT objects.
+try{window.consensusSignal=function(){return wait('AI Consensus');};}catch(e){}
+try{window.highPoweredBotSignal=function(){return wait('High-Powered Bot');};}catch(e){}
+try{window.walkForwardSignal=function(){return wait('Walk Forward');};}catch(e){}
+try{window.sequenceAIDuplicateSignal=function(){return wait('Sequence AI V2 Duplicate');};}catch(e){}
+try{window.__metaSelectorV49=null;window.__metaSelectorV50=null;}catch(e){}
+function purgeLegacyUI(){
+  const ids=['masterBotPanel','consensusPanel','metaSelectorV49Panel','metaSelectorV50Panel','liveModelGovernorV32Panel','liveModelGovernorV34Panel','v58BotPanel','v60SeqDupPanel','metaWalkV23'];
+  ids.forEach(id=>{const e=document.getElementById(id);if(e)e.remove();});
+  document.querySelectorAll('.analyzer').forEach(el=>{
+    const t=String(el.querySelector('.analyzer-title')?.textContent||'');
+    if(/High-Powered Bot|AI Consensus|Meta[- ]Selector|Walk[- ]Forward|Governor|Sequence AI V2 Duplicate/i.test(t))el.remove();
+  });
+}
+function stamp(){
+  try{window.__V179_CLEAN_ACTIVE_AI_ONLY__={version:VERSION,removed:REMOVED.slice(),kept:['Sequence AI V2','Main Future Road','Road Preview','Derived Road','Adaptive Derived Roads','GPT Mirror','Chart Pattern Recognizer','ML / Replay / Training','Universal Chop','Adaptive Grades','Authoritative Accuracy Counts']};}catch(e){}
+  purgeLegacyUI();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(stamp,250),{once:true});else setTimeout(stamp,250);
+setTimeout(stamp,1800);
+})();
+</script>
+
+
+<script id="v180-post-clean-runtime-guard">
+(function(){
+'use strict';
+const VERSION=180;
+const REMOVED_KEYS=new Set(['seqdup','consensus','bot','metav23','metav49','metav50']);
+const NULL_SIG=name=>({side:null,candidate:null,qualified:false,confidence:0,strength:0,removed:true,reason:name+' REMOVED'});
+function pruneAccuracy(){
+  if(!Array.isArray(window.__accuracyModelDefs))return 0;
+  const seen=new Set();
+  const before=window.__accuracyModelDefs.length;
+  window.__accuracyModelDefs=window.__accuracyModelDefs.filter(row=>{
+    const k=String(row?.[0]||'').toLowerCase();
+    if(!k||REMOVED_KEYS.has(k)||seen.has(k))return false;
+    seen.add(k);return true;
+  });
+  try{
+    const a=state?.accuracyVerified;
+    if(a?.pending)for(const k of REMOVED_KEYS)delete a.pending[k];
+  }catch(e){}
+  return before-window.__accuracyModelDefs.length;
+}
+function disableRemoved(){
+  try{window.sequenceAIDuplicateSignal=()=>NULL_SIG('Sequence AI V2 Duplicate')}catch(e){}
+  try{window.consensusSignal=()=>NULL_SIG('AI Consensus')}catch(e){}
+  try{window.highPoweredBotSignal=()=>NULL_SIG('High-Powered Bot')}catch(e){}
+  try{window.walkForwardSignal=()=>NULL_SIG('Walk Forward')}catch(e){}
+  try{window.masterBotSignal=()=>NULL_SIG('High-Powered Bot')}catch(e){}
+  try{window.__metaSelectorV49=null;window.__metaSelectorV50=null;}catch(e){}
+}
+function scrubUI(){
+  const ids=['masterBotPanel','consensusPanel','metaSelectorV49Panel','metaSelectorV50Panel','liveModelGovernorV32Panel','liveModelGovernorV34Panel','v58BotPanel','v60SeqDupPanel','metaWalkV23'];
+  ids.forEach(id=>{try{document.getElementById(id)?.remove()}catch(e){}});
+}
+function run(){disableRemoved();pruneAccuracy();scrubUI();}
+function finishAfterLoader(){
+  run();
+  const loader=window.__V129_PROGRESSIVE_STARTUP__;
+  if(loader?.complete){window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:true,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};return;}
+  let tries=0;
+  const t=setInterval(()=>{tries++;run();if(window.__V129_PROGRESSIVE_STARTUP__?.complete||tries>=80){clearInterval(t);run();window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:!!window.__V129_PROGRESSIVE_STARTUP__?.complete,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};}},100);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',finishAfterLoader,{once:true});else finishAfterLoader();
+})();
+</script>
+
 </body>
 </html>
