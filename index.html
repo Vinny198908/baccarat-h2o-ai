@@ -16665,5 +16665,47 @@ window.__V225_FINAL_SCAN__={version:VERSION,syntaxChecked:true,duplicateIdsCheck
 })();
 </script>
 
+
+
+<!-- V226: restore ML live accuracy controls while keeping compact ML header -->
+<style id="v226-ml-accuracy-restore-style">
+#mlRoadTrainerV155 #mlv203AccuracyBox{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin-top:8px!important}
+#mlRoadTrainerV155 #mlv203AccuracyBox>.analyzer-card{display:block!important}
+#mlRoadTrainerV155 #mlv203Reset{display:inline-block!important}
+#mlRoadTrainerV155 #mlv204AfterTie{display:block!important}
+#mlRoadTrainerV155 #mlv170Note{display:none!important}
+/* Keep only Live Prediction + Live Confidence in the main ML metrics grid. */
+#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox)>.analyzer-card{display:none!important}
+#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox)>.analyzer-card:has(#mlv170Pick),
+#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox)>.analyzer-card:has(#mlv170Conf){display:block!important}
+#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+</style>
+<script id="v226-ml-accuracy-restore-runtime">
+(function(){
+'use strict';
+const VERSION=226;
+function restore(){
+  const panel=document.getElementById('mlRoadTrainerV155'); if(!panel)return false;
+  try{window.__V203_ML_UNLOCK__&&window.render?.call?.(window)}catch(e){}
+  const box=document.getElementById('mlv203AccuracyBox');
+  const reset=document.getElementById('mlv203Reset');
+  const tie=document.getElementById('mlv204AfterTie');
+  if(box){box.style.setProperty('display','grid','important');box.querySelectorAll('.analyzer-card').forEach(c=>c.style.setProperty('display','block','important'));}
+  if(reset)reset.style.setProperty('display','inline-block','important');
+  if(tie)tie.style.setProperty('display','block','important');
+  const note=document.getElementById('mlv170Note'); if(note)note.style.setProperty('display','none','important');
+  const grids=[...panel.querySelectorAll(':scope > .analyzer-grid')].filter(g=>g.id!=='mlv203AccuracyBox');
+  grids.forEach(g=>{g.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';g.querySelectorAll(':scope > .analyzer-card').forEach(card=>{const keep=!!(card.querySelector('#mlv170Pick')||card.querySelector('#mlv170Conf'));card.style.setProperty('display',keep?'block':'none','important');});});
+  return !!(box&&reset);
+}
+function boot(){
+  restore();
+  [150,500,1200,2500,5000].forEach(ms=>setTimeout(restore,ms));
+  if(!window.__v226MlRestoreTimer)window.__v226MlRestoreTimer=setInterval(()=>{if(document.visibilityState!=='hidden')restore();},2500);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+window.__V226_ML_DISPLAY__={version:VERSION,kept:['LIVE PREDICTION','LIVE CONFIDENCE','LIVE ACCURACY','WINS / LOSSES','COUNT','NEXT LOCK','AFTER TIE ACCURACY','RESET ML ACCURACY'],hidden:['validation stats','target pace','validation notes','live authority','unseen shoes','all test calls','selective test','selective N','baseline','live gate'],predictionLogicChanged:false};
+})();
+</script>
 </body>
 </html>
