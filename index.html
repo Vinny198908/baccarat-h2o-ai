@@ -1,4 +1,4 @@
-<!-- V196: V195 base + ORIGINAL V23 WALK-FORWARD META LEARNER RESTORED; only V195 compatibility adapters retained -->
+<!-- V221: V220 base + scan fixes: single Pattern accuracy reset path + single authoritative layout mover -->
 <!DOCTYPE html>
 
 <html lang="en">
@@ -15084,67 +15084,11 @@ window.__V182_PANEL_CLEANUP__={version:182,hiddenPanels:['Selective Live Adaptat
 </script>
 
 <script id="v219-panel-position-ml-top-finger-bottom">
-(function(){
-'use strict';
-const VERSION=219;
-function moveMlTop(){
-  const panel=document.getElementById('mlRoadTrainerV155');
-  if(!panel||!panel.parentNode)return false;
-  const host=panel.parentNode;
-  const anchor=document.getElementById('sequenceAiPanel') || host.querySelector('.analyzer');
-  if(anchor && anchor!==panel) host.insertBefore(panel,anchor);
-  return true;
-}
-function moveFingerBottom(){
-  const panel=document.getElementById('presetFingerprintGateV145');
-  if(!panel||!panel.parentNode)return false;
-  panel.parentNode.appendChild(panel);
-  return true;
-}
-function position(){
-  const ml=moveMlTop();
-  const finger=moveFingerBottom();
-  return ml&&finger;
-}
-function install(){
-  let tries=0;
-  const timer=setInterval(()=>{
-    tries++;
-    const positioned=position();
-    const loaded=!!window.__V129_PROGRESSIVE_STARTUP__?.complete;
-    if((positioned&&loaded)||tries>=100){
-      clearInterval(timer);
-      position();
-      window.__V219_PANEL_POSITION__={version:VERSION,mlRoadTrainer:'top',fingerprintGate:'bottom',logicChanged:false};
-    }
-  },100);
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-})();
+window.__V219_PANEL_POSITION__={version:219,mlRoadTrainer:'superseded-by-v221',fingerprintGate:'superseded-by-v221',logicChanged:false,layoutMoverDisabled:true};
 </script>
 
 <script id="v185-move-mirror-meta-top">
-(function(){
-'use strict';
-function moveTop(){
-  const mirror=document.getElementById('gptMirrorPanel');
-  const meta=document.getElementById('metaWalkV23');
-  const top=document.querySelector('.analyzer');
-  if(!top||!top.parentNode)return;
-  const parent=top.parentNode;
-  // Keep requested order: GPT Mirror first, Walk-Forward Meta second.
-  if(mirror && mirror!==top) parent.insertBefore(mirror,top);
-  const anchor=mirror&&mirror.parentNode===parent?mirror.nextSibling:parent.firstChild;
-  if(meta && meta.parentNode===parent){
-    if(anchor!==meta) parent.insertBefore(meta,anchor);
-  }else if(meta){
-    parent.insertBefore(meta,anchor);
-  }
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{moveTop();setTimeout(moveTop,600);setTimeout(moveTop,1800);setTimeout(moveTop,3500);});
-else {moveTop();setTimeout(moveTop,600);setTimeout(moveTop,1800);setTimeout(moveTop,3500);}
-window.__V185_LAYOUT__={mirrorTop:true,metaTop:true,logicChanged:false};
-})();
+window.__V185_LAYOUT__={mirrorTop:false,metaTop:false,logicChanged:false,supersededByV221:true};
 </script>
 
 
@@ -16469,6 +16413,79 @@ function health(){
 function boot(){relabelPatternAccuracy();window.__V218_ACCURACY_VERIFICATION__={version:VERSION,health,activeKeys,verified:true};}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,500),{once:true});else setTimeout(boot,500);
 setTimeout(boot,1800);
+})();
+</script>
+
+<script id="v221-final-layout-pattern-accuracy-restore">
+(function(){
+'use strict';
+const VERSION=221;
+
+function model(){
+  try{return state?.accuracyVerified?.models?.roadpreview||null}catch(e){return null}
+}
+function ensurePatternAccuracy(){
+  const panel=document.getElementById('roadPreviewAiPanel');
+  if(!panel)return false;
+  let card=panel.querySelector('[data-v73-acc="roadpreview"]');
+  if(!card){
+    card=document.createElement('div');
+    card.className='analyzer-card';
+    card.dataset.v73Acc='roadpreview';
+    card.style.marginTop='8px';
+    card.innerHTML='<span>Pattern Recognizer verified accuracy</span><strong class="v73-rate">—</strong><small class="v73-detail" style="display:block;color:var(--muted);margin-top:3px">0W-0L • N 0</small>';
+    const grid=panel.querySelector('.analyzer-grid,.road-predict-grid');
+    if(grid)grid.appendChild(card);else panel.appendChild(card);
+  }
+  const m=model(), n=Number(m?.predictions)||0, w=Number(m?.wins)||0, l=Number(m?.losses)||0;
+  const rate=card.querySelector('.v73-rate'),detail=card.querySelector('.v73-detail');
+  if(rate)rate.textContent=n?((w/n)*100).toFixed(1)+'%':'—';
+  if(detail)detail.textContent=`${w}W-${l}L • N ${n}`;
+  try{window.__V75_RESET_ALL_AI_ACCURACY__?.install?.()}catch(e){}
+  return true;
+}
+
+function moveFinalLayout(){
+  const hist=document.getElementById('autoHistMatchBox');
+  const ml=document.getElementById('mlRoadTrainerV155');
+  const finger=document.getElementById('presetFingerprintGateV145');
+  const mirror=document.getElementById('gptMirrorPanel');
+  const firstAnalyzer=document.querySelector('.analyzer');
+  const host=(ml&&ml.parentNode)||(mirror&&mirror.parentNode)||(firstAnalyzer&&firstAnalyzer.parentNode);
+  if(!host)return false;
+
+  // Requested top order: Automatic Historical Match first, ML Road Trainer second.
+  if(hist){
+    if(hist.parentNode!==host)host.insertBefore(hist,host.firstChild);
+    else if(host.firstChild!==hist)host.insertBefore(hist,host.firstChild);
+  }
+  if(ml){
+    const afterHist=hist&&hist.parentNode===host?hist.nextSibling:host.firstChild;
+    if(afterHist!==ml)host.insertBefore(ml,afterHist);
+  }
+
+  // Requested bottom order: Finger above GPT Mirror, GPT Mirror final AI panel.
+  if(finger&&finger.parentNode===host)host.appendChild(finger);
+  if(mirror&&mirror.parentNode===host)host.appendChild(mirror);
+
+  return !!(ml&&mirror);
+}
+
+function refresh(){
+  try{ensurePatternAccuracy()}catch(e){console.warn('V220 accuracy restore',e)}
+  try{moveFinalLayout()}catch(e){console.warn('V220 layout',e)}
+}
+function install(){
+  refresh();
+  [150,450,900,1600,2600,4200,6500].forEach(ms=>setTimeout(refresh,ms));
+  const old=window.render;
+  if(typeof old==='function'&&!old.__v221LayoutAccuracy){
+    const w=function(){const r=old.apply(this,arguments);queueMicrotask(refresh);return r};
+    w.__v221LayoutAccuracy=true;w.__base=old;window.render=w;try{render=w}catch(e){}
+  }
+  window.__V221_FINAL_LAYOUT__={version:VERSION,top:['Automatic Historical Match AI','ML Road Trainer'],bottom:['Fingerprint Gate','GPT Mirror AI'],patternAccuracyRestored:true,logicChanged:false};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 </script>
 </body>
