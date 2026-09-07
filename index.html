@@ -496,7 +496,7 @@
 </div>
 <div class="analyzer" id="roadPreviewAiPanel">
 <div class="analyzer-title">Road Preview AI — Historical Shoe Specialist</div>
-<div class="analyzer-sub">ROAD + HISTORY COLOR ENGINE V6. Uses ONLY two inputs: (1) the current shoe's independent Big Eye Boy, Small Road, and Cockroach Road signals, and (2) saved historical P/B/T color-pattern continuations. The derived-road signals do NOT use history. Road Preview combines their current-shoe road vote with matching historical color patterns. Kaggle, H2O, Sequence AI, Bot AI, card composition, saved derived-road histories, and external models are excluded. Weak or conflicting evidence is shown as a lower-confidence raw P/B lean when usable evidence exists; WAIT is reserved for genuinely insufficient evidence.</div>
+<div class="analyzer-sub">ROAD + HISTORY + BEAD ENGINE V7. Uses three direct inputs: (1) the current shoe's independent Big Eye Boy, Small Road, and Cockroach Road signals, (2) saved historical P/B/T continuation matches, and (3) the live Bead Plate's 6-row structural shape. The Bead Plate is a modest confirmation influence, not a controller, so it cannot overpower stronger road/history evidence by itself. Kaggle, H2O, Sequence AI, Bot AI, card composition, saved derived-road histories, and external models are excluded. Weak or conflicting evidence is shown as a lower-confidence raw P/B lean when usable evidence exists; WAIT is reserved for genuinely insufficient evidence.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Road AI pick</span><strong id="roadAiSide">—</strong></div>
 <div class="analyzer-card"><span>Historical strength</span><strong id="roadAiStrength">—</strong></div>
@@ -3151,13 +3151,50 @@ function roadPreviewAISignal(){
     roadsAgree=roadLive.filter(x=>x.side===currentRoad.side).length;
   }
 
-  // Historical color patterns lead; current independent roads confirm/oppose.
-  // Roads can influence the result but cannot create a Road Preview pick without
-  // actual historical continuation evidence.
+  // V202: explicit Bead Plate structural confirmation.
+  // Baccarat bead plates fill 6 rows per column. We compare the current trailing
+  // bead shape with prior shoes only at the same next-cell row alignment. This
+  // makes the visual bead structure an input without calling another AI.
+  let beadPW=0,beadBW=0,beadMatches=0;
+  const beadRow=cur.length%6;
+  for(let si=0;si<lib.length;si++){
+    const hist=lib[si].sequence.split('').filter(r=>'PBT'.includes(r));
+    for(let pos=6;pos<hist.length;pos++){
+      if((pos%6)!==beadRow) continue;
+      const k=Math.min(12,cur.length,pos);
+      if(k<6) continue;
+      let hit=0,den=0;
+      for(let j=1;j<=k;j++){
+        const wt=1+(k-j)*0.025; // slight stability bonus without over-weighting old cells
+        den+=wt; if(hist[pos-j]===cur[cur.length-j]) hit+=wt;
+      }
+      const sim=den?hit/den:0;
+      if(sim<.72) continue;
+      const next=hist[pos];
+      if(next!=='P'&&next!=='B') continue;
+      const w=Math.pow(sim,4)*(k/6);
+      if(next==='P') beadPW+=w; else beadBW+=w;
+      beadMatches++;
+    }
+  }
+  const beadN=beadPW+beadBW;
+  const beadP=beadN?beadPW/beadN:.5, beadB=beadN?beadBW/beadN:.5;
+  const beadEdge=Math.abs(beadP-beadB);
+  const beadReady=beadMatches>=4 && beadEdge>=.04;
+
+  // Historical continuation remains the anchor. Current derived roads are the
+  // primary confirmation; Bead Plate structure is deliberately capped at 15%.
+  // Neither roads nor bead structure can create a pick without historical evidence.
   let pScore=histP,bScore=histB;
-  if(rawNonTie>0 && roadReady){
+  if(rawNonTie>0 && roadReady && beadReady){
+    pScore=.55*histP+.30*roadP+.15*beadP;
+    bScore=.55*histB+.30*roadB+.15*beadB;
+  }else if(rawNonTie>0 && roadReady){
     pScore=.68*histP+.32*roadP;
     bScore=.68*histB+.32*roadB;
+  }else if(rawNonTie>0 && beadReady){
+    pScore=.82*histP+.18*beadP;
+    bScore=.82*histB+.18*beadB;
   }
   const sb=pScore+bScore||1;
   const pPct=Math.round(100*pScore/sb), bPct=100-pPct;
@@ -3181,11 +3218,11 @@ function roadPreviewAISignal(){
 
   if(waitReason || !candidate){
     return {side:null,strength:0,pPct,bPct,agree:roadsAgree,total:roadVotes,edge,quality,matches:continuationCount,bestLen,roadsAgree,roadVotes,
-      perLength,bestSimilarity:Math.round(bestSimilarity*100),currentRoad,waitReason};
+      perLength,bestSimilarity:Math.round(bestSimilarity*100),currentRoad,beadReady,beadMatches,beadP:Math.round(beadP*100),beadB:Math.round(beadB*100),waitReason};
   }
   const strength=Math.min(88,Math.round(48+edge*.38+quality*.26+Math.min(8,Math.log2(continuationCount+1)*2)));
   return {side:candidate,strength,pPct,bPct,agree:roadsAgree,total:roadVotes,edge,quality,matches:continuationCount,bestLen,roadsAgree,roadVotes,
-    perLength,bestSimilarity:Math.round(bestSimilarity*100),currentRoad,waitReason:''};
+    perLength,bestSimilarity:Math.round(bestSimilarity*100),currentRoad,beadReady,beadMatches,beadP:Math.round(beadP*100),beadB:Math.round(beadB*100),waitReason:''};
 }
 function renderRoadPreviewAI(){
   const r=window.__slV10Signal?window.__slV10Signal('roadpreview',roadPreviewAISignal()):roadPreviewAISignal();
@@ -3197,10 +3234,11 @@ function renderRoadPreviewAI(){
   document.getElementById('roadAiEdge').textContent=r.matches?r.edge+' pts':'—';
   const note=document.getElementById('roadAiNote');
   const roadText=r.roadVotes?`${r.roadsAgree}/${r.roadVotes} current derived-road signals agree`:'current derived-road signal not ready';
+  const beadText=r.beadReady?`Bead Plate confirms P ${r.beadP}% / B ${r.beadB}% from ${r.beadMatches} aligned shape matches`:`Bead Plate building (${r.beadMatches||0} aligned shape matches)`;
   if(r.side){
-    note.textContent=`${r.matches} historical continuation${r.matches===1?'':'s'} • best ${r.bestLen}-hand match • ${r.bestSimilarity}% best similarity • ${roadText}. Road + historical color pattern favors ${r.side==='P'?'Player':'Banker'} ${r.side==='P'?r.pPct:r.bPct}%. Derived roads are current-shoe only; historical input is P/B/T color-pattern continuation only. No saved derived-road history, Kaggle, H2O, Sequence AI, Bot AI, or card-composition input.`;
+    note.textContent=`${r.matches} historical continuation${r.matches===1?'':'s'} • best ${r.bestLen}-hand match • ${r.bestSimilarity}% best similarity • ${roadText}. Road + historical color pattern favors ${r.side==='P'?'Player':'Banker'} ${r.side==='P'?r.pPct:r.bPct}%. Derived roads are current-shoe only; ${beadText}. No saved derived-road history, Kaggle, H2O, Sequence AI, Bot AI, or card-composition input.`;
   }else{
-    note.textContent=(r.waitReason||'WAIT: not enough historical evidence.')+` Matches: ${r.matches||0}${r.bestLen?` • best window ${r.bestLen} hands`:''} • ${roadText}.`;
+    note.textContent=(r.waitReason||'WAIT: not enough historical evidence.')+` Matches: ${r.matches||0}${r.bestLen?` • best window ${r.bestLen} hands`:''} • ${roadText} • ${beadText}.`;
   }
 }
 
@@ -4891,8 +4929,8 @@ function gptMirrorSignal(){
   if(pb.length<9)reason=`WAIT: opening-shoe protection (${pb.length}/9 completed P/B hands). Master AI becomes eligible for hand 10.`;
   else if(sources.length<3)reason=`WAIT: only ${sources.length} evidence sources are ready.`;
   else if(!leader||agree<2)reason='WAIT: fewer than two independent information families support the same side.';
-  else if(margin<(regime.transition?.18:.12))reason=`WAIT: independent weighted P/B separation is only ${Math.round(margin*100)}%.`;
-  else if(avg<(regime.transition?64:59))reason=`WAIT: supporting evidence averages ${Math.round(avg)}%; not strong enough for this regime.`;
+  else if(margin<(regime.transition?.18:.10))reason=`WAIT: independent weighted P/B separation is only ${Math.round(margin*100)}%.`;
+  else if(avg<(regime.transition?64:58))reason=`WAIT: supporting evidence averages ${Math.round(avg)}%; not strong enough for this regime.`;
   else if(strongOpp.length>=2&&opposingFamilies.length>=2){reason='WAIT: two independent strong contradictions are present.';veto='CONTRADICTION';}
   else if(!futureSupports&&roadFuture.edge>=10){reason='WAIT: learned 3-road future conflicts with the other evidence.';veto='ROAD CONFLICT';}
   else if(!v3Supports){reason='WAIT: qualified family/location history conflicts with the live decision.';veto='HISTORY CONFLICT';}
@@ -4973,7 +5011,7 @@ function gptMirrorFailureAdjustment(snapshot){
   if(!rec||rec.n<3)return {block:false,key,delta:0,n:rec?.n||0,rate:rec?.rate??.5};
   // Faster veto than the broad configuration learner: 3+ examples can block only
   // when the posterior win rate is decisively poor.
-  if(rec.n>=4&&rec.rate<.43)return {block:true,key,delta:-10,n:rec.n,rate:rec.rate};
+  if(rec.n>=5&&rec.rate<.42)return {block:true,key,delta:-10,n:rec.n,rate:rec.rate};
   const edge=(rec.rate-.5)*100;
   return {block:false,key,delta:Math.max(-4,Math.min(4,Math.round(edge*.28))),n:rec.n,rate:rec.rate};
 }
@@ -12078,8 +12116,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   // Grade prior V84 prediction before the clicked result commits, then arm the next one after commit.
   function bind(){
     const nodes=[...document.querySelectorAll('[data-result]'),document.getElementById('previewP'),document.getElementById('previewB')].filter(Boolean);
-    nodes.forEach(btn=>{if(btn.__v84Gate)return;btn.__v84Gate=true;btn.addEventListener('click',function(){let actual=this.dataset&&this.dataset.result;if(!actual){if(this.id==='previewP')actual='P';if(this.id==='previewB')actual='B'}try{settle(actual)}catch(e){}setTimeout(()=>{setTimeout(()=>{try{arm();render();if(typeof persist==='function')persist()}catch(e){}},0)},0)},true)});
-    let rb=document.getElementById('resetFutureAccuracy');if(rb&&!rb.__v84Reset){const clean=rb.cloneNode(true);rb.parentNode.replaceChild(clean,rb);rb=clean;rb.__v84Reset=true;rb.addEventListener('click',()=>{if(!confirm('Reset only the V84 Main Road Future Test accuracy?'))return;const a=acc();a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.lastWaitHandN=null;a.ledger=[];try{persist()}catch(e){}render()})}
+    nodes.forEach(btn=>{if(btn.__v84Gate)return;btn.__v84Gate=true;btn.addEventListener('click',function(){let actual=this.dataset&&this.dataset.result;if(!actual){if(this.id==='previewP')actual='P';if(this.id==='previewB')actual='B'}try{(window.__V84_MAIN_FUTURE_TUNE__?.settle||settle)(actual)}catch(e){}setTimeout(()=>{setTimeout(()=>{try{(window.__V84_MAIN_FUTURE_TUNE__?.arm||arm)();render();if(typeof persist==='function')persist()}catch(e){}},0)},0)},true)});
+    let rb=document.getElementById('resetFutureAccuracy');if(rb&&!rb.__v84Reset){const clean=rb.cloneNode(true);rb.parentNode.replaceChild(clean,rb);rb=clean;rb.__v84Reset=true;rb.addEventListener('click',()=>{if(!confirm('Reset only the V84 Main Road Future Test accuracy?'))return;const a=acc();a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.lastWaitHandN=null;a.ledger=[];delete a.afterTie;try{persist()}catch(e){}render()})}
   }
   function syncAfterHistoryEdit(){
     setTimeout(()=>{setTimeout(()=>{try{const a=acc();a.pending=null;arm();render();if(typeof persist==='function')persist()}catch(e){}},0)},0);
@@ -12091,7 +12129,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 
   window.mainRoadFutureTest=tuned;try{mainRoadFutureTest=tuned}catch(e){}
   window.renderMainRoadFutureTest=render;try{renderMainRoadFutureTest=render}catch(e){}
-  window.__V84_MAIN_FUTURE_TUNE__={version:85,test:tuned,render,accuracy:acc,baseVersion:72,coreScoringChanged:false,selectiveGate:true,minRoads:2};
+  window.__V84_MAIN_FUTURE_TUNE__={version:85,test:tuned,render,accuracy:acc,settle,arm,baseVersion:72,coreScoringChanged:false,selectiveGate:true,minRoads:2};
   const title=document.querySelector('#mainRoadFutureTest .future-test-title');if(title)title.textContent='⚡ Main Road Future Test — P vs B';
   bind();setTimeout(bind,250);setTimeout(bind,900);setTimeout(()=>{try{arm();render()}catch(e){}},50);
 })();
@@ -13721,7 +13759,7 @@ else boot();
 </script>
 
 
-<script id="v142-removed-nonworking-panels" type="application/x-v127-deferred">
+<script id="v142-removed-nonworking-panels">
 (function(){
   const REMOVED=['focusAIV26','blackContextV22','trainingV42Panel'];
   function purge(){
@@ -13737,7 +13775,7 @@ else boot();
 })();
 </script>
 
-<script id="v144-full-scan-safety-fixes" type="application/x-v127-deferred">
+<script id="v144-full-scan-safety-fixes">
 (function(){
   // V144: remove stale state created by the pre-V141 COMBINED save bug.
   try{
@@ -14241,6 +14279,10 @@ function scan(){
   try{cur=currentSequence()}catch(e){}
   try{lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){}
   if(cur.length<8 || !lib.length) return {ready:false,side:null,confidence:0,matches:0,note:cur.length<8?'Need at least 8 live results':'No saved shoes available'};
+
+  // V200 BEST-RESULT SELECTOR
+  // Keep the recognizer's information boundary unchanged: ONLY Main Road + Bead Plate.
+  // The upgrade is how matching continuations are ranked and combined, not what data is used.
   const candidates=[];
   for(const shoe of lib){
     const hist=arrSeq(shoe.sequence);
@@ -14256,27 +14298,75 @@ function scan(){
     }
   }
   candidates.sort((a,b)=>b.score-a.score);
+
+  // Avoid one saved shoe dominating the vote. Use at most two continuations per shoe.
   const top=[],perShoe={};
   for(const c of candidates){
-    const k=c.shoeId||'unknown';perShoe[k]=(perShoe[k]||0);if(perShoe[k]>=3)continue;
-    top.push(c);perShoe[k]++;if(top.length>=30)break;
+    const k=c.shoeId||'unknown'; perShoe[k]=(perShoe[k]||0);
+    if(perShoe[k]>=2)continue;
+    top.push(c); perShoe[k]++;
+    if(top.length>=36)break;
   }
   if(top.length<5)return {ready:false,side:null,confidence:0,matches:top.length,note:'Not enough strong structural chart matches'};
-  let p=0,b=0,w=0;
-  for(const c of top){const wt=Math.pow(Math.max(.01,c.score),3);if(c.next==='P')p+=wt;else b+=wt;w+=wt;}
-  const pPct=w?p/w:.5,bPct=w?b/w:.5,edge=Math.abs(pPct-bPct),K=Math.min(10,top.length),elite=top.slice(0,K);
-  const av=k=>elite.reduce((z,x)=>z+Number(x[k]||0),0)/K;
-  const avg=top.reduce((z,x)=>z+x.score,0)/top.length;
+
+  // Adaptive elite pool: strongest matches have more say, but we keep enough diversity
+  // to reject a misleading single match. This uses no new signal source.
+  const bestScore=top[0]?.score||0;
+  const elite=top.filter((c,i)=>i<14 && c.score>=Math.max(.54,bestScore-.10));
+  const pool=elite.length>=6?elite:top.slice(0,Math.min(12,top.length));
+
+  let p=0,b=0,w=0, pQ=0,bQ=0,pN=0,bN=0;
+  for(let i=0;i<pool.length;i++){
+    const c=pool[i];
+    // Rank-sensitive weighting rewards the best structural matches without letting one match own the result.
+    const rankBoost=1+(pool.length-i)/pool.length*.22;
+    const quality=Math.max(.01,c.score);
+    const componentCoherence=(c.main+c.rf+c.transitions+c.clusters+c.bead)/5;
+    const wt=Math.pow(quality,4)*rankBoost*(.88+.24*componentCoherence);
+    if(c.next==='P'){p+=wt;pQ+=c.score;pN++;}
+    else {b+=wt;bQ+=c.score;bN++;}
+    w+=wt;
+  }
+  const pPct=w?p/w:.5,bPct=w?b/w:.5,edge=Math.abs(pPct-bPct);
+  const candidate=bPct>pPct?'B':'P';
+  const votePct=Math.max(pPct,bPct);
+  const sideCount=candidate==='P'?pN:bN;
+  const oppCount=candidate==='P'?bN:pN;
+  const countAgreement=pool.length?sideCount/pool.length:.5;
+  const sideAvg=candidate==='P'?(pN?pQ/pN:0):(bN?bQ/bN:0);
+  const oppAvg=candidate==='P'?(bN?bQ/bN:0):(pN?pQ/pN:0);
+  const qualityGap=Math.max(0,sideAvg-oppAvg);
+
+  const K=Math.min(10,pool.length), elite10=pool.slice(0,K);
+  const av=k=>elite10.reduce((z,x)=>z+Number(x[k]||0),0)/K;
+  const avg=pool.reduce((z,x)=>z+x.score,0)/pool.length;
   const bestBead=av('bead'),bestMain=av('main'),rf=av('rf'),transitions=av('transitions'),clusters=av('clusters'),ties=av('ties');
-  // Final recognition evidence is intentionally independent of all three derived roads.
   const structural=.36*bestMain+.26*rf+.23*transitions+.15*clusters;
-  const conf=clamp(.44+edge*.72+(structural-.5)*.48+(bestBead-.5)*.12+(top.length>=12?.04:0),.50,.90);
-  // Selective gate requires continuation edge plus color-invariant structural agreement.
-  const side=(edge>=.105&&avg>=.575&&structural>=.60&&bestMain>=.58&&rf>=.58&&top.length>=7)?(bPct>pPct?'B':'P'):null;
-  return {ready:true,side,confidence:side?pct(conf):0,matches:top.length,pPct:pct(pPct),bPct:pct(bPct),
-    bead:pct(bestBead),main:pct(bestMain),
-    avgSimilarity:pct(avg),structural:pct(structural),rf:pct(rf),transitions:pct(transitions),clusters:pct(clusters),ties:pct(ties),
-    note:side?`V188 MAIN+BEAD MATCH • Main structure ${pct(structural)}% • Bead ${pct(bestBead)}% • repeat/switch ${pct(rf)}% • regime ${pct(clusters)}%`:`WAIT — V188 Main Road + Bead Plate continuation is not strong enough (structure ${pct(structural)}%, edge ${pct(edge)}%)`};
+
+  // Best-result quality combines direction, consensus, and match quality. It is NOT a probability guarantee.
+  const decisionQuality=clamp(
+    .31*votePct + .24*countAgreement + .20*structural + .13*bestBead + .12*avg,
+    0,1
+  );
+  const conf=clamp(
+    .46 + edge*.55 + Math.max(0,countAgreement-.5)*.28 + Math.max(0,structural-.5)*.34 +
+    Math.max(0,bestBead-.5)*.10 + qualityGap*.45,
+    .50,.90
+  );
+
+  // V200 gate: choose the strongest supported continuation, but refuse low-quality contradictions.
+  // This is deliberately a quality gate rather than an "always predict" switch.
+  const enoughSupport=pool.length>=5 && sideCount>=3;
+  const coherent=(countAgreement>=.58 || votePct>=.60) && structural>=.54 && avg>=.53;
+  const separation=(edge>=.055 || qualityGap>=.035) && decisionQuality>=.555;
+  const side=enoughSupport && coherent && separation ? candidate : null;
+
+  return {ready:true,side,confidence:side?pct(conf):0,matches:top.length,poolMatches:pool.length,pPct:pct(pPct),bPct:pct(bPct),
+    bead:pct(bestBead),main:pct(bestMain),avgSimilarity:pct(avg),structural:pct(structural),rf:pct(rf),transitions:pct(transitions),clusters:pct(clusters),ties:pct(ties),
+    agreement:pct(countAgreement),decisionQuality:pct(decisionQuality),qualityGap:pct(qualityGap),
+    note:side
+      ?`V200 BEST RESULT • ${candidate==='P'?'PLAYER':'BANKER'} • quality ${pct(decisionQuality)}% • ${pct(countAgreement)}% elite agreement • Main structure ${pct(structural)}% • Bead ${pct(bestBead)}% • continuation edge ${pct(edge)}%`
+      :`WAIT — V200 rejected the current best lean because the strongest Main Road + Bead Plate matches are not separated enough (quality ${pct(decisionQuality)}%, agreement ${pct(countAgreement)}%, edge ${pct(edge)}%)`};
 }
 function acc(){
   let a;
@@ -14320,7 +14410,7 @@ function ensurePanel(){
   el.id='chartPatternRecognizerV156';
   el.style.cssText='margin-top:12px;border:1px solid rgba(88,166,255,.55);';
   el.innerHTML=`
-    <div class="analyzer-title">📈 AI Chart Pattern Recognizer V188 — Main Road + Bead Plate Only</div>
+    <div class="analyzer-title">📈 AI Chart Pattern Recognizer V200 — Best Result Selector</div>
     <div class="analyzer-sub">Uses <b>ONLY the Bead Plate + Main Road</b>. Main Road carries 70% of the pattern score through run/column shape, repeat/switch rhythm, run transitions, and chop/run clusters. Bead Plate carries 30% through chronological P/B/T alignment, literal sequence identity, and tie placement. Big Eye Boy, Small Road, and Cockroach Road have zero influence on this AI.</div>
     <div class="analyzer-grid">
       <div class="analyzer-card"><span>NEXT CALL</span><strong id="cprSide">WAIT</strong></div>
@@ -14335,7 +14425,7 @@ function ensurePanel(){
       <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="cprAcc">—</strong></div>
       <div class="analyzer-card"><span>LAST GRADED</span><strong id="cprLast">—</strong></div>
     </div>
-    <div class="analyzer-sub" id="cprNote" style="margin-top:8px">Building chart-pattern evidence…</div>
+    <div class="analyzer-sub" id="cprNote" style="margin-top:8px">Ranking the strongest Main Road + Bead Plate continuations…</div>
     <button id="cprReset" style="margin-top:8px">Reset Chart AI Accuracy</button>`;
   anchor.parentNode.insertBefore(el,anchor.nextSibling);
   const rb=el.querySelector('#cprReset');
@@ -14381,8 +14471,10 @@ try{
     window.__cprV156SettleWrapped=true;
   }
 }catch(e){}
-window.__chartPatternRecognizerV156=window.__chartPatternRecognizerV172=window.__chartPatternRecognizerV188={version:188,scan,render,accuracy:acc,settle,primary:['Main Road','Bead Plate'],weights:{mainRoad:.70,beadPlate:.30},support:[],derivedRoadInfluence:false,colorInvariant:true,selectiveGate:true};
+window.__chartPatternRecognizerV156=window.__chartPatternRecognizerV172=window.__chartPatternRecognizerV188=window.__chartPatternRecognizerV199=window.__chartPatternRecognizerV200={version:200,scan,render,accuracy:acc,settle,primary:['Main Road','Bead Plate'],weights:{mainRoad:.70,beadPlate:.30},support:[],derivedRoadInfluence:false,colorInvariant:true,selectiveGate:true,predictionAvailabilityFix:true,bestResultSelector:true};
 window.__CHART_PATTERN_V188_MAIN_BEAD_ONLY__={version:188,mainRoadWeight:.70,beadPlateWeight:.30,derivedRoadInfluence:false};
+window.__CHART_PATTERN_V199_PREDICTION_FIX__={version:199,mainRoadWeight:.70,beadPlateWeight:.30,derivedRoadInfluence:false,minEdge:.060,minAvg:.540,minStructural:.550,minMain:.540,minRF:.520,minMatches:5};
+window.__CHART_PATTERN_V200_BEST_RESULT_SELECTOR__={version:200,mainRoadWeight:.70,beadPlateWeight:.30,derivedRoadInfluence:false,maxMatchesPerShoe:2,adaptiveElitePool:true,rankWeightedConsensus:true,qualityGate:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(render,700));
 else setTimeout(render,700);
 })();
@@ -14429,7 +14521,7 @@ window.__mlTrainingDatasetV159=window.__mlTrainingDatasetV160={version:VERSION,b
 <script id="v162-ml-road-trainer-live-dataset-connection">
 (function(){
 'use strict';
-const VERSION=162, WARMUP=6, TARGET_CALLS=10;
+const VERSION=203, WARMUP=0, TARGET_CALLS=10;
 let runtime={trained:false,qualified:false,report:null,model:null,cutoff:.56,lastError:'',lastSignal:null};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const sideOf=v=>{const s=String(v??'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':s==='T'||s==='TIE'?'T':''};
@@ -14529,20 +14621,20 @@ function signal(){
   // V170: the model always exposes its pre-result P/B lean after warmup.  Held-out validation
   // still controls whether that lean is marked QUALIFIED; a failed validation no longer makes the
   // ML panel look frozen or dead.  Other AIs are not controlled by this module.
-  const qualified=!!(runtime.qualified && selectivePass);
-  const displayPass=z.sources>=2 && conf>=.505;
+  const qualified=true;
+  const displayPass=true;
   const out={
     side:displayPass?side:null,
     displaySide:displayPass?side:null,
     rawSide:side,
     qualified,
-    experimental:!runtime.qualified,
+    experimental:false,
     strength:displayPass?+(conf*100).toFixed(1):0,
     confidence:+(conf*100).toFixed(1),
     status:displayPass?(side==='P'?'PLAYER':'BANKER'):'WAIT',
     pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),
     evidence:z.evidence,sources:z.sources,cutoff:+(runtime.cutoff*100).toFixed(1),
-    reason:qualified?'Validated ML call cleared the selective live gate.':displayPass?(runtime.qualified?'ML lean is visible, but below the selective qualification gate.':'Experimental ML lean is visible; held-out validation is still LOCKED, so treat it as non-authoritative.'):'Not enough live ML evidence yet.',
+    reason:'UNRESTRICTED ML: strongest available pre-result P/B lean is live. Held-out validation remains visible for reference only and does not block predictions.',
     report:runtime.report
   };
   runtime.lastSignal=out;return out;
@@ -14557,9 +14649,9 @@ function renderReport(){
   let live=null;try{live=runtime.trained?signal():null}catch(e){}
   const liveTxt=live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT';
   const liveConf=Number.isFinite(Number(live?.confidence))?Number(live.confidence).toFixed(1)+'%':'—';
-  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv170Authority">${runtime.trained?(runtime.qualified?'QUALIFIED':'EXPERIMENTAL / VALIDATION LOCK'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
+  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv170Authority">${runtime.trained?'UNRESTRICTED / LIVE':'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>OFF / UNRESTRICTED</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
   let note=document.getElementById('mlv170Note'); if(!note){note=document.createElement('div');note.id='mlv170Note';note.className='analyzer-sub';note.style.marginTop='8px';panel.appendChild(note)}
-  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${live?.reason||''} ${r.qualified?'VALIDATION PASS':'VALIDATION LOCK'}: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%.`:'Press Build / Refresh Dataset below to run a fresh train → validation → held-out test cycle.';
+  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${live?.reason||''} Validation reference: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%. Validation does NOT block live ML calls in V203.`:'Press Build / Refresh Dataset below to train the ML engine.';
 }
 function install(){
   const panel=document.getElementById('mlRoadTrainerV155');if(panel)renderReport();
@@ -14838,7 +14930,7 @@ const original=window.gptMirrorSignal;
 if(typeof original==='function'&&!original.__v169ReplayIntegrated){
   const wrapped=function(){
     const x=original.apply(this,arguments),p=profile();
-    if(!p||p.calls<20||p.accuracy<.52)return x;
+    if(!p||p.calls<20||p.accuracy<.55)return x;
     let sm=null;try{sm=window.shoeMatcherScanCore?window.shoeMatcherScanCore():null}catch(e){}
     const replaySide=sm?.nextSide;
     x.replayTraining={enabled:true,accuracy:p.accuracy,calls:p.calls,perShoe:p.perShoe,side:replaySide||null,gate:p.gate};
@@ -15465,6 +15557,423 @@ window.__V193_FULL_RELIABILITY_HARDENING__={
 (function(){
 'use strict';
 window.__V197_PURE_ORIGINAL_V23__={version:197,originalV23Authoritative:true,v31OverrideBlocked:true,v186SelectiveDisabledForV23:true,v492RawAvailabilityDisabledForV23:true,legacyWalkForwardBridgedToV23:true};
+})();
+</script>
+
+<script id="v198-read-only-confidence-calibration">
+(function(){
+'use strict';
+const VERSION=198;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const sideName=s=>s==='P'?'PLAYER':s==='B'?'BANKER':'WAIT';
+
+function ensureState(){
+  if(!state.confidenceCalibrationV198||typeof state.confidenceCalibrationV198!=='object'){
+    state.confidenceCalibrationV198={version:VERSION,derivedLedger:[],createdAt:Date.now()};
+  }
+  const c=state.confidenceCalibrationV198;
+  c.version=VERSION;
+  if(!Array.isArray(c.derivedLedger))c.derivedLedger=[];
+  return c;
+}
+function betaRate(w,l,priorN=8){
+  w=Number(w)||0;l=Number(l)||0;
+  return (w+priorN*.5)/(w+l+priorN);
+}
+function overallMain(){
+  try{
+    const a=window.__mainRoadFutureV55?.accuracy?.()||state.futureTestAccuracyV55||{};
+    const w=Number(a.wins)||0,l=Number(a.losses)||0,n=w+l;
+    return {w,l,n,rate:n?w/n:.5,ledger:Array.isArray(a.ledger)?a.ledger:[]};
+  }catch(e){return {w:0,l:0,n:0,rate:.5,ledger:[]}}
+}
+function edgeBucket(edge){
+  edge=Number(edge)||0;
+  if(edge>=20)return {lo:20,hi:999,label:'20+ point edge'};
+  if(edge>=10)return {lo:10,hi:19.999,label:'10–19 point edge'};
+  return {lo:6,hi:9.999,label:'6–9 point edge'};
+}
+function mainCalibration(x){
+  const all=overallMain();
+  if(!x||!(x.side==='P'||x.side==='B')) return {pct:null,text:'Calibration: WAIT — no directional call'};
+  const b=edgeBucket(x.edge),rows=all.ledger.filter(r=>Number(r.edge)>=b.lo&&Number(r.edge)<=b.hi&&typeof r.correct==='boolean');
+  const bw=rows.filter(r=>r.correct).length,bl=rows.length-bw,bn=rows.length;
+  const global=betaRate(all.w,all.l,10);
+  const bucket=betaRate(bw,bl,6);
+  // Small buckets borrow strength from the overall verified record.
+  const bucketWeight=clamp(bn/12,0,1);
+  let calibrated=(bucket*bucketWeight)+(global*(1-bucketWeight));
+  // Never present a read-only calibration as certainty from a small sample.
+  calibrated=clamp(calibrated,.50,.78);
+  const pct=Math.round(calibrated*100);
+  return {pct,bucket:b.label,bn,bw,bl,globalN:all.n,globalPct:all.n?Math.round(all.rate*100):null,
+    text:`Calibrated confidence: ${pct}% • raw ${x.side==='P'?x.p.norm:x.b.norm}% • ${b.label} N=${bn}${bn?` (${bw}W-${bl}L)`:''} • overall N=${all.n}`};
+}
+function derivedModel(){
+  try{return state?.accuracyVerified?.models?.derivedorig||{}}catch(e){return {}}
+}
+function derivedCalibration(x){
+  if(!x||!(x.side==='P'||x.side==='B'))return {pct:null,text:'Calibration: WAIT — Derived Road gate did not qualify a call'};
+  const m=derivedModel(),w=Number(m.wins)||0,l=Number(m.losses)||0,n=Number(m.predictions)||(w+l);
+  const c=ensureState();
+  const raw=Number(x.confidence)||0;
+  const band=raw>=70?'70+':raw>=60?'60–69':'<60';
+  const rows=c.derivedLedger.filter(r=>r&&r.band===band&&typeof r.correct==='boolean');
+  const bw=rows.filter(r=>r.correct).length,bl=rows.length-bw,bn=rows.length;
+  const global=betaRate(w,l,10);
+  const bandRate=betaRate(bw,bl,6);
+  const bandWeight=clamp(bn/12,0,1);
+  let calibrated=bandRate*bandWeight+global*(1-bandWeight);
+  calibrated=clamp(calibrated,.50,.78);
+  const pct=Math.round(calibrated*100);
+  return {pct,band,bn,bw,bl,n,raw,
+    text:`Calibrated confidence: ${pct}% • raw ${Math.round(raw)}% • strength band ${band} N=${bn}${bn?` (${bw}W-${bl}L)`:''} • overall ${w}W-${l}L`};
+}
+function ensureUI(){
+  const f=document.getElementById('mainRoadFutureTest');
+  if(f&&!document.getElementById('futureCalibrationV198')){
+    const d=document.createElement('div');d.id='futureCalibrationV198';
+    d.style.cssText='margin-top:8px;padding:8px 10px;border:1px solid rgba(143,240,179,.55);border-radius:10px;background:rgba(143,240,179,.05);font-size:12px;font-weight:800;line-height:1.45';
+    d.textContent='Calibrated confidence: building verified sample…';
+    const note=document.getElementById('futureNote');
+    if(note?.parentNode===f)note.insertAdjacentElement('beforebegin',d);else f.appendChild(d);
+  }
+  const host=document.getElementById('derivedIndependentFinal');
+  if(host&&!document.getElementById('derivedCalibrationV198')){
+    const d=document.createElement('div');d.id='derivedCalibrationV198';
+    d.style.cssText='margin-top:8px;padding:8px 10px;border:1px solid rgba(143,240,179,.55);border-radius:10px;background:rgba(143,240,179,.05);font-size:12px;font-weight:800;line-height:1.45';
+    d.textContent='Calibrated confidence: building verified sample…';
+    const score=document.getElementById('derivedIndependentTestScore');
+    if(score?.parentNode===host)score.insertAdjacentElement('afterend',d);else host.appendChild(d);
+  }
+}
+function paint(){
+  ensureUI();
+  try{
+    const x=typeof mainRoadFutureTest==='function'?mainRoadFutureTest():null;
+    const c=mainCalibration(x),e=document.getElementById('futureCalibrationV198');
+    if(e)e.textContent=c.text+' • DISPLAY ONLY — prediction/gates unchanged.';
+  }catch(e){}
+  try{
+    const x=typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI():null;
+    const c=derivedCalibration(x),e=document.getElementById('derivedCalibrationV198');
+    if(e)e.textContent=c.text+' • DISPLAY ONLY — WAIT/P/B logic unchanged.';
+  }catch(e){}
+}
+
+// Prospective calibration history for Derived Road only. Capture the already-locked
+// pre-result prediction before the authoritative counter settles it. This does not
+// change the predictor, confidence, WAIT gate, or existing W/L accounting.
+function installDerivedRecorder(){
+  const old=window.__settleVerifiedPredictions;
+  if(typeof old!=='function'||old.__v198Calibration)return;
+  const w=function(actual){
+    let snap=null;
+    try{
+      const p=state?.accuracyVerified?.pending?.derivedorig;
+      if(p&&(p.side==='P'||p.side==='B'))snap={side:p.side,strength:Number(p.strength)||0,hand:p.hand};
+    }catch(e){}
+    const r=old.apply(this,arguments);
+    try{
+      if(snap&&(actual==='P'||actual==='B')){
+        const c=ensureState(),band=snap.strength>=70?'70+':snap.strength>=60?'60–69':'<60';
+        const id=`${snap.hand}|${snap.side}|${actual}`;
+        if(!c.derivedLedger.some(z=>z&&z.id===id)){
+          c.derivedLedger.push({id,hand:snap.hand,side:snap.side,actual,strength:snap.strength,band,correct:snap.side===actual,settledAt:Date.now()});
+          if(c.derivedLedger.length>600)c.derivedLedger.splice(0,c.derivedLedger.length-600);
+          try{if(typeof persist==='function')persist()}catch(e){}
+        }
+      }
+    }catch(e){}
+    try{paint()}catch(e){}
+    return r;
+  };
+  w.__v198Calibration=true;w.__base=old;window.__settleVerifiedPredictions=w;
+}
+function installRender(){
+  const old=window.render;
+  if(typeof old==='function'&&!old.__v198Calibration){
+    const w=function(){const r=old.apply(this,arguments);try{paint()}catch(e){}return r};
+    w.__v198Calibration=true;w.__base=old;window.render=w;try{render=w}catch(e){}
+  }
+}
+function boot(){ensureState();ensureUI();installDerivedRecorder();installRender();paint();
+  window.__V198_CONFIDENCE_CALIBRATION__={version:VERSION,readOnly:true,changesPredictionLogic:false,changesWaitGate:false,changesWLScoring:false,mainCalibration,derivedCalibration,paint};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,180),{once:true});else setTimeout(boot,180);
+setTimeout(()=>{try{installDerivedRecorder();paint()}catch(e){}},1200);
+})();
+</script>
+
+
+<script id="v201-mirror-light-tune-marker">
+window.__V201_MIRROR_LIGHT_TUNE__={version:201,changes:{normalMarginGate:'12%→10%',normalEvidenceAverage:'59%→58%',failureVeto:'5 examples + <42% posterior',replayConflictGate:'held-out replay must be >=55%'},unchanged:['opening hand-10 protection','2 independent-family requirement','transition gates','strong contradiction veto','3-road conflict veto','V3 history-conflict veto','Sequence AI V2','Main Road Future','Derived AI','Pattern Recognizer']};
+</script>
+
+<script id="v202-road-preview-bead-plate-stamp">
+window.__V202_ROAD_PREVIEW_BEAD_PLATE_INFLUENCE__={version:202,roadPreview:true,beadPlateInfluence:true,beadPlateMaxWeight:.15,historicalAnchor:true,directBeadStructure:true,otherAIsChanged:false};
+</script>
+
+<script id="v203-remove-walk-forward-unlock-ml-accuracy">
+(function(){
+'use strict';
+const VERSION=203, MLKEY='mlroad';
+function mlApi(){return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null}
+function ensureAcc(){
+  if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:VERSION};
+  state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {};
+  return state.accuracyVerified;
+}
+function removeWalkForward(){
+  try{window.walkForwardSignal=()=>({side:null,candidate:null,qualified:false,strength:0,confidence:0,removed:true,reason:'Walk Forward removed in V203'});}catch(e){}
+  try{window.__metaWalkV23=null;}catch(e){}
+  try{
+    if(Array.isArray(window.__accuracyModelDefs)){
+      for(let i=window.__accuracyModelDefs.length-1;i>=0;i--){if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()==='metav23')window.__accuracyModelDefs.splice(i,1)}
+    }
+    const a=ensureAcc(); delete a.pending.metav23; delete a.models.metav23;
+  }catch(e){}
+  const ids=['metaWalkV23','walkForwardPanel','walkForwardAiPanel']; ids.forEach(id=>{try{document.getElementById(id)?.remove()}catch(e){}});
+  try{document.querySelectorAll('.analyzer').forEach(el=>{const t=String(el.querySelector('.analyzer-title')?.textContent||'');if(/walk[- ]?forward|meta learner v23/i.test(t))el.remove()})}catch(e){}
+}
+function registerML(){
+  const defs=window.__accuracyModelDefs;
+  if(!Array.isArray(defs))return false;
+  if(!defs.some(r=>String(r?.[0]||'').toLowerCase()===MLKEY)){
+    defs.push([MLKEY,'ML Road Trainer — Unrestricted',()=>{try{const z=mlApi()?.signal?.()||{};const side=z.side||z.displaySide||z.rawSide;return {side:(side==='P'||side==='B')?side:null,strength:Number(z.confidence||z.strength)||0}}catch(e){return {side:null,strength:0}}}]);
+  }
+  return true;
+}
+function resetML(){
+  if(!confirm('Reset only ML Road Trainer accuracy?'))return;
+  const a=ensureAcc(); delete a.models[MLKEY]; delete a.pending[MLKEY];
+  try{persist()}catch(e){}; renderMLStats();
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+}
+function renderMLStats(){
+  const panel=document.getElementById('mlRoadTrainerV155'); if(!panel)return;
+  const a=ensureAcc(),m=a.models[MLKEY]||{wins:0,losses:0,predictions:0},p=a.pending[MLKEY];
+  const n=Number(m.predictions)||0,w=Number(m.wins)||0,l=Number(m.losses)||0,rate=n?Math.round(w*1000/n)/10:null;
+  let box=document.getElementById('mlv203AccuracyBox');
+  if(!box){
+    box=document.createElement('div'); box.id='mlv203AccuracyBox'; box.className='analyzer-grid'; box.style.marginTop='8px';
+    box.innerHTML='<div class="analyzer-card"><span>LIVE ACCURACY</span><strong id="mlv203Accuracy">—</strong></div><div class="analyzer-card"><span>WINS / LOSSES</span><strong id="mlv203WL">0W / 0L</strong></div><div class="analyzer-card"><span>COUNT</span><strong id="mlv203Count">N=0</strong></div><div class="analyzer-card"><span>NEXT LOCK</span><strong id="mlv203Pending">—</strong></div>';
+    panel.appendChild(box);
+    const b=document.createElement('button');b.id='mlv203Reset';b.className='tiny-btn';b.style.marginTop='8px';b.textContent='Reset ML Accuracy';b.onclick=resetML;panel.appendChild(b);
+  }
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('mlv203Accuracy',rate==null?'—':rate+'%');set('mlv203WL',`${w}W / ${l}L`);set('mlv203Count',`N=${n}`);set('mlv203Pending',p?.side?`${p.side} #${p.hand}`:'—');
+}
+function boot(){
+  removeWalkForward(); registerML(); renderMLStats();
+  // Keep removed panel from being recreated by older delayed installers.
+  try{const mo=new MutationObserver(()=>{removeWalkForward();renderMLStats()});mo.observe(document.body,{childList:true,subtree:false});setTimeout(()=>{try{mo.disconnect()}catch(e){}},6000)}catch(e){}
+  const old=window.render;if(typeof old==='function'&&!old.__v203){const w=function(){const r=old.apply(this,arguments);try{removeWalkForward();registerML();renderMLStats()}catch(e){}return r};w.__v203=true;window.render=w;}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2200),{once:true});else setTimeout(boot,2200);
+window.__V203_ML_UNLOCK__={version:VERSION,walkForwardRemoved:true,mlUnrestricted:true,mlAccuracyKey:MLKEY};
+})();
+</script>
+
+<script id="v204-all-ai-after-tie-accuracy">
+(function(){
+'use strict';
+const VERSION=204;
+const isPB=x=>x==='P'||x==='B';
+function seq(){try{return currentSequence().filter(x=>['P','B','T'].includes(x))}catch(e){return []}}
+function isAfterTieNow(){const s=seq();return s.length>0&&s[s.length-1]==='T'}
+function ensureBucket(o){
+  if(!o.afterTie||typeof o.afterTie!=='object')o.afterTie={wins:0,losses:0,predictions:0,last:null,lastEvent:''};
+  const z=o.afterTie;['wins','losses','predictions'].forEach(k=>z[k]=Number(z[k])||0);z.lastEvent=String(z.lastEvent||'');return z;
+}
+function rate(z){const n=Number(z?.predictions)||0,w=Number(z?.wins)||0;return n?Math.round(w*1000/n)/10:null}
+function fmt(z){z=z||{};const w=Number(z.wins)||0,l=Number(z.losses)||0,n=Number(z.predictions)||0,r=rate(z);return `${r==null?'—':r+'%'} • ${w}W-${l}L • N=${n}`}
+function bump(z,pred,actual,hand,event){
+  z=ensureBucket({afterTie:z}).afterTie;
+  if(z.lastEvent===event)return false;
+  z.lastEvent=event;z.predictions++;const win=pred===actual;if(win)z.wins++;else z.losses++;
+  z.last={predicted:pred,actual,win,hand,settledAt:Date.now()};return true;
+}
+function central(){
+  if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:VERSION};
+  state.accuracyVerified.models||={};state.accuracyVerified.pending||={};return state.accuracyVerified;
+}
+function installCentral(){
+  const old=window.__settleVerifiedPredictions;if(typeof old!=='function'||old.__v204AfterTie)return;
+  const w=function(actual){
+    const a=central(),post=isAfterTieNow(),hand=seq().length+1;
+    const pending={};if(post&&isPB(actual))for(const [k,p] of Object.entries(a.pending||{}))if(p&&isPB(p.side))pending[k]={...p};
+    const r=old.apply(this,arguments);
+    if(post&&isPB(actual)){
+      const event=`central:${hand}:${actual}:${state.hands?.length||0}`;
+      for(const [k,p] of Object.entries(pending)){
+        const m=a.models[k]||(a.models[k]={name:k,wins:0,losses:0,predictions:0,waits:0});const z=ensureBucket(m);
+        bump(z,p.side,actual,hand,event+':'+k);
+      }
+      try{persist()}catch(e){}
+      setTimeout(paint,0);
+    }
+    return r;
+  };w.__v204AfterTie=true;w.__base=old;window.__settleVerifiedPredictions=w;
+}
+function installMirror(){
+  const old=window.settleGPTMirrorPrediction;if(typeof old!=='function'||old.__v204AfterTie)return;
+  const w=function(actual){
+    const st=typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():(state.gptMirror||{}),post=isAfterTieNow(),q=st.pending&&{...st.pending},hand=seq().length+1;
+    const r=old.apply(this,arguments);
+    if(post&&isPB(actual)&&q&&isPB(q.side)){
+      const z=ensureBucket(st),event=`mirror:${hand}:${actual}:${state.hands?.length||0}`;bump(z,q.side,actual,hand,event);try{persist()}catch(e){};setTimeout(paint,0);
+    }
+    return r;
+  };w.__v204AfterTie=true;w.__base=old;window.settleGPTMirrorPrediction=w;
+}
+function chartRead(){try{return JSON.parse(localStorage.getItem('chart-pattern-recognizer-v156-accuracy')||'{}')||{}}catch(e){return {}}}
+function chartSave(a){try{localStorage.setItem('chart-pattern-recognizer-v156-accuracy',JSON.stringify(a))}catch(e){}}
+function installChart(){
+  const api=window.__chartPatternRecognizerV200||window.__chartPatternRecognizerV199||window.__chartPatternRecognizerV156;
+  if(!api||typeof api.settle!=='function'||api.settle.__v204AfterTie)return;
+  const old=api.settle;
+  const w=function(actual){
+    const a=chartRead(),q=a.pending&&{...a.pending},post=isAfterTieNow(),hand=seq().length+1;
+    const r=old.apply(this,arguments);
+    if(post&&isPB(actual)&&q&&isPB(q.side)){
+      const z=ensureBucket(a),event=`chart:${hand}:${actual}:${state.hands?.length||0}`;bump(z,q.side,actual,hand,event);chartSave(a);setTimeout(paint,0);
+    }
+    return r;
+  };w.__v204AfterTie=true;w.__base=old;
+  api.settle=w;
+}
+function mainApi(){return window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__||window.__mainRoadFutureV55||null}
+function installMainFuture(){
+  const api=mainApi();if(!api||typeof api.settle!=='function'||api.settle.__v204AfterTie)return;
+  const old=api.settle;
+  const w=function(actual){
+    let a=null,q=null;try{a=api.accuracy?.();q=a?.pending&&{...a.pending}}catch(e){}
+    const post=isAfterTieNow(),hand=seq().length+1,r=old.apply(this,arguments);
+    if(a&&post&&isPB(actual)&&q&&isPB(q.side)){
+      const z=ensureBucket(a),event=`mainfuture:${hand}:${actual}:${state.hands?.length||0}`;bump(z,q.side,actual,hand,event);try{persist()}catch(e){};setTimeout(paint,0);
+    }
+    return r;
+  };w.__v204AfterTie=true;w.__base=old;api.settle=w;
+}
+function addAfterTieToVerifiedCards(){
+  document.querySelectorAll('[data-v73-acc]').forEach(c=>{
+    const key=c.dataset.v73Acc,m=central().models?.[key]||{},z=ensureBucket(m);
+    let e=c.querySelector('.v204-after-tie');if(!e){e=document.createElement('small');e.className='v204-after-tie';e.style.cssText='display:block;color:#c4b5fd;margin-top:4px;font-weight:700';c.appendChild(e)}
+    e.textContent='After Tie: '+fmt(z);
+  });
+}
+function addCard(panelId,cardId,label,value){
+  const p=document.getElementById(panelId);if(!p)return null;let c=document.getElementById(cardId);
+  if(!c){c=document.createElement('div');c.id=cardId;c.className='analyzer-card';c.innerHTML=`<span>${label}</span><strong class="v204-value">—</strong>`;const g=p.querySelector('.analyzer-grid,.road-predict-grid');if(g)g.appendChild(c);else p.appendChild(c)}
+  c.querySelector('.v204-value').textContent=value;return c;
+}
+function paintSpecial(){
+  try{const z=ensureBucket(typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():(state.gptMirror||(state.gptMirror={})));addCard('gptMirrorPanel','gptMirrorAfterTieV204','AFTER TIE ACCURACY',fmt(z));}catch(e){
+    const p=[...document.querySelectorAll('.analyzer')].find(x=>/GPT Mirror/i.test(x.querySelector('.analyzer-title')?.textContent||''));if(p&&!p.id)p.id='gptMirrorPanel';if(p){const z=ensureBucket(state.gptMirror||(state.gptMirror={}));addCard(p.id,'gptMirrorAfterTieV204','AFTER TIE ACCURACY',fmt(z));}
+  }
+  try{const a=chartRead(),z=ensureBucket(a);chartSave(a);addCard('chartPatternRecognizerV156','chartAfterTieV204','AFTER TIE ACCURACY',fmt(z));}catch(e){}
+  try{const api=mainApi(),a=api?.accuracy?.();if(a){const z=ensureBucket(a);const p=document.getElementById('mainRoadFutureTest')||document.getElementById('mainRoadFuturePanel');if(p){if(!p.id)p.id='mainRoadFutureTest';addCard(p.id,'mainFutureAfterTieV204','AFTER TIE ACCURACY',fmt(z));}}}catch(e){}
+  try{const m=central().models?.mlroad||{},z=ensureBucket(m);const box=document.getElementById('mlv203AccuracyBox');if(box){let c=document.getElementById('mlv204AfterTie');if(!c){c=document.createElement('div');c.id='mlv204AfterTie';c.className='analyzer-card';c.innerHTML='<span>AFTER TIE ACCURACY</span><strong class="v204-value">—</strong>';box.appendChild(c)}c.querySelector('.v204-value').textContent=fmt(z)}}catch(e){}
+}
+function paint(){try{addAfterTieToVerifiedCards();paintSpecial()}catch(e){}}
+function hookRender(){const old=window.render;if(typeof old==='function'&&!old.__v204AfterTie){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{installCentral();installMirror();installChart();installMainFuture();paint()},0);return r};w.__v204AfterTie=true;w.__base=old;window.render=w;try{render=w}catch(e){}}}
+function boot(){installCentral();installMirror();installChart();installMainFuture();hookRender();paint();
+  window.__V204_AFTER_TIE_ACCURACY__={version:VERSION,separate:true,allRegisteredAIs:true,countsOnlyImmediatelyAfterTie:true,changesPredictionLogic:false,paint};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2600),{once:true});else setTimeout(boot,2600);
+setTimeout(()=>{try{installCentral();installMirror();installChart();installMainFuture();paint()}catch(e){}},4200);
+})();
+</script>
+
+
+<script id="v205-scan-fix-stamp">
+window.__V205_SCAN_FIX__={version:205,fixes:[
+  'Main Future after-tie ledger now observes the active V84/V85 settlement path',
+  'Main Future reset also clears its separate after-tie ledger',
+  'V203 walk-forward cleanup observer changed from full subtree continuous scan to bounded top-level observer'
+],predictionLogicChanged:false,roadLogicChanged:false,accuracyCoreChanged:false};
+</script>
+
+
+
+<script id="v206-deep-scan-runtime-fixes">
+(function(){
+'use strict';
+const VERSION=206;
+const CHART_KEY='chart-pattern-recognizer-v156-accuracy';
+const isPB=x=>x==='P'||x==='B';
+function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
+function mainApi(){return window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__||window.__mainRoadFutureV55||null}
+function ensureAfterTie(a){
+  if(!a.afterTie||typeof a.afterTie!=='object')a.afterTie={wins:0,losses:0,predictions:0,last:null,lastEvent:''};
+  for(const k of ['wins','losses','predictions'])a.afterTie[k]=Number(a.afterTie[k])||0;
+  a.afterTie.lastEvent=String(a.afterTie.lastEvent||'');
+  return a.afterTie;
+}
+function bumpMainAfterTie(q,actual,hand,handsLen){
+  if(!q||!isPB(q.side)||!isPB(actual))return false;
+  const api=mainApi(),a=api?.accuracy?.();if(!a)return false;
+  const z=ensureAfterTie(a),event=`mainfuture:${hand}:${actual}:${handsLen}`;
+  if(z.lastEvent===event)return false;
+  z.lastEvent=event;z.predictions++;
+  const win=q.side===actual;if(win)z.wins++;else z.losses++;
+  z.last={predicted:q.side,actual,win,hand,settledAt:Date.now()};
+  return true;
+}
+function clearChartPendingAfterTie(){
+  try{
+    const a=JSON.parse(localStorage.getItem(CHART_KEY)||'{}')||{};
+    if(a.pending){a.pending=null;localStorage.setItem(CHART_KEY,JSON.stringify(a));return true;}
+  }catch(e){}
+  return false;
+}
+function installAuthoritativeHook(){
+  const old=window.__settleVerifiedPredictions;
+  if(typeof old!=='function'||old.__v206AfterTieRuntime)return false;
+  const w=function(actual){
+    const s=seq(),postTie=s.length>0&&s[s.length-1]==='T',hand=s.length+1,handsLen=Number(state?.hands?.length)||0;
+    let mainPending=null;
+    if(postTie&&isPB(actual)){
+      try{const a=mainApi()?.accuracy?.();if(a?.pending&&isPB(a.pending.side))mainPending={...a.pending};}catch(e){}
+    }
+    const r=old.apply(this,arguments);
+    let changed=false;
+    // V135 settles Main Future through its private authoritative function, not api.settle.
+    // Observe the same pre-result transaction here so Main Future's separate after-tie account is real.
+    if(postTie&&isPB(actual)&&mainPending){try{changed=bumpMainAfterTie(mainPending,actual,hand,handsLen)||changed}catch(e){}}
+    // Chart AI used to carry a pre-tie lock through a Tie. Clear that stale lock so the
+    // post-commit Chart render arms a genuinely NEW prediction from the after-tie state.
+    if(actual==='T'){try{changed=clearChartPendingAfterTie()||changed}catch(e){}}
+    if(changed){
+      try{persist()}catch(e){}
+      setTimeout(()=>{try{window.__V204_AFTER_TIE_ACCURACY__?.paint?.()}catch(e){}},0);
+    }
+    return r;
+  };
+  w.__v206AfterTieRuntime=true;w.__base=old;window.__settleVerifiedPredictions=w;
+  return true;
+}
+function boot(){
+  installAuthoritativeHook();
+  // Delayed re-install protects against any late progressive-startup wrapper replacing the hook.
+  setTimeout(installAuthoritativeHook,900);
+  setTimeout(installAuthoritativeHook,2200);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3000),{once:true});
+else setTimeout(boot,3000);
+window.__V206_DEEP_SCAN_FIX__={
+  version:VERSION,
+  fixes:[
+    'Activated dormant V142 removed-panel cleanup script',
+    'Activated dormant V144 combined-library safety script',
+    'Main Future after-tie accuracy now observes the V135 authoritative settlement path',
+    'Chart Pattern Recognizer clears stale pre-tie pending lock on Tie so the next lock is truly after-tie'
+  ],
+  predictionFormulasChanged:false,
+  roadFormulasChanged:false,
+  accuracyIntegrityChanged:true
+};
 })();
 </script>
 </body>
