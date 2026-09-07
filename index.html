@@ -1,3 +1,4 @@
+<!-- V196: V195 base + ORIGINAL V23 WALK-FORWARD META LEARNER RESTORED; only V195 compatibility adapters retained -->
 <!DOCTYPE html>
 
 <html lang="en">
@@ -7551,7 +7552,7 @@ renderLibraryBackupStatus();
       ['derivedmain',()=>adaptiveDerivedMainSignal()],
       ['seqdup',()=>sequenceAIDuplicateSignal()],
       ['consensus',()=>consensusSignal()],
-      ['bot',()=>{const z=({qualified:false,side:null,confidence:0,removed:true});return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
+      ['bot',()=>{const z=(typeof masterBotSignal==='function'?masterBotSignal():{qualified:false,side:null,confidence:0});return {side:z.qualified?z.side:null,strength:z.confidence||0}}],
       ['bestestimate',()=>{const z=computeCombinedAnalyzer();return {side:z.qualified?z.side:null,strength:z.qualified?(Number(z.top)||0):0}}],
       ['specialistv20',()=>{const z=window.__redBlackSpecialistV20?.signal?.()||{};return {side:z.qualified?z.side:null,strength:z.confidence||0}}]
     ];
@@ -7629,8 +7630,7 @@ renderLibraryBackupStatus();
        <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v23Conf">—</strong></div>
        <div class="analyzer-card"><span>CONTEXT</span><strong id="v23Bucket">—</strong></div>
        <div class="analyzer-card"><span>LEARNING UPDATES</span><strong id="v23N">0</strong></div>
-      </div><div class="analyzer-sub" id="v23Reason" style="margin-top:8px"></div>
-      <div class="analyzer-card" style="margin-top:8px;text-align:left;border:1px solid #2e9d66"><span>✓ VERIFIED ACCURACY</span><strong id="v23Verified">—</strong><small id="v23VerifiedDetail" style="display:block;color:var(--muted);margin-top:3px">0W–0L • N=0 • WAIT=0</small></div>`;
+      </div><div class="analyzer-sub" id="v23Reason" style="margin-top:8px"></div>`;
       const a=document.getElementById('fullLibraryBacktestPanel')||document.getElementById('blackContextV22');
       if(a?.parentNode)a.parentNode.insertBefore(p,a);else document.body.appendChild(p);
     }
@@ -7638,8 +7638,6 @@ renderLibraryBackupStatus();
     set('v23Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');
     set('v23Conf',z.qualified?`${z.confidence}%`:'—');set('v23Bucket',z.bucket||'—');
     set('v23N',ensure().totalUpdates||0);set('v23Reason',z.reason||'');
-    const va=window.__verifiedAccuracySummary?.('metav23');
-    if(va){set('v23Verified',va.rate==null?'—':va.rate+'%');set('v23VerifiedDetail',`${va.wins}W–${va.losses}L • N=${va.n} • WAIT=${va.waits} • BEFORE LEARNING ${va.before} • AFTER LEARNING ${va.after}`);}
   }
 
   const oldRender=window.render;
@@ -8558,7 +8556,8 @@ renderLibraryBackupStatus();
     return {side:qualified?cand:null,candidate:cand,qualified,confidence:qualified?conf:0,bucket:bid,learnedModels:learned,matureSupport:mature,strongSupport:strong,averageSupport:avgSupport,details:det,awareness:aw.global,aGradeV31:true,selectiveV186:true,
       reason:qualified?`SELECTIVE walk-forward ${bid} • ${aw.global} • ${sup.length}/${det.length} signals support ${cand==='P'?'PLAYER':'BANKER'} • edge ${Math.round(margin*100)}%.`:`WAIT — selective gate: need 4-source agreement, stronger edge, and mature live support.`};
   }
-  if(window.__metaWalkV23){window.__metaWalkV23.signal=v23;window.__metaWalkV23.learnCycle=settleArm;}
+  // V197: preserve ORIGINAL V23 Walk-Forward behavior; V31/V186 must not replace its signal or learning cycle.
+  if(window.__metaWalkV23){window.__V197_V23_V31_OVERRIDE_BLOCKED__=true;}
 
 
   function renderUpgrade(){
@@ -8566,24 +8565,11 @@ renderLibraryBackupStatus();
     const map=[
       ['rbSpecialistV20','🎯 RED / BLACK Specialist V20 — A-Grade Live','v20Reason',()=>v20()],
       ['blackContextV22','⚫ BLACK Context Specialist V22 — A-Grade Live',null,()=>v22()],
-      ['metaWalkV23','🧠 Walk-Forward Meta Learner V23 — Selective Live','v23Reason',()=>v23()],
     ];
     for(const [id,title,reasonId,get] of map){const p=document.getElementById(id);if(!p)continue;const h=p.querySelector('.analyzer-title');if(h)h.textContent=title;let z={};try{z=get()||{}}catch(e){};let badge=p.querySelector('.aGradeAwareBadge');if(!badge){badge=document.createElement('div');badge.className='analyzer-sub aGradeAwareBadge';badge.style.marginTop='6px';badge.style.color='#8ff0b3';p.appendChild(badge);}badge.textContent=`AWARENESS: ${z.awareness||'BUILDING'} • ADAPTATION: A-GRADE • verified live evidence is sample-size weighted`;
       if(reasonId){const r=document.getElementById(reasonId);if(r&&z.reason)r.textContent=z.reason;}
     }
-    // V143: the original V23 panel closure still renders its legacy signal.
-    // Explicitly refresh every visible V23 field from the upgraded signal so
-    // the panel cannot show a stale WAIT while window.__metaWalkV23.signal()
-    // is producing a qualified decision.
-    try{
-      const z=v23();
-      const set=(id,val)=>{const e=document.getElementById(id);if(e)e.textContent=val};
-      set('v23Pick',z.qualified?(z.side==='P'?'PLAYER':'BANKER'):'WAIT');
-      set('v23Conf',z.qualified?`${z.confidence}%`:'—');
-      set('v23Bucket',z.bucket||'—');
-      set('v23N',wf().totalUpdates||0);
-      const r=document.getElementById('v23Reason');if(r)r.textContent=z.reason||'';
-    }catch(e){}
+    // V197: disabled selective V23 panel overwrite; original V23 panel remains authoritative.
   }
   const old=window.render;if(typeof old==='function')window.render=function(){const r=old.apply(this,arguments);try{renderUpgrade()}catch(e){}return r};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(renderUpgrade,800));else setTimeout(renderUpgrade,800);
@@ -10117,7 +10103,7 @@ window.__ALL_AI_HOME_ACCURACY_V41__ = {
   [
     ['__redBlackSpecialistV20','signal'],
     ['__blackContextV22','signal'],
-    ['__metaWalkV23','signal'],
+    // V197: ORIGINAL V23 signal intentionally excluded from later cache wrappers.
     ['__liveModelGovernorV34','decision'],
     ['__shadowV29','trust'],
     ['__baccaratKnowledgeV27','evidence']
@@ -10550,7 +10536,7 @@ window.__V24_DIAGNOSTIC_REPAIR__={
   // Specialists used by V49 selector and the verified ledger.
   wrapObject('__redBlackSpecialistV20','signal','RED / BLACK Specialist V20');
   wrapObject('__blackContextV22','signal','BLACK Context Specialist V22');
-  wrapObject('__metaWalkV23','signal','Walk-Forward Meta Learner V23');
+  // V197: ORIGINAL V23 WAIT/qualification semantics preserved; no RAW availability wrapper.
 
   // Best Estimate has a separate qualified gate; expose candidate if available.
   const oldCombined=window.computeCombinedAnalyzer;
@@ -15232,7 +15218,7 @@ function wait(name){return {side:null,qualified:false,strength:0,confidence:0,re
 // Compatibility only: old shared code may still ask for these names. They return inert WAIT objects.
 try{window.consensusSignal=function(){return wait('AI Consensus');};}catch(e){}
 try{window.highPoweredBotSignal=function(){return wait('High-Powered Bot');};}catch(e){}
-try{window.walkForwardSignal=function(){return wait('Walk Forward');};}catch(e){}
+try{window.walkForwardSignal=function(){const z=window.__metaWalkV23?.signal?.()||{};const q=!!z.qualified&&(z.side==='P'||z.side==='B');return {side:q?z.side:null,candidate:z.candidate||z.side||null,qualified:q,strength:q?(Number(z.confidence)||0):0,confidence:q?(Number(z.confidence)||0):0,reason:z.reason||'',source:'Original Walk-Forward Meta Learner V23'};};}catch(e){}
 try{window.sequenceAIDuplicateSignal=function(){return wait('Sequence AI V2 Duplicate');};}catch(e){}
 try{window.__metaSelectorV49=null;window.__metaSelectorV50=null;}catch(e){}
 function purgeLegacyUI(){
@@ -15278,7 +15264,7 @@ function disableRemoved(){
   try{window.sequenceAIDuplicateSignal=()=>NULL_SIG('Sequence AI V2 Duplicate')}catch(e){}
   try{window.consensusSignal=()=>NULL_SIG('AI Consensus')}catch(e){}
   try{window.highPoweredBotSignal=()=>NULL_SIG('High-Powered Bot')}catch(e){}
-  try{window.walkForwardSignal=()=>NULL_SIG('Walk Forward')}catch(e){}
+  try{window.walkForwardSignal=function(){const z=window.__metaWalkV23?.signal?.()||{};const q=!!z.qualified&&(z.side==='P'||z.side==='B');return {side:q?z.side:null,candidate:z.candidate||z.side||null,qualified:q,strength:q?(Number(z.confidence)||0):0,confidence:q?(Number(z.confidence)||0):0,reason:z.reason||'',source:'Original Walk-Forward Meta Learner V23'};};}catch(e){}
   try{window.masterBotSignal=()=>NULL_SIG('High-Powered Bot')}catch(e){}
   try{window.__metaSelectorV49=null;window.__metaSelectorV50=null;}catch(e){}
 }
@@ -15359,7 +15345,7 @@ window.__V185_LAYOUT__={mirrorTop:true,metaTop:true,logicChanged:false};
 
 
 <script id="v186-walk-forward-selective-marker">
-window.__V186_WALK_FORWARD_SELECTIVE__={version:186,mode:'more selective',coreSequenceV2Untouched:true,requirements:{minSources:4,minSupporting:4,minStrongSupport:2,minAverageSupport:58,confidenceFloor:64}};
+window.__V186_WALK_FORWARD_SELECTIVE__={version:186,mode:'disabled_for_v23_by_v197',coreSequenceV2Untouched:true,originalV23Authoritative:true};
 </script>
 
 <script id="v187-post-selective-health-guard">
@@ -15472,6 +15458,13 @@ window.__V193_FULL_RELIABILITY_HARDENING__={
     const el=document.getElementById(id);if(el&&!el.__v195Cache){el.__v195Cache=true;el.addEventListener('click',clear,{capture:true});}
   });
   window.__V195_ADAPTIVE_RUNTIME_CACHE__={version:VERSION,clear,histCache,structCache,maxEntries:MAX};
+})();
+</script>
+
+<script id="v197-pure-original-v23-walk-forward-fix">
+(function(){
+'use strict';
+window.__V197_PURE_ORIGINAL_V23__={version:197,originalV23Authoritative:true,v31OverrideBlocked:true,v186SelectiveDisabledForV23:true,v492RawAvailabilityDisabledForV23:true,legacyWalkForwardBridgedToV23:true};
 })();
 </script>
 </body>
