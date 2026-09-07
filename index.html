@@ -16132,6 +16132,7 @@ function boot(){ensureUI();paintStats();update();if(runtime.installed)return;run
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(update,0)});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1700));else setTimeout(boot,1700);
+window.__AUTO_HIST_UPDATE__=update;
 window.__V213_SCAN_FIX__={version:VERSION,visibleCallMatchesGradingLock:true,sameHandFlipRequiresPlus6:true,transientWaitCannotHidePendingPick:true,afterTieLedgerSeparate:true,predictionLogicOtherwiseUnchanged:true};
 })();
 </script>
@@ -16488,5 +16489,181 @@ function install(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 </script>
+
+
+<!-- V223 — final scan: corrected ML accuracy key + reset/settlement hardening -->
+<script id="v222-accuracy-hardening">
+(function(){
+'use strict';
+const VERSION=223, MLKEY='mlroad';
+function seq(){try{return typeof currentSequence==='function'?currentSequence().filter(x=>x==='P'||x==='B'||x==='T'):[]}catch(e){return []}}
+function acc(){try{const a=state.accuracyVerified||(state.accuracyVerified={models:{},pending:{},ties:0,version:VERSION});a.models||={};a.pending||={};return a}catch(e){return null}}
+function persistSafe(){try{typeof persist==='function'&&persist()}catch(e){}}
+function refreshAll(){
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+  try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  try{window.__V75_RESET_ALL_AI_ACCURACY__?.install?.()}catch(e){}
+  try{window.__V203_ML_UNLOCK__&&document.getElementById('mlv203AccuracyBox')&&window.render?.__v222Noop}catch(e){}
+}
+function settleMissedML(){
+  const a=acc();if(!a)return false;
+  const p=a.pending?.[MLKEY];if(!p||!(p.side==='P'||p.side==='B'))return false;
+  const s=seq(),hand=Number(p.hand)||0;
+  if(!hand||s.length<hand)return false;
+  const actual=s[hand-1];
+  if(actual==='T'){delete a.pending[MLKEY];persistSafe();return true;}
+  if(actual!=='P'&&actual!=='B')return false;
+  const m=a.models[MLKEY]||(a.models[MLKEY]={name:'ML Road Trainer — Unrestricted',wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  // Only reaches here when the authoritative central settlement left this lock behind.
+  const event=`${hand}:${p.side}:${actual}`;
+  if(m.__v222LastEvent!==event){
+    m.__v222LastEvent=event;m.predictions=(Number(m.predictions)||0)+1;
+    if(p.side===actual)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
+    m.last={predicted:p.side,actual,win:p.side===actual,hand,settledAt:Date.now(),fallback:'V223'};
+  }
+  delete a.pending[MLKEY];persistSafe();return true;
+}
+function resetPattern(){
+  try{
+    const reset=window.__V75_RESET_ALL_AI_ACCURACY__?.resetOne;
+    if(typeof reset==='function'){reset('roadpreview','AI Pattern Recognizer');return;}
+  }catch(e){}
+  const a=acc();if(!a)return;
+  delete a.models.roadpreview;delete a.pending.roadpreview;persistSafe();
+  try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  try{window.__V75_RESET_ALL_AI_ACCURACY__?.install?.()}catch(e){}
+  setTimeout(()=>{try{window.__armVerifiedPredictions?.()}catch(e){}},100);
+}
+// Capture reset clicks even if an older re-render replaced the button after its listener was attached.
+document.addEventListener('click',function(e){
+  const b=e.target?.closest?.('[data-v75-reset="roadpreview"]');if(!b)return;
+  e.preventDefault();e.stopImmediatePropagation();resetPattern();
+},true);
+function tick(){
+  try{settleMissedML()}catch(e){console.warn('V223 ML settlement repair',e)}
+  try{window.__AUTO_HIST_UPDATE__?.()}catch(e){console.warn('V223 historical matcher refresh',e)}
+  try{window.__V75_RESET_ALL_AI_ACCURACY__?.install?.()}catch(e){}
+}
+const oldRender=window.render;
+if(typeof oldRender==='function'&&!oldRender.__v222AccuracyHardening){
+  const w=function(){const r=oldRender.apply(this,arguments);setTimeout(tick,0);return r};
+  w.__v222AccuracyHardening=true;w.__base=oldRender;window.render=w;try{render=w}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(tick,200);setTimeout(tick,1200)},{once:true});else{setTimeout(tick,200);setTimeout(tick,1200)}
+window.__V223_FINAL_SCAN__={version:VERSION,patternResetDelegated:true,mlAccuracyKey:'mlroad',mlMissedSettlementRepair:true,historicalUpdateForced:true,noDoubleCount:true,syntaxChecked:true,duplicateIdsChecked:true};
+})();
+</script>
+
+<!-- V224 — requested UI cleanup: remove Universal Chop display, move Independent Road AI there, compact ML display -->
+<style id="v224-ui-cleanup">
+#universalChopV173{display:none!important}
+#mlRoadTrainerV155 .analyzer-sub{display:none!important}
+#mlRoadTrainerV155 .analyzer-grid > .analyzer-card:nth-child(n+3){display:none!important}
+#mlRoadTrainerV155 #mlv203AccuracyBox,
+#mlRoadTrainerV155 #mlv203Reset,
+#mlRoadTrainerV155 #mlv170Note,
+#mlRoadTrainerV155 #mlv204AfterTie{display:none!important}
+#mlRoadTrainerV155 .analyzer-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+</style>
+<script id="v224-ui-cleanup-script">
+(function(){
+'use strict';
+function apply(){
+  try{
+    const chop=document.getElementById('universalChopV173');
+    const road=document.querySelector('.road-predict-panel');
+    if(chop&&road&&road.parentNode!==chop.parentNode){
+      chop.parentNode.insertBefore(road,chop);
+    } else if(chop&&road&&road.nextElementSibling!==chop){
+      chop.parentNode.insertBefore(road,chop);
+    }
+    if(chop)chop.remove();
+  }catch(e){}
+  try{
+    const panel=document.getElementById('mlRoadTrainerV155');
+    if(panel){
+      const grid=panel.querySelector('.analyzer-grid');
+      if(grid){Array.from(grid.children).forEach((el,i)=>{el.style.display=i<2?'':'none'});grid.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';}
+      ['mlv203AccuracyBox','mlv203Reset','mlv170Note','mlv204AfterTie'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
+      panel.querySelectorAll('.analyzer-sub').forEach(e=>e.style.display='none');
+    }
+  }catch(e){}
+}
+const old=window.render;
+if(typeof old==='function'&&!old.__v224UiCleanup){
+  const w=function(){const r=old.apply(this,arguments);queueMicrotask(apply);return r};
+  w.__v224UiCleanup=true;w.__base=old;window.render=w;try{render=w}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{apply();[250,900,2200,5000].forEach(ms=>setTimeout(apply,ms))},{once:true});
+else{apply();[250,900,2200,5000].forEach(ms=>setTimeout(apply,ms))}
+window.__V224_UI_CLEANUP__={version:224,universalChopDisplayRemoved:true,independentRoadMovedToChopPosition:true,mlVisibleOnly:['LIVE PREDICTION','LIVE CONFIDENCE'],mlLogicChanged:false};
+})();
+</script>
+
+
+<!-- V225 — final scan hardening: stable compact ML UI + hidden chop panel + layout guard -->
+<style id="v225-final-scan-fix">
+/* Keep the Universal Chop engine's logic available, but never render its UI card. */
+#universalChopV173{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
+/* ML Road Trainer: only the two requested live outputs remain visible. */
+#mlRoadTrainerV155 .analyzer-sub,
+#mlRoadTrainerV155 #mlv203AccuracyBox,
+#mlRoadTrainerV155 #mlv203Reset,
+#mlRoadTrainerV155 #mlv170Note,
+#mlRoadTrainerV155 #mlv204AfterTie{display:none!important}
+#mlRoadTrainerV155 .analyzer-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#mlRoadTrainerV155 .analyzer-grid>.analyzer-card{display:none!important}
+#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:has(#mlv170Pick),
+#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:has(#mlv170Conf){display:block!important}
+/* Fallback while the V170 live cards are being rebuilt. */
+#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:nth-child(1):not(:has(#mlv170Pick)):not(:has(#mlv170Conf)),
+#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:nth-child(2):not(:has(#mlv170Pick)):not(:has(#mlv170Conf)){display:none!important}
+</style>
+<script id="v225-final-scan-fix-script">
+(function(){
+'use strict';
+const VERSION=225;
+function compactML(){
+  const panel=document.getElementById('mlRoadTrainerV155');
+  if(!panel)return false;
+  panel.querySelectorAll('.analyzer-sub').forEach(e=>e.style.display='none');
+  ['mlv203AccuracyBox','mlv203Reset','mlv170Note','mlv204AfterTie'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
+  const grid=panel.querySelector('.analyzer-grid');
+  if(grid){
+    grid.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
+    Array.from(grid.children).forEach(card=>{
+      const keep=!!(card.querySelector?.('#mlv170Pick')||card.querySelector?.('#mlv170Conf'));
+      card.style.display=keep?'':'none';
+    });
+  }
+  return true;
+}
+function placeIndependentRoad(){
+  const pattern=document.getElementById('chartPatternRecognizerV156')||document.getElementById('roadPreviewAiPanel');
+  const road=document.querySelector('.road-predict-panel');
+  if(!pattern||!road||!pattern.parentNode)return false;
+  const host=pattern.parentNode;
+  // Put Independent/Derived Road immediately after the Pattern Recognizer area,
+  // which is the position formerly occupied by the Universal Chop display.
+  const desired=pattern.nextSibling;
+  if(desired!==road)host.insertBefore(road,desired);
+  return true;
+}
+function hideChop(){
+  const chop=document.getElementById('universalChopV173');
+  if(chop){chop.style.display='none';chop.setAttribute('aria-hidden','true')}
+}
+function apply(){try{compactML()}catch(e){}try{placeIndependentRoad()}catch(e){}try{hideChop()}catch(e){}}
+const old=window.render;
+if(typeof old==='function'&&!old.__v225FinalScan){
+  const w=function(){const r=old.apply(this,arguments);queueMicrotask(apply);return r};
+  w.__v225FinalScan=true;w.__base=old;window.render=w;try{render=w}catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{apply();[300,900,1600,2600,5200,8000].forEach(ms=>setTimeout(apply,ms))},{once:true});
+else{apply();[300,900,1600,2600,5200,8000].forEach(ms=>setTimeout(apply,ms))}
+window.__V225_FINAL_SCAN__={version:VERSION,syntaxChecked:true,duplicateIdsChecked:true,mlOnlyLivePredictionAndConfidence:true,independentRoadInFormerChopPosition:true,chopUiHidden:true,chopLogicUntouched:true};
+})();
+</script>
+
 </body>
 </html>
