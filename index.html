@@ -8,7 +8,7 @@
 <meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
 <meta content="#101114" name="theme-color"/>
 <link href="manifest.json" rel="manifest"/>
-<meta content="V180_POST_CLEAN_SCAN_FIX" name="all-in-build"/>
+<meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <title>All-In Style Baccarat Roadmap</title>
 <style>
   :root{
@@ -795,12 +795,15 @@
     Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. Displayed percentages are analysis signals only and do not guarantee a future result.
   </div>
 <div class="analyzer" id="gptMirrorPanel" style="border-color:#7d6cff">
-<div class="analyzer-title">🧠 GPT Mirror AI V2 + Gated V3 Family Recognition</div>
-<div class="analyzer-sub">Standalone baccarat decision layer modeled on the approach described in chat: exact-rules first, current-shoe regime awareness, a dedicated 3-Road Future Influence engine, saved-shoe continuation evidence, and a gated V3 family-recognition layer. V3 may add influence only when raw sequence alignment, chop/streak rhythm, Tie context, and Big Eye / Small / Roach structure converge on the same historical shoe location; otherwise the V2 base stays in control or returns WAIT.</div>
+<div class="analyzer-title">🧠 GPT Mirror MASTER Decision AI V4.1</div>
+<div class="analyzer-sub">Master decision layer: Bead Plate + Main Road + all 3 derived roads + Main Future Road + saved-shoe memory + Banker/Player shoe bias + live source reliability + regime/change detection + failure-memory veto + contradiction control. Correlated signals are discounted so the same road idea cannot vote multiple times. The AI may return WAIT when the evidence is not genuinely independent and stable.</div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Mirror decision</span><strong id="gptMirrorDecision">WAIT</strong></div>
 <div class="analyzer-card"><span>Evidence confidence</span><strong id="gptMirrorConfidence">—</strong></div>
 <div class="analyzer-card"><span>Regime / phase</span><strong id="gptMirrorRegime">BUILDING</strong></div>
+<div class="analyzer-card"><span>Shoe bias</span><strong id="gptMirrorShoeBias">NEUTRAL</strong></div>
+<div class="analyzer-card"><span>Decision stability</span><strong id="gptMirrorStability">BUILDING</strong></div>
+<div class="analyzer-card"><span>Trap / veto status</span><strong id="gptMirrorVeto">CLEAR</strong></div>
 </div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Independent agreement</span><strong id="gptMirrorAgreement">0/0</strong></div>
@@ -4090,14 +4093,17 @@ function derivedRoadSequenceAI(){
   };
 }
 
-// --- ADAPTIVE DERIVED ROADS — MAIN-ROAD HISTORY MODE ---
-// SEPARATE AI SOURCE CONTRACT:
-//   ALLOWED: current Main Road P/B result sequence + saved shoe Main Road P/B result sequences.
-//   BLOCKED: saved derivedRoadHistory, historical Big Eye / Small / Roach marks, and old preview-state histories.
-// The three named roads are independent analysis channels with different Main Road lookback horizons.
-// A disabled channel contributes exactly zero influence.
+// --- ADAPTIVE DERIVED ROADS V3 — STRUCTURE + MAIN FUTURE MODE ---
+// SOURCE CONTRACT:
+//   1) Main Road P/B continuation history remains the historical anchor.
+//   2) Live Big Eye / Small / Roach RED-BLUE behavior is structural context only.
+//      RED means regularity/consistency under that derived-road rule; BLUE means irregularity/change.
+//      RED never means Banker and BLUE never means Player.
+//   3) Main Future Road is a major directional influence, dynamically discounted because it already
+//      contains related road information and must not be double-counted as an independent vote.
+// The three derived roads remain separately switchable and live reliability-weighted.
 function ensureAdaptiveDerivedState(){
-  const VERSION=2;
+  const VERSION=3;
   if(!state.adaptiveDerivedMain||typeof state.adaptiveDerivedMain!=='object')
     state.adaptiveDerivedMain={version:VERSION,pending:{},roads:{},enabled:{eye:true,small:true,roach:true},gradeLog:[]};
 
@@ -4242,6 +4248,49 @@ function mainRoadHistorySignal(key){
     source:'MAIN_ROAD_HISTORY_ONLY'
   };
 }
+function adaptiveStructuralRoadSignal(key){
+  const off=key==='eye'?1:key==='small'?2:3;
+  let sig={}; try{sig=derivedRoadSequencePatternSignal(off)||{};}catch(e){sig={};}
+  let hist=[]; try{hist=deriveRoad(currentSequence().map(r=>({r})),off)||[];}catch(e){hist=[];}
+  const tail=hist.slice(-8).filter(x=>x==='R'||x==='B');
+  const red=tail.filter(x=>x==='R').length, blue=tail.filter(x=>x==='B').length;
+  let flips=0; for(let i=1;i<tail.length;i++) if(tail[i]!==tail[i-1]) flips++;
+  const flipRate=tail.length>1?flips/(tail.length-1):.5;
+  let behavior='BUILDING', expected=null, behaviorStrength=0;
+  if(tail.length>=4){
+    if(flipRate<=.28){behavior='STRUCTURE HOLD';expected=tail[tail.length-1];behaviorStrength=.72;}
+    else if(flipRate>=.72){behavior='STRUCTURE ALTERNATION';expected=tail[tail.length-1]==='R'?'B':'R';behaviorStrength=.68;}
+    else if(red/tail.length>=.72){behavior='RED REGULARITY';expected='R';behaviorStrength=.58;}
+    else if(blue/tail.length>=.72){behavior='BLUE IRREGULARITY';expected='B';behaviorStrength=.58;}
+    else behavior='MIXED STRUCTURE';
+  }
+  const pMark=sig.pMark||null,bMark=sig.bMark||null;
+  let side=null, fitP=.5,fitB=.5;
+  if(expected&&pMark&&bMark&&pMark!==bMark){
+    fitP=pMark===expected?behaviorStrength:1-behaviorStrength;
+    fitB=bMark===expected?behaviorStrength:1-behaviorStrength;
+    side=fitP>fitB?'P':fitB>fitP?'B':null;
+  }
+  return {key,side,pMark,bMark,current:sig.currentMark||sig.lastMark||tail.at(-1)||null,
+    expected,behavior,behaviorStrength,fitP,fitB,redRate:tail.length?red/tail.length:0,
+    blueRate:tail.length?blue/tail.length:0,flipRate,tail:tail.join('')};
+}
+function adaptiveRoadCombinedSignal(key){
+  const h=mainRoadHistorySignal(key), st=adaptiveStructuralRoadSignal(key);
+  if(h.disabled) return {...h,structure:st};
+  let hp=(h.pPct||50)/100,hb=(h.bPct||50)/100;
+  // Structural color behavior is deliberately a supporting signal, never a direct P/B mapping.
+  const sw=st.side?Math.min(.24,.10+.18*st.behaviorStrength):0;
+  if(sw){ hp=(hp+sw*st.fitP)/(1+sw); hb=(hb+sw*st.fitB)/(1+sw); }
+  const z=hp+hb||1; hp/=z;hb/=z;
+  let side=hp>hb?'P':hb>hp?'B':null;
+  const edge=Math.abs(hp-hb);
+  // Keep the original evidence gate: structure can confirm/soften a historical signal, not manufacture one.
+  if(!h.side || edge<.08) side=null;
+  const agrees=!!(side&&st.side&&side===st.side), conflicts=!!(side&&st.side&&side!==st.side);
+  let strength=side?Math.max(0,Math.min(93,Math.round((h.strength||55)+(agrees?4:0)-(conflicts?6:0)+edge*8))):0;
+  return {...h,side,strength,pPct:Math.round(hp*100),bPct:Math.round(hb*100),structure:st,structureAgree:agrees,structureConflict:conflicts};
+}
 function adaptiveRoadReliability(key){
   const st=ensureAdaptiveDerivedState().roads[key];
   const a=st.last12||[];
@@ -4253,61 +4302,63 @@ function adaptiveRoadReliability(key){
 function adaptiveDerivedMainSignal(){
   const defs=[['eye',1.00],['small',.96],['roach',.92]];
   const roads=defs.map(([key,base])=>{
-    const x=mainRoadHistorySignal(key);
+    const x=adaptiveRoadCombinedSignal(key);
     const rel=adaptiveRoadReliability(key);
     const q=Math.max(.50,(x.quality||50)/100);
-    const w=x.disabled?0:base*(.70+.60*rel)*(.65+.35*q);
+    const structQ=x.structure?.side?(.88+(x.structureAgree?.12:0)-(x.structureConflict?.12:0)):1;
+    const w=x.disabled?0:base*(.70+.60*rel)*(.65+.35*q)*structQ;
     return {...x,key,reliability:rel,weight:w,enabled:!x.disabled};
   });
 
-  const enabled=roads.filter(x=>x.enabled);
-  const live=enabled.filter(x=>x.side);
+  const enabled=roads.filter(x=>x.enabled), live=enabled.filter(x=>x.side);
   let p=0,b=0,total=0;
-
   live.forEach(x=>{
-    const edge=Math.max(.04,(x.strength-50)/50);
-    const v=x.weight*edge;
-    if(x.side==='P') p+=v; else b+=v;
-    total+=v;
+    const edge=Math.max(.04,(x.strength-50)/50),v=x.weight*edge;
+    if(x.side==='P') p+=v; else b+=v; total+=v;
   });
 
-  const pVotes=live.filter(x=>x.side==='P').length;
-  const bVotes=live.filter(x=>x.side==='B').length;
-  const winner=Math.max(pVotes,bVotes);
-  const voteLeader=pVotes>bVotes?'P':bVotes>pVotes?'B':null;
+  // Main Future Road is a major influence, but correlation-discounted because it already reads related roads.
+  let future={}; try{future=mainRoadFutureTest()||{};}catch(e){future={};}
+  const fSide=(future.side==='P'||future.side==='B')?future.side:null;
+  const fEdge=Math.max(0,Math.min(1,(Number(future.edge)||0)/18));
+  const fEvidence=Math.max(0,Math.min(1,(Number(future.evidence)||0)/5));
+  const fStrength=fSide?(.30+.38*fEdge+.18*fEvidence):0;
+  const fWeight=fStrength*.72; // correlation discount: strong influence, never counted as another full road.
+  if(fSide&&fWeight){if(fSide==='P')p+=fWeight;else b+=fWeight;total+=fWeight;}
+
+  const pVotes=live.filter(x=>x.side==='P').length,bVotes=live.filter(x=>x.side==='B').length;
+  const winner=Math.max(pVotes,bVotes), voteLeader=pVotes>bVotes?'P':bVotes>pVotes?'B':null;
   const edge=total?Math.abs(p-b)/total:0;
   let side=null;
-
-  if(enabled.length===1){
-    const only=live[0];
-    if(only&&only.strength>=68&&only.quality>=65) side=only.side;
-  }else if(live.length>=2&&winner>=2&&voteLeader&&edge>=.12){
-    side=p>b?'P':'B';
+  if(enabled.length===1){const only=live[0];if(only&&only.strength>=68&&only.quality>=65)side=only.side;}
+  else if(live.length>=2&&winner>=2&&voteLeader&&edge>=.10) side=p>b?'P':'B';
+  // Strong Main Future confirmation can rescue a close 1-1/weak split, but cannot create a pick with <1 road signal.
+  if(!side&&live.length>=1&&fSide&&fStrength>=.58&&edge>=.14){
+    const roadSupport=live.filter(x=>x.side===fSide).length;
+    if(roadSupport>=1) side=fSide;
+  }
+  // Strong structural contradiction + Future contradiction => WAIT rather than force a historical vote.
+  if(side){
+    const structuralConflicts=roads.filter(r=>r.enabled&&r.structure?.side&&r.structure.side!==side).length;
+    if(fSide&&fSide!==side&&fStrength>=.62&&structuralConflicts>=2) side=null;
   }
 
   const supporters=side?live.filter(x=>x.side===side):[];
-  const confidence=supporters.length
-    ? Math.min(91,Math.round(
-        supporters.reduce((a,x)=>a+x.strength,0)/supporters.length +
-        edge*7 +
-        (supporters.length===enabled.length&&enabled.length>=2?2:0)
-      ))
-    : 0;
-
-  return {
-    side,strength:confidence,confidence,pVotes,bVotes,winner,edge,roads,
-    ready:enabled.filter(x=>x.matches>0).length,
-    activeCount:enabled.length,
-    liveCount:live.length,
-    adaptive:true
-  };
+  let confidence=supporters.length?Math.min(93,Math.round(
+    supporters.reduce((a,x)=>a+x.strength,0)/supporters.length + edge*7 +
+    (supporters.length===enabled.length&&enabled.length>=2?2:0) +
+    (fSide===side?Math.min(5,Math.round(fStrength*6)):fSide? -3:0)
+  )):0;
+  return {side,strength:confidence,confidence,pVotes,bVotes,winner,edge,roads,
+    ready:enabled.filter(x=>x.matches>0).length,activeCount:enabled.length,liveCount:live.length,
+    adaptive:true,version:3,mainFuture:{side:fSide,strength:Math.round(fStrength*100),edge:future.edge||0,evidence:future.evidence||0}};
 }
 function armAdaptiveDerivedRoads(){
   const st=ensureAdaptiveDerivedState();
   st.pending={};
   ['eye','small','roach'].forEach(key=>{
     if(!adaptiveRoadEnabled(key)) return;
-    const x=mainRoadHistorySignal(key);
+    const x=adaptiveRoadCombinedSignal(key);
     if(x.side==='P'||x.side==='B')
       st.pending[key]={side:x.side,hand:mainRoadPBSequence(currentSequence()).length+1};
   });
@@ -4372,7 +4423,7 @@ function renderAdaptiveDerivedMain(){
     set('adaptiveMainDerivedAgreement',`Agreement: building Main Road shoe-history evidence (0/${x.activeCount} active ready)`);
     set('adaptiveMainDerivedConfidence','Adaptive confidence: — • WAIT / not enough Main Road history');
   }else{
-    set('adaptiveMainDerivedAgreement',`Agreement: ${x.winner} of ${x.activeCount} active roads • Player ${x.pVotes} / Banker ${x.bVotes}`);
+    set('adaptiveMainDerivedAgreement',`Agreement: ${x.winner} of ${x.activeCount} active roads • Player ${x.pVotes} / Banker ${x.bVotes} • Main Future ${x.mainFuture?.side||'WAIT'} ${x.mainFuture?.strength||0}%`);
     set('adaptiveMainDerivedConfidence',x.side
       ? `Adaptive confidence: ${x.confidence}%`
       : 'Adaptive confidence: — • WAIT / conflicting or weak Main Road continuations');
@@ -4382,7 +4433,7 @@ function renderAdaptiveDerivedMain(){
     const label=r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach';
     if(!r.enabled) return `${label} OFF`;
     const signal=r.side==='P'?'P':r.side==='B'?'B':'WAIT';
-    return `${label} ${Math.round(r.reliability*100)}% (${signal})`;
+    const st=r.structure; const beh=st?.behavior||'BUILDING'; const mark=st?.current||'—'; return `${label} ${Math.round(r.reliability*100)}% (${signal}) • ${mark} ${beh}`;
   }).join(' • ');
 
   set('adaptiveMainDerivedWeights','Live road weights: '+w);
@@ -4458,11 +4509,71 @@ function gptMirrorRegime(){
 function gptMirrorVerifiedWeight(key){
   try{
     const r=verifiedModelRate(key);
-    if(!r||r.n<8)return 1;
-    // Shrink toward neutral. A source has to earn extra influence on pre-result grades.
-    const rate=(r.wins+4)/(r.n+8);
-    return Math.max(.58,Math.min(1.22,.72+rate*.55));
+    let base=1;
+    if(r&&r.n>=8){
+      // Shrink toward neutral. A source has to earn extra influence on pre-result grades.
+      const rate=(r.wins+4)/(r.n+8);
+      base=Math.max(.58,Math.min(1.22,.72+rate*.55));
+    }
+    // V4: live performance can move influence quickly, but never enough to let a
+    // hot streak dominate the master decision by itself.
+    const L=ensureGPTMirrorLearning(),live=L.sourceStats?.[key];
+    if(live&&live.n>=2){
+      const liveRate=(live.w+4)/(live.n+8);
+      const liveAdj=Math.max(.70,Math.min(1.18,.62+liveRate*.76));
+      base*=liveAdj;
+    }
+    return Math.max(.48,Math.min(1.30,base));
   }catch(e){return 1}
+}
+function gptMirrorShoeBias(){
+  const pb=currentSequence().filter(x=>x==='P'||x==='B');
+  const n=pb.length;if(n<8)return {side:null,label:'NEUTRAL',strength:0,edge:0,p:0,b:0};
+  const p=pb.filter(x=>x==='P').length,b=n-p;
+  const recent=pb.slice(-12),rp=recent.filter(x=>x==='P').length,rb=recent.length-rp;
+  // Full-shoe direction is primary; recent direction is only a live adjustment.
+  const fullEdge=(b-p)/Math.max(1,n),recentEdge=(rb-rp)/Math.max(1,recent.length);
+  const blend=fullEdge*.68+recentEdge*.32;
+  const edge=Math.abs(blend);
+  const side=edge>=.075?(blend>0?'B':'P'):null;
+  const strength=side?Math.min(78,Math.round(52+edge*70)):0;
+  return {side,strength,edge:Math.round(edge*100),p,b,label:side?(side==='B'?'BANKER-LEAN':'PLAYER-LEAN'):'NEUTRAL'};
+}
+function gptMirrorCurrentRun(){
+  const pb=currentSequence().filter(x=>x==='P'||x==='B');if(!pb.length)return {side:null,len:0};
+  const side=pb[pb.length-1];let len=1;for(let i=pb.length-2;i>=0&&pb[i]===side;i--)len++;
+  return {side,len};
+}
+function gptMirrorSourceFamily(key){
+  if(['roadpreview','roadfuture','mainfuture'].includes(key))return 'ROAD';
+  if(['history','pretrained','v3family'].includes(key))return 'HISTORY';
+  if(['shoebias'].includes(key))return 'SHOE';
+  if(['colorpattern','beadpattern'].includes(key))return 'BEAD';
+  if(['seqv2'].includes(key))return 'SEQUENCE';
+  return key||'OTHER';
+}
+function gptMirrorFailureKey(snapshot){
+  try{
+    const reg=snapshot?.regime?.name||'UNK',phase=snapshot?.regime?.phase||'UNK';
+    const bias=snapshot?.shoeBias?.side||'N';
+    const run=gptMirrorCurrentRun(),runBin=run.len>=5?'5+':run.len>=3?'3-4':run.len>=2?'2':'1';
+    const leader=snapshot?.candidate||snapshot?.side||'N';
+    const fam=[...new Set((snapshot?.sources||[]).filter(x=>x.side===leader).map(x=>gptMirrorSourceFamily(x.key)))].sort().join('+')||'NONE';
+    const rf=snapshot?.roadFuture?.side||'N';
+    return `${reg}|${phase}|BIAS:${bias}|RUN:${run.side||'N'}${runBin}|RF:${rf}|FAM:${fam}`;
+  }catch(e){return 'UNK'}
+}
+function gptMirrorDecisionStability(candidate,confidence){
+  const st=ensureGPTMirrorState();if(!Array.isArray(st.decisionTrail))st.decisionTrail=[];
+  const hand=currentSequence().filter(x=>x==='P'||x==='B').length;
+  const last=st.decisionTrail[st.decisionTrail.length-1];
+  if(!last||last.hand!==hand){st.decisionTrail.push({hand,side:candidate||null,confidence:Number(confidence)||0});if(st.decisionTrail.length>7)st.decisionTrail.shift();}
+  else {last.side=candidate||null;last.confidence=Number(confidence)||0;}
+  const usable=st.decisionTrail.filter(x=>x.side==='P'||x.side==='B').slice(-4);
+  if(usable.length<2)return {score:50,label:'BUILDING',flips:0,n:usable.length};
+  let flips=0;for(let i=1;i<usable.length;i++)if(usable[i].side!==usable[i-1].side)flips++;
+  const score=Math.max(0,100-Math.round(flips/Math.max(1,usable.length-1)*70));
+  return {score,label:score>=85?'STABLE':score>=60?'WATCH':'UNSTABLE',flips,n:usable.length};
 }
 function gptMirrorThreeRoadFutureInfluence(regime){
   // V115: learned 3-road futures.  Instead of rewarding a branch because it
@@ -4698,16 +4809,15 @@ function gptMirrorSignal(){
   const pb=seq.filter(x=>x==='P'||x==='B');
   const regime=gptMirrorRegime();
   const hist=findHistoricalMatches();
+  const shoeBias=gptMirrorShoeBias();
   const sources=[];
   const add=(key,name,x,strength,base=1,evidence='')=>{
     const side=x?.side;
     if(side!=='P'&&side!=='B')return;
     const st=Math.max(50,Math.min(95,Number(strength)||50));
-    sources.push({key,name,side,strength:st,weight:base*gptMirrorVerifiedWeight(key)*(0.55+st/200),evidence});
+    sources.push({key,name,side,strength:st,rawWeight:base*gptMirrorVerifiedWeight(key)*(0.55+st/200),weight:0,evidence,family:gptMirrorSourceFamily(key)});
   };
 
-  // Rules-first: baccarat drawing rules are deterministic but do not themselves predict P/B.
-  // They therefore validate legal state while predictive influence must come from pre-result evidence.
   let seqAI={},roadAI={};
   try{seqAI=sequenceAISignal()||{}}catch(e){}
   try{roadAI=roadPreviewAISignal()||{}}catch(e){}
@@ -4718,7 +4828,18 @@ function gptMirrorSignal(){
   add('roadpreview','Road Preview',roadAI,roadAI.strength,.92,`${roadAI.matches||0} matches`);
   if(roadFuture.side)add('roadfuture','3-Road Future',roadFuture,roadFuture.strength,1.28,`${roadFuture.ready}/3 roads • ${roadFuture.edge}% branch edge`);
 
-  // Saved-shoe continuation is treated as a separate vote only with enough samples and separation.
+  // Explicit Bead Plate / color-sequence view. Kept in its own family so it can
+  // confirm Sequence V2 without being mistaken for another road vote.
+  try{if(typeof colorPatternAISignal==='function'){const beadAI=colorPatternAISignal()||{};if(beadAI.side)add('colorpattern','Bead Plate Pattern',beadAI,beadAI.strength||beadAI.confidence||50,.78,`${beadAI.matches||0} matches`);}}catch(e){}
+
+  // Main Future Road is consumed directly as well as inside the learned 3-road
+  // comparison. It belongs to the ROAD family, so correlation discount prevents
+  // double-counting while still preserving its information when derived roads are sparse.
+  if(future.side&&(future.evidence||0)>0&&(future.edge||0)>=5){
+    const mfStrength=Math.min(84,Math.round(52+(future.edge||0)*1.25+Math.min(8,(future.evidence||0)*2)));
+    add('mainfuture','Main Future Road',future,mfStrength,1.02,`${future.label||'LEAN'} • edge ${future.edge||0}%`);
+  }
+
   const hpb=(hist.p||0)+(hist.b||0);
   const hEdge=hpb?Math.abs((hist.p||0)-(hist.b||0))/hpb:0;
   if((hist.matches||0)>=4&&hpb>=4&&hEdge>=.12){
@@ -4726,16 +4847,12 @@ function gptMirrorSignal(){
     add('history','Saved History',{side:hs},Math.min(80,52+hEdge*28+Math.min(6,(hist.matches||0)*.25)),.90,`${hist.matches} matches / ${hist.len}-hand suffix`);
   }
 
-  // Full-library pretrained 3-road state memory. Small samples are shrunk to 50%;
-  // it becomes a vote only when the state has enough prior examples and separation.
   const pre=gptMirrorPretrainedEvidence();
   if(pre.side&&pre.n>=6&&pre.edge>=10){
     const pst=Math.min(84,Math.round(52+pre.edge*.55+Math.min(8,pre.n*.35)));
     add('pretrained','Full Library Memory',{side:pre.side},pst,1.05,`${pre.n} prior exact states • ${Math.round(pre.edge)}% shrunk edge`);
   }
 
-  // V3 is a gated recognition layer, not a replacement predictor. It earns one
-  // additional independent vote only after all four evidence families converge.
   let v3={qualified:false,side:null,score:0,confirmations:0,shoeId:null,pos:null,reason:'V3 unavailable',candidates:0,seq:0,chop:0,tie:0,road:0,roadReady:0,roadAgree:0};
   try{v3=gptMirrorV3FamilyLock();}catch(e){console.warn('GPT Mirror V3 isolated error',e);}
   if(v3.qualified){
@@ -4743,35 +4860,61 @@ function gptMirrorSignal(){
       `${v3.confirmations}/4 confirmations • ${v3.roadAgree}/${v3.roadReady} roads • ${v3.shoeId} @ ${v3.pos}`);
   }
 
+  // Shoe identity is context, never a stand-alone command. It earns only a
+  // modest vote and only after both full-shoe and recent results create a real lean.
+  if(shoeBias.side&&shoeBias.edge>=8)add('shoebias','Shoe Bias',shoeBias,shoeBias.strength,.58,`${shoeBias.label} • ${shoeBias.p}P/${shoeBias.b}B`);
+
+  // V4 independence control: signals from the same information family share one
+  // influence budget. Three road-derived models no longer count as three full votes.
+  const families={};for(const x of sources)(families[x.family]||(families[x.family]=[])).push(x);
+  for(const arr of Object.values(families)){
+    arr.sort((a,b)=>b.rawWeight-a.rawWeight);
+    arr.forEach((x,i)=>x.weight=x.rawWeight*(i===0?1:i===1?.42:.22));
+  }
+
   let p=0,b=0,total=0;
   for(const x of sources){total+=x.weight;if(x.side==='P')p+=x.weight;else b+=x.weight;}
-  const pCount=sources.filter(x=>x.side==='P').length,bCount=sources.filter(x=>x.side==='B').length;
   const leader=p>b?'P':b>p?'B':null;
-  const agree=leader==='P'?pCount:leader==='B'?bCount:0;
-  const margin=total?Math.abs(p-b)/total:0;
+  const supportingFamilies=leader?[...new Set(sources.filter(x=>x.side===leader).map(x=>x.family))]:[];
+  const opposingFamilies=leader?[...new Set(sources.filter(x=>x.side!==leader).map(x=>x.family))]:[];
   const supporters=sources.filter(x=>x.side===leader);
-  const avg=supporters.length?supporters.reduce((z,x)=>z+x.strength,0)/supporters.length:0;
+  const agree=supportingFamilies.length;
+  const margin=total?Math.abs(p-b)/total:0;
+  const avg=supporters.length?supporters.reduce((z,x)=>z+x.strength*x.weight,0)/Math.max(.001,supporters.reduce((z,x)=>z+x.weight,0)):0;
   const futureSupports=!roadFuture.side||roadFuture.edge<6||roadFuture.side===leader;
   const v3Supports=!v3.qualified||!leader||v3.side===leader;
-  let side=null,reason='';
+  const strongOpp=sources.filter(x=>x.side!==leader&&x.strength>=68&&x.weight>=.55);
+  const stability=gptMirrorDecisionStability(leader,avg);
+  let side=null,reason='',veto='CLEAR';
 
-  if(pb.length<9)reason=`WAIT: opening-shoe protection (${pb.length}/9 completed P/B hands). GPT Mirror does not become eligible until predicting hand 10.`;
-  else if(sources.length<3)reason=`WAIT: only ${sources.length} independent evidence sources are ready.`;
-  else if(!leader||agree<2)reason='WAIT: no side has support from at least two independent sources.';
-  else if(margin<(regime.transition?.16:.11))reason=`WAIT: weighted P/B separation is only ${Math.round(margin*100)}%.`;
-  else if(avg<(regime.transition?61:57))reason=`WAIT: agreeing evidence averages ${Math.round(avg)}%; not strong enough for this regime.`;
-  else if(!futureSupports&&roadFuture.edge>=10)reason='WAIT: the 3-road future projection conflicts with the other evidence.';
-  else if(!v3Supports)reason='WAIT: a fully-qualified V3 family/location lock conflicts with the V2 evidence.';
+  if(pb.length<9)reason=`WAIT: opening-shoe protection (${pb.length}/9 completed P/B hands). Master AI becomes eligible for hand 10.`;
+  else if(sources.length<3)reason=`WAIT: only ${sources.length} evidence sources are ready.`;
+  else if(!leader||agree<2)reason='WAIT: fewer than two independent information families support the same side.';
+  else if(margin<(regime.transition?.18:.12))reason=`WAIT: independent weighted P/B separation is only ${Math.round(margin*100)}%.`;
+  else if(avg<(regime.transition?64:59))reason=`WAIT: supporting evidence averages ${Math.round(avg)}%; not strong enough for this regime.`;
+  else if(strongOpp.length>=2&&opposingFamilies.length>=2){reason='WAIT: two independent strong contradictions are present.';veto='CONTRADICTION';}
+  else if(!futureSupports&&roadFuture.edge>=10){reason='WAIT: learned 3-road future conflicts with the other evidence.';veto='ROAD CONFLICT';}
+  else if(!v3Supports){reason='WAIT: qualified family/location history conflicts with the live decision.';veto='HISTORY CONFLICT';}
+  else if(stability.label==='UNSTABLE'&&regime.transition){reason='WAIT: decision is unstable during a regime transition.';veto='INSTABILITY';}
   else side=leader;
 
-  let confidence=side?Math.min(91,Math.round(avg+Math.min(9,margin*18)+Math.min(4,(agree-2)*2)-(regime.transition?5:0))):Math.round(avg||0);
-  const provisional={side,candidate:leader,qualified:!!side,confidence,reason,regime,sources,agree,totalSources:sources.length,hist,marg:margin,
-    pWeight:total?Math.round(p/total*100):0,bWeight:total?Math.round(b/total*100):0,future,roadFuture,v3};
+  let confidence=side?Math.min(93,Math.round(avg+Math.min(10,margin*20)+Math.min(5,(agree-2)*2.5)-(regime.transition?6:0)+(stability.score>=85?2:0))):Math.round(avg||0);
+  let provisional={side,candidate:leader,qualified:!!side,confidence,reason,regime,sources,agree,totalSources:sources.length,hist,marg:margin,
+    pWeight:total?Math.round(p/total*100):0,bWeight:total?Math.round(b/total*100):0,future,roadFuture,v3,shoeBias,stability,veto,supportingFamilies,opposingFamilies};
   const learned=gptMirrorLearnedAdjustment(provisional);
-  if(side&&learned.block){side=null;reason=`WAIT: this live configuration has underperformed (${learned.n} graded examples).`;confidence=Math.max(0,confidence-8);}
-  else if(side&&learned.delta){confidence=Math.max(50,Math.min(91,confidence+learned.delta));}
-  return {side,candidate:leader,qualified:!!side,confidence,reason,regime,sources,agree,totalSources:sources.length,hist,marg:margin,
-    pWeight:total?Math.round(p/total*100):0,bWeight:total?Math.round(b/total*100):0,future,roadFuture,v3,learned};
+  const failure=gptMirrorFailureAdjustment(provisional);
+  if(side&&(learned.block||failure.block)){
+    side=null;veto='FAILURE MEMORY';
+    const n=Math.max(learned.n||0,failure.n||0);reason=`WAIT: this context resembles a repeatedly losing setup (${n} graded examples).`;confidence=Math.max(0,confidence-10);
+  }else if(side){
+    confidence=Math.max(50,Math.min(93,confidence+(learned.delta||0)+(failure.delta||0)));
+  }
+  // Elite quality gate: this master AI is intentionally more selective than the
+  // component AIs. Normal predictions can exist, but only stable, independent,
+  // low-conflict decisions are labeled ELITE.
+  const elite=!!(side&&confidence>=78&&agree>=3&&margin>=.18&&strongOpp.length===0&&stability.score>=60&&!regime.transition);
+  return {side,candidate:leader,qualified:!!side,elite,confidence,reason,regime,sources,agree,totalSources:sources.length,hist,marg:margin,
+    pWeight:total?Math.round(p/total*100):0,bWeight:total?Math.round(b/total*100):0,future,roadFuture,v3,learned,failure,shoeBias,stability,veto,supportingFamilies,opposingFamilies};
 }
 
 function ensureGPTMirrorLearning(){
@@ -4781,6 +4924,7 @@ function ensureGPTMirrorLearning(){
   if(!L.liveConfigStats||typeof L.liveConfigStats!=='object')L.liveConfigStats={};
   if(!L.sourceStats||typeof L.sourceStats!=='object')L.sourceStats={};
   if(!L.badConfigs||typeof L.badConfigs!=='object')L.badConfigs={};
+  if(!L.failureStats||typeof L.failureStats!=='object')L.failureStats={};
   if(!Array.isArray(L.events))L.events=[];
   if(!Number.isFinite(L.updates))L.updates=0;
   return L;
@@ -4795,29 +4939,42 @@ function gptMirrorLearningKey(snapshot){
 }
 function gptMirrorUpdateLearning(pending,actual){
   const L=ensureGPTMirrorLearning();
-  const won=pending?.side===actual,key=pending?.learningKey||'UNK';
+  const won=pending?.side===actual,key=pending?.learningKey||'UNK',fkey=pending?.failureKey||'UNK';
   const rec=L.liveConfigStats[key]||(L.liveConfigStats[key]={w:0,l:0,n:0,rate:.5});
   rec.n++;if(won)rec.w++;else rec.l++;
   rec.rate=(rec.w+4)/(rec.n+8);
   if(rec.n>=6&&rec.rate<.48)L.badConfigs[key]=true;
   else if(rec.rate>=.50&&L.badConfigs[key])delete L.badConfigs[key];
 
+  const fr=L.failureStats[fkey]||(L.failureStats[fkey]={w:0,l:0,n:0,rate:.5});
+  fr.n++;if(won)fr.w++;else fr.l++;fr.rate=(fr.w+3)/(fr.n+6);
+
   for(const x of (Array.isArray(pending?.sources)?pending.sources:[])){
     if(x?.side!=='P'&&x?.side!=='B')continue;
     const r=L.sourceStats[x.key]||(L.sourceStats[x.key]={w:0,l:0,n:0,rate:.5});
     r.n++;if(x.side===actual)r.w++;else r.l++;
-    r.rate=(r.w+6)/(r.n+12);
+    r.rate=(r.w+4)/(r.n+8);
   }
   L.updates++;
-  L.events.push({hand:pending?.hand||0,pred:pending?.side||null,actual,won,key,ts:Date.now()});
-  if(L.events.length>250)L.events.splice(0,L.events.length-250);
+  L.events.push({hand:pending?.hand||0,pred:pending?.side||null,actual,won,key,fkey,ts:Date.now()});
+  if(L.events.length>300)L.events.splice(0,L.events.length-300);
 }
+
 function gptMirrorLearnedAdjustment(snapshot){
   const L=ensureGPTMirrorLearning(),key=gptMirrorLearningKey(snapshot),rec=L.liveConfigStats[key];
   if(L.badConfigs[key])return {block:true,key,delta:-8,n:rec?.n||0,rate:rec?.rate??.5};
   if(!rec||rec.n<4)return {block:false,key,delta:0,n:rec?.n||0,rate:rec?.rate??.5};
   const edge=(rec.rate-.5)*100;
   return {block:false,key,delta:Math.max(-5,Math.min(5,Math.round(edge*.35))),n:rec.n,rate:rec.rate};
+}
+function gptMirrorFailureAdjustment(snapshot){
+  const L=ensureGPTMirrorLearning(),key=gptMirrorFailureKey(snapshot),rec=L.failureStats?.[key];
+  if(!rec||rec.n<3)return {block:false,key,delta:0,n:rec?.n||0,rate:rec?.rate??.5};
+  // Faster veto than the broad configuration learner: 3+ examples can block only
+  // when the posterior win rate is decisively poor.
+  if(rec.n>=4&&rec.rate<.43)return {block:true,key,delta:-10,n:rec.n,rate:rec.rate};
+  const edge=(rec.rate-.5)*100;
+  return {block:false,key,delta:Math.max(-4,Math.min(4,Math.round(edge*.28))),n:rec.n,rate:rec.rate};
 }
 function settleGPTMirrorPrediction(actual){
   // Definitive live-result arming point: this is called by the real commit path
@@ -4838,7 +4995,7 @@ function armGPTMirrorPrediction(){
     side:x.side,confidence:x.confidence,regime:x.regime.name,
     hand:currentSequence().filter(v=>v==='P'||v==='B').length+1,
     sources:(x.sources||[]).map(v=>({key:v.key,side:v.side,strength:v.strength})),
-    roadFuture:x.roadFuture||null,v3:x.v3||null,learningKey:gptMirrorLearningKey(x),createdAt:Date.now()
+    roadFuture:x.roadFuture||null,v3:x.v3||null,learningKey:gptMirrorLearningKey(x),failureKey:gptMirrorFailureKey(x),elite:!!x.elite,createdAt:Date.now()
   }:null;
 }
 function renderGPTMirrorAI(){
@@ -4846,9 +5003,12 @@ function renderGPTMirrorAI(){
   const d=document.getElementById('gptMirrorDecision'); if(!d)return;
   const st=ensureGPTMirrorState(),x=gptMirrorSignal();
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
-  set('gptMirrorDecision',x.qualified?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
+  set('gptMirrorDecision',x.qualified?`${x.side==='P'?'PLAYER':'BANKER'}${x.elite?' • ELITE':''}`:'WAIT');
   set('gptMirrorConfidence',x.confidence?x.confidence+'%':'—');
   set('gptMirrorRegime',`${x.regime.name} / ${x.regime.phase}`);
+  set('gptMirrorShoeBias',x.shoeBias?.label?`${x.shoeBias.label}${x.shoeBias.edge?' '+x.shoeBias.edge+'%':''}`:'NEUTRAL');
+  set('gptMirrorStability',x.stability?`${x.stability.label} ${x.stability.score}%`:'BUILDING');
+  set('gptMirrorVeto',x.veto||'CLEAR');
   set('gptMirrorAgreement',`${x.agree}/${x.totalSources}`);
   set('gptMirrorHistory',x.hist?.matches||0);
   set('gptMirrorRoadFuture',x.roadFuture?.side?`${x.roadFuture.side==='P'?'PLAYER':'BANKER'} ${x.roadFuture.pPct}/${x.roadFuture.bPct}`:'WAIT');
@@ -4865,12 +5025,12 @@ function renderGPTMirrorAI(){
   const roadDetail=(x.roadFuture?.detail||[]).join(' | ');
   const v3Detail=x.v3?.shoeId?`V3 ${x.v3.qualified?'LOCKED':'search'}: ${x.v3.shoeId} @ ${x.v3.pos}, score ${x.v3.score}%, confirmations ${x.v3.confirmations}/4, sequence ${x.v3.seq}%, chop ${x.v3.chop}%, tie ${x.v3.tie}%, roads ${x.v3.road}% (${x.v3.roadAgree}/${x.v3.roadReady})`:'V3: no family lock';
   set('gptMirrorNote',x.qualified
-    ? `${src}. Weighted evidence P ${x.pWeight}% / B ${x.bWeight}%. ${v3Detail}. 3-road future: ${roadDetail||'building'}. Decision: ${x.side==='P'?'PLAYER':'BANKER'} at ${x.confidence}% evidence confidence.`
+    ? `${src}. Weighted evidence P ${x.pWeight}% / B ${x.bWeight}%. ${v3Detail}. 3-road future: ${roadDetail||'building'}. Decision: ${x.side==='P'?'PLAYER':'BANKER'}${x.elite?' ELITE':''} at ${x.confidence}% evidence confidence • independent families ${x.agree} • ${x.shoeBias?.label||'NEUTRAL'}.`
     : `${src?src+'. ':''}${x.reason||'WAIT: no verified edge.'} ${v3Detail}.${roadDetail?' 3-road future: '+roadDetail+'.':''} WAIT is intentional, not a missing prediction.`);
 }
 function bindGPTMirrorControls(){
   const b=document.getElementById('gptMirrorResetStats');
-  if(b&&!b.__bound){b.__bound=true;b.onclick=()=>{if(confirm('Reset only GPT Mirror AI verified accuracy?')){state.gptMirror={pending:null,predictions:0,wins:0,losses:0,rows:[]};persist();renderGPTMirrorAI();armGPTMirrorPrediction();persist();}}}
+  if(b&&!b.__bound){b.__bound=true;b.onclick=()=>{if(confirm('Reset only GPT Mirror AI verified accuracy?')){{const keep=ensureGPTMirrorLearning();state.gptMirror={pending:null,predictions:0,wins:0,losses:0,rows:[],learning:keep,decisionTrail:[]};}persist();renderGPTMirrorAI();armGPTMirrorPrediction();persist();}}}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{bindGPTMirrorControls();setTimeout(()=>{renderGPTMirrorAI();armGPTMirrorPrediction();},250)});
 else setTimeout(()=>{bindGPTMirrorControls();renderGPTMirrorAI();armGPTMirrorPrediction();},250);
@@ -12507,6 +12667,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   let busy=false, renderTimer=0, heavyTimer=0;
   const pendingResults=[];
   let lastTxnKey='';
+  let lastPhysicalInputAt=0, lastPhysicalInputActual=null;
   const resultSelector='.main-buttons [data-result], #previewP, #previewB';
 
   const actualFrom=(el)=>{
@@ -12669,8 +12830,17 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 
   function commit(actual, isPreview){
     if(!['P','B','T'].includes(actual)) return;
+    const now=Date.now();
+    // Live hands are many seconds apart. Reject rapid repeat taps so one physical
+    // button press cannot become two committed baccarat hands or two accuracy settlements.
+    if(lastPhysicalInputActual===actual && now-lastPhysicalInputAt<900) return;
+    if(now-lastPhysicalInputAt<350) return;
+    lastPhysicalInputAt=now; lastPhysicalInputActual=actual;
     if(busy){
-      pendingResults.push({actual,isPreview:!!isPreview,queuedAt:Date.now()});
+      // Do not let a UI double-tap build an unbounded transaction queue. Preserve at most
+      // one genuinely distinct pending result; newer distinct input replaces stale queued work.
+      pendingResults.length=0;
+      pendingResults.push({actual,isPreview:!!isPreview,queuedAt:now});
       return;
     }
     const beforeLen=Array.isArray(state?.hands)?state.hands.length:0;
@@ -12717,7 +12887,13 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
   },0);
   document.getElementById('undoBtn')?.addEventListener('click',resync,false);
-  document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';busy=false;pendingResults.length=0;resync()},false);
+  document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';lastPhysicalInputAt=0;lastPhysicalInputActual=null;busy=false;pendingResults.length=0;resync()},false);
+
+  // Flush the latest committed shoe state when Chrome/Safari backgrounds or closes the page.
+  // This protects the last hand even though normal persistence is intentionally delayed to keep input responsive.
+  const flushLatestState=()=>{try{clearTimeout(window.__v134PersistTimer);persist()}catch(e){}};
+  window.addEventListener('pagehide',flushLatestState,{capture:true});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')flushLatestState();},{capture:true});
 
   window.__V102_FREEZE_COUNT_FIX__={
     enabled:true,
@@ -12727,7 +12903,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     coalescedHeavyWork:true,
     uiYieldBeforeRender:true,
     fifoInputQueue:true,
-    droppedClicksWhenBusy:false
+    rapidDuplicateInputRejected:true,boundedPendingInput:true
   };
 })();
 </script>
@@ -14395,8 +14571,8 @@ function renderReport(){
   let live=null;try{live=runtime.trained?signal():null}catch(e){}
   const liveTxt=live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT';
   const liveConf=Number.isFinite(Number(live?.confidence))?Number(live.confidence).toFixed(1)+'%':'—';
-  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv155Status">${runtime.trained?(runtime.qualified?'QUALIFIED':'EXPERIMENTAL / VALIDATION LOCK'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
-  let note=document.getElementById('mlv155Note'); if(!note){note=document.createElement('div');note.id='mlv155Note';note.className='analyzer-sub';note.style.marginTop='8px';panel.appendChild(note)}
+  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv170Authority">${runtime.trained?(runtime.qualified?'QUALIFIED':'EXPERIMENTAL / VALIDATION LOCK'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
+  let note=document.getElementById('mlv170Note'); if(!note){note=document.createElement('div');note.id='mlv170Note';note.className='analyzer-sub';note.style.marginTop='8px';panel.appendChild(note)}
   note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${live?.reason||''} ${r.qualified?'VALIDATION PASS':'VALIDATION LOCK'}: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%.`:'Press Build / Refresh Dataset below to run a fresh train → validation → held-out test cycle.';
 }
 function install(){
@@ -14423,9 +14599,9 @@ function boot(){
       if(t)t.textContent='🧠 ML Road Trainer V170 — Live Prediction + Validation';
       panel.dataset.connected='v163';
     }
-    if(api&&typeof api.trainAndValidate==='function'){
-      api.trainAndValidate();
+    if(api){
       try{api.render&&api.render()}catch(e){}
+      window.__V163_ML_MANUAL_ONLY__=true;
     }
   }catch(e){
     const n=document.getElementById('mlv155Note');
@@ -14434,7 +14610,7 @@ function boot(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1800),{once:true});
 else setTimeout(boot,1800);
-window.__V163_ML_AUTO_TRAIN__=true;
+window.__V163_ML_AUTO_TRAIN__=false; window.__V163_ML_MANUAL_ONLY__=true;
 })();
 </script>
 
@@ -14908,7 +15084,7 @@ function stableTick(){
 }
 function startStableLoop(){
   stableTick();
-  if(!window.__chopV176StableTimer)window.__chopV176StableTimer=setInterval(stableTick,1000);
+  if(!window.__chopV176StableTimer)window.__chopV176StableTimer=setInterval(()=>{if(document.visibilityState!=='hidden')stableTick();},2500);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(startStableLoop,1300),{once:true});else setTimeout(startStableLoop,1300);
 window.__UniversalChopV173={version:VERSION,state:chopState,apply,install,allAI:true,v176StableLoop:true,rule:'follow only when stable multi-window alternation; stop when run/break evidence appears; weak conflicts wait; strong independent evidence may override'};
@@ -15238,7 +15414,64 @@ function resetHeavyStatus(){
   }catch(e){}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(resetHeavyStatus,2600),{once:true});else setTimeout(resetHeavyStatus,2600);
-window.__V190_TRAINING_FREEZE_GUARD__={manualOnly:true,blockDuringLiveShoe:true,decoupledButtons:true};
+window.__V190_TRAINING_FREEZE_GUARD__={manualOnly:true,blockDuringLiveShoe:true,decoupledButtons:true,startupAutoTrainDisabled:true};
+})();
+</script>
+
+<script id="v193-full-reliability-hardening">
+window.__V193_FULL_RELIABILITY_HARDENING__={
+  version:193,
+  rapidDuplicateInputRejected:true,
+  boundedPendingInput:true,
+  pageHidePersistenceFlush:true,
+  hiddenTabBackgroundPollingReduced:true,
+  authoritativeResultTransaction:true,
+  note:'Reliability hardening only; prediction formulas are not changed by this patch.'
+};
+</script>
+
+<script id="v195-adaptive-road-runtime-cache-fix">
+(function(){
+  'use strict';
+  const VERSION=195;
+  const histCache=new Map(), structCache=new Map();
+  const MAX=30;
+  function trim(m){while(m.size>MAX)m.delete(m.keys().next().value);}
+  function seqKey(){
+    let s='';try{s=String(currentSequence().join(''))}catch(e){}
+    const mode=String(state?.predictionLibraryMode||'');
+    const color=String(state?.currentShoeColor||'');
+    let rc=0,bc=0,cc=0;
+    try{rc=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary.length:0}catch(e){}
+    try{bc=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary.length:0}catch(e){}
+    try{cc=Array.isArray(state?.combinedPatternLibrary)?state.combinedPatternLibrary.length:0}catch(e){}
+    const en=(()=>{try{const x=ensureAdaptiveDerivedState().enabled||{};return `${x.eye!==false?1:0}${x.small!==false?1:0}${x.roach!==false?1:0}`}catch(e){return '111'}})();
+    return `${s}|${mode}|${color}|${rc}|${bc}|${cc}|${en}`;
+  }
+  try{
+    const oldHist=mainRoadHistorySignal;
+    if(typeof oldHist==='function'&&!oldHist.__v195cached){
+      const w=function(key){
+        const ck=`${key}|${seqKey()}`;
+        if(histCache.has(ck))return histCache.get(ck);
+        const v=oldHist.apply(this,arguments);histCache.set(ck,v);trim(histCache);return v;
+      };w.__v195cached=true;mainRoadHistorySignal=w;window.mainRoadHistorySignal=w;
+    }
+    const oldStruct=adaptiveStructuralRoadSignal;
+    if(typeof oldStruct==='function'&&!oldStruct.__v195cached){
+      const w=function(key){
+        const ck=`${key}|${seqKey()}`;
+        if(structCache.has(ck))return structCache.get(ck);
+        const v=oldStruct.apply(this,arguments);structCache.set(ck,v);trim(structCache);return v;
+      };w.__v195cached=true;adaptiveStructuralRoadSignal=w;window.adaptiveStructuralRoadSignal=w;
+    }
+  }catch(e){console.warn('V195 adaptive cache install',e)}
+  // Any explicit library-changing/reset action should drop cached same-hand analyses immediately.
+  const clear=()=>{histCache.clear();structCache.clear();};
+  ['clearBtn','undoBtn','savePatternBtn','saveShoeBtn','importLibraryBtn'].forEach(id=>{
+    const el=document.getElementById(id);if(el&&!el.__v195Cache){el.__v195Cache=true;el.addEventListener('click',clear,{capture:true});}
+  });
+  window.__V195_ADAPTIVE_RUNTIME_CACHE__={version:VERSION,clear,histCache,structCache,maxEntries:MAX};
 })();
 </script>
 </body>
