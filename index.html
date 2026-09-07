@@ -15083,26 +15083,39 @@ window.__V181_UI_CLEAN__={version:181,removed:['Historical 3-Road Future Match',
 window.__V182_PANEL_CLEANUP__={version:182,hiddenPanels:['Selective Live Adaptation V13','Live Shoe Awareness V14'],logicKept:true};
 </script>
 
-<script id="v184-move-ml-road-trainer-bottom">
+<script id="v219-panel-position-ml-top-finger-bottom">
 (function(){
 'use strict';
-const VERSION=184;
-function moveToBottom(){
+const VERSION=219;
+function moveMlTop(){
   const panel=document.getElementById('mlRoadTrainerV155');
+  if(!panel||!panel.parentNode)return false;
+  const host=panel.parentNode;
+  const anchor=document.getElementById('sequenceAiPanel') || host.querySelector('.analyzer');
+  if(anchor && anchor!==panel) host.insertBefore(panel,anchor);
+  return true;
+}
+function moveFingerBottom(){
+  const panel=document.getElementById('presetFingerprintGateV145');
   if(!panel||!panel.parentNode)return false;
   panel.parentNode.appendChild(panel);
   return true;
+}
+function position(){
+  const ml=moveMlTop();
+  const finger=moveFingerBottom();
+  return ml&&finger;
 }
 function install(){
   let tries=0;
   const timer=setInterval(()=>{
     tries++;
-    const moved=moveToBottom();
+    const positioned=position();
     const loaded=!!window.__V129_PROGRESSIVE_STARTUP__?.complete;
-    if((moved&&loaded)||tries>=80){
+    if((positioned&&loaded)||tries>=100){
       clearInterval(timer);
-      moveToBottom();
-      window.__V184_ML_PANEL_POSITION__={version:VERSION,movedToBottom:true,logicChanged:false};
+      position();
+      window.__V219_PANEL_POSITION__={version:VERSION,mlRoadTrainer:'top',fingerprintGate:'bottom',logicChanged:false};
     }
   },100);
 }
