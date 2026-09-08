@@ -12065,9 +12065,35 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   const pbN=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}};
   function context(){try{return window.__SHARED_SHOE_CONTEXT__||{}}catch(e){return {}}}
   function readyRoads(x){try{return x.roadSigs.filter(r=>r.sig&&r.sig.pMark&&r.sig.bMark&&r.sig.pMark!==r.sig.bMark).length}catch(e){return 0}}
+  // V236: explicit full saved-shoe history channel for Main Road Future Test.
+  // Uses the V25 indexed continuation knowledge, which V235 automatically refreshes after new saves.
+  // History is bounded confirmation (max 22%) so live Main/derived-road structure stays primary.
+  function mainHistory(){
+    try{
+      const h=window.__libraryKnowledgeV25?.signal?.()||null;
+      if(!h||h.ready===false||!(h.side==='P'||h.side==='B'))return null;
+      const p=Number(h.pPct),b=Number(h.bPct),e=Number(h.evidence)||0;
+      if(!Number.isFinite(p)||!Number.isFinite(b)||e<2)return null;
+      const q=Math.max(0,Math.min(1,(Math.min(24,e)-2)/22));
+      const w=.10+.12*q; // 10%..22% direct history influence
+      return {...h,pPct:p,bPct:b,evidence:e,weight:w};
+    }catch(e){return null}
+  }
 
   function tuned(){
-    const x=base();
+    const raw=base();
+    const h=mainHistory();
+    let x=raw;
+    if(h){
+      const bp=Number(raw?.p?.norm)||50, bb=Number(raw?.b?.norm)||50;
+      const hp=h.pPct, hb=h.bPct, hz=(hp+hb)||100;
+      const hpn=100*hp/hz, hbn=100*hb/hz, w=h.weight;
+      const pNorm=Math.max(0,Math.min(100,Math.round(bp*(1-w)+hpn*w)));
+      const bNorm=100-pNorm;
+      const histSide=pNorm>bNorm?'P':bNorm>pNorm?'B':null;
+      x={...raw,p:{...raw.p,norm:pNorm},b:{...raw.b,norm:bNorm},side:histSide,edge:Math.abs(pNorm-bNorm),
+         mainHistory:{...h,normalizedP:Math.round(hpn),normalizedB:Math.round(hbn),appliedWeight:Math.round(w*100)}};
+    }
     const n=pbN(), roads=readyRoads(x), c=context();
     let side=x.side, reason='', minEdge=n<12?10:n<20?8:7;
     let confirmation='NONE';
@@ -12102,12 +12128,13 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     const x=tuned();
     set('futurePMain',x.p.main);set('futureBMain',x.b.main);html('futurePRoads',x.p.chips);html('futureBRoads',x.b.chips);
     set('futurePScore',x.p.norm+'%');set('futureBScore',x.b.norm+'%');
-    set('futureTestSpeed',`Automatic test • ${x.elapsed} ms • V85 selective tune • context-order repaired`);
+    set('futureTestSpeed',`Automatic test • ${x.elapsed} ms • V236 live roads + saved-shoe history`);
     if(!x.side)set('futureFinal',`Likely answer: WAIT — ${x.v84Gate.reason.replace(/^WAIT — /,'')}`);
     else set('futureFinal',`Likely answer: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.label} • ${x.side==='P'?x.p.norm:x.b.norm}% vs ${x.side==='P'?x.b.norm:x.p.norm}%`);
     const c=context();
     const ctx=x.v84Gate.n>=20&&c.ready?` • Shoe context: ${c.lean}, ${c.strength}${c.eliteConflict?', elite conflict':''}`:'';
-    set('futureNote',`${x.v84Gate.roads}/3 derived roads ready • Gate needs ${x.v84Gate.minEdge}+ point edge • ${x.v84Gate.confirmation} • V72 scoring preserved; V85 filters weak/conflicting calls and arms only after refreshed shoe context.${ctx}`);
+    const hist=x.mainHistory?` • Saved-shoe history: P ${x.mainHistory.normalizedP}% / B ${x.mainHistory.normalizedB}% • N≈${Math.round(x.mainHistory.evidence)} • ${x.mainHistory.appliedWeight}% influence`:' • Saved-shoe history: building/no qualified continuation';
+    set('futureNote',`${x.v84Gate.roads}/3 derived roads ready • Gate needs ${x.v84Gate.minEdge}+ point edge • ${x.v84Gate.confirmation} • Main Road now includes bounded full-library shoe-history confirmation; live road structure remains primary.${hist}${ctx}`);
     renderAcc();return x;
   }
   function settle(actual){const a=acc();if(!['P','B','T'].includes(actual))return;const q=a.pending;a.pending=null;if(actual==='T'){a.ties++;return}if(!q)return;const correct=q.side===actual;if(correct)a.wins++;else a.losses++;a.ledger.push({...q,actual,correct,settledAt:Date.now()});if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600)}
@@ -12129,7 +12156,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 
   window.mainRoadFutureTest=tuned;try{mainRoadFutureTest=tuned}catch(e){}
   window.renderMainRoadFutureTest=render;try{renderMainRoadFutureTest=render}catch(e){}
-  window.__V84_MAIN_FUTURE_TUNE__={version:85,test:tuned,render,accuracy:acc,settle,arm,baseVersion:72,coreScoringChanged:false,selectiveGate:true,minRoads:2};
+  window.__V84_MAIN_FUTURE_TUNE__={version:236,test:tuned,render,accuracy:acc,settle,arm,baseVersion:72,coreScoringChanged:true,shoeHistory:true,historyMaxWeight:.22,selectiveGate:true,minRoads:2};
   const title=document.querySelector('#mainRoadFutureTest .future-test-title');if(title)title.textContent='⚡ Main Road Future Test — P vs B';
   bind();setTimeout(bind,250);setTimeout(bind,900);setTimeout(()=>{try{arm();render()}catch(e){}},50);
 })();
@@ -16129,6 +16156,173 @@ function boot(){ensureUI();paintStats();update();if(runtime.installed)return;run
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1700));else setTimeout(boot,1700);
 window.__V213_SCAN_FIX__={version:VERSION,visibleCallMatchesGradingLock:true,sameHandFlipRequiresPlus6:true,transientWaitCannotHidePendingPick:true,afterTieLedgerSeparate:true,predictionLogicOtherwiseUnchanged:true};
+})();
+</script>
+
+
+<script id="v235-library-auto-refresh">
+/* ============================================================
+   V235 — LIBRARY AUTO-REFRESH + VERIFIED COUNTS
+   - Every successful new shoe save invalidates stale learned indexes.
+   - Deep full-library learning is rebuilt automatically after save.
+   - RED/BLACK/COMBINED changes are reflected in a visible audit strip.
+   - Startup detects stale trained knowledge and repairs it once.
+   - Duplicate saves do not retrain because the underlying save returns false.
+   ============================================================ */
+(function(){
+'use strict';
+const VERSION=235;
+const rt=window.__LIBRARY_AUTO_REFRESH_V235__=window.__LIBRARY_AUTO_REFRESH_V235__||{
+  busy:false,pending:false,lastSeenStamp:null,lastIndexedStamp:null,lastError:null,timer:null,installed:false
+};
+const cleanRaw=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+const cleanPB=s=>cleanRaw(s).replace(/T/g,'');
+function libs(){
+  const red=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[];
+  const black=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[];
+  return {red,black};
+}
+function totalSaved(){const L=libs();return L.red.length+L.black.length;}
+function activeLoaded(){try{return typeof activePatternLibrary==='function'?(activePatternLibrary()||[]).length:0}catch(e){return 0}}
+function uniqueEligible(){
+  const L=libs();let n=0;
+  for(const [color,arr] of Object.entries(L)){
+    const seen=new Set();
+    for(const x of arr){
+      const raw=cleanRaw(x?.sequence);
+      if(!/^[PBT]+$/.test(raw)||cleanPB(raw).length<12)continue;
+      const key=color+'|'+raw;
+      if(seen.has(key))continue;
+      seen.add(key);n++;
+    }
+  }
+  return n;
+}
+function stamp(){
+  const L=libs();
+  const tail=a=>a.slice(-3).map(x=>String(x?.id||x?.savedAt||x?.sequence||'')).join('~');
+  return `${L.red.length}:${tail(L.red)}|${L.black.length}:${tail(L.black)}`;
+}
+function indexedCount(){
+  const f=state?.fastLibraryLearning;
+  return Number(f?.shoeCount ?? ((Number(f?.redShoes)||0)+(Number(f?.blackShoes)||0)))||0;
+}
+function learnedStamp(){return state?.fastLibraryLearning?.librarySourceStamp||rt.lastIndexedStamp||null;}
+function trainedCurrent(){
+  const idx=indexedCount(),eligible=uniqueEligible();
+  if(!state?.fastLibraryLearning?.patternKnowledge)return false;
+  if(idx!==eligible)return false;
+  const ls=learnedStamp();
+  return !ls || ls===stamp();
+}
+function ensureAuditUI(){
+  const panel=document.getElementById('instantLibraryLearnPanel');
+  if(!panel||document.getElementById('libraryAuditV235'))return;
+  const d=document.createElement('div');d.id='libraryAuditV235';
+  d.style.cssText='margin-top:8px;padding:8px 10px;border:1px solid #3b4653;border-radius:10px;background:#10151b;font-size:11px;font-weight:800;line-height:1.45';
+  d.innerHTML='<div id="libraryAuditCountsV235">LIBRARY: checking…</div><div id="libraryAuditStateV235" style="margin-top:2px;color:#9ca5b1">INDEX: checking…</div>';
+  const status=document.getElementById('instantLibraryLearnStatus');
+  if(status&&status.parentNode===panel)panel.insertBefore(d,status);else panel.appendChild(d);
+}
+function paint(note){
+  ensureAuditUI();
+  const total=totalSaved(),active=activeLoaded(),eligible=uniqueEligible(),idx=indexedCount();
+  const mode=state?.predictionLibraryMode==='combined'?'COMBINED':String(state?.currentShoeColor||'NONE').toUpperCase();
+  const good=trainedCurrent()&&!rt.busy;
+  const a=document.getElementById('libraryAuditCountsV235');
+  const b=document.getElementById('libraryAuditStateV235');
+  if(a)a.textContent=`LIBRARY: ${total} SAVED • ${active} ACTIVE (${mode}) • ${eligible} DEEP-ELIGIBLE UNIQUE`;
+  if(b){
+    b.textContent=rt.busy?`INDEX: REBUILDING • previous ${idx}/${eligible}`:good?`INDEX: CURRENT • ${idx}/${eligible} indexed${note?' • '+note:''}`:`INDEX: STALE • ${idx}/${eligible} indexed${rt.lastError?' • '+rt.lastError:''}`;
+    b.style.color=rt.busy?'#f1c75b':good?'#8ff0b3':'#ff9f9f';
+  }
+}
+function invalidate(reason){
+  try{
+    if(state.fastLibraryLearning&&typeof state.fastLibraryLearning==='object'){
+      delete state.fastLibraryLearning.patternKnowledge;
+      state.fastLibraryLearning.libraryAutoRefreshStale=true;
+      state.fastLibraryLearning.libraryAutoRefreshReason=reason||'library changed';
+    }
+    if(window.__GPT_MIRROR_MEMORY_INDEX_V140__)window.__GPT_MIRROR_MEMORY_INDEX_V140__.stamp=null;
+    window.__invalidateAISignalCacheV43?.();
+  }catch(e){}
+  paint('refresh required');
+}
+async function rebuild(reason='library changed'){
+  if(rt.busy){rt.pending=true;return false;}
+  const total=totalSaved();
+  if(!total){paint('empty library');return false;}
+  rt.busy=true;rt.pending=false;rt.lastError=null;paint();
+  try{
+    const fn=window.runDeepLibraryScan||window.__deepLibraryLearnV15?.run;
+    if(typeof fn!=='function')throw new Error('Deep library learner unavailable');
+    await fn();
+    try{window.__recurrentSequenceV32?.train?.(true);}catch(e){}
+    try{window.__frozenLibraryAIv47?.trainOnce?.();}catch(e){}
+    try{window.__mlRoadTrainerV3?.trainAndValidate?.();}catch(e){}
+    try{window.__libraryKnowledgeV25?.refreshPanel?.();}catch(e){}
+    const s=stamp();rt.lastIndexedStamp=s;rt.lastSeenStamp=s;
+    if(state.fastLibraryLearning&&typeof state.fastLibraryLearning==='object'){
+      state.fastLibraryLearning.librarySourceStamp=s;
+      state.fastLibraryLearning.libraryAutoRefreshStale=false;
+      state.fastLibraryLearning.libraryAutoRefreshReason='';
+      state.fastLibraryLearning.libraryAutoRefreshedAt=new Date().toISOString();
+    }
+    try{persist?.();}catch(e){}
+    try{render?.();}catch(e){}
+    paint('auto-refreshed');
+    return true;
+  }catch(e){
+    rt.lastError=String(e?.message||e);console.error('V235 library auto-refresh failed',e);paint();return false;
+  }finally{
+    rt.busy=false;paint();
+    if(rt.pending){rt.pending=false;schedule('queued library change',350);}
+  }
+}
+function schedule(reason,delay=250){
+  clearTimeout(rt.timer);
+  rt.timer=setTimeout(()=>rebuild(reason),delay);
+}
+function onLibraryMutation(reason){
+  const s=stamp();rt.lastSeenStamp=s;
+  invalidate(reason);schedule(reason,180);paint();
+}
+function installSaveHook(){
+  const base=window.saveSequenceToLibrary||((typeof saveSequenceToLibrary==='function')?saveSequenceToLibrary:null);
+  if(typeof base!=='function'||base.__v235LibraryHook)return;
+  const wrapped=function(){
+    const before=stamp();
+    const ok=base.apply(this,arguments);
+    if(ok===true){
+      const after=stamp();
+      if(after!==before)onLibraryMutation('new shoe saved');
+    }
+    return ok;
+  };
+  wrapped.__v235LibraryHook=true;wrapped.__base=base;
+  window.saveSequenceToLibrary=wrapped;
+  try{saveSequenceToLibrary=wrapped}catch(e){}
+}
+function checkExternalLibraryChanges(){
+  const s=stamp();
+  if(rt.lastSeenStamp==null){rt.lastSeenStamp=s;return;}
+  if(s!==rt.lastSeenStamp){rt.lastSeenStamp=s;onLibraryMutation('library import/restore/change');}
+  else paint();
+}
+function boot(){
+  ensureAuditUI();installSaveHook();rt.lastSeenStamp=stamp();paint();
+  // Repair a stale persisted index from an older library snapshot once at startup.
+  if(totalSaved()>0&&!trainedCurrent()){invalidate('startup stale index');schedule('startup stale index',700);}
+  const old=window.render;
+  if(typeof old==='function'&&!old.__v235LibraryRender){
+    const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{installSaveHook();checkExternalLibraryChanges();},0);return r;};
+    w.__v235LibraryRender=true;w.__base=old;window.render=w;try{render=w}catch(e){}
+  }
+  if(!rt.installed){rt.installed=true;setInterval(checkExternalLibraryChanges,2500);}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2100));else setTimeout(boot,2100);
+window.__libraryAutoRefreshV235={version:VERSION,rebuild,invalidate,paint,stamp,totalSaved,activeLoaded,uniqueEligible,indexedCount,trainedCurrent};
 })();
 </script>
 
