@@ -16707,5 +16707,278 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 window.__V226_ML_DISPLAY__={version:VERSION,kept:['LIVE PREDICTION','LIVE CONFIDENCE','LIVE ACCURACY','WINS / LOSSES','COUNT','NEXT LOCK','AFTER TIE ACCURACY','RESET ML ACCURACY'],hidden:['validation stats','target pace','validation notes','live authority','unseen shoes','all test calls','selective test','selective N','baseline','live gate'],predictionLogicChanged:false};
 })();
 </script>
+
+<style id="v227-three-road-specialist-style">
+#threeRoadSpecialistV227{margin-top:10px;padding:14px;border:2px solid rgba(76,201,240,.72);border-radius:16px;background:rgba(76,201,240,.055)}
+#threeRoadSpecialistV227 .v227-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+#threeRoadSpecialistV227 .v227-title{font-size:18px;font-weight:900;letter-spacing:.2px}
+#threeRoadSpecialistV227 .v227-sub{font-size:11px;color:var(--muted);line-height:1.45;margin-top:5px}
+#threeRoadSpecialistV227 .v227-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:11px}
+#threeRoadSpecialistV227 .v227-card{border:1px solid var(--line);border-radius:13px;padding:11px;background:rgba(255,255,255,.025);min-width:0}
+#threeRoadSpecialistV227 .v227-roadname{font-size:13px;font-weight:900;margin-bottom:6px}
+#threeRoadSpecialistV227 .v227-pick{font-size:22px;font-weight:950;line-height:1.05}
+#threeRoadSpecialistV227 .v227-meta{font-size:10.5px;color:var(--muted);margin-top:5px;line-height:1.35}
+#threeRoadSpecialistV227 .v227-score{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}
+#threeRoadSpecialistV227 .v227-stat{border:1px solid var(--line);border-radius:9px;padding:6px 4px;text-align:center;font-size:9px;color:var(--muted)}
+#threeRoadSpecialistV227 .v227-stat b{display:block;font-size:13px;color:var(--text);margin-top:2px}
+#threeRoadSpecialistV227 .v227-after{margin-top:7px;font-size:10px;line-height:1.35}
+#threeRoadSpecialistV227 .v227-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:10px;color:var(--muted)}
+#threeRoadSpecialistV227 button{padding:7px 10px;border-radius:9px;border:1px solid var(--line);font-weight:800;background:rgba(255,255,255,.06);color:var(--text)}
+@media(max-width:700px){#threeRoadSpecialistV227 .v227-grid{grid-template-columns:1fr}}
+</style>
+<script id="v227-three-road-specialist-bead-ai">
+(function(){
+'use strict';
+const VERSION=234, STORE='baccaratThreeRoadSpecialistV234';
+const KEYS=['eye','small','roach'];
+const DEF={
+ eye:{label:'Big Eye Boy',offset:1,minSamples:3,minConf:54},
+ small:{label:'Small Road',offset:2,minSamples:3,minConf:54},
+ roach:{label:'Cockroach Road',offset:3,minSamples:3,minConf:55}
+};
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const freshRoad=()=>({w:0,l:0,afterW:0,afterL:0,pending:null,lastSettledHand:0,recent:[]});
+function fresh(){return {version:VERSION,shoeSig:'',roads:{eye:freshRoad(),small:freshRoad(),roach:freshRoad()}}}
+function loadState(){try{const x=JSON.parse(localStorage.getItem(STORE)||'null');if(x&&x.version===VERSION&&x.roads)return x}catch(e){}return fresh()}
+let mem=loadState();
+function save(){try{localStorage.setItem(STORE,JSON.stringify(mem))}catch(e){}}
+function seq(){try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>'PBT'.includes(x))}catch(e){return []}}
+function pbSeq(){return seq().filter(x=>x==='P'||x==='B')}
+function pbCount(a){return a.filter(x=>x==='P'||x==='B').length}
+function shoeSignature(a){return `${a.length?String(a[0]):'-'}:${Math.min(a.length,4)}:${a.slice(0,4).join('')}`}
+function ensureShoe(a){
+ const sig=shoeSignature(a); let changed=false;
+ if(a.length<=1 && mem.shoeSig && mem.shoeSig!==sig){
+   KEYS.forEach(k=>{mem.roads[k].pending=null;mem.roads[k].lastSettledHand=0;mem.roads[k].recent=[];});
+   changed=true;
+ }
+ if(mem.shoeSig!==sig){mem.shoeSig=sig;changed=true}
+ if(changed)save();
+}
+// V234 STANDARD 3-ROAD FOUNDATION ------------------------------------------
+// Self-contained casino-standard derived-road generator used ONLY by this AI.
+// Big Eye Boy = offset 1, Small Road = offset 2, Cockroach Road = offset 3.
+// RED/BLUE describe Big Road structure/consistency; they are NOT P/B labels.
+function standardBigRoadColumns(results){
+ const pb=(results||[]).map(x=>typeof x==='string'?x:x?.r).filter(r=>r==='P'||r==='B');
+ const cols=[];
+ for(const r of pb){
+  const last=cols[cols.length-1];
+  if(!last||last.side!==r)cols.push({side:r,len:1});else last.len++;
+ }
+ return cols;
+}
+function standardDerivedRoad(results,offset){
+ const cols=standardBigRoadColumns(results),marks=[];
+ if(cols.length<=offset)return marks;
+ for(let c=offset;c<cols.length;c++){
+  const currentLen=cols[c].len;
+  const startRow=(c===offset)?1:0;
+  for(let r=startRow;r<currentLen;r++){
+   let red;
+   if(r===0){
+    // New Big Road column: compare the depths of the two reference columns.
+    const nearLen=cols[c-1]?.len||0;
+    const farLen=cols[c-1-offset]?.len||0;
+    red=nearLen===farLen;
+   }else{
+    // Same Big Road column: compare occupancy at row r and row r-1
+    // in the reference column offset places to the left.
+    const refLen=cols[c-offset]?.len||0;
+    const sameRowExists=refLen>=r+1;
+    const aboveRowExists=refLen>=r;
+    red=sameRowExists===aboveRowExists;
+   }
+   marks.push(red?'R':'B');
+  }
+ }
+ return marks;
+}
+function standardPreviewMark(results,side,offset){
+ const base=(results||[]).map(x=>typeof x==='string'?x:x?.r).filter(r=>r==='P'||r==='B'||r==='T');
+ const before=standardDerivedRoad(base,offset);
+ const after=standardDerivedRoad(base.concat(side),offset);
+ return after.length>before.length?after[after.length-1]:null;
+}
+function roadArr(key){
+ try{return standardDerivedRoad(seq(),DEF[key].offset)}catch(e){return []}
+}
+function futureRoadMark(key,side){
+ try{return standardPreviewMark(seq(),side,DEF[key].offset)}catch(e){return null}
+}
+function beadFutureFit(side){
+ const a=pbSeq(),n=a.length;
+ if(!n)return {side,score:50,row:0,continuePrev:false,sameAbove:null,samples:0,label:'building'};
+ const row=n%6;
+ let yes=0,no=0,samples=0;
+ // 1) Current-shoe sequence transitions: how often did the recent 1-4 hand suffix lead to this side earlier in THIS shoe?
+ for(let k=Math.min(4,n);k>=1;k--){
+  const tail=a.slice(n-k).join('');
+  for(let pos=k;pos<n;pos++){
+   if(a.slice(pos-k,pos).join('')!==tail)continue;
+   const next=a[pos];if(next!=='P'&&next!=='B')continue;
+   const w=(.65+.35*(pos/n))*(1+(k-1)*.28);
+   if(next===side)yes+=w;else no+=w;samples++;
+  }
+ }
+ // 2) Bead-plate geometry: next cell is row n%6. Compare prior columns at the same row.
+ for(let pos=row;pos<n;pos+=6){
+  if(pos===n)continue;
+  const v=a[pos];if(v!=='P'&&v!=='B')continue;
+  const rec=.55+.45*((pos+1)/n);
+  if(v===side)yes+=rec*.65;else no+=rec*.65;samples++;
+ }
+ // 3) Relationship to the bead cell directly above (6 hands back), learned from previous same-row transitions in this shoe.
+ let sameAbove=null;
+ if(n>=6){
+  const above=a[n-6];sameAbove=above===side;
+  let sameHits=0,diffHits=0;
+  for(let pos=6;pos<n;pos++){
+   const same=a[pos]===a[pos-6];
+   if(same)sameHits++;else diffHits++;
+  }
+  const tot=sameHits+diffHits;
+  if(tot){const w=1.1;if(sameAbove){yes+=w*(sameHits/tot);no+=w*(diffHits/tot)}else{yes+=w*(diffHits/tot);no+=w*(sameHits/tot)}}
+ }
+ // 4) Immediate continuation/chop tendency in this live shoe.
+ if(n>=3){
+  let cont=0,flip=0;
+  for(let i=1;i<n;i++){if(a[i]===a[i-1])cont++;else flip++}
+  const wantsCont=side===a[n-1],tot=cont+flip,w=.9;
+  if(tot){if(wantsCont){yes+=w*(cont/tot);no+=w*(flip/tot)}else{yes+=w*(flip/tot);no+=w*(cont/tot)}}
+ }
+ const total=yes+no,score=total?Math.round(clamp(100*yes/total,34,66)):50;
+ return {side,score,row,continuePrev:side===a[n-1],sameAbove,samples,label:`row ${row+1} • ${side===a[n-1]?'continues':'changes'} last${sameAbove===null?'':sameAbove?' • matches above':' • differs above'}`};
+}
+function futureMatrix(){
+ const out={P:{},B:{}};
+ for(const side of ['B','P']){
+  out[side].eye=futureRoadMark('eye',side);out[side].small=futureRoadMark('small',side);out[side].roach=futureRoadMark('roach',side);out[side].bead=beadFutureFit(side);
+ }
+ return out;
+}
+function liveBeadSupport(){
+ const a=pbSeq(), n=a.length;
+ if(n<6)return {ready:false,pPct:50,bPct:50,samples:0,edge:0,side:null,reason:'current shoe building'};
+ let p=0,b=0,samples=0;
+ // Search ONLY earlier positions inside the current live shoe.
+ // Match the latest 3-6 P/B outcomes to earlier prefixes, recency weighted.
+ for(let k=Math.min(6,n-1);k>=3;k--){
+   const tail=a.slice(n-k).join('');
+   for(let pos=k;pos<n;pos++){
+     if(a.slice(pos-k,pos).join('')!==tail)continue;
+     const next=a[pos]; if(next!=='P'&&next!=='B')continue;
+     const recency=.65+.35*(pos/n), specificity=1+(k-3)*.22, w=recency*specificity;
+     if(next==='P')p+=w;else b+=w;samples++;
+   }
+ }
+ // Current-shoe rhythm fallback: recent 6-12 P/B hands, lightly weighted.
+ const win=a.slice(-Math.min(12,n));
+ let wp=0,wb=0;
+ win.forEach((x,i)=>{const w=.35+.65*((i+1)/win.length);if(x==='P')wp+=w;else wb+=w});
+ p+=wp*.28;b+=wb*.28;
+ const total=p+b;if(!total)return {ready:false,pPct:50,bPct:50,samples,edge:0,side:null,reason:'no live repeats yet'};
+ const pPct=Math.round(100*p/total),bPct=100-pPct,edge=Math.abs(pPct-bPct);
+ return {ready:samples>=2||edge>=8,pPct,bPct,samples,edge,side:pPct>bPct?'P':bPct>pPct?'B':null,reason:'current live shoe only'};
+}
+function liveRoadSignal(key){
+ const arr=roadArr(key).filter(x=>x==='R'||x==='B');
+ const n=arr.length,cfg=DEF[key];
+ if(n<4)return {side:null,pPct:50,bPct:50,strength:50,samples:0,mark:null,reason:'road building'};
+ const last=arr[n-1], recent=arr.slice(-Math.min(12,n));
+ let same=0,flip=0,samples=0;
+ // Learn the road's own transition behavior from THIS shoe only.
+ for(let i=1;i<n;i++){
+   let match=0;
+   const maxK=Math.min(4,i,n-i);
+   for(let k=maxK;k>=2;k--){
+     if(arr.slice(i-k,i).join('')===arr.slice(n-k,n).join('')){match=k;break}
+   }
+   if(!match)continue;
+   const w=(.7+.3*(i/n))*(1+(match-2)*.3);
+   if(arr[i]===last)same+=w;else flip+=w;samples++;
+ }
+ // Recent road continuation/chop rhythm is a secondary live-only signal.
+ let transitions=0,cont=0;
+ for(let i=1;i<recent.length;i++){transitions++;if(recent[i]===recent[i-1])cont++}
+ const contRate=transitions?cont/transitions:.5;
+ same+=contRate*1.25;flip+=(1-contRate)*1.25;
+ const total=same+flip, samePct=total?100*same/total:50;
+ const expected=samePct>=50?last:(last==='R'?'B':'R');
+
+ // Convert the expected RED/BLUE road mark to P/B by simulating only the CURRENT Big Road.
+ const pMark=futureRoadMark(key,'P'),bMark=futureRoadMark(key,'B');
+ let pScore=0,bScore=0;
+ if(pMark===expected)pScore++; if(bMark===expected)bScore++;
+ if(!pScore&&!bScore)return {side:null,pPct:50,bPct:50,strength:50,samples,expected,pMark,bMark,reason:'current road cannot separate P/B'};
+ const markConf=clamp(50+Math.abs(samePct-50)*.72,50,66);
+ const side=pScore>bScore?'P':'B';
+ return {side,pPct:side==='P'?Math.round(markConf):100-Math.round(markConf),bPct:side==='B'?Math.round(markConf):100-Math.round(markConf),strength:markConf,samples,expected,pMark,bMark,reason:'current road transitions only'};
+}
+function reliability(key){
+ const r=mem.roads[key],n=r.w+r.l;if(!n)return .5;
+ const recent=r.recent.length?r.recent.reduce((a,b)=>a+b,0)/r.recent.length:r.w/n;
+ return clamp(recent,.35,.70);
+}
+function specialistSignal(key){
+ const road=liveRoadSignal(key),cfg=DEF[key],rel=reliability(key),matrix=futureMatrix();
+ // V233: Bead Plate has ZERO prediction influence. It may still be displayed for reference,
+ // but it cannot confirm, veto, weight, soften, or change any of the three road predictions.
+ const beadP=matrix.P.bead,beadB=matrix.B.bead;
+ const bead={ready:false,pPct:50,bPct:50,samples:Math.max(beadP.samples||0,beadB.samples||0),edge:0,side:null,pFuture:beadP,bFuture:beadB,reason:'DISPLAY ONLY — 0% influence'};
+ if(!road.side)return {key,side:null,confidence:0,pPct:road.pPct,bPct:road.bPct,road,bead,rel,matrix,reason:'WAIT — '+road.reason};
+ let pPct=Math.round(clamp(road.pPct,34,66)),bPct=100-pPct,conf=Math.max(pPct,bPct);
+ let side=pPct>bPct?'P':bPct>pPct?'B':null;
+ if(road.samples<cfg.minSamples&&road.strength<58)side=null;
+ if(conf<cfg.minConf)side=null;
+ return {key,side,confidence:side?conf:0,pPct,bPct,road,bead,rel,matrix,reason:side?`${cfg.label} future-road test — road only`:'WAIT — road evidence not strong enough',agrees:false,opposes:false};
+}
+function settleAndArm(){
+ const a=seq();ensureShoe(a);const nPB=pbCount(a),last=a.at(-1);let dirty=false;
+ if(last==='P'||last==='B'){
+   KEYS.forEach(k=>{const r=mem.roads[k],p=r.pending;if(p&&p.targetPB===nPB&&r.lastSettledHand!==nPB){
+     const ok=p.side===last;if(ok)r.w++;else r.l++;if(p.afterTie){if(ok)r.afterW++;else r.afterL++}
+     r.recent.push(ok?1:0);if(r.recent.length>12)r.recent=r.recent.slice(-12);
+     r.lastSettledHand=nPB;r.pending=null;dirty=true;
+   }});
+ }
+ KEYS.forEach(k=>{const r=mem.roads[k],wantAfterTie=last==='T',target=nPB+1;
+   if(r.pending&&r.pending.targetPB===target&&r.pending.afterTie===wantAfterTie)return;
+   const x=specialistSignal(k);
+   r.pending=x.side?{side:x.side,targetPB:target,afterTie:wantAfterTie,atHands:a.length,confidence:x.confidence,pPct:x.pPct,bPct:x.bPct}:null;dirty=true;
+ });
+ if(dirty)save();
+}
+function acc(w,l){const n=w+l;return n?Math.round(100*w/n)+'%':'—'}
+function cardHTML(k){return `<div class="v227-card" id="v227-${k}"><div class="v227-roadname">${DEF[k].label} Specialist</div><div class="v227-pick" data-pick>WAIT</div><div class="v227-meta" data-final>Live P 50% • B 50%</div><div class="v227-meta" data-road>Road: building</div><div class="v227-meta" data-future>Future test: building</div><div class="v227-meta" data-bead>Bead (0% influence): building</div><div class="v227-score"><div class="v227-stat">Accuracy<b data-acc>—</b></div><div class="v227-stat">Wins<b data-w>0</b></div><div class="v227-stat">Losses<b data-l>0</b></div></div><div class="v227-after" data-after>After Tie: 0W–0L • —</div></div>`}
+function ensurePanel(){
+ if(document.getElementById('threeRoadSpecialistV227'))return;
+ const anchor=document.getElementById('derivedIndependentFinal')||document.getElementById('roadPreviewAiPanel');if(!anchor)return;
+ const box=document.createElement('div');box.id='threeRoadSpecialistV227';
+ box.innerHTML=`<div class="v227-head"><div><div class="v227-title">3-Road Specialist AI — 3 ROADS + BEAD FUTURE TEST</div><div class="v227-sub">Every hand tests BOTH possible futures. If BANKER wins next, it calculates the resulting Big Eye, Small, Cockroach mark and the Banker Bead-Plate fit. It repeats the same test for PLAYER. Each road stays independent and uses only the current live shoe.</div></div><button id="v227Reset">Reset 3-Road Scores</button></div><div class="v227-grid">${KEYS.map(cardHTML).join('')}</div><div class="v227-foot"><span id="v227BeadSummary">Bead (0% influence): building</span><span>LIVE ONLY • B-next vs P-next • 3 roads + Bead future-tested</span></div>`;
+ if(anchor.id==='derivedIndependentFinal')anchor.insertAdjacentElement('afterend',box);else anchor.parentNode.insertBefore(box,anchor);
+ document.getElementById('v227Reset').onclick=()=>{mem=fresh();mem.shoeSig=shoeSignature(seq());settleAndArm();renderPanel()};
+}
+function renderPanel(){
+ ensurePanel();const a=seq(),bead=liveBeadSupport(),target=pbCount(a)+1;
+ KEYS.forEach(k=>{const x=specialistSignal(k),r=mem.roads[k],root=document.getElementById('v227-'+k);if(!root)return;
+   const locked=r.pending&&r.pending.targetPB===target?r.pending:null;
+   const shownSide=locked?.side||x.side,shownConf=locked?.confidence||x.confidence,shownP=Number.isFinite(locked?.pPct)?locked.pPct:x.pPct,shownB=Number.isFinite(locked?.bPct)?locked.bPct:x.bPct;
+   root.querySelector('[data-pick]').textContent=(shownSide==='P'?'PLAYER':shownSide==='B'?'BANKER':'WAIT')+(shownSide?` ${shownConf}%`:'');
+   root.querySelector('[data-final]').textContent=`Locked next P ${shownP}% • B ${shownB}%`;
+   root.querySelector('[data-road]').textContent=`Current ${DEF[k].label}: P ${Math.round(x.road.pPct)}% • B ${Math.round(x.road.bPct)}%${x.road.expected?` • expects ${x.road.expected==='R'?'RED':'BLUE'}`:''} • ${x.reason}`;
+   const mark=v=>v==='R'?'🔴':v==='B'?'🔵':'—';
+   root.querySelector('[data-future]').textContent=`B next → ${DEF[k].label} ${mark(x.matrix.B[k])} • Bead ${x.matrix.B.bead.score}% | P next → ${DEF[k].label} ${mark(x.matrix.P[k])} • Bead ${x.matrix.P.bead.score}%`;
+   root.querySelector('[data-bead]').textContent=`Bead future: P-fit ${x.matrix.P.bead.score}% (${x.matrix.P.bead.label}) • B-fit ${x.matrix.B.bead.score}% (${x.matrix.B.bead.label})`;
+   root.querySelector('[data-acc]').textContent=acc(r.w,r.l);root.querySelector('[data-w]').textContent=r.w;root.querySelector('[data-l]').textContent=r.l;
+   root.querySelector('[data-after]').textContent=`After Tie: ${r.afterW}W–${r.afterL}L • ${acc(r.afterW,r.afterL)} • live recent ${Math.round(reliability(k)*100)}%`;
+ });
+ const bs=document.getElementById('v227BeadSummary');if(bs){const fm=futureMatrix();bs.textContent=`Bead future test: BANKER fit ${fm.B.bead.score}% • PLAYER fit ${fm.P.bead.score}% • current shoe only`;}
+}
+function update(){try{settleAndArm();renderPanel();window.__THREE_ROAD_SPECIALIST_V232__={version:VERSION,mode:'LIVE_SHOE_ONLY_FUTURE_TEST',signals:Object.fromEntries(KEYS.map(k=>[k,specialistSignal(k)])),state:mem}}catch(e){console.warn('V232 specialist update',e)}}
+function install(){ensurePanel();const old=window.render;if(typeof old==='function'&&!old.__v232){const wrapped=function(){const out=old.apply(this,arguments);setTimeout(update,0);return out};wrapped.__v232=true;window.render=wrapped}update()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1200),{once:true});else setTimeout(install,1200);
+})();
+</script>
 </body>
 </html>
