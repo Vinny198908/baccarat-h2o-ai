@@ -809,7 +809,7 @@
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Independent agreement</span><strong id="gptMirrorAgreement">0/0</strong></div>
 <div class="analyzer-card"><span>3-road future influence</span><strong id="gptMirrorRoadFuture">BUILDING</strong></div>
-<div class="analyzer-card"><span>Verified accuracy</span><strong id="gptMirrorAccuracy">—</strong></div><div class="analyzer-card"><span>Continuous learning</span><strong id="gptMirrorLearning">0 updates</strong></div><div class="analyzer-card"><span>Pretrained library</span><strong id="gptMirrorPretrained">97 shoes</strong></div>
+<div class="analyzer-card"><span>Verified accuracy</span><strong id="gptMirrorAccuracy">—</strong></div><div class="analyzer-card"><span>Continuous learning</span><strong id="gptMirrorLearning">0 updates</strong></div><div class="analyzer-card"><span>Pretrained library</span><strong id="gptMirrorPretrained">—</strong></div>
 </div>
 <div class="analyzer-grid">
 <div class="analyzer-card"><span>Historical matches</span><strong id="gptMirrorHistory">0</strong></div>
@@ -1705,11 +1705,14 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
   const s=seq.join('');
   const duplicateIndex=state[key].findIndex(x=>x && x.sequence===s);
   if(duplicateIndex!==-1){
+    // V238 SAVE FIX: automatic/quiet saves silently skip an exact shoe that was
+    // already saved manually. This prevents the false duplicate warning when
+    // New Shoe auto-save runs immediately after a successful manual Save Shoe.
+    if(quiet) return false;
     const existing=state[key][duplicateIndex]||{};
     const savedWhen=existing.savedAt ? new Date(existing.savedAt).toLocaleString() : 'an earlier save';
-    // Duplicate warnings are NEVER hidden, including Auto-save and screenshot saves.
     const savedSource=String(existing.source||'manual').toUpperCase();
-    alert(`SHOE ALREADY IN LIBRARY\n\nThis exact ${saveColorName} shoe is already stored.\nExisting copy: #${duplicateIndex+1} • ${savedWhen} • ${savedSource}\n\nNo duplicate copy was added. If this shoe came from a screenshot, V171 no longer pre-saves screenshots, so new screenshot shoes can now be saved normally.`);
+    alert(`SHOE ALREADY IN LIBRARY\n\nThis exact ${saveColorName} shoe is already stored.\nExisting copy: #${duplicateIndex+1} • ${savedWhen} • ${savedSource}\n\nNo duplicate copy was added.`);
     return false;
   }
   state[key].push(makeShoeRecord(seq,source));
@@ -3019,7 +3022,7 @@ async function scoreWithDeepSeek(showAlert=false){
   try{
     const headers={'Content-Type':'application/json'};
     if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
-    const payload={features:h2oFeatures(),shoes:activePatternLibrary().slice(-120)};
+    const payload={features:h2oFeatures(),shoes:[...(state.redPatternLibrary||[]),...(state.blackPatternLibrary||[])]};
     const data=await h2oRequestJson(state.deepseek.url,{method:'POST',headers,body:JSON.stringify(payload)});
     const out=normalizeDeepSeekResponse(data);
     state.deepseek.last=out;state.deepseek.connected=true;state.deepseek.error='';persist();renderAnalyzer();renderDeepSeek();
@@ -13633,7 +13636,7 @@ window.gptMirrorThreeRoadFutureInfluence = function(regime){
 
   if(!ix.roadReady){
     const detail=live.map(x=>`${x.name}: now ${roadMarkLabel(x.cur)||'—'} • P→${roadMarkLabel(x.p)||'—'} / B→${roadMarkLabel(x.b)||'—'}`);
-    detail.push('Mirror 97-shoe road-memory index is building once in the background; live full-library rescanning is disabled.');
+    detail.push('Mirror full-library road-memory index is building once in the background; live per-hand full-library rescanning is disabled.');
     return {side:null,strength:0,pPct:50,bPct:50,edge:0,ready,detail,future,
       pMain:future?.p?.main||'',bMain:future?.b?.main||'',learned:true,exactN:0,nearN:0,effectiveN:0,mainAgree:false,indexing:true};
   }
@@ -16326,5 +16329,259 @@ window.__libraryAutoRefreshV235={version:VERSION,rebuild,invalidate,paint,stamp,
 })();
 </script>
 
+
+
+<!-- V238 SAVE DUPLICATE + FULL-LIBRARY + CACHE STABILITY FIX -->
+<!-- V237 UNIFIED LIVE ADAPTATION + AUTOMATIC FULL-LIBRARY PROCESSING FIX -->
+<script id="v237-unified-live-adapt-full-library">
+(function(){
+'use strict';
+const VERSION=237;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,Number(x)||0));
+const pb=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'').replace(/T/g,'');
+const validSide=s=>s==='P'||s==='B';
+const MODEL_KEYS=['seqv2','color','roadpreview','derivedorig','derivedmain','seqdup','bestestimate','metav23','contextv25','shadowv29','mirror','ml'];
+let index=null,indexSig='',building=false,lastAutoTrainSig='';
+function allShoes(){
+  const a=[];
+  try{(state.redPatternLibrary||[]).forEach(x=>a.push({...x,__v237Color:'red'}));}catch(e){}
+  try{(state.blackPatternLibrary||[]).forEach(x=>a.push({...x,__v237Color:'black'}));}catch(e){}
+  const seen=new Set(),out=[];
+  for(const x of a){
+    const raw=String(x?.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
+    if(raw.length<4)continue;
+    const color=x.__v237Color||String(x?.shoeColor||'').toLowerCase()||'unknown';
+    const k=color+'|'+raw;
+    if(seen.has(k))continue; seen.add(k);
+    out.push({sequence:raw,color,id:x?.id||k});
+  }
+  return out;
+}
+function signature(){
+  const s=allShoes();
+  let h=2166136261>>>0;
+  for(const x of s){
+    // V238: hash the complete saved sequence so edits/differences in the middle
+    // cannot leave a stale full-library index behind.
+    const z=x.color+'|'+x.sequence;
+    for(let i=0;i<z.length;i++){h^=z.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}
+  }
+  return `${s.length}:${h}`;
+}
+function add(map,key,next){
+  let z=map.get(key); if(!z){z={p:0,b:0,t:0,n:0};map.set(key,z)}
+  z.n++; if(next==='P')z.p++; else if(next==='B')z.b++; else if(next==='T')z.t++;
+}
+function buildIndex(){
+  if(building)return index;
+  building=true;
+  try{
+    const shoes=allShoes(),map=new Map(); let hands=0;
+    for(const sh of shoes){
+      const seq=sh.sequence;
+      for(let i=3;i<seq.length;i++){
+        const nxt=seq[i]; if(!'PBT'.includes(nxt))continue;
+        hands++;
+        for(let k=3;k<=Math.min(16,i);k++){
+          const tail=seq.slice(i-k,i);
+          add(map,`*|${k}|${tail}`,nxt);
+          add(map,`${sh.color}|${k}|${tail}`,nxt);
+        }
+      }
+    }
+    index={version:VERSION,shoes:shoes.length,hands,map,builtAt:Date.now(),red:shoes.filter(x=>x.color==='red').length,black:shoes.filter(x=>x.color==='black').length};
+    indexSig=signature();
+    try{state.v237LibraryMeta={version:VERSION,signature:indexSig,shoes:index.shoes,hands:index.hands,red:index.red,black:index.black,builtAt:index.builtAt};persist?.();}catch(e){}
+    return index;
+  }finally{building=false}
+}
+function ensureIndex(){const s=signature();if(!index||s!==indexSig)return buildIndex();return index;}
+function liveSequence(){try{return currentSequence().filter(x=>'PBT'.includes(x)).join('')}catch(e){return ''}}
+function phase(n){return n<12?'EARLY':n<30?'MIDDLE':n<48?'LATE':'VERY LATE'}
+function regime(){
+  const a=pb(liveSequence()).slice(-12); if(a.length<5)return {name:'BUILDING',switchRate:.5,streak:0};
+  let sw=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])sw++;
+  const r=sw/Math.max(1,a.length-1);let streak=1;for(let i=a.length-1;i>0&&a[i]===a[i-1];i--)streak++;
+  return {name:r>=.68?'CHOP':r<=.32?'RUN':'MIXED',switchRate:r,streak};
+}
+function libraryEvidence(){
+  const ix=ensureIndex(),cur=liveSequence(); if(!ix||cur.length<3)return {side:null,conf:.5,edge:0,n:0,p:.5,b:.5,windows:0};
+  const liveColor=state?.currentShoeColor==='red'?'red':state?.currentShoeColor==='black'?'black':null;
+  let wp=0,wb=0,ww=0,n=0,wins=0;
+  for(let k=3;k<=Math.min(16,cur.length);k++){
+    const tail=cur.slice(-k);
+    const global=ix.map.get(`*|${k}|${tail}`);
+    const same=liveColor?ix.map.get(`${liveColor}|${k}|${tail}`):null;
+    if(!global)continue;
+    // Full RED+BLACK library is ALWAYS the base evidence pool.
+    // Same-color history is only a modest additive confirmation, never an exclusion.
+    const gp=global.p||0,gb=global.b||0,gden=gp+gb;if(!gden)continue;
+    const sp=same?.p||0,sb=same?.b||0,sden=sp+sb;
+    const bonus=sden?0.30:0;
+    const pRate=((gp/gden)+(bonus*(sp/sden||0)))/(1+bonus);
+    const bRate=((gb/gden)+(bonus*(sb/sden||0)))/(1+bonus);
+    const sample=Math.min(1,gden/8),lenW=.55+.065*k,w=lenW*(.5+.5*sample);
+    wp+=pRate*w;wb+=bRate*w;ww+=w;n+=gden;wins++;
+  }
+  if(!ww)return {side:null,conf:.5,edge:0,n:0,p:.5,b:.5,windows:0};
+  const p=wp/ww,b=wb/ww,side=p>=b?'P':'B',conf=Math.max(p,b),edge=Math.abs(p-b);
+  return {side,conf,edge,n,p,b,windows:wins,fullLibrary:true,sameColorBonus:liveColor?0.30:0};
+}
+function modelRecent(key){
+  try{
+    const m=state?.accuracyVerified?.models?.[key];
+    const a=Array.isArray(m?.last10)?m.last10.slice(-10):[];
+    const b=Array.isArray(m?.last25)?m.last25.slice(-25):[];
+    const short=a.length?a.reduce((x,y)=>x+(y?1:0),0)/a.length:.5;
+    const long=b.length?b.reduce((x,y)=>x+(y?1:0),0)/b.length:short;
+    return {short,long,n:a.length,total:Number(m?.predictions)||0};
+  }catch(e){return {short:.5,long:.5,n:0,total:0}}
+}
+function adapt(key,x){
+  if(!x||typeof x!=='object')return x;
+  const ev=libraryEvidence(),rg=regime(),r=modelRecent(key),curN=pb(liveSequence()).length;
+  const out={...x,v237Adaptive:true,v237Regime:rg.name,v237LibraryShoes:index?.shoes||0,v237LibraryEvidence:ev.n,v237LiveN:r.n};
+  const side=validSide(x.side)?x.side:(validSide(x.rawSide)?x.rawSide:null);
+  if(!side)return out;
+  const raw=clamp(x.strength??x.confidence??x.top??50,0,100);
+  // Live performance progressively matters more after 3 graded calls, capped to avoid chasing noise.
+  const liveW=r.n<3?0:r.n<5?.18:r.n<8?.28:.38;
+  const histW=(ev.n>=4&&ev.windows>=2)?Math.min(.30,.10+ev.windows*.025):0;
+  const recentAdj=(r.short-.5)*28*liveW;
+  const histAgree=ev.side===side?1:-1;
+  const histAdj=histW?histAgree*ev.edge*100*.55:0;
+  // Regime awareness changes trust, not the predicted side by itself.
+  let regimeAdj=0;
+  if(rg.name==='CHOP'&&rg.streak>=3)regimeAdj-=1.5;
+  if(rg.name==='RUN'&&rg.streak>=4)regimeAdj+=1.5;
+  let adjusted=clamp(raw+recentAdj+histAdj+regimeAdj,50,90);
+  // If the model is cold AND full-library continuation strongly opposes it, WAIT rather than blindly repeat.
+  const strongConflict=ev.n>=8&&ev.windows>=3&&ev.edge>=.18&&ev.side!==side;
+  const liveCold=r.n>=5&&r.short<.43;
+  if(strongConflict&&liveCold){
+    out.side=null;out.qualified=false;out.status='WAIT';out.v237Blocked=true;
+    out.reason=`V238 LIVE ADAPT WAIT: ${key} is ${(r.short*100).toFixed(0)}% over its recent graded calls and ${ev.n} full-library continuations favor the opposite side. Current regime: ${rg.name}.`;
+    out.strength=0;if('confidence'in out)out.confidence=0;if('top'in out)out.top=0;return out;
+  }
+  out.strength=Math.round(adjusted*10)/10;
+  if('confidence'in out)out.confidence=out.strength;
+  if('top'in out)out.top=out.strength;
+  out.v237RecentRate=r.short;out.v237LibrarySide=ev.side;out.v237LibraryEdge=ev.edge;out.v237Phase=phase(curN);
+  return out;
+}
+function installAdapter(){
+  const prev=window.__slV10Signal;
+  if(prev?.__v237)return;
+  const w=function(key,x){let y=x;try{y=typeof prev==='function'?prev(key,x):x}catch(e){};try{return adapt(key,y)}catch(e){return y}};
+  w.__v237=true;w.__previous=prev;window.__slV10Signal=w;
+}
+function patchDirect(name,key){
+  const f=window[name]; if(typeof f!=='function'||f.__v237)return;
+  const w=function(){const x=f.apply(this,arguments);return adapt(key,x)};w.__v237=true;w.__base=f;window[name]=w;
+  try{eval(`${name}=window[name]`)}catch(e){}
+}
+function visibleStatus(){
+  let d=document.getElementById('v237LiveLibraryStatus');
+  if(!d){
+    d=document.createElement('div');d.id='v237LiveLibraryStatus';d.className='analyzer';d.style.cssText='border-color:#35d06f;box-shadow:0 0 0 1px rgba(53,208,111,.18) inset';
+    d.innerHTML='<div class="analyzer-title">⚡ V238 Live Adaptation + Full Library Processor</div><div class="analyzer-grid"><div class="analyzer-card"><span>LIBRARY</span><strong id="v237Lib">—</strong></div><div class="analyzer-card"><span>LIVE REGIME</span><strong id="v237Regime">—</strong></div><div class="analyzer-card"><span>ADAPTATION</span><strong>ACTIVE</strong></div></div><div class="analyzer-sub" id="v237Note" style="margin-top:8px"></div>';
+    const anchor=document.getElementById('instantLibraryLearnPanel')||document.querySelector('.analyzer');anchor?.parentNode?.insertBefore(d,anchor);
+  }
+  const ix=ensureIndex(),rg=regime(),ev=libraryEvidence();
+  const a=document.getElementById('v237Lib'),b=document.getElementById('v237Regime'),n=document.getElementById('v237Note');
+  if(a)a.textContent=`${ix?.shoes||0} shoes / ${ix?.hands||0} hands`;
+  if(b)b.textContent=rg.name;
+  if(n)n.textContent=`AUTO INDEX ACTIVE — ${ix?.red||0} RED + ${ix?.black||0} BLACK unique saved shoes processed. Current full-library continuation evidence: ${ev.n||0} matches across ${ev.windows||0} windows. Major AIs receive recent verified-performance + current-shoe regime adjustment; Sequence AI V2 core formula remains unchanged.`;
+}
+function autoRetrainBetweenShoes(){
+  try{
+    const sig=signature();if(sig===lastAutoTrainSig)return;
+    if((state?.hands||[]).length)return; // never run heavy training during live play
+    lastAutoTrainSig=sig;
+    setTimeout(async()=>{
+      try{if(typeof window.runDeepLibraryScan==='function')await window.runDeepLibraryScan();}catch(e){console.warn('V237 deep scan',e)}
+      try{const ds=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;ds?.build?.();ds?.refresh?.();}catch(e){console.warn('V237 dataset refresh',e)}
+      try{const ml=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;if(typeof ml?.trainAndValidate==='function')await ml.trainAndValidate();}catch(e){console.warn('V237 ML retrain',e)}
+      try{visibleStatus()}catch(e){}
+    },80);
+  }catch(e){}
+}
+function install(){
+  ensureIndex();installAdapter();
+  // Direct engines that can bypass __slV10Signal in some panels.
+  patchDirect('sequenceAIDuplicateSignal','seqdup');
+  patchDirect('computeCombinedAnalyzer','bestestimate');
+  const oldRender=window.render;
+  if(typeof oldRender==='function'&&!oldRender.__v237){
+    const r=function(){ensureIndex();installAdapter();const z=oldRender.apply(this,arguments);try{visibleStatus();autoRetrainBetweenShoes()}catch(e){}return z};r.__v237=true;window.render=r;try{render=r}catch(e){}
+  }
+  visibleStatus();autoRetrainBetweenShoes();
+  setInterval(()=>{try{ensureIndex();installAdapter();visibleStatus()}catch(e){}},2500);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1800));else setTimeout(install,1800);
+window.__V237_LIVE_LIBRARY__={version:VERSION,rebuild:buildIndex,evidence:libraryEvidence,adapt,regime,status:()=>index};
+})();
+</script>
+
+
+<!-- V239 CANONICAL FULL-LIBRARY ROUTER + STALE LABEL FIX -->
+<script id="v239-canonical-full-library-router">
+(function(){
+'use strict';
+const VERSION=239;
+function cleanSeq(x){return String(x?.sequence||'').toUpperCase().replace(/[^PBT]/g,'');}
+function canonicalFullPatternLibrary(){
+  const pools=[];
+  try{(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]).forEach(x=>pools.push({x,color:'red'}));}catch(e){}
+  try{(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[]).forEach(x=>pools.push({x,color:'black'}));}catch(e){}
+  const seen=new Set(),out=[];
+  for(const row of pools){
+    const seq=cleanSeq(row.x); if(seq.length<4)continue;
+    const k=row.color+'|'+seq; if(seen.has(k))continue; seen.add(k);
+    if(row.x && typeof row.x==='object'){
+      // Keep the original record shape used by legacy AIs while normalizing color/sequence.
+      out.push({...row.x,sequence:seq,shoeColor:row.x.shoeColor||row.color,__v239Color:row.color});
+    }
+  }
+  return out;
+}
+// The old accessor was the source of inconsistent RED-only / BLACK-only prediction paths.
+// From V239 forward, any AI asking for historical prediction data receives the complete
+// deduplicated RED + BLACK library. Saving remains color-separated through the original keys.
+window.canonicalFullPatternLibrary=canonicalFullPatternLibrary;
+window.activePatternLibrary=canonicalFullPatternLibrary;
+try{activePatternLibrary=canonicalFullPatternLibrary}catch(e){}
+function refreshLabels(){
+  try{
+    const lib=canonicalFullPatternLibrary();
+    const red=lib.filter(x=>x.__v239Color==='red').length;
+    const black=lib.filter(x=>x.__v239Color==='black').length;
+    const el=document.getElementById('gptMirrorPretrained');
+    if(el)el.textContent=`${lib.length} shoes (${red}R + ${black}B)`;
+    const note=document.getElementById('v237Note');
+    if(note && !/CANONICAL FULL LIBRARY/.test(note.textContent||'')) note.textContent += ' • CANONICAL FULL LIBRARY ROUTER ACTIVE';
+  }catch(e){}
+}
+function invalidateAndRefresh(){
+  try{window.__V237_LIVE_LIBRARY__?.rebuild?.()}catch(e){}
+  try{refreshLabels()}catch(e){}
+}
+// Keep UI/library counts accurate after saves/imports without doing heavy model training here.
+let lastSig='';
+function lightWatch(){
+  try{
+    const lib=canonicalFullPatternLibrary();
+    let h=2166136261>>>0;
+    for(const x of lib){const z=(x.__v239Color||'')+'|'+cleanSeq(x);for(let i=0;i<z.length;i++){h^=z.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}}
+    const sig=lib.length+':'+h;
+    if(sig!==lastSig){lastSig=sig;invalidateAndRefresh();}
+    else refreshLabels();
+  }catch(e){}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(lightWatch,1900));else setTimeout(lightWatch,1900);
+setInterval(lightWatch,5000);
+window.__V239_FULL_LIBRARY__={version:VERSION,get:canonicalFullPatternLibrary,refresh:invalidateAndRefresh};
+})();
+</script>
 </body>
 </html>
