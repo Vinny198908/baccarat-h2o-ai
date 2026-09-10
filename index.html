@@ -16969,17 +16969,33 @@ window.__V240_SELECTIVE_QUALITY__={version:VERSION,adjust,context,regime,shoeBia
 
     try{
       state.hands=Array.isArray(state.hands)?state.hands:[];
+
+      // V254: settle the prediction while state.hands still represents the pre-result shoe.
+      // This is the contract used by the V178 authoritative accuracy engine and its
+      // after-tie wrappers, so no temporary pop/push compatibility mutation is needed.
+      try{window.__settleVerifiedPredictions?.(actual)}catch(e){console.warn('V254 settle',e)}
+
       state.hands.push({r:actual,pp:!!state.pp,bp:!!state.bp,special:!!state.special,ts:Date.now()});
       state.scanSnapshot=null;
       state.pp=state.bp=state.special=false;
       document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
 
-      // Paint the hand first so the button always feels immediate.
+      // Paint the committed hand immediately.
       paintEssential();
 
       clearTimeout(window.__v247PersistTimer);
       window.__v247PersistTimer=setTimeout(()=>{try{window.persist?.()}catch(e){}},500);
-      settleLater(actual);
+
+      // Arm only the NEXT hand after commit. Keep this sliced/deferred so expensive
+      // model getters cannot monopolize the P/B/T click thread.
+      setTimeout(()=>{
+        try{window.armNextPrediction?.()}catch(e){}
+        try{window.armGPTMirrorPrediction?.()}catch(e){}
+        try{window.__armVerifiedPredictions?.()}catch(e){}
+        try{window.__armAdaptiveDerivedRoads?.()}catch(e){}
+        try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}
+        try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
+      },0);
     }catch(e){
       console.error('V247 P/B/T commit',e);
     }
@@ -17112,30 +17128,9 @@ function refresh(){
   try{window.__V204_AFTER_TIE_ACCURACY__?.paint?.()}catch(e){}
 }
 
-// V247 commits state.hands before settlement. All older accuracy wrappers were written
-// for pre-commit settlement. Temporarily expose the intended pre-result state while the
-// established settlement chain runs, then restore the committed hand immediately.
-const priorSettle=window.__settleVerifiedPredictions;
-if(typeof priorSettle==='function'){
-  window.__settleVerifiedPredictions=function(actual){
-    actual=String(actual||'').toUpperCase();
-    let popped=null, didPop=false, r;
-    try{
-      const h=Array.isArray(state?.hands)?state.hands:null;
-      const last=h?.[h.length-1];
-      if(h&&last&&String(last.r||last.result||last.side||'').toUpperCase()===actual){popped=h.pop();didPop=true;}
-      r=priorSettle.apply(this,arguments);
-    }catch(e){console.warn('V249 settlement compatibility',e)}
-    finally{
-      if(didPop){try{state.hands.push(popped)}catch(e){}}
-      try{window.persist?.()}catch(e){}
-      setTimeout(refresh,0);
-    }
-    return r;
-  };
-  window.__settleVerifiedPredictions.__v249=true;
-  window.__settleVerifiedPredictions.__base=priorSettle;
-}
+// V254: V247 now settles before committing the result, matching the original
+// authoritative accuracy contract. The old V249 pop/push settlement wrapper is
+// intentionally removed because it mutated live history during scoring.
 
 // Replace the all-at-once verified-accuracy arming burst with a sliced scheduler.
 // It evaluates at most 2 AI getters per task, preventing a large library scan from
@@ -17181,7 +17176,7 @@ window.__armVerifiedPredictions=scheduleArm;
 let refreshTimer=0;
 window.__V249_refreshAccuracy=function(){clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,60)};
 setTimeout(scheduleArm,350);
-window.__V249_FREEZE_ACCURACY_FIX__={version:VERSION,postCommitSettlementCompatibility:true,slicedAccuracyArm:true,batchSize:2,predictionFormulasChanged:false,sequenceV2CoreChanged:false};
+window.__V249_FREEZE_ACCURACY_FIX__={version:254,postCommitSettlementCompatibility:false,preCommitAuthoritativeSettlement:true,slicedAccuracyArm:true,batchSize:2,predictionFormulasChanged:false,sequenceV2CoreChanged:false};
 })();
 </script>
 
@@ -17234,6 +17229,115 @@ function restoreV72(){
 }
 if(!restoreV72()) setTimeout(restoreV72,0);
 setTimeout(restoreV72,3000);
+})();
+</script>
+
+<script id="v254-source-accuracy-freeze-fix-marker">
+window.__V254_SOURCE_ACCURACY_FREEZE_FIX__={version:254,preCommitSettlement:true,popPushCompatibilityRemoved:true,slicedAccuracyArm:true,mainRoadV72Untouched:true,sequenceV2Untouched:true};
+</script>
+
+
+<!-- V256 INDEPENDENT DERIVED — ADAPTIVE THREE-ROAD REGIME READER -->
+<script id="v256-independent-derived-adaptive-regime-reader">
+(function(){
+'use strict';
+if(window.__V256_INDEPENDENT_DERIVED__) return;
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const roadName=o=>o===1?'Big Eye Boy':o===2?'Small Road':'Cockroach Road';
+const roadKey=o=>o===1?'eye':o===2?'small':'roach';
+const baseWeight=o=>o===1?1.12:o===2?1.00:0.92;
+function liveMarks(offset){try{return deriveRoad(state.hands,offset)||[]}catch(e){return []}}
+function runLength(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}
+function transitionAlternation(a,n=7){const x=a.slice(-Math.min(a.length,n));if(x.length<3)return 0;let alt=0;for(let i=1;i<x.length;i++)if(x[i]!==x[i-1])alt++;return alt/(x.length-1)}
+function motifVote(a){
+  if(a.length<7)return {mark:null,confidence:0,matches:0,len:0};
+  for(let k=Math.min(5,a.length-2);k>=2;k--){
+    const tail=a.slice(-k).join('');let r=0,b=0,m=0;
+    for(let i=0;i+k<a.length-k;i++)if(a.slice(i,i+k).join('')===tail){const nxt=a[i+k];if(nxt==='R')r++;else if(nxt==='B')b++;m++}
+    if(m>=2&&r!==b){const mark=r>b?'R':'B',agreement=Math.max(r,b)/m;if(agreement>=0.60)return {mark,confidence:clamp(48+agreement*32+Math.min(8,m)*1.5,0,86),matches:m,len:k}}
+  }
+  return {mark:null,confidence:0,matches:0,len:0};
+}
+function shortMemory(a){
+  // Recent 4/6/8 marks dominate immediately after a road regime changes.
+  let r=0,b=0,used=0;
+  for(const n of [4,6,8]){
+    if(a.length<n)continue;used++;
+    const x=a.slice(-n),last=x[x.length-1],run=runLength(x),alt=transitionAlternation(x,n);
+    if(run>=3){const p=1.8+Math.min(3,run-2)*0.7;if(last==='R')r+=p;else b+=p}
+    if(alt>=0.72){const exp=last==='R'?'B':'R',p=1.8+(alt-.72)*6;if(exp==='R')r+=p;else b+=p}
+    const reds=x.filter(v=>v==='R').length/x.length;
+    if(reds>=0.70)r+=0.8;else if(reds<=0.30)b+=0.8;
+  }
+  return {r,b,used,expected:r===b?null:(r>b?'R':'B'),edge:Math.abs(r-b)};
+}
+function recentBreak(a){
+  // Look back up to 3 marks so the AI remembers a fresh break instead of trusting the old regime immediately.
+  let best={active:false,age:99,type:null,severity:0};
+  for(let age=0;age<=2;age++){
+    const idx=a.length-1-age;if(idx<4)continue;
+    const before=a.slice(0,idx),mark=a[idx],prevLast=before[before.length-1],prevRun=runLength(before),prevAlt=transitionAlternation(before,7);
+    let type=null,severity=0;
+    if(prevRun>=3 && mark!==prevLast){type='STREAK_BREAK';severity=2+Math.min(4,prevRun-2)*0.55}
+    else if(prevAlt>=0.78 && mark===prevLast){type='CHOP_BREAK';severity=2+(prevAlt-.78)*8}
+    if(type && severity>best.severity)best={active:true,age,type,severity:+severity.toFixed(2)};
+  }
+  return best;
+}
+function roadRead(offset){
+  const a=liveMarks(offset),n=a.length;
+  if(n<5)return {offset,key:roadKey(offset),name:roadName(offset),ready:false,expected:null,readStrength:0,reason:'Need more marks',marks:n,shift:{active:false}};
+  const last=a[n-1],run=runLength(a),alt=transitionAlternation(a,7),recent=a.slice(-8),redRate=recent.filter(x=>x==='R').length/recent.length;
+  const motif=motifVote(a),mem=shortMemory(a),shift=recentBreak(a);
+  let rScore=0,bScore=0,reasons=[];
+  // Current live structure.
+  if(run>=3){const pts=3.8+Math.min(5,run-2)*1.1;if(last==='R')rScore+=pts;else bScore+=pts;reasons.push(`${run}-mark ${last==='R'?'RED':'BLUE'} run`)}
+  if(alt>=0.78){const expected=last==='R'?'B':'R',pts=3.8+(alt-.78)*10;if(expected==='R')rScore+=pts;else bScore+=pts;reasons.push('alternating/chop rhythm')}
+  else if(alt<=0.28&&run<3){if(last==='R')rScore+=1.8;else bScore+=1.8;reasons.push('clustered consistency')}
+  // Short-term adaptation: recent 4/6/8 marks carry extra weight, especially for 0-2 hands after a break.
+  const memBoost=shift.active?1.45:0.85;
+  rScore+=mem.r*memBoost;bScore+=mem.b*memBoost;
+  if(mem.expected)reasons.push(`short-memory ${mem.expected==='R'?'RED':'BLUE'} (${mem.used} windows)`);
+  // Motif is useful, but old motif trust is cut sharply after a fresh regime break.
+  if(motif.mark){const decay=shift.active?(shift.age===0?0.25:shift.age===1?0.45:0.65):1;const pts=(3.0+(motif.confidence-50)/11)*decay;if(motif.mark==='R')rScore+=pts;else bScore+=pts;reasons.push(`${motif.len}-mark live motif x${motif.matches}${shift.active?' (de-weighted after break)':''}`)}
+  if(redRate>=0.72)rScore+=1.1;if(redRate<=0.28)bScore+=1.1;
+  // A fresh break prevents blindly continuing the broken regime: reward the new mark modestly and demand confirmation above.
+  if(shift.active){const fresh=a[a.length-1-shift.age];const p=Math.max(0.8,2.1-shift.age*0.45);if(fresh==='R')rScore+=p;else bScore+=p;reasons.push(`${shift.type} age ${shift.age+1}`)}
+  const diff=Math.abs(rScore-bScore),expected=rScore===bScore?null:(rScore>bScore?'R':'B');
+  const strength=expected?clamp(Math.round(50+diff*4.0-(shift.active?2:0)),50,86):0;
+  return {offset,key:roadKey(offset),name:roadName(offset),ready:!!expected,expected,readStrength:strength,rScore:+rScore.toFixed(2),bScore:+bScore.toFixed(2),run,alternation:+alt.toFixed(2),redRate:+redRate.toFixed(2),motif,shortMemory:mem,shift,reason:reasons.join(' + ')||'mixed structure',marks:n};
+}
+function adaptiveDerivedRoadAI(){
+  const reads=[1,2,3].map(roadRead);let pScore=0,bScore=0,usable=0,details=[];
+  for(const rd of reads){
+    let pMark=null,bMark=null;try{pMark=previewDerivedMark(state.hands,'P',rd.offset);bMark=previewDerivedMark(state.hands,'B',rd.offset)}catch(e){}
+    let vote=null;if(rd.ready&&pMark&&bMark&&pMark!==bMark){if(pMark===rd.expected)vote='P';else if(bMark===rd.expected)vote='B'}
+    let weight=0;if(vote){usable++;weight=baseWeight(rd.offset)*(0.72+Math.max(0,rd.readStrength-50)/34);if(rd.shift.active)weight*=0.90;if(vote==='P')pScore+=weight;else bScore+=weight}
+    details.push({...rd,pMark,bMark,vote,weight:+weight.toFixed(2)});
+  }
+  const total=pScore+bScore,diff=Math.abs(pScore-bScore),side=pScore===bScore?null:(pScore>bScore?'P':'B'),winner=Math.max(pScore,bScore),agreement=total?winner/total:0;
+  const pVotes=details.filter(x=>x.vote==='P').length,bVotes=details.filter(x=>x.vote==='B').length,maxVotes=Math.max(pVotes,bVotes),shiftCount=details.filter(x=>x.shift&&x.shift.active).length;
+  let qualified=!!side&&usable>=2&&agreement>=0.62&&diff>=0.45;
+  if(usable===2)qualified=qualified&&agreement>=0.66;
+  // After any fresh regime change, require explicit 2-of-3 road confirmation on the SAME P/B side.
+  if(shiftCount>0)qualified=qualified&&maxVotes>=2&&((side==='P'?pVotes:bVotes)>=2)&&agreement>=0.67;
+  if(shiftCount>=2)qualified=qualified&&maxVotes>=2&&agreement>=0.70;
+  const confidence=qualified?clamp(Math.round(50+agreement*22+diff*5+usable*1.5-(shiftCount?2:0)),55,84):0;
+  const voteText=details.filter(x=>x.vote).map(x=>`${x.name}→${x.vote==='P'?'PLAYER':'BANKER'} (${x.expected==='R'?'RED consistency':'BLUE/change'}${x.shift.active?', fresh break':''})`).join(' • ');
+  const reason=qualified?`ADAPTIVE THREE-ROAD READ — ${side==='P'?'PLAYER':'BANKER'}. ${voteText}. ${usable}/3 readable; ${maxVotes}/3 side confirmation; ${Math.round(agreement*100)}% weighted agreement${shiftCount?`; ${shiftCount} fresh regime shift${shiftCount>1?'s':''} detected`:''}.`:`WAIT — ${shiftCount?'fresh regime change requires 2-of-3 confirmation; ':' '}derived roads are mixed or not mature enough. ${voteText||'Need at least two clear road votes.'}`;
+  return {side:qualified?side:null,confidence,strength:confidence,pVotes,bVotes,winner:maxVotes,edge:total?diff/total:0,roads:details,ready:usable,qualifiedRoads:usable,regimeShiftCount:shiftCount,phase:(()=>{try{const n=currentSequence().filter(v=>v==='P'||v==='B').length;return n<18?'early':n<36?'middle':'late'}catch(e){return 'unknown'}})(),rhythm:'adaptive-three-road-regime-read',reason,adaptive:true,version:256,sourceContract:{primary:'LIVE_BIG_EYE_SMALL_ROACH_ONLY',mainRoadInfluence:false,savedShoeInfluence:false,sequenceAIInfluence:false,method:'BREAK_DETECTION_PLUS_SHORT_4_6_8_MEMORY_PLUS_2_OF_3_CONFIRMATION'}};
+}
+function install(){
+  try{window.derivedRoadSequenceAI=adaptiveDerivedRoadAI}catch(e){}
+  try{globalThis.derivedRoadSequenceAI=adaptiveDerivedRoadAI}catch(e){}
+  try{derivedRoadSequenceAI=adaptiveDerivedRoadAI}catch(e){}
+  const title=document.querySelector('.road-predict-title');if(title)title.textContent='Independent Derived Road AI V256 — Adaptive Regime Reader';
+  const card=document.getElementById('derivedRoadPick'),panel=card&&card.closest('.road-predict');if(panel){const sub=panel.querySelector('div[style*="margin-top:7px"]');if(sub)sub.innerHTML='Reads <b>Big Eye Boy + Small Road + Cockroach Road only</b>. Adds fresh break detection, short-term 4/6/8-mark adaptive memory, and a 2-of-3 confirmation gate after regime changes. Old motifs are automatically de-weighted for the first few marks after a break. Main Road Future, saved-shoe history, and Sequence AI do not vote.'}
+  window.__V256_INDEPENDENT_DERIVED__={version:256,installed:true,mainRoadInfluence:false,savedHistory:false,sequenceInfluence:false,breakDetection:true,shortMemory:[4,6,8],postShiftConfirmation:'2_OF_3',reader:adaptiveDerivedRoadAI};
+  try{window.__armVerifiedPredictions?.()}catch(e){}
+}
+install();setTimeout(install,0);setTimeout(install,500);
 })();
 </script>
 </body>
