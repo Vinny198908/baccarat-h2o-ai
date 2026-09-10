@@ -17385,6 +17385,158 @@ window.__V257_HARD_FREEZE_DECHAIN__={version:257,installed:true,mode:'SLICED_REN
 setTimeout(slicedRender,80);
 })();
 </script>
+
+<!-- V258 WIN/LOSS COUNTER FIX — reliable coalesced accuracy arming -->
+<script id="v258-win-loss-counter-fix">
+(function(){
+'use strict';
+if(window.__V258_WIN_LOSS_COUNTER_FIX__) return;
+
+const REMOVED=new Set(['seqdup','consensus','bot','metav49','metav50','metav23']);
+let running=false, requested=false, rerunTimer=0;
+
+function rawSeq(){
+  try{
+    return typeof currentSequence==='function'
+      ? currentSequence()
+      : ((state.hands||[]).map(h=>h?.r).filter(Boolean));
+  }catch(e){ return []; }
+}
+function normSide(x){
+  x=String(x||'').toUpperCase();
+  return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':null;
+}
+function central(){
+  state.accuracyVerified ||= {models:{},pending:{},ties:0,version:258};
+  state.accuracyVerified.models ||= {};
+  state.accuracyVerified.pending ||= {};
+  return state.accuracyVerified;
+}
+function defs(){
+  const rows=Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];
+  const seen=new Set();
+  return rows.filter(r=>{
+    const k=String(r?.[0]||'').toLowerCase();
+    if(!k||REMOVED.has(k)||seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}
+function model(k,n){
+  const a=central();
+  const m=a.models[k]||(a.models[k]={
+    name:n||k,wins:0,losses:0,predictions:0,waits:0,
+    last10:[],last25:[],last50:[],splits:{}
+  });
+  m.name=n||m.name||k;
+  for(const q of ['wins','losses','predictions','waits']) m[q]=Number(m[q])||0;
+  for(const q of ['last10','last25','last50']) if(!Array.isArray(m[q]))m[q]=[];
+  m.splits ||= {};
+  return m;
+}
+function paint(){
+  try{window.__V178_ACCURACY_COUNTS__?.refresh?.()}catch(e){}
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+  try{window.__V204_AFTER_TIE_ACCURACY__?.paint?.()}catch(e){}
+  try{window.__V249_refreshAccuracy?.()}catch(e){}
+}
+function armNow(){
+  if(running){ requested=true; return; }
+  running=true;
+  requested=false;
+
+  const a=central();
+  const seq=rawSeq();
+  const hand=seq.length+1;
+  const seqText=seq.join('');
+  const pb=seq.filter(x=>x==='P'||x==='B');
+  const color=String(state.currentShoeColor||'combined').toLowerCase();
+  const phase=pb.length<18?'early':pb.length<36?'middle':'late';
+  const afterTie=seq.at(-1)==='T';
+
+  // Only remove stale locks; never wipe a valid lock for the upcoming result.
+  for(const [k,p] of Object.entries(a.pending||{})){
+    if(!p || Number(p.hand)!==hand) delete a.pending[k];
+  }
+
+  const rows=defs();
+  let i=0;
+
+  function step(){
+    const end=Math.min(i+2, rows.length);
+    for(;i<end;i++){
+      const [k,n,get]=rows[i];
+      const m=model(k,n);
+      if(a.pending[k] && Number(a.pending[k].hand)===hand) continue;
+
+      let x=null;
+      try{x=get?.()||null}catch(e){x=null}
+      const s=normSide(x?.side);
+      if(s){
+        let strength=Number(x?.strength??x?.confidence??x?.top??0)||0;
+        if(strength<=1) strength*=100;
+        a.pending[k]={
+          side:s, hand, seq:seqText, lockedAt:Date.now(),
+          strength:Math.round(strength), color, phase,
+          afterTie, __v208AfterTie:afterTie
+        };
+      }else if(m.lastWaitHand!==hand){
+        m.waits++;
+        m.lastWaitHand=hand;
+      }
+    }
+
+    if(i<rows.length){
+      setTimeout(step,0);
+      return;
+    }
+
+    running=false;
+    try{window.persist?.()}catch(e){}
+    paint();
+
+    // If another arm request arrived while this pass was running,
+    // run exactly one fresh pass instead of cancelling the active pass.
+    if(requested){
+      requested=false;
+      clearTimeout(rerunTimer);
+      rerunTimer=setTimeout(armNow,0);
+    }
+  }
+  step();
+}
+
+const priorSettle=window.__settleVerifiedPredictions;
+function settle(actual){
+  let r;
+  try{
+    if(typeof priorSettle==='function') r=priorSettle.apply(this,arguments);
+  }finally{
+    // Settlement must be visible immediately, even if an older display wrapper stalls.
+    paint();
+  }
+  return r;
+}
+
+window.__armVerifiedPredictions=armNow;
+if(typeof priorSettle==='function') window.__settleVerifiedPredictions=settle;
+
+window.__V258_WIN_LOSS_COUNTER_FIX__={
+  version:258,
+  installed:true,
+  fix:'no-cancel accuracy arming queue',
+  preservesValidPendingLocks:true,
+  batchesPerTick:2,
+  immediateCounterPaint:true,
+  sequenceV2CoreChanged:false,
+  predictionLogicChanged:false,
+  state:central,
+  arm:armNow
+};
+
+setTimeout(armNow,50);
+})();
+</script>
+
 </body>
 </html>
 
