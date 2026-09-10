@@ -17970,3 +17970,120 @@ setTimeout(alignPatternRecognizer,1200);
 </html>
 
 <!-- V245 AUDIT FIX: replay dedupe + cross-diagnostic simulation lock; AI prediction formulas unchanged. -->
+
+<!-- V261 MIRROR + MAIN FUTURE COUNTER BRIDGE FIX
+     Restores the two independent visible accuracy ledgers after the V247/V254
+     anti-freeze P/B/T path intentionally bypassed older per-AI settle chains.
+     Prediction formulas are unchanged. -->
+<script id="v261-mirror-main-future-counter-fix">
+(function(){
+'use strict';
+if(window.__V261_MIRROR_MAIN_FUTURE_COUNTER_FIX__)return;
+const VERSION=261;
+
+function pbN(){
+  try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}
+}
+function mirrorState(){
+  try{return typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():(state.gptMirror||null)}catch(e){return null}
+}
+function mainApi(){
+  // V252 restored the visible Main Future panel to the V72 engine. Its own
+  // accuracy ledger must therefore be settled/armed with V72 as well.
+  return window.__V72_MAIN_FUTURE__||window.__V84_MAIN_FUTURE_TUNE__||window.__mainRoadFutureV55||null;
+}
+function paintTwo(){
+  try{window.renderGPTMirrorAI?.()}catch(e){}
+  try{window.renderMainRoadFutureTest?.()}catch(e){}
+}
+
+const oldSettle=window.__settleVerifiedPredictions;
+function settle(actual){
+  actual=String(actual||'').toUpperCase();
+  const targetPB=pbN()+1; // settlement occurs before the new hand is pushed
+
+  // MIRROR: real P/B/T input no longer runs V135's private Mirror settle job.
+  // Grade its already-armed pre-result call exactly once. Calling the legacy
+  // settle routine is naturally idempotent because it clears st.pending.
+  try{
+    const st=mirrorState();
+    if(st && st.pending){
+      const pendingPB=Number(st.pending.hand)||targetPB;
+      if((actual==='T') || (pendingPB===targetPB && st.__v261LastPB!==targetPB)){
+        if(typeof window.settleGPTMirrorPrediction==='function')window.settleGPTMirrorPrediction(actual);
+        else if(typeof settleGPTMirrorPrediction==='function')settleGPTMirrorPrediction(actual);
+        if(actual==='P'||actual==='B')st.__v261LastPB=targetPB;
+      }
+    }
+  }catch(e){console.warn('V261 Mirror settle',e)}
+
+  // MAIN FUTURE: settle the same V72 ledger that the visible counter renders.
+  try{
+    const api=mainApi(),a=api&&typeof api.accuracy==='function'?api.accuracy():null;
+    if(api&&a){
+      const q=a.pending;
+      const qPB=q?Number(q.handN||0)+1:0;
+      if(actual==='T'){
+        // V72 settle clears pending and records the tie; next arm is post-Tie.
+        if(q && a.__v261LastTieRaw!==currentSequence().length){
+          api.settle?.(actual);a.__v261LastTieRaw=currentSequence().length;
+        }
+      }else if((actual==='P'||actual==='B') && q && (qPB===targetPB||!qPB) && a.__v261LastPB!==targetPB){
+        api.settle?.(actual);a.__v261LastPB=targetPB;
+      }
+    }
+  }catch(e){console.warn('V261 Main Future settle',e)}
+
+  let r;
+  try{if(typeof oldSettle==='function')r=oldSettle.apply(this,arguments)}
+  finally{paintTwo()}
+  return r;
+}
+
+const oldArm=window.__armVerifiedPredictions;
+function arm(){
+  let r;
+  try{if(typeof oldArm==='function')r=oldArm.apply(this,arguments)}
+  finally{
+    // V247 already arms Mirror explicitly. Main Future was omitted, so restore it here.
+    try{mainApi()?.arm?.()}catch(e){console.warn('V261 Main Future arm',e)}
+    setTimeout(paintTwo,0);
+  }
+  return r;
+}
+
+window.__settleVerifiedPredictions=settle;
+window.__armVerifiedPredictions=arm;
+
+// Ensure both ledgers have a next-hand lock after startup/restoration.
+setTimeout(()=>{
+  try{
+    const st=mirrorState();
+    if(st && !st.pending && typeof window.armGPTMirrorPrediction==='function')window.armGPTMirrorPrediction();
+  }catch(e){}
+  try{mainApi()?.arm?.()}catch(e){}
+  paintTwo();
+},180);
+
+window.__V261_MIRROR_MAIN_FUTURE_COUNTER_FIX__={
+  version:VERSION,
+  installed:true,
+  mirrorIndependentLedgerRestored:true,
+  mainFutureVisibleLedger:'V72',
+  mainFutureRearmRestored:true,
+  predictionLogicChanged:false,
+  sequenceV2CoreChanged:false,
+  antiFreezeArchitectureChanged:false,
+  status:function(){
+    let m=null,a=null;
+    try{m=mirrorState()}catch(e){}
+    try{a=mainApi()?.accuracy?.()}catch(e){}
+    return {
+      pbHands:pbN(),
+      mirror:{pending:m?.pending?.side||null,wins:Number(m?.wins)||0,losses:Number(m?.losses)||0,predictions:Number(m?.predictions)||0},
+      mainFuture:{pending:a?.pending?.side||null,wins:Number(a?.wins)||0,losses:Number(a?.losses)||0,waits:Number(a?.waits)||0}
+    };
+  }
+};
+})();
+</script>
