@@ -17340,6 +17340,51 @@ function install(){
 install();setTimeout(install,0);setTimeout(install,500);
 })();
 </script>
+
+<!-- V257 HARD FREEZE DE-CHAIN — sliced render pipeline -->
+<script id="v257-hard-freeze-dechain">
+(function(){
+'use strict';
+if(window.__V257_HARD_FREEZE_DECHAIN__) return;
+const previousRender=window.render;
+let token=0, running=false, rerun=false, lastDuration=0;
+const critical=['renderRoad','renderDerived','renderStats','renderCurrentShoeColor'];
+const secondary=[
+ 'renderMainRoadFutureTest','renderSequenceAI','renderRoadPreviewAI','renderGPTMirrorAI',
+ 'renderVerifiedAccuracy','renderMLStats','renderAnalyzer','renderPreview','renderHistory',
+ 'renderPatternLibrary','renderSeparateShoes','renderDragonAlert'
+];
+function call(name){
+ try{const fn=window[name];if(typeof fn==='function')fn();}catch(e){console.warn('V257 '+name,e)}
+}
+function slicedRender(){
+ if(running){rerun=true;return;}
+ running=true;rerun=false;const my=++token,start=performance.now();
+ for(const n of critical)call(n);
+ let i=0;
+ const step=()=>{
+   if(my!==token){running=false;return;}
+   if(document.visibilityState==='hidden'){running=false;return;}
+   const end=Math.min(i+2,secondary.length);
+   for(;i<end;i++)call(secondary[i]);
+   if(i<secondary.length){setTimeout(step,0);return;}
+   running=false;lastDuration=Math.round(performance.now()-start);
+   window.__V257_HARD_FREEZE_DECHAIN__.lastRenderMs=lastDuration;
+   if(rerun)setTimeout(slicedRender,30);
+ };
+ setTimeout(step,0);
+}
+slicedRender.__v257=true;slicedRender.__legacy=previousRender;
+window.render=slicedRender;try{render=slicedRender}catch(e){}
+// Prevent late legacy wrappers from restoring a giant synchronous render chain.
+setTimeout(()=>{if(window.render!==slicedRender){window.render=slicedRender;try{render=slicedRender}catch(e){}}},1200);
+setTimeout(()=>{if(window.render!==slicedRender){window.render=slicedRender;try{render=slicedRender}catch(e){}}},4200);
+window.addEventListener('focus',()=>setTimeout(slicedRender,30),{passive:true});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(slicedRender,30)});
+window.__V257_HARD_FREEZE_DECHAIN__={version:257,installed:true,mode:'SLICED_RENDER',critical:critical.slice(),secondary:secondary.slice(),legacyChainDisabled:true,lastRenderMs:0,predictionLogicChanged:false,sequenceV2CoreChanged:false,mainRoadLogicChanged:false};
+setTimeout(slicedRender,80);
+})();
+</script>
 </body>
 </html>
 
