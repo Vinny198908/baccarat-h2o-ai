@@ -16593,7 +16593,7 @@ function lightWatch(){
   }catch(e){}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(lightWatch,1900));else setTimeout(lightWatch,1900);
-setInterval(lightWatch,5000);
+/* V248: disabled 5-second full-library hash polling to reduce UI stalls. */
 window.__V239_FULL_LIBRARY__={version:VERSION,get:canonicalFullPatternLibrary,refresh:invalidateAndRefresh};
 })();
 </script>
@@ -16902,141 +16902,169 @@ window.__V240_SELECTIVE_QUALITY__={version:VERSION,adjust,context,regime,shoeBia
 </script>
 
 
-<script id="v246-pbt-input-reliability-fix">
+<script id="v247-pbt-freeze-fix">
 (()=>{
   'use strict';
-  if(window.__V246_PBT_INPUT_FIX__) return;
+  if(window.__V247_PBT_FREEZE_FIX__) return;
 
   const sel='.main-buttons [data-result]';
-  let locked=false;
-  let lastEl=null,lastAt=0;
+  let lastAt=0,lastActual=null;
 
-  function actualFrom(el){
+  function getActual(el){
     const a=el?.dataset?.result;
     return (a==='P'||a==='B'||a==='T')?a:null;
   }
 
-  function lightweightRefresh(){
+  function paintEssential(){
     const jobs=[
       ()=>window.renderRoad?.(),
       ()=>window.renderDerived?.(),
       ()=>window.renderHistory?.(),
       ()=>window.renderStats?.(),
       ()=>window.renderPreview?.(),
-      ()=>window.renderDragonAlert?.(),
-      ()=>window.renderMainRoadFutureTest?.()
+      ()=>window.renderDragonAlert?.()
     ];
     let i=0;
-    const next=()=>{
+    const step=()=>{
       if(i>=jobs.length)return;
       try{jobs[i++]()}catch(e){}
-      setTimeout(next,0);
+      setTimeout(step,0);
     };
-    setTimeout(next,0);
+    setTimeout(step,0);
   }
 
-  function heavyAfter(actual){
-    const jobs=[
-      ()=>window.__settleVerifiedPredictions?.(actual),
-      ()=>window.__chartPatternRecognizerV156?.settle?.(actual),
-      ()=>window.__settleAdaptiveDerivedRoads?.(actual),
-      ()=>window.__settleAdaptiveOriginalDerivedRoads?.(actual),
-      ()=>window.__V86_MATCHER_ACCURACY__?.settle?.(actual),
-      ()=>window.settlePendingPrediction?.(actual),
-      ()=>window.armNextPrediction?.(),
-      ()=>window.armGPTMirrorPrediction?.(),
-      ()=>window.__armVerifiedPredictions?.(),
-      ()=>window.__armAdaptiveDerivedRoads?.(),
-      ()=>window.__armAdaptiveOriginalDerivedRoads?.(),
-      ()=>window.__V86_MATCHER_ACCURACY__?.arm?.(),
-      ()=>window.renderSequenceAI?.(),
-      ()=>window.renderRoadPreviewAI?.(),
-      ()=>window.renderDerivedRoadPredictions?.(),
-      ()=>window.renderAdaptiveDerivedMain?.(),
-      ()=>window.renderColorPatternAI?.(),
-      ()=>window.renderGPTMirrorAI?.(),
-      ()=>window.renderAnalyzer?.(),
-      ()=>window.renderVerifiedAccuracy?.(),
-      ()=>window.__V86_MATCHER_ACCURACY__?.render?.(),
-      ()=>window.__V84_MAIN_FUTURE_TUNE__?.render?.(),
-      ()=>window.__chartPatternRecognizerV156?.render?.()
-    ];
-    let i=0;
-    const next=()=>{
-      if(i>=jobs.length){locked=false;return;}
-      try{jobs[i++]()}catch(e){}
-      setTimeout(next,0);
+  function settleLater(actual){
+    // One delayed authoritative settlement only. No duplicate per-AI settle/render storm.
+    const run=()=>{
+      try{window.__settleVerifiedPredictions?.(actual)}catch(e){console.warn('V247 settle',e)}
+      // Arm next prediction after settlement, but never call the historical full render chain here.
+      setTimeout(()=>{
+        try{window.armNextPrediction?.()}catch(e){}
+        try{window.armGPTMirrorPrediction?.()}catch(e){}
+        try{window.__armVerifiedPredictions?.()}catch(e){}
+        try{window.__armAdaptiveDerivedRoads?.()}catch(e){}
+        try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}
+        try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
+      },0);
     };
-    setTimeout(next,0);
+    if('requestIdleCallback' in window) requestIdleCallback(run,{timeout:700});
+    else setTimeout(run,350);
   }
 
-  function commitNow(actual){
-    if(!actual||locked)return;
-    locked=true;
+  function commit(actual){
+    const now=Date.now();
+    if(!actual)return;
+    if(actual===lastActual && now-lastAt<800)return;
+    if(now-lastAt<250)return;
+    lastAt=now;lastActual=actual;
+
     try{
-      // Settle prediction ledgers that explicitly require the pre-result state.
-      try{window.settleGPTMirrorPrediction?.(actual)}catch(e){}
-      try{
-        const api=window.__V84_MAIN_FUTURE_TUNE__;
-        const a=api?.accuracy?.(),q=a?.pending;
-        if(a){
-          a.pending=null;
-          if(actual==='T') a.ties=(Number(a.ties)||0)+1;
-          else if(q&&(actual==='P'||actual==='B')){
-            const key=`${Number(q.handN)||0}->${(Number(q.handN)||0)+1}`;
-            if(a.__v246LastSettled!==key){
-              a.__v246LastSettled=key;
-              const correct=q.side===actual;
-              if(correct)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;
-              a.ledger=Array.isArray(a.ledger)?a.ledger:[];
-              a.ledger.push({...q,actual,correct,settledAt:Date.now()});
-              if(a.ledger.length>600)a.ledger.splice(0,a.ledger.length-600);
-            }
-          }
-        }
-      }catch(e){}
-
       state.hands=Array.isArray(state.hands)?state.hands:[];
       state.hands.push({r:actual,pp:!!state.pp,bp:!!state.bp,special:!!state.special,ts:Date.now()});
       state.scanSnapshot=null;
       state.pp=state.bp=state.special=false;
       document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
 
-      // Give immediate visual feedback before any heavy AI work.
-      lightweightRefresh();
-      clearTimeout(window.__v246PersistTimer);
-      window.__v246PersistTimer=setTimeout(()=>{try{window.persist?.()}catch(e){}},150);
-      heavyAfter(actual);
+      // Paint the hand first so the button always feels immediate.
+      paintEssential();
+
+      clearTimeout(window.__v247PersistTimer);
+      window.__v247PersistTimer=setTimeout(()=>{try{window.persist?.()}catch(e){}},500);
+      settleLater(actual);
     }catch(e){
-      locked=false;
-      console.error('V246 P/B/T input',e);
+      console.error('V247 P/B/T commit',e);
     }
   }
 
-  // Register after the legacy architecture and intercept only the three real result buttons.
-  document.addEventListener('pointerup',ev=>{
-    const el=ev.target?.closest?.(sel);
-    if(!el)return;
-    const actual=actualFrom(el);if(!actual)return;
-    const now=Date.now();
-    if(el===lastEl&&now-lastAt<500)return;
-    lastEl=el;lastAt=now;
-    ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation();
-    commitNow(actual);
-  },true);
+  // Tell V102 not to own the three real buttons. It still owns P?/B? preview.
+  window.__V246_PBT_INPUT_FIX__={enabled:true,v247Delegated:true};
 
-  // Suppress the synthetic click that follows pointerup so the legacy V102 click path cannot duplicate the hand.
   document.addEventListener('click',ev=>{
     const el=ev.target?.closest?.(sel);
     if(!el)return;
-    if(Date.now()-lastAt<900){
-      ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation();
-    }
+    const actual=getActual(el);if(!actual)return;
+    ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation();
+    commit(actual);
   },true);
 
-  window.__V246_PBT_INPUT_FIX__={enabled:true,immediateCommit:true,buttons:['P','B','T']};
+  window.__V247_PBT_FREEZE_FIX__={enabled:true,immediateCommit:true,singleDelayedSettlement:true,fullRenderOnHand:false};
 })();
 </script>
+
+<!-- V248 LAYOUT + PERFORMANCE AUDIT FIX -->
+<style id="v248-layout-performance-css">
+  /* Dragon Tail signal/watch is intentionally removed from the visible UI. */
+  #dragonAlert, #dragonTailWatch, #dragonTailPanel, .dragon-alert,
+  [data-dragon-tail-watch="1"] { display:none !important; }
+</style>
+<script id="v248-layout-performance-fix">
+(function(){
+'use strict';
+if(window.__V248_LAYOUT_PERF_FIX__) return;
+window.__V248_LAYOUT_PERF_FIX__ = true;
+
+function byText(rx){
+  const nodes=[...document.querySelectorAll('.analyzer,.match-box,.panel,.card,section,div')];
+  return nodes.find(el => {
+    const t=(el.innerText||'').trim();
+    return t && rx.test(t) && (el.classList.contains('analyzer') ||
+      el.classList.contains('match-box') || el.id);
+  }) || null;
+}
+function panelFor(el){
+  if(!el) return null;
+  return el.closest('.analyzer,.match-box,.panel,section') || el;
+}
+function removeDragonUI(){
+  ['dragonAlert','dragonTailWatch','dragonTailPanel'].forEach(id=>{
+    const e=document.getElementById(id); if(e) e.remove();
+  });
+  document.querySelectorAll('.dragon-alert,[data-dragon-tail-watch="1"]').forEach(e=>e.remove());
+  // Remove the visible panel by its title without touching Main Future Road logic.
+  const d=byText(/Dragon Tail Watch/i);
+  if(d){
+    const p=panelFor(d);
+    if(p && !/Main Future Road/i.test((p.innerText||''))) p.remove();
+  }
+}
+function relocate(){
+  removeDragonUI();
+
+  const all=[...document.querySelectorAll('.analyzer,.match-box')];
+  if(!all.length) return;
+  const parent=all[0].parentNode;
+  if(!parent) return;
+
+  const derived=panelFor(byText(/INDEPENDENT DERIVED\s*ROAD AI|Independent Derived Road AI/i));
+  const autoHist=document.getElementById('autoHistMatchBox') ||
+                 panelFor(byText(/Automatic Historical Match AI/i));
+
+  // Top priority panels: place them before the first normal analyzer/match panel.
+  let first=[...parent.children].find(x =>
+    x.matches && x.matches('.analyzer,.match-box')) || parent.firstChild;
+  [autoHist, derived].forEach(p=>{
+    if(p && p.parentNode===parent) parent.insertBefore(p, first);
+  });
+
+  // Bottom priority panels.
+  const fingerprint=document.getElementById('presetFingerprintGateV145') ||
+                    panelFor(byText(/Independent Preset Fingerprint Gate/i));
+  const v240=document.getElementById('v240QualityPanel') ||
+             panelFor(byText(/V240 Selective Quality\s*\+\s*Live Trust/i));
+  [fingerprint,v240].forEach(p=>{
+    if(p && p.parentNode===parent) parent.appendChild(p);
+  });
+}
+function boot(){
+  try{relocate();}catch(e){console.warn('V248 layout fix',e);}
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,250));
+else setTimeout(boot,250);
+setTimeout(boot,1000);
+setTimeout(boot,2500);
+})();
+</script>
+
 </body>
 </html>
 
