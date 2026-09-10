@@ -14856,7 +14856,10 @@ function stableTick(){
 }
 function startStableLoop(){
   stableTick();
-  if(!window.__chopV176StableTimer)window.__chopV176StableTimer=setInterval(()=>{if(document.visibilityState!=='hidden')stableTick();},2500);
+  // V251: event-driven refresh only; no permanent polling loop.
+  setTimeout(()=>{if(document.visibilityState!=='hidden')stableTick()},5000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')stableTick()});
+  window.addEventListener('focus',stableTick,{passive:true});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(startStableLoop,1300),{once:true});else setTimeout(startStableLoop,1300);
 window.__UniversalChopV173={version:VERSION,state:chopState,apply,install,allAI:true,v176StableLoop:true,rule:'follow only when stable multi-window alternation; stop when run/break evidence appears; weak conflicts wait; strong independent evidence may override'};
@@ -15066,7 +15069,9 @@ function finishAfterLoader(){
   const loader=window.__V129_PROGRESSIVE_STARTUP__;
   if(loader?.complete){window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:true,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};return;}
   let tries=0;
-  const t=setInterval(()=>{tries++;run();if(window.__V129_PROGRESSIVE_STARTUP__?.complete||tries>=80){clearInterval(t);run();window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:!!window.__V129_PROGRESSIVE_STARTUP__?.complete,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};}},100);
+  // V251: bounded deferred startup checks instead of 10 checks/second.
+  const check=()=>{tries++;run();if(window.__V129_PROGRESSIVE_STARTUP__?.complete||tries>=16){run();window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:!!window.__V129_PROGRESSIVE_STARTUP__?.complete,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};return;}setTimeout(check,500);};
+  check();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',finishAfterLoader,{once:true});else finishAfterLoader();
 })();
@@ -15092,16 +15097,15 @@ function moveToBottom(){
 }
 function install(){
   let tries=0;
-  const timer=setInterval(()=>{
+  // V251: stop hammering layout at 100ms intervals during startup.
+  const check=()=>{
     tries++;
     const moved=moveToBottom();
     const loaded=!!window.__V129_PROGRESSIVE_STARTUP__?.complete;
-    if((moved&&loaded)||tries>=80){
-      clearInterval(timer);
-      moveToBottom();
-      window.__V184_ML_PANEL_POSITION__={version:VERSION,movedToBottom:true,logicChanged:false};
-    }
-  },100);
+    if((moved&&loaded)||tries>=16){moveToBottom();window.__V184_ML_PANEL_POSITION__={version:VERSION,movedToBottom:true,logicChanged:false};return;}
+    setTimeout(check,500);
+  };
+  check();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
@@ -15462,8 +15466,9 @@ function renderMLStats(){
 }
 function boot(){
   removeWalkForward(); registerML(); renderMLStats();
-  // Keep removed panel from being recreated by older delayed installers.
-  try{const mo=new MutationObserver(()=>{removeWalkForward();renderMLStats()});mo.observe(document.body,{childList:true,subtree:false});setTimeout(()=>{try{mo.disconnect()}catch(e){}},6000)}catch(e){}
+  // V251: bounded cleanup after delayed installers; no MutationObserver on body.
+  setTimeout(()=>{try{removeWalkForward();renderMLStats()}catch(e){}},1200);
+  setTimeout(()=>{try{removeWalkForward();renderMLStats()}catch(e){}},4200);
   const old=window.render;if(typeof old==='function'&&!old.__v203){const w=function(){const r=old.apply(this,arguments);try{removeWalkForward();registerML();renderMLStats()}catch(e){}return r};w.__v203=true;window.render=w;}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2200),{once:true});else setTimeout(boot,2200);
@@ -15719,11 +15724,10 @@ function install(){
     const w=function(){const r=old.apply(this,arguments);try{removeChart();syncML();setTimeout(syncML,0)}catch(e){}return r;};
     w.__v207MLLive=true;w.__base=old;window.render=w;try{render=w}catch(e){}
   }
-  // A short low-frequency safety timer covers legacy code paths that update the shoe without calling render.
-  let last=-1;
-  window.__v207MLSyncTimer=setInterval(()=>{
-    try{const n=Array.isArray(state?.hands)?state.hands.length:0;if(n!==last){last=n;removeChart();syncML();}}catch(e){}
-  },750);
+  // V251: render wrapper is authoritative; refresh only on resume/focus as a fallback.
+  const resume=()=>{try{removeChart();syncML()}catch(e){}};
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resume()});
+  window.addEventListener('focus',resume,{passive:true});
   syncML();setTimeout(syncML,400);setTimeout(syncML,1400);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,2500),{once:true});else setTimeout(install,2500);
@@ -16336,7 +16340,7 @@ function boot(){
     const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{installSaveHook();checkExternalLibraryChanges();},0);return r;};
     w.__v235LibraryRender=true;w.__base=old;window.render=w;try{render=w}catch(e){}
   }
-  if(!rt.installed){rt.installed=true;setInterval(checkExternalLibraryChanges,2500);}
+  if(!rt.installed){rt.installed=true;const resume=()=>{try{checkExternalLibraryChanges()}catch(e){}};document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resume()});window.addEventListener('focus',resume,{passive:true});}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2100));else setTimeout(boot,2100);
 window.__libraryAutoRefreshV235={version:VERSION,rebuild,invalidate,paint,stamp,totalSaved,activeLoaded,uniqueEligible,indexedCount,trainedCurrent};
@@ -16530,7 +16534,10 @@ function install(){
     const r=function(){ensureIndex();installAdapter();const z=oldRender.apply(this,arguments);try{visibleStatus();autoRetrainBetweenShoes()}catch(e){}return z};r.__v237=true;window.render=r;try{render=r}catch(e){}
   }
   visibleStatus();autoRetrainBetweenShoes();
-  setInterval(()=>{try{ensureIndex();installAdapter();visibleStatus()}catch(e){}},2500);
+  // V251: status refresh follows renders and app resume; no permanent polling.
+  const resume=()=>{try{visibleStatus();autoRetrainBetweenShoes()}catch(e){}};
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')resume()});
+  window.addEventListener('focus',resume,{passive:true});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1800));else setTimeout(install,1800);
 window.__V237_LIVE_LIBRARY__={version:VERSION,rebuild:buildIndex,evidence:libraryEvidence,adapt,regime,status:()=>index};
@@ -16755,7 +16762,9 @@ function install(){
   }
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,2400));else setTimeout(install,2400);
-setInterval(()=>{try{installAdapter();patchSequence();panel()}catch(e){}},3000);
+// V251: panel is refreshed by render; only refresh again when the app resumes.
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{panel()}catch(e){}}});
+window.addEventListener('focus',()=>{try{panel()}catch(e){}},{passive:true});
 window.__V240_SELECTIVE_QUALITY__={version:VERSION,adjust,context,regime,shoeBias,trust,settle,reset:()=>{try{localStorage.removeItem(KEY)}catch(e){};delete window.__V240_LEDGER__;panel()}};
 })();
 
@@ -17060,8 +17069,7 @@ function boot(){
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,250));
 else setTimeout(boot,250);
-setTimeout(boot,1000);
-setTimeout(boot,2500);
+/* V250: removed repeated full-DOM relocation scans */
 })();
 </script>
 
@@ -17174,6 +17182,29 @@ let refreshTimer=0;
 window.__V249_refreshAccuracy=function(){clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,60)};
 setTimeout(scheduleArm,350);
 window.__V249_FREEZE_ACCURACY_FIX__={version:VERSION,postCommitSettlementCompatibility:true,slicedAccuracyArm:true,batchSize:2,predictionFormulasChanged:false,sequenceV2CoreChanged:false};
+})();
+</script>
+
+<!-- V251 FULL AUDIT FREEZE FIX -->
+<script id="v251-full-audit-freeze-fix">
+(function(){
+'use strict';
+if(window.__V251_FULL_AUDIT__)return;
+let inputBusy=false;
+// Only de-bounce actual P/B/T result controls. Never block reset/save/AI buttons.
+document.addEventListener('click',function(e){
+ const b=e.target&&e.target.closest&&e.target.closest('.main-buttons [data-result],button[data-result],#playerBtn,#bankerBtn,#tieBtn');
+ if(!b)return;
+ if(inputBusy){e.preventDefault();e.stopImmediatePropagation();return;}
+ inputBusy=true; setTimeout(()=>{inputBusy=false},140);
+},true);
+// Coalesce storage writes while preserving immediate in-memory counters/UI updates.
+const oldPersist=window.persist; let pt=0;
+if(typeof oldPersist==='function'&&!oldPersist.__v251){
+ const p=function(){clearTimeout(pt);pt=setTimeout(()=>{try{oldPersist()}catch(e){}},180)};
+ p.__v251=true;p.__base=oldPersist;window.persist=p;try{persist=p}catch(e){}
+}
+window.__V251_FULL_AUDIT__={version:251,permanentPollingLoopsRemoved:true,bodyMutationObserverRemoved:true,startupPollingReduced:true,eventDrivenResumeRefresh:true,predictionLogicChanged:false,sequenceV2CoreChanged:false};
 })();
 </script>
 </body>
