@@ -17537,6 +17537,435 @@ setTimeout(armNow,50);
 })();
 </script>
 
+
+<!-- V259 ALL-AI ACCURACY ROOT FIX — P/B ordinal locks + emergency fallback grading -->
+<script id="v259-all-ai-accuracy-root-fix">
+(function(){
+'use strict';
+if(window.__V259_ALL_AI_ACCURACY_ROOT_FIX__) return;
+
+const VERSION=259;
+const REMOVED=new Set(['seqdup','consensus','bot','metav49','metav50','metav23']);
+let arming=false, armAgain=false;
+
+function seq(){
+  try{return typeof currentSequence==='function'
+    ? currentSequence()
+    : ((state.hands||[]).map(h=>h?.r).filter(Boolean));
+  }catch(e){return []}
+}
+function pbCount(){ return seq().filter(x=>x==='P'||x==='B').length; }
+function rawHand(){ return seq().length+1; }
+function nextPB(){ return pbCount()+1; }
+function normSide(x){
+  x=String(x||'').toUpperCase();
+  return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':null;
+}
+function A(){
+  state.accuracyVerified ||= {models:{},pending:{},ties:0,version:VERSION};
+  state.accuracyVerified.models ||= {};
+  state.accuracyVerified.pending ||= {};
+  state.accuracyVerified.version=VERSION;
+  return state.accuracyVerified;
+}
+function defs(){
+  const rows=Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];
+  const seen=new Set();
+  return rows.filter(r=>{
+    const k=String(r?.[0]||'').toLowerCase();
+    if(!k||REMOVED.has(k)||seen.has(k))return false;
+    seen.add(k);return true;
+  });
+}
+function M(key,name){
+  const a=A();
+  const m=a.models[key]||(a.models[key]={
+    name:name||key,wins:0,losses:0,predictions:0,waits:0,
+    last10:[],last25:[],last50:[],splits:{}
+  });
+  m.name=(key==='roadpreview'?'AI Pattern Recognizer':(name||m.name||key));
+  for(const k of ['wins','losses','predictions','waits'])m[k]=Number(m[k])||0;
+  for(const k of ['last10','last25','last50'])if(!Array.isArray(m[k]))m[k]=[];
+  m.splits ||= {};
+  return m;
+}
+function context(){
+  const q=seq(), n=q.filter(x=>x==='P'||x==='B').length;
+  return {
+    color:String(state.currentShoeColor||'combined').toLowerCase(),
+    phase:n<18?'early':n<36?'middle':'late',
+    afterTie:q.at(-1)==='T',
+    rawHand:rawHand(),
+    pbHand:nextPB()
+  };
+}
+function strength(x){
+  let v=Number(x?.strength??x?.confidence??x?.top??0)||0;
+  if(v<=1)v*=100;
+  return Math.round(v);
+}
+function refresh(){
+  try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  try{window.__V178_ACCURACY_COUNTS__?.refresh?.()}catch(e){}
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+  try{window.__V204_AFTER_TIE_ACCURACY__?.paint?.()}catch(e){}
+}
+function save(){
+  try{persist()}catch(e){}
+}
+function makeLock(key,name,get){
+  let x=null;try{x=get?.()||null}catch(e){x=null}
+  const side=normSide(x?.side);
+  if(!side)return null;
+  return {side,lockedAt:Date.now(),strength:strength(x),seq:seq().join(''),...context()};
+}
+function arm(){
+  if(arming){armAgain=true;return}
+  arming=true;armAgain=false;
+  const a=A(), targetPB=nextPB(), rows=defs();
+  // A tie does NOT invalidate a prediction for the next Player/Banker result.
+  for(const [k,p] of Object.entries(a.pending)){
+    if(!p)delete a.pending[k];
+    else if(Number(p.pbHand||0) && Number(p.pbHand)!==targetPB)delete a.pending[k];
+  }
+
+  let i=0;
+  function step(){
+    const end=Math.min(i+2,rows.length);
+    for(;i<end;i++){
+      const [key,name,get]=rows[i],m=M(key,name);
+      const existing=a.pending[key];
+      if(existing && Number(existing.pbHand||0)===targetPB)continue;
+      const p=makeLock(key,name,get);
+      if(p)a.pending[key]=p;
+      else if(m.lastWaitPB!==targetPB){
+        m.waits++;m.lastWaitPB=targetPB;
+      }
+    }
+    if(i<rows.length){setTimeout(step,0);return}
+    arming=false;save();refresh();
+    if(armAgain){armAgain=false;setTimeout(arm,0)}
+  }
+  step();
+}
+function bumpSplit(m,id,win){
+  const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});
+  z.n=(Number(z.n)||0)+1;
+  if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;
+}
+function gradeOne(key,name,p,actual,targetPB){
+  const m=M(key,name);
+  // Absolute duplicate-count guard for this P/B result.
+  if(Number(m.__v259LastSettledPB)===targetPB)return false;
+  const win=p.side===actual;
+  m.predictions++; if(win)m.wins++;else m.losses++;
+  if(p.color==='red'||p.color==='black')bumpSplit(m,'color:'+p.color,win);
+  if(p.phase)bumpSplit(m,'phase:'+p.phase,win);
+  if(p.afterTie)bumpSplit(m,'aftertie',win);
+  for(const n of [10,25,50]){
+    const k='last'+n;
+    m[k].push(win?1:0);
+    if(m[k].length>n)m[k]=m[k].slice(-n);
+  }
+  m.last={
+    predicted:p.side,actual,win,
+    hand:p.rawHand||rawHand(),
+    pbHand:targetPB,
+    lockedAt:p.lockedAt||Date.now(),
+    settledAt:Date.now(),
+    strength:p.strength||0,
+    afterTie:!!p.afterTie
+  };
+  m.__v259LastSettledPB=targetPB;
+  return true;
+}
+function settle(actual){
+  actual=normSide(actual)||String(actual||'').toUpperCase();
+  const a=A();
+
+  if(actual==='T'){
+    a.ties=(Number(a.ties)||0)+1;
+    // IMPORTANT: retain all pending P/B locks across a Tie.
+    save();refresh();
+    return;
+  }
+  if(actual!=='P'&&actual!=='B')return;
+
+  const targetPB=nextPB(); // core calls this BEFORE pushing the actual result
+  for(const [key,name,get] of defs()){
+    let p=a.pending[key];
+
+    // Accept legacy locks from older versions if they are clearly the live next call.
+    if(p && Number(p.pbHand||0)!==targetPB){
+      const legacyRaw=Number(p.hand||p.rawHand||0);
+      if(legacyRaw && legacyRaw<=rawHand()) {
+        p={...p,pbHand:targetPB,rawHand:legacyRaw};
+      } else {
+        p=null;
+      }
+    }
+
+    // Emergency fallback: if an older wrapper cleared the lock, obtain that AI's
+    // CURRENT pre-result call right now and score it. This runs only for missing locks.
+    if(!p){
+      p=makeLock(key,name,get);
+      if(p)p.pbHand=targetPB;
+    }
+
+    if(p && normSide(p.side)) gradeOne(key,name,p,actual,targetPB);
+    delete a.pending[key];
+  }
+  save();refresh();
+}
+
+// Replace the wrapper chain with one final authoritative central path.
+// Independent ledgers (Main Future, Matcher, Auto Historical, etc.) keep their own
+// settle functions and are still called by the existing V135 transaction queue.
+window.__settleVerifiedPredictions=settle;
+window.__armVerifiedPredictions=arm;
+
+// Keep the visible central label aligned with the AI's current role.
+try{
+  const d=window.__accuracyModelDefs?.find?.(r=>r?.[0]==='roadpreview');
+  if(d)d[1]='AI Pattern Recognizer';
+}catch(e){}
+
+window.__V259_ALL_AI_ACCURACY_ROOT_FIX__={
+  version:VERSION,
+  installed:true,
+  centralSinglePath:true,
+  pbOrdinalLocking:true,
+  tiesPreservePending:true,
+  missingLockFallback:true,
+  duplicateGuard:true,
+  predictionLogicChanged:false,
+  sequenceV2CoreChanged:false,
+  arm,settle,state:A,
+  status:()=>({
+    nextPB:nextPB(),
+    rawHand:rawHand(),
+    keys:defs().map(x=>x[0]),
+    pending:Object.fromEntries(Object.entries(A().pending||{}).map(([k,v])=>[k,v?.side||null]))
+  })
+};
+
+setTimeout(()=>{try{arm();refresh()}catch(e){}},80);
+})();
+</script>
+
+
+<!-- V260 ALL-AI AUDIT FIX
+     Purpose: correct post-Tie arming, register Independent Preset in the authoritative
+     accuracy ledger, align Pattern Recognizer identity, and expose a runtime health audit. -->
+<script id="v260-all-ai-audit-fix">
+(function(){
+'use strict';
+if(window.__V260_ALL_AI_AUDIT_FIX__)return;
+const VERSION=260;
+
+function side(x){
+  x=String(x||'').toUpperCase();
+  return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':null;
+}
+function seq(){
+  try{return typeof currentSequence==='function'?currentSequence():((state.hands||[]).map(h=>h?.r).filter(Boolean))}catch(e){return []}
+}
+function pbN(){return seq().filter(x=>x==='P'||x==='B').length}
+function acc(){
+  state.accuracyVerified ||= {models:{},pending:{},ties:0,version:VERSION};
+  state.accuracyVerified.models ||= {};
+  state.accuracyVerified.pending ||= {};
+  state.accuracyVerified.version=VERSION;
+  return state.accuracyVerified;
+}
+function model(k,n){
+  const a=acc();
+  const m=a.models[k]||(a.models[k]={name:n,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  m.name=n||m.name||k;m.splits||={};
+  for(const q of ['wins','losses','predictions','waits'])m[q]=Number(m[q])||0;
+  for(const q of ['last10','last25','last50'])if(!Array.isArray(m[q]))m[q]=[];
+  return m;
+}
+function defs(){
+  const rows=Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];
+  const removed=new Set(['seqdup','consensus','bot','metav49','metav50','metav23']);
+  const seen=new Set(),out=[];
+  for(const r of rows){
+    const k=String(r?.[0]||'').toLowerCase();
+    if(!k||removed.has(k)||seen.has(k))continue;
+    // Adaptive Derived Roads was removed from the live UI; do not keep a ghost counter.
+    if(k==='derivedmain' && !document.getElementById('adaptiveDerivedRoadsPanel'))continue;
+    seen.add(k);out.push(r);
+  }
+  // Independent Preset is a live predictor and must be counted like the other AIs.
+  if(!seen.has('preset')){
+    out.push(['preset','Independent Preset Fingerprint',()=>{
+      try{
+        const z=window.__presetFingerprintGate?.evidence?.()||{};
+        return {side:side(z.pick),strength:Number(z.verified||z.fusedRate||0)*100};
+      }catch(e){return {side:null,strength:0}}
+    }]);
+  }
+  return out;
+}
+function ctx(){
+  const q=seq(), n=pbN();
+  return {
+    color:String(state.currentShoeColor||'combined').toLowerCase(),
+    phase:n<18?'early':n<36?'middle':'late',
+    afterTie:q.at(-1)==='T',
+    rawHand:q.length+1,
+    pbHand:n+1
+  };
+}
+function callOf(get){
+  let z=null;try{z=get?.()||null}catch(e){}
+  const s=side(z?.side);
+  if(!s)return null;
+  let strength=Number(z?.strength??z?.confidence??z?.top??0)||0;
+  if(strength<=1)strength*=100;
+  return {side:s,strength:Math.round(strength),lockedAt:Date.now(),seq:seq().join(''),...ctx()};
+}
+function paint(){
+  try{window.__V178_ACCURACY_COUNTS__?.refresh?.()}catch(e){}
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+  try{window.__V204_AFTER_TIE_ACCURACY__?.paint?.()}catch(e){}
+  try{window.__V203_ML_UNLOCK__&&window.render?.()}catch(e){}
+}
+let arming=false,again=false;
+function arm(){
+  if(arming){again=true;return}
+  arming=true;again=false;
+  const a=acc(),target=pbN()+1,rows=defs();
+  // After any committed Tie, the next pass intentionally replaces the old pre-Tie call
+  // with a freshly computed post-Tie call tagged afterTie=true.
+  for(const [k,p] of Object.entries(a.pending)){
+    if(!p || Number(p.pbHand||0)!==target)delete a.pending[k];
+  }
+  let i=0;
+  function step(){
+    const end=Math.min(i+2,rows.length);
+    for(;i<end;i++){
+      const [k,n,get]=rows[i],m=model(k,n);
+      const p=callOf(get);
+      if(p)a.pending[k]=p;
+      else{
+        delete a.pending[k];
+        if(m.lastWaitPB!==target){m.waits++;m.lastWaitPB=target}
+      }
+    }
+    if(i<rows.length){setTimeout(step,0);return}
+    arming=false;try{persist()}catch(e){};paint();
+    if(again){again=false;setTimeout(arm,0)}
+  }
+  step();
+}
+function bump(m,id,win){
+  const z=m.splits[id]||(m.splits[id]={w:0,l:0,n:0});
+  z.n=(Number(z.n)||0)+1;
+  if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;
+}
+function settle(actual){
+  actual=String(actual||'').toUpperCase();
+  const a=acc();
+
+  if(actual==='T'){
+    a.ties=(Number(a.ties)||0)+1;
+    // Do NOT grade P/B on a Tie and do NOT carry a pre-Tie call into after-Tie stats.
+    // The V135 post-commit transaction calls arm() again after the Tie is written.
+    a.pending={};
+    try{persist()}catch(e){};paint();
+    return;
+  }
+  if(actual!=='P'&&actual!=='B')return;
+
+  const target=pbN()+1;
+  for(const [k,n,get] of defs()){
+    let p=a.pending[k];
+    if(!p || Number(p.pbHand||0)!==target)p=callOf(get);
+    if(!p)continue;
+
+    const m=model(k,n);
+    if(Number(m.__v260LastPB)===target){delete a.pending[k];continue}
+    const win=p.side===actual;
+    m.predictions++; if(win)m.wins++; else m.losses++;
+    if(p.color==='red'||p.color==='black')bump(m,'color:'+p.color,win);
+    if(p.phase)bump(m,'phase:'+p.phase,win);
+    if(p.afterTie)bump(m,'aftertie',win);
+    for(const N of [10,25,50]){
+      const key='last'+N;m[key].push(win?1:0);
+      if(m[key].length>N)m[key]=m[key].slice(-N);
+    }
+    m.last={predicted:p.side,actual,win,pbHand:target,rawHand:p.rawHand,afterTie:!!p.afterTie,strength:p.strength,settledAt:Date.now()};
+    m.__v260LastPB=target;
+    delete a.pending[k];
+  }
+  try{persist()}catch(e){};paint();
+}
+
+function alignPatternRecognizer(){
+  try{
+    const p=document.getElementById('roadPreviewAiPanel');
+    if(p){
+      const t=p.querySelector('.analyzer-title');
+      if(t)t.textContent='AI Pattern Recognizer — Road Preview + Bead Plate';
+      const s=p.querySelector('.analyzer-sub');
+      if(s)s.innerHTML='<b>PRIMARY SOURCES:</b> live Road Preview, saved-shoe history, and Bead Plate. It compares hypothetical PLAYER and BANKER next paths, then adapts to the live shoe as new hands arrive. Other AIs do not vote inside this model.';
+    }
+  }catch(e){}
+  try{
+    const d=window.__accuracyModelDefs?.find?.(r=>String(r?.[0]||'').toLowerCase()==='roadpreview');
+    if(d)d[1]='AI Pattern Recognizer';
+  }catch(e){}
+}
+
+function health(){
+  const rows=[];
+  const checks=[
+    ['seqv2','Sequence AI V2',()=>sequenceAISignal?.()],
+    ['color','Color Pattern AI',()=>window.colorPatternAISignal?.()],
+    ['roadpreview','AI Pattern Recognizer',()=>window.roadPreviewAISignal?.()],
+    ['derivedorig','Independent Derived Road AI',()=>window.derivedRoadSequenceAI?.()],
+    ['mainfuture','Main Road Future Test',()=>window.mainRoadFutureTest?.()],
+    ['mirror','GPT Mirror AI',()=>window.gptMirrorSignal?.()],
+    ['mlroad','ML Road Trainer',()=> (window.__mlRoadTrainerV3||window.__mlRoadTrainerV2)?.signal?.()],
+    ['matcher','20-Hand Duplicate Shoe Matcher',()=>window.__V86_MATCHER_ACCURACY__?.getCall?.()],
+    ['preset','Independent Preset Fingerprint',()=>window.__presetFingerprintGate?.evidence?.()],
+    ['autohist','Automatic Historical Match AI',()=>window.__AUTO_HISTORICAL_MATCH_AI__]
+  ];
+  const registered=new Set(defs().map(x=>String(x[0]).toLowerCase()));
+  for(const [k,n,get] of checks){
+    let exists=false,error=null,call=null;
+    try{const z=get?.();exists=!!z;call=side(z?.side||z?.pick)}catch(e){error=String(e?.message||e)}
+    rows.push({
+      key:k,name:n,exists,
+      centralAccuracy:k==='autohist'?'independent':registered.has(k),
+      currentCall:call||'WAIT',
+      error
+    });
+  }
+  return rows;
+}
+window.__settleVerifiedPredictions=settle;
+window.__armVerifiedPredictions=arm;
+window.__V260_ALL_AI_AUDIT_FIX__={
+  version:VERSION,
+  installed:true,
+  sequenceV2CoreChanged:false,
+  mainFutureLogicChanged:false,
+  derivedLogicChanged:false,
+  tiePolicy:'Tie = no W/L; clear pre-Tie lock; re-arm from post-Tie state',
+  presetAccuracyRegistered:true,
+  ghostAdaptiveDerivedCounterSuppressed:true,
+  patternRecognizerIdentityAligned:true,
+  health
+};
+alignPatternRecognizer();
+setTimeout(()=>{alignPatternRecognizer();arm()},100);
+setTimeout(alignPatternRecognizer,1200);
+})();
+</script>
+
 </body>
 </html>
 
