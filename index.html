@@ -17966,6 +17966,171 @@ setTimeout(alignPatternRecognizer,1200);
 })();
 </script>
 
+
+
+<!-- V263 UNIFIED COUNTER FAILSAFE
+     Authoritative screen-call locks + post-settle repair for Mirror, Main Future, Best Estimate.
+     Prediction logic is unchanged. -->
+<script id="v263-unified-counter-failsafe">
+(function(){
+'use strict';
+if(window.__V263_UNIFIED_COUNTER_FAILSAFE__)return;
+const VERSION=263;
+const PB=x=>x==='P'||x==='B';
+const norm=x=>{x=String(x||'').toUpperCase();return /PLAYER|\bP\b/.test(x)?'P':/BANKER|\bB\b/.test(x)?'B':null};
+const seq=()=>{try{return currentSequence()}catch(e){return (state.hands||[]).map(h=>h?.r).filter(Boolean)}};
+const pbN=()=>seq().filter(PB).length;
+function text(id){return String(document.getElementById(id)?.textContent||'').trim()}
+function locks(){state.v263UnifiedCounters ||= {locks:{},last:{},version:VERSION};return state.v263UnifiedCounters}
+function central(){state.accuracyVerified ||= {models:{},pending:{}};state.accuracyVerified.models ||= {};state.accuracyVerified.pending ||= {};return state.accuracyVerified}
+function model(k,name){const a=central(),m=a.models[k]||(a.models[k]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[]});m.name=name;['wins','losses','predictions','waits'].forEach(q=>m[q]=Number(m[q])||0);['last10','last25','last50'].forEach(q=>m[q]=Array.isArray(m[q])?m[q]:[]);return m}
+function mirror(){try{return typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():(state.gptMirror||(state.gptMirror={pending:null,predictions:0,wins:0,losses:0,rows:[]}))}catch(e){return state.gptMirror||(state.gptMirror={pending:null,predictions:0,wins:0,losses:0,rows:[]})}}
+function mainApi(){return window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__||window.__mainRoadFutureV55||null}
+function mainAcc(){try{return mainApi()?.accuracy?.()||null}catch(e){return null}}
+function parseMain(){const t=text('futureFinal'); if(/WAIT/i.test(t))return null; return norm(t)}
+function parseMirror(){const t=text('gptMirrorDecision');if(!t||/WAIT/i.test(t))return null;return norm(t)}
+function parseBest(){const t=text('bestSide');if(!t||/WAIT|—|-/.test(t))return null;return norm(t)}
+function capture(){
+ const L=locks(),target=pbN()+1,now=Date.now();
+ const b=parseBest(),m=parseMirror(),f=parseMain();
+ L.locks.bestestimate=b?{side:b,pbHand:target,lockedAt:now,source:'DOM'}:null;
+ L.locks.mirror=m?{side:m,pbHand:target,lockedAt:now,source:'DOM'}:null;
+ L.locks.mainfuture=f?{side:f,pbHand:target,lockedAt:now,source:'DOM'}:null;
+ // Feed V262 exactly what is visibly on-screen, eliminating internal/display disagreement.
+ state.v262CounterLocks ||= {locks:{},lastSettled:{},version:262};state.v262CounterLocks.locks ||= {};
+ for(const k of ['bestestimate','mirror','mainfuture']) state.v262CounterLocks.locks[k]=L.locks[k]?{...L.locks[k]}:null;
+ // Synchronize native pending stores used by legacy settlement.
+ if(b) central().pending.bestestimate={...L.locks.bestestimate}; else delete central().pending.bestestimate;
+ const ms=mirror(); if(m)ms.pending={side:m,hand:target,createdAt:now,__v263:true}; else if(ms.pending?.__v263)ms.pending=null;
+ const ma=mainAcc(); if(ma){if(f)ma.pending={side:f,handN:target-1,armedAt:now,__v263:true};else if(ma.pending?.__v263)ma.pending=null}
+ try{persist?.()}catch(e){}
+}
+function snap(){const be=model('bestestimate','Best-Estimate Analyzer'),mi=mirror(),ma=mainAcc();return {bestestimate:[Number(be.wins)||0,Number(be.losses)||0],mirror:[Number(mi.wins)||0,Number(mi.losses)||0],mainfuture:[Number(ma?.wins)||0,Number(ma?.losses)||0]}}
+function push(m,win){m.predictions=(Number(m.predictions)||0)+1;if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;for(const N of [10,25,50]){const k='last'+N;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>N)m[k]=m[k].slice(-N)}}
+function repairOne(k,actual,target,before,after){
+ const L=locks(),p=L.locks[k]; if(!p||Number(p.pbHand)!==target||L.last[k]===target)return false;
+ const moved=(after[0]+after[1])>(before[0]+before[1]);
+ if(!moved){const win=p.side===actual;
+   if(k==='bestestimate'){const m=model('bestestimate','Best-Estimate Analyzer');push(m,win);m.last={predicted:p.side,actual,win,pbHand:target,source:'V263_FAILSAFE',settledAt:Date.now()}}
+   else if(k==='mirror'){const m=mirror();m.predictions=(Number(m.predictions)||0)+1;if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;m.pending=null}
+   else {const m=mainAcc();if(m){if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;m.pending=null}}
+ }
+ L.last[k]=target;L.locks[k]=null;return !moved;
+}
+function paint(){
+ try{window.renderVerifiedAccuracy?.()}catch(e){}
+ try{window.renderGPTMirrorAI?.()}catch(e){}
+ try{window.renderMainRoadFutureTest?.()}catch(e){}
+ // Final direct repaint from authoritative stores, after any legacy renderer ran.
+ try{const m=mirror(),n=(Number(m.wins)||0)+(Number(m.losses)||0),e=document.getElementById('gptMirrorAccuracy');if(e)e.textContent=n?`${Math.round(100*(Number(m.wins)||0)/n)}% (${Number(m.wins)||0}W–${Number(m.losses)||0}L)`:'—'}catch(e){}
+ try{const m=model('bestestimate','Best-Estimate Analyzer'),n=m.wins+m.losses,e=document.getElementById('bestEstimateAccuracy'),d=document.getElementById('bestEstimateAccuracyDetail');if(e)e.textContent=n?`${Math.round(100*m.wins/n)}%`:'—';if(d)d.textContent=n?`${m.wins}W-${m.losses}L • N=${n}`:'0 graded predictions'}catch(e){}
+ try{const m=mainAcc();if(m){const w=Number(m.wins)||0,l=Number(m.losses)||0,n=w+l,p=document.getElementById('futureAccuracyPct'),q=document.getElementById('futureAccuracyWL'),r=document.getElementById('futureAccuracyN');if(p)p.textContent=n?(100*w/n).toFixed(1)+'%':'—';if(q)q.textContent=`${w}W-${l}L`;if(r)r.textContent=`N=${n}`}}catch(e){}
+}
+const priorSettle=window.__settleVerifiedPredictions;
+window.__settleVerifiedPredictions=function(actual){
+ actual=String(actual||'').toUpperCase(); const target=pbN()+1;
+ if(PB(actual)){
+   // Make sure currently displayed calls are the pending calls before any legacy grader runs.
+   const L=locks(); if(!L.locks.bestestimate&&!L.locks.mirror&&!L.locks.mainfuture)capture();
+   const before=snap(); let r;try{r=typeof priorSettle==='function'?priorSettle.apply(this,arguments):undefined}catch(e){console.warn('V263 prior settle',e)}
+   const after=snap();
+   repairOne('bestestimate',actual,target,before.bestestimate,after.bestestimate);
+   repairOne('mirror',actual,target,before.mirror,after.mirror);
+   repairOne('mainfuture',actual,target,before.mainfuture,after.mainfuture);
+   try{persist?.()}catch(e){};setTimeout(paint,0);return r;
+ }
+ let r;try{r=typeof priorSettle==='function'?priorSettle.apply(this,arguments):undefined}catch(e){}
+ if(actual==='T'){locks().locks={};setTimeout(()=>{capture();paint()},0)}
+ return r;
+};
+window.__settleVerifiedPredictions.__v263=true;
+const priorArm=window.__armVerifiedPredictions;
+window.__armVerifiedPredictions=function(){let r;try{r=typeof priorArm==='function'?priorArm.apply(this,arguments):undefined}catch(e){}setTimeout(()=>{capture();paint()},0);return r};
+window.__armVerifiedPredictions.__v263=true;
+// Capture whenever any of the three displayed decisions changes.
+function observe(){for(const id of ['bestSide','gptMirrorDecision','futureFinal']){const e=document.getElementById(id);if(e&&!e.__v263obs){e.__v263obs=true;new MutationObserver(()=>setTimeout(capture,0)).observe(e,{childList:true,characterData:true,subtree:true})}}}
+setTimeout(()=>{observe();capture();paint()},200);setTimeout(observe,1200);
+window.__V263_UNIFIED_COUNTER_FAILSAFE__={version:VERSION,installed:true,displayIsAuthority:true,postSettleRepair:true,predictionLogicChanged:false,status:()=>({pbHands:pbN(),locks:locks().locks,best:model('bestestimate','Best-Estimate Analyzer'),mirror:mirror(),main:mainAcc()})};
+})();
+</script>
+<script id="v264-main-future-v72-exact-restore">
+/* V264 MAIN FUTURE V72 EXACT RESTORE
+   Restores the exact V72 / V52-core Main Road Future Test already embedded in V239.
+   Disables the later V84/V236 selective/history wrapper from grading or controlling this panel.
+   Sequence AI V2 and all other AIs are untouched. */
+(function(){
+  'use strict';
+  let installed=false;
+  function applyRestore(){
+    const v72=window.__V72_MAIN_FUTURE__;
+    if(!v72||typeof v72.test!=='function'||typeof v72.render!=='function')return false;
+
+    // Restore exact V72 prediction + render path.
+    window.mainRoadFutureTest=v72.test;
+    try{mainRoadFutureTest=v72.test}catch(e){}
+    window.renderMainRoadFutureTest=v72.render;
+    try{renderMainRoadFutureTest=v72.render}catch(e){}
+
+    // Neutralize only the later Main Future V84/V236 wrapper lifecycle.
+    // Its DOM listeners resolve these API methods dynamically, so no-op prevents double grading.
+    const v84=window.__V84_MAIN_FUTURE_TUNE__;
+    if(v84){
+      v84.test=v72.test;
+      v84.render=v72.render;
+      v84.arm=function(){};
+      v84.settle=function(){};
+      v84.restoredToV72=true;
+      v84.activeBehavior='V72_V52_CORE_CURRENT_SHOE_ADAPTATION';
+    }
+
+    // Rewire this panel's reset to the V72 accuracy account only.
+    let rb=document.getElementById('resetFutureAccuracy');
+    if(rb&&!rb.__v239V72Restore){
+      const clean=rb.cloneNode(true);
+      if(rb.parentNode)rb.parentNode.replaceChild(clean,rb);
+      rb=clean; rb.__v239V72Restore=true;
+      rb.textContent='Reset Accuracy';
+      rb.addEventListener('click',function(){
+        if(!confirm('Reset only the Main Road Future Test V72 accuracy score?'))return;
+        try{
+          const a=v72.accuracy();
+          a.wins=a.losses=a.waits=a.ties=0;
+          a.pending=null;a.lastWaitHandN=null;a.ledger=[];
+          if(typeof persist==='function')persist();
+          v72.render();
+        }catch(e){console.warn('V239 V72 reset',e)}
+      });
+    }
+
+    const title=document.querySelector('#mainRoadFutureTest .future-test-title');
+    if(title)title.textContent='⚡ Main Road Future Test — V72 / V52 Core';
+    try{v72.render()}catch(e){}
+    installed=true;
+    window.__V264_MAIN_FUTURE_V72_RESTORE__={
+      version:239,
+      restored:true,
+      source:'embedded V72 exact test/render',
+      v52Core:true,
+      currentShoeAdaptive:true,
+      laterV84V236GateDisabled:true,
+      sequenceV2Untouched:true,
+      otherAIsUntouched:true
+    };
+    return true;
+  }
+
+  // V127 activates deferred scripts after ordinary parsing; retry after those scripts exist.
+  [0,80,250,700,1400,2800,5000].forEach(ms=>setTimeout(applyRestore,ms));
+
+  // V84's old captured click listener may render once after a hand. Re-assert V72 immediately after it.
+  document.addEventListener('click',function(ev){
+    const t=ev.target&&ev.target.closest?ev.target.closest('[data-result],#previewP,#previewB,#undoBtn,#clearBtn'):null;
+    if(!t)return;
+    setTimeout(()=>{try{applyRestore();window.__V72_MAIN_FUTURE__?.render?.()}catch(e){}},25);
+    setTimeout(()=>{try{applyRestore();window.__V72_MAIN_FUTURE__?.render?.()}catch(e){}},120);
+  },false);
+})();
+</script>
 </body>
 </html>
 
@@ -18084,6 +18249,188 @@ window.__V261_MIRROR_MAIN_FUTURE_COUNTER_FIX__={
       mainFuture:{pending:a?.pending?.side||null,wins:Number(a?.wins)||0,losses:Number(a?.losses)||0,waits:Number(a?.waits)||0}
     };
   }
+};
+})();
+</script>
+
+
+<!-- V262 THREE-COUNTER AUTHORITATIVE LOCK FIX
+     Mirror + Main Future + Best Estimate use explicit pre-hand visible-call locks.
+     Main Future targets the visible V84 ledger (not hidden V72). Prediction formulas unchanged. -->
+<script id="v262-three-counter-authoritative-fix">
+(function(){
+'use strict';
+if(window.__V262_THREE_COUNTER_FIX__)return;
+const VERSION=262;
+const isPB=x=>x==='P'||x==='B';
+const norm=x=>{x=String(x||'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':null};
+const seq=()=>{try{return currentSequence()}catch(e){return (state.hands||[]).map(h=>h?.r).filter(Boolean)}};
+const pbN=()=>seq().filter(isPB).length;
+
+function store(){
+  state.v262CounterLocks ||= {locks:{},lastSettled:{},version:VERSION};
+  state.v262CounterLocks.locks ||= {};
+  state.v262CounterLocks.lastSettled ||= {};
+  return state.v262CounterLocks;
+}
+function central(){
+  state.accuracyVerified ||= {models:{},pending:{}};
+  state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {};
+  return state.accuracyVerified;
+}
+function centralModel(k,name){
+  const a=central();
+  const m=a.models[k]||(a.models[k]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  m.name=name||m.name||k;
+  for(const q of ['wins','losses','predictions','waits'])m[q]=Number(m[q])||0;
+  for(const q of ['last10','last25','last50'])if(!Array.isArray(m[q]))m[q]=[];
+  return m;
+}
+function visibleBest(){
+  try{
+    const x=window.computeCombinedAnalyzer?.()||computeCombinedAnalyzer?.();
+    if(!x||x.qualified!==true)return null;
+    const side=norm(x.side); if(!side)return null;
+    return {side,confidence:Number(x.top||x.confidence||0)||0};
+  }catch(e){return null}
+}
+function visibleMirror(){
+  try{
+    const x=window.gptMirrorSignal?.()||gptMirrorSignal?.();
+    if(!x||x.qualified!==true)return null;
+    const side=norm(x.side);if(!side)return null;
+    return {side,confidence:Number(x.confidence||x.strength||0)||0};
+  }catch(e){return null}
+}
+function mainAPI(){
+  // IMPORTANT: V84 is what renderMainRoadFutureTest currently paints.
+  return window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__||window.__mainRoadFutureV55||null;
+}
+function visibleMain(){
+  try{
+    const api=mainAPI(); const x=api?.test?.()||window.mainRoadFutureTest?.();
+    const side=norm(x?.side); if(!side)return null;
+    return {side,confidence:Number(side==='P'?x?.p?.norm:x?.b?.norm)||Number(x?.confidence||0)||0,edge:Number(x?.edge)||0};
+  }catch(e){return null}
+}
+function capture(){
+  const S=store(),target=pbN()+1,raw=seq().length;
+  const b=visibleBest(),m=visibleMirror(),f=visibleMain();
+  S.locks.bestestimate=b?{...b,pbHand:target,rawHand:raw+1,lockedAt:Date.now()}:null;
+  S.locks.mirror=m?{...m,pbHand:target,rawHand:raw+1,lockedAt:Date.now()}:null;
+  S.locks.mainfuture=f?{...f,pbHand:target,rawHand:raw+1,lockedAt:Date.now()}:null;
+
+  // Mirror's native visible counter reads state.gptMirror, so keep its native pending synchronized.
+  try{
+    const st=typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():(state.gptMirror||(state.gptMirror={}));
+    if(m && (!st.pending || Number(st.pending.hand)!==target)){
+      st.pending={side:m.side,confidence:m.confidence,regime:'V262_VISIBLE_LOCK',hand:target,createdAt:Date.now(),__v262:true};
+    } else if(!m && st.pending?.__v262){ st.pending=null; }
+  }catch(e){}
+
+  // Main Future's visible W/L row reads the V84 ledger. Synchronize that ledger's pending lock.
+  try{
+    const api=mainAPI(),a=api?.accuracy?.();
+    if(a){
+      if(f)a.pending={side:f.side,handN:target-1,edge:f.edge||0,confidence:f.confidence,armedAt:Date.now(),__v262:true};
+      else if(a.pending?.__v262)a.pending=null;
+    }
+  }catch(e){}
+
+  // Central Best Estimate pending is synchronized too for legacy renderers.
+  try{
+    const a=central(); if(b)a.pending.bestestimate={...S.locks.bestestimate}; else delete a.pending.bestestimate;
+  }catch(e){}
+  try{persist?.()}catch(e){}
+}
+function pushRecent(m,win){
+  for(const N of [10,25,50]){const k='last'+N;m[k] ||= [];m[k].push(win?1:0);if(m[k].length>N)m[k]=m[k].slice(-N)}
+}
+function settleBest(actual,target){
+  const S=store(),p=S.locks.bestestimate;
+  if(!p||Number(p.pbHand)!==target||S.lastSettled.bestestimate===target)return;
+  const m=centralModel('bestestimate','Best-Estimate Analyzer'),win=p.side===actual;
+  m.predictions++; if(win)m.wins++;else m.losses++; pushRecent(m,win);
+  m.last={predicted:p.side,actual,win,pbHand:target,strength:p.confidence,settledAt:Date.now(),source:'V262_VISIBLE_LOCK'};
+  m.__v260LastPB=target; S.lastSettled.bestestimate=target; S.locks.bestestimate=null;
+  try{delete central().pending.bestestimate}catch(e){}
+}
+function settleMirror(actual,target){
+  const S=store(),p=S.locks.mirror;
+  if(!p||Number(p.pbHand)!==target||S.lastSettled.mirror===target)return;
+  try{
+    const st=typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():(state.gptMirror||(state.gptMirror={}));
+    // Ensure native settle has the exact visible pre-hand call even if another wrapper cleared it.
+    st.pending={side:p.side,confidence:p.confidence,regime:'V262_VISIBLE_LOCK',hand:target,createdAt:p.lockedAt,__v262:true};
+    if(typeof window.settleGPTMirrorPrediction==='function')window.settleGPTMirrorPrediction(actual);
+    else if(typeof settleGPTMirrorPrediction==='function')settleGPTMirrorPrediction(actual);
+    st.__v261LastPB=target;
+  }catch(e){
+    // Fallback updates the same state the visible Mirror counter reads.
+    try{const st=state.gptMirror||(state.gptMirror={});const win=p.side===actual;st.predictions=(Number(st.predictions)||0)+1;if(win)st.wins=(Number(st.wins)||0)+1;else st.losses=(Number(st.losses)||0)+1;st.pending=null}catch(_){}
+  }
+  S.lastSettled.mirror=target; S.locks.mirror=null;
+}
+function settleMain(actual,target){
+  const S=store(),p=S.locks.mainfuture;
+  if(!p||Number(p.pbHand)!==target||S.lastSettled.mainfuture===target)return;
+  try{
+    const api=mainAPI(),a=api?.accuracy?.();
+    if(a){
+      // Put the visible pre-hand call into the exact ledger being painted, then invoke its own settle.
+      a.pending={side:p.side,handN:target-1,edge:p.edge||0,confidence:p.confidence,armedAt:p.lockedAt,__v262:true};
+      if(typeof api.settle==='function')api.settle(actual);
+      else {const win=p.side===actual;if(win)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;a.pending=null;}
+      a.__v261LastPB=target;
+    }
+  }catch(e){}
+  S.lastSettled.mainfuture=target; S.locks.mainfuture=null;
+}
+function clearTieLocks(){
+  const S=store();S.locks.bestestimate=S.locks.mirror=S.locks.mainfuture=null;
+  try{const st=typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():state.gptMirror;if(st)st.pending=null}catch(e){}
+  try{const a=mainAPI()?.accuracy?.();if(a){a.pending=null;a.ties=(Number(a.ties)||0)+1}}catch(e){}
+  try{delete central().pending.bestestimate}catch(e){}
+}
+function paint(){
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+  try{window.renderGPTMirrorAI?.()}catch(e){}
+  try{window.renderMainRoadFutureTest?.()}catch(e){}
+}
+
+const oldSettle=window.__settleVerifiedPredictions;
+window.__settleVerifiedPredictions=function(actual){
+  actual=String(actual||'').toUpperCase();
+  const target=pbN()+1;
+  if(actual==='T'){
+    clearTieLocks();
+    let r;try{r=typeof oldSettle==='function'?oldSettle.apply(this,arguments):undefined}catch(e){}
+    setTimeout(paint,0);return r;
+  }
+  if(isPB(actual)){
+    settleBest(actual,target); settleMirror(actual,target); settleMain(actual,target);
+  }
+  let r;try{r=typeof oldSettle==='function'?oldSettle.apply(this,arguments):undefined}catch(e){console.warn('V262 legacy settle',e)}
+  try{persist?.()}catch(e){} setTimeout(paint,0); return r;
+};
+window.__settleVerifiedPredictions.__v262=true;
+
+const oldArm=window.__armVerifiedPredictions;
+window.__armVerifiedPredictions=function(){
+  let r;try{r=typeof oldArm==='function'?oldArm.apply(this,arguments):undefined}catch(e){console.warn('V262 legacy arm',e)}
+  // Legacy arm is sliced async; capture visible calls on the next task after the committed hand is present.
+  setTimeout(()=>{capture();paint()},0);
+  return r;
+};
+window.__armVerifiedPredictions.__v262=true;
+
+// Startup lock so the first displayed qualified prediction can be graded.
+setTimeout(()=>{capture();paint()},250);
+
+window.__V262_THREE_COUNTER_FIX__={
+  version:VERSION,installed:true,mainFutureVisibleLedger:'V84_FIRST',authoritativeVisibleLocks:true,
+  predictionLogicChanged:false,sequenceV2CoreChanged:false,
+  status:()=>{const S=store(),ma=mainAPI()?.accuracy?.(),mi=(typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():state.gptMirror),be=central().models.bestestimate;return {pbHands:pbN(),locks:S.locks,bestestimate:{w:be?.wins||0,l:be?.losses||0,n:be?.predictions||0},mirror:{w:mi?.wins||0,l:mi?.losses||0,n:mi?.predictions||0},mainfuture:{w:ma?.wins||0,l:ma?.losses||0,n:(ma?.wins||0)+(ma?.losses||0)}}}
 };
 })();
 </script>
