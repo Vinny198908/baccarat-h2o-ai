@@ -18131,6 +18131,86 @@ window.__V263_UNIFIED_COUNTER_FAILSAFE__={version:VERSION,installed:true,display
   },false);
 })();
 </script>
+
+
+<!-- V266 AUTOMATIC HISTORICAL MATCH AUTHORITATIVE COUNTER FIX -->
+<script id="v266-auto-hist-authoritative-counter">
+(function(){
+'use strict';
+if(window.__V266_AUTO_HIST_COUNTER__)return;
+const VERSION=266, KEY='baccarat-auto-historical-authoritative-v266';
+const PB=x=>x==='P'||x==='B';
+const seq=()=>{try{return typeof currentSequence==='function'?currentSequence():[]}catch(e){return []}};
+const pbN=()=>seq().filter(PB).length;
+function fresh(){return {wins:0,losses:0,predictions:0,ties:0,afterTie:{wins:0,losses:0,predictions:0},pending:null,lastPB:0,afterTieNext:false,last:null,version:VERSION}}
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&typeof x==='object')return Object.assign(fresh(),x,{afterTie:Object.assign(fresh().afterTie,x.afterTie||{})})}catch(e){}return fresh()}
+let acc=load();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(acc))}catch(e){}}
+function sideFromDisplay(){
+ const t=String(document.getElementById('autoHistNext')?.textContent||'').toUpperCase();
+ if(!t||/WAIT|—/.test(t))return null;
+ if(/PLAYER/.test(t))return 'P'; if(/BANKER/.test(t))return 'B'; return null;
+}
+function capture(){
+ const side=sideFromDisplay(), target=pbN()+1;
+ if(side){
+   if(!acc.pending || Number(acc.pending.pbHand)!==target || acc.pending.side!==side){
+     acc.pending={side,pbHand:target,afterTie:!!acc.afterTieNext,lockedAt:Date.now(),source:'DOM'};
+     save();
+   }
+ } else if(acc.pending && Number(acc.pending.pbHand)===target){
+   // Do not erase a valid same-hand lock because a transient render flashes WAIT.
+ }
+ return acc.pending;
+}
+function settle(actual){
+ actual=String(actual||'').toUpperCase();
+ if(actual==='T'){
+   acc.ties=(Number(acc.ties)||0)+1; acc.pending=null; acc.afterTieNext=true; save(); return;
+ }
+ if(!PB(actual))return;
+ const target=pbN()+1, p=acc.pending;
+ if(!p || Number(p.pbHand)!==target || Number(acc.lastPB)===target){acc.afterTieNext=false;save();return;}
+ const win=p.side===actual;
+ acc.predictions=(Number(acc.predictions)||0)+1;
+ if(win)acc.wins=(Number(acc.wins)||0)+1; else acc.losses=(Number(acc.losses)||0)+1;
+ if(p.afterTie){
+   acc.afterTie.predictions=(Number(acc.afterTie.predictions)||0)+1;
+   if(win)acc.afterTie.wins=(Number(acc.afterTie.wins)||0)+1; else acc.afterTie.losses=(Number(acc.afterTie.losses)||0)+1;
+ }
+ acc.lastPB=target;acc.last={predicted:p.side,actual,win,pbHand:target,afterTie:!!p.afterTie,settledAt:Date.now()};
+ acc.pending=null;acc.afterTieNext=false;save();
+}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+function paint(){
+ const w=Number(acc.wins)||0,l=Number(acc.losses)||0,n=w+l;
+ const aw=Number(acc.afterTie?.wins)||0,al=Number(acc.afterTie?.losses)||0,an=aw+al;
+ set('autoHistAcc',n?(100*w/n).toFixed(1)+'%':'—'); set('autoHistWL',`${w}W-${l}L`); set('autoHistN',`N=${n}`);
+ set('autoHistAfterTieAcc',an?(100*aw/an).toFixed(1)+'%':'—'); set('autoHistAfterTieWL',`${aw}W-${al}L`); set('autoHistAfterTieN',`N=${an}`);
+}
+function wireReset(){
+ let b=document.getElementById('autoHistReset');
+ if(b&&!b.__v266){const c=b.cloneNode(true);b.parentNode?.replaceChild(c,b);b=c;b.__v266=true;b.addEventListener('click',()=>{acc=fresh();save();paint();capture()})}
+ let a=document.getElementById('autoHistAfterTieReset');
+ if(a&&!a.__v266){const c=a.cloneNode(true);a.parentNode?.replaceChild(c,a);a=c;a.__v266=true;a.addEventListener('click',()=>{acc.afterTie={wins:0,losses:0,predictions:0};save();paint()})}
+}
+function sync(){wireReset();capture();paint()}
+const prior=window.__settleVerifiedPredictions;
+window.__settleVerifiedPredictions=function(actual){
+ capture(); settle(actual);
+ let r;try{r=typeof prior==='function'?prior.apply(this,arguments):undefined}catch(e){console.warn('V266 prior settle',e)}
+ setTimeout(sync,0);setTimeout(sync,40);setTimeout(sync,140);return r;
+};
+const oldRender=window.render;
+if(typeof oldRender==='function'&&!oldRender.__v266AutoHistCounter){
+ const w=function(){const r=oldRender.apply(this,arguments);setTimeout(sync,5);return r};
+ w.__v266AutoHistCounter=true;w.__base=oldRender;window.render=w;try{render=w}catch(e){}
+}
+function boot(){wireReset();paint();setTimeout(capture,20);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1750));else setTimeout(boot,1750);
+window.__V266_AUTO_HIST_COUNTER__={version:VERSION,installed:true,displayIsAuthority:true,predictionLogicChanged:false,get:()=>JSON.parse(JSON.stringify(acc)),capture,settle,paint,reset:()=>{acc=fresh();save();paint()}};
+})();
+</script>
 </body>
 </html>
 
@@ -18432,5 +18512,142 @@ window.__V262_THREE_COUNTER_FIX__={
   predictionLogicChanged:false,sequenceV2CoreChanged:false,
   status:()=>{const S=store(),ma=mainAPI()?.accuracy?.(),mi=(typeof ensureGPTMirrorState==='function'?ensureGPTMirrorState():state.gptMirror),be=central().models.bestestimate;return {pbHands:pbN(),locks:S.locks,bestestimate:{w:be?.wins||0,l:be?.losses||0,n:be?.predictions||0},mirror:{w:mi?.wins||0,l:mi?.losses||0,n:mi?.predictions||0},mainfuture:{w:ma?.wins||0,l:ma?.losses||0,n:(ma?.wins||0)+(ma?.losses||0)}}}
 };
+})();
+</script>
+
+
+<script id="v265-original-main-future-countersafe">
+/* V265 — restore the earliest Main Road Future Test formula found in the Aug 30 V27 build.
+   Prediction formula only: Main Road weight 2, each ready derived road weight 1.
+   No V72 phase/regime adaptation and no V84/V236 saved-shoe/history gating.
+   V263 unified visible-counter failsafe remains authoritative for W/L. */
+(function(){
+'use strict';
+if(window.__V265_ORIGINAL_MAIN_FUTURE__)return;
+const VERSION=265;
+const pbN=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}};
+
+function originalMainRoadFutureTest(){
+  const t0=(window.performance&&performance.now)?performance.now():Date.now();
+  const main=sequenceAISignal();
+  const roadDefs=[
+    {label:'Eye',offset:1},
+    {label:'Small',offset:2},
+    {label:'Roach',offset:3}
+  ];
+  const roadSigs=roadDefs.map(d=>({...d,sig:derivedRoadSequencePatternSignal(d.offset)}));
+
+  const scoreSide=(side)=>{
+    let weighted=0,weight=0,readyRoads=0;
+    const mainPct=side==='P'?(main.pPct||0):(main.bPct||0);
+    if(mainPct>0){weighted+=mainPct*2;weight+=2;}
+    for(const r of roadSigs){
+      const sig=r.sig||{};
+      if(sig.pMark&&sig.bMark&&sig.pMark!==sig.bMark){
+        const pct=side==='P'?(sig.pPct||50):(sig.bPct||50);
+        weighted+=pct;weight+=1;readyRoads++;
+      }
+    }
+    return {pct:weight?weighted/weight:50,readyRoads,weight};
+  };
+
+  const p=scoreSide('P'),b=scoreSide('B');
+  const total=(p.pct+b.pct)||100;
+  const pNorm=Math.round(100*p.pct/total),bNorm=100-pNorm;
+  const edge=Math.abs(pNorm-bNorm),evidence=Math.max(p.weight,b.weight);
+  let side=null,label='WAIT';
+  if(evidence>0){
+    side=pNorm>bNorm?'P':bNorm>pNorm?'B':null;
+    if(side)label=edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN';
+  }
+  const path=(sideKey,norm)=>{
+    const marks=previewFor(sideKey);
+    return {side:sideKey,norm,main:futureMainRoadDescription(sideKey),marks,
+      chips:futureRoadChip('Eye',marks.eye)+futureRoadChip('Small',marks.small)+futureRoadChip('Roach',marks.roach)};
+  };
+  const elapsed=Math.max(0,Math.round(((window.performance&&performance.now)?performance.now():Date.now())-t0));
+  return {p:path('P',pNorm),b:path('B',bNorm),side,label,edge,evidence,main,roadSigs,elapsed,version:VERSION,sourceContract:'ORIGINAL_AUG30_MAIN_WEIGHT_2_PLUS_3_ROADS_WEIGHT_1'};
+}
+
+function mainCounter(){
+  try{return window.__V84_MAIN_FUTURE_TUNE__?.accuracy?.()||window.__V72_MAIN_FUTURE__?.accuracy?.()||null}catch(e){return null}
+}
+function paintAccuracy(){
+  try{
+    const a=mainCounter();if(!a)return;
+    const w=Number(a.wins)||0,l=Number(a.losses)||0,n=w+l;
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('futureAccuracyPct',n?(100*w/n).toFixed(1)+'%':'—');
+    set('futureAccuracyWL',`${w}W-${l}L`);
+    set('futureAccuracyN',`N=${n}`);
+    set('futureAccuracyWait',`WAIT=${Number(a.waits)||0}`);
+  }catch(e){}
+}
+function originalRender(){
+  const x=originalMainRoadFutureTest();
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  const html=(id,v)=>{const e=document.getElementById(id);if(e)e.innerHTML=v};
+  set('futurePMain',x.p.main);set('futureBMain',x.b.main);
+  html('futurePRoads',x.p.chips);html('futureBRoads',x.b.chips);
+  set('futurePScore',x.p.norm+'%');set('futureBScore',x.b.norm+'%');
+  set('futureTestSpeed',`Automatic test • ${x.elapsed} ms • ORIGINAL`);
+  if(!x.evidence){
+    set('futureFinal','Likely answer: WAIT — not enough Main Road / road evidence yet');
+    set('futureNote','Both original futures were projected, but there is not enough Main Road or derived-road continuation evidence to favor one side.');
+  }else if(!x.side){
+    set('futureFinal','Likely answer: WAIT — P and B paths are tied');
+  }else{
+    set('futureFinal',`Likely answer: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.label} • ${x.side==='P'?x.p.norm:x.b.norm}% vs ${x.side==='P'?x.b.norm:x.p.norm}%`);
+  }
+  if(x.evidence){
+    const ready=x.roadSigs.filter(r=>r.sig&&r.sig.pMark&&r.sig.bMark&&r.sig.pMark!==r.sig.bMark).length;
+    const mainText=(x.main&&((x.main.pPct||0)+(x.main.bPct||0)>0))?`Main Road history P ${x.main.pPct||0}% / B ${x.main.bPct||0}%`:'Main Road history still building';
+    set('futureNote',`${mainText} • ${ready}/3 derived roads ready • ORIGINAL weighting: Main ×2, each ready derived road ×1. No phase/regime adaptation or saved-shoe gate.`);
+  }
+  paintAccuracy();
+  return x;
+}
+
+function install(){
+  // Change the embedded V72/V84 callable test references so older reassertion hooks
+  // keep restoring THIS original formula instead of reintroducing tuned logic.
+  const v72=window.__V72_MAIN_FUTURE__;
+  if(v72){v72.test=originalMainRoadFutureTest;v72.render=originalRender;v72.originalAug30=true;}
+  const v84=window.__V84_MAIN_FUTURE_TUNE__;
+  if(v84){v84.test=originalMainRoadFutureTest;v84.render=originalRender;v84.originalAug30=true;v84.activeBehavior='ORIGINAL_AUG30_FORMULA_COUNTERSAFE';}
+  window.mainRoadFutureTest=originalMainRoadFutureTest;try{mainRoadFutureTest=originalMainRoadFutureTest}catch(e){}
+  window.renderMainRoadFutureTest=originalRender;try{renderMainRoadFutureTest=originalRender}catch(e){}
+  const title=document.querySelector('#mainRoadFutureTest .future-test-title');
+  if(title)title.textContent='⚡ Main Road Future Test — ORIGINAL';
+  try{originalRender()}catch(e){}
+  return true;
+}
+
+function wireReset(){
+  let rb=document.getElementById('resetFutureAccuracy');
+  if(!rb||rb.__v265)return;
+  const clean=rb.cloneNode(true);if(rb.parentNode)rb.parentNode.replaceChild(clean,rb);rb=clean;rb.__v265=true;
+  rb.textContent='Reset Accuracy';
+  rb.addEventListener('click',()=>{
+    if(!confirm('Reset only the Main Road Future Test accuracy score?'))return;
+    try{
+      const a=mainCounter();if(a){a.wins=0;a.losses=0;a.waits=0;a.ties=0;a.pending=null;a.ledger=[];}
+      // Keep the secondary V72 ledger clear too so no hidden old score can repaint later.
+      const b=window.__V72_MAIN_FUTURE__?.accuracy?.();if(b&&b!==a){b.wins=0;b.losses=0;b.waits=0;b.ties=0;b.pending=null;b.ledger=[];}
+      if(state.v263CounterLocks){state.v263CounterLocks.locks.mainfuture=null;state.v263CounterLocks.last.mainfuture=null;}
+      if(state.v262CounterLocks){state.v262CounterLocks.locks.mainfuture=null;state.v262CounterLocks.lastSettled.mainfuture=null;}
+      try{persist?.()}catch(e){};originalRender();
+    }catch(e){}
+  });
+}
+
+[0,80,250,700,1400,2800,5000].forEach(ms=>setTimeout(()=>{install();wireReset()},ms));
+document.addEventListener('click',ev=>{
+  const t=ev.target&&ev.target.closest?ev.target.closest('[data-result],#previewP,#previewB,#undoBtn,#clearBtn'):null;
+  if(!t)return;
+  setTimeout(()=>{install();wireReset();paintAccuracy()},160);
+},false);
+
+window.__V265_ORIGINAL_MAIN_FUTURE__={version:VERSION,installed:true,source:'earliest Aug 30 V27 Main Road Future Test',mainWeight:2,derivedRoadWeight:1,currentShoeAdaptation:false,savedShoeGate:false,unifiedCounterFailsafe:true,sequenceV2Changed:false,test:originalMainRoadFutureTest,render:originalRender,status:()=>({prediction:originalMainRoadFutureTest(),accuracy:mainCounter(),pbHands:pbN()})};
 })();
 </script>
