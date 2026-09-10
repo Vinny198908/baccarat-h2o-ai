@@ -17065,6 +17065,117 @@ setTimeout(boot,2500);
 })();
 </script>
 
+
+
+<!-- V249 FREEZE + ACCURACY RUNTIME FIX -->
+<script id="v249-freeze-accuracy-runtime-fix">
+(function(){
+'use strict';
+if(window.__V249_FREEZE_ACCURACY_FIX__)return;
+const VERSION=249;
+const removed=new Set(['seqdup','consensus','bot','metav49','metav50','metav23']);
+
+function seq(){
+  try{return typeof currentSequence==='function'?currentSequence():((state.hands||[]).map(h=>h?.r).filter(Boolean))}catch(e){return []}
+}
+function side(x){x=String(x||'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':null}
+function acc(){
+  state.accuracyVerified ||= {models:{},pending:{},ties:0,version:VERSION};
+  state.accuracyVerified.models ||= {};
+  state.accuracyVerified.pending ||= {};
+  return state.accuracyVerified;
+}
+function defs(){
+  const rows=Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];
+  const seen=new Set();
+  return rows.filter(r=>{const k=String(r?.[0]||'').toLowerCase();if(!k||removed.has(k)||seen.has(k))return false;seen.add(k);return true});
+}
+function model(k,n){
+  const a=acc();
+  const m=a.models[k]||(a.models[k]={name:n||k,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  m.name=n||m.name||k; m.splits ||= {};
+  ['wins','losses','predictions','waits'].forEach(x=>m[x]=Number(m[x])||0);
+  ['last10','last25','last50'].forEach(x=>{if(!Array.isArray(m[x]))m[x]=[]});
+  return m;
+}
+function refresh(){
+  try{window.__V178_ACCURACY_COUNTS__?.refresh?.()}catch(e){}
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+  try{window.__V204_AFTER_TIE_ACCURACY__?.paint?.()}catch(e){}
+}
+
+// V247 commits state.hands before settlement. All older accuracy wrappers were written
+// for pre-commit settlement. Temporarily expose the intended pre-result state while the
+// established settlement chain runs, then restore the committed hand immediately.
+const priorSettle=window.__settleVerifiedPredictions;
+if(typeof priorSettle==='function'){
+  window.__settleVerifiedPredictions=function(actual){
+    actual=String(actual||'').toUpperCase();
+    let popped=null, didPop=false, r;
+    try{
+      const h=Array.isArray(state?.hands)?state.hands:null;
+      const last=h?.[h.length-1];
+      if(h&&last&&String(last.r||last.result||last.side||'').toUpperCase()===actual){popped=h.pop();didPop=true;}
+      r=priorSettle.apply(this,arguments);
+    }catch(e){console.warn('V249 settlement compatibility',e)}
+    finally{
+      if(didPop){try{state.hands.push(popped)}catch(e){}}
+      try{window.persist?.()}catch(e){}
+      setTimeout(refresh,0);
+    }
+    return r;
+  };
+  window.__settleVerifiedPredictions.__v249=true;
+  window.__settleVerifiedPredictions.__base=priorSettle;
+}
+
+// Replace the all-at-once verified-accuracy arming burst with a sliced scheduler.
+// It evaluates at most 2 AI getters per task, preventing a large library scan from
+// monopolizing the click/UI thread. Existing private AI arm functions remain intact.
+let armToken=0, armScheduled=false;
+function scheduleArm(){
+  const my=++armToken;
+  if(armScheduled)return;
+  armScheduled=true;
+  const start=()=>{
+    armScheduled=false;
+    const a=acc(), hand=seq().length+1, raw=seq(), seqText=raw.join('');
+    const color=String(state.currentShoeColor||'combined').toLowerCase();
+    const pb=raw.filter(x=>x==='P'||x==='B'), phase=pb.length<18?'early':pb.length<36?'middle':'late';
+    const afterTie=raw.at(-1)==='T';
+    for(const [k,p] of Object.entries(a.pending||{}))if(!p||Number(p.hand)!==hand)delete a.pending[k];
+    const rows=defs(); let i=0;
+    const step=()=>{
+      if(my!==armToken)return;
+      const end=Math.min(i+2,rows.length);
+      for(;i<end;i++){
+        const [k,n,get]=rows[i]; const m=model(k,n);
+        if(a.pending[k]&&Number(a.pending[k].hand)===hand)continue;
+        let x=null;try{x=get?.()||null}catch(e){}
+        const s=side(x?.side);
+        if(s){
+          let st=Number(x?.strength??x?.confidence??x?.top??0)||0;if(st<=1)st*=100;
+          a.pending[k]={side:s,hand,seq:seqText,lockedAt:Date.now(),strength:Math.round(st),color,phase,afterTie,__v208AfterTie:afterTie};
+        }else if(m.lastWaitHand!==hand){m.waits++;m.lastWaitHand=hand;}
+      }
+      if(i<rows.length){setTimeout(step,0)}else{
+        try{window.persist?.()}catch(e){}
+        refresh();
+      }
+    };
+    step();
+  };
+  if('requestIdleCallback' in window)requestIdleCallback(start,{timeout:450});else setTimeout(start,40);
+}
+window.__armVerifiedPredictions=scheduleArm;
+
+// Coalesce repeated paint requests from late wrappers/timers.
+let refreshTimer=0;
+window.__V249_refreshAccuracy=function(){clearTimeout(refreshTimer);refreshTimer=setTimeout(refresh,60)};
+setTimeout(scheduleArm,350);
+window.__V249_FREEZE_ACCURACY_FIX__={version:VERSION,postCommitSettlementCompatibility:true,slicedAccuracyArm:true,batchSize:2,predictionFormulasChanged:false,sequenceV2CoreChanged:false};
+})();
+</script>
 </body>
 </html>
 
