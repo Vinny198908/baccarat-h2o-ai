@@ -16565,50 +16565,27 @@ function patternRecognizerSignal(){
   const qDen=sources.reduce((a,x)=>a+(Number(x.weight)||0),0);
   const quality=Math.round(clamp(qDen?sources.reduce((a,x)=>a+(Number(x.quality)||0)*(Number(x.weight)||0),0)/qDen:0,0,100));
 
-  // V235 selective confirmation logic: this AI should WAIT unless the evidence is genuinely strong.
+  // V246 LIVE PATTERN FIX: keep the same history + Bead Plate + derived-road evidence,
+  // but do not require all three families to be unanimous before showing a P/B result.
+  // The previous V235/V236 final gate was suppressing too many usable reads.
   const reg=adapt.reg||regimeProfile(seq), decision=recentDecisionState();
   const histSide=sideOfVote(hist),beadSide=sideOfVote(bead),roadSide=sideOfVote(roads);
-  const histStrength=histSide==='P'?hist.vote.p:histSide==='B'?hist.vote.b:0;
-  const beadStrength=beadSide==='P'?bead.vote.p:beadSide==='B'?bead.vote.b:0;
   const allAgree=!!side&&histSide===side&&beadSide===side&&roadSide===side;
-  const roadMajority=roads.ready>=2&&roads.agree>=2;
-  const recentChopWarning=(reg.medium?.switchRate||0)>=.64;
-
-  // V236 two-tier logic. A+ keeps the strong SIDE-LEAN setup.
-  // A opens RUN/TREND, CHOP, and MIXED only when all three derived roads are ready and unanimous.
-  // TRANSITION remains WAIT because it was the least stable regime in testing.
-  let tier='';
-  let minHist=.55,minBead=.55,minEdge=14,minQuality=42;
-  if(decision.defensive){minHist=.58;minBead=.58;minEdge=18;}
+  const histBeadAgree=!!side&&histSide===side&&beadSide===side;
+  let tier=allAgree?'A+':histBeadAgree?'A':'LIVE';
+  const minEdge=decision.defensive?7:4;
+  const minQuality=decision.defensive?30:24;
 
   let waitReason='';
   if(!side)waitReason='WAIT: Player and Banker pattern scores are tied.';
-  else if(familyCount<3)waitReason='WAIT: history, Bead Plate, and derived-road confirmation must all be ready.';
-  else if(!allAgree)waitReason='WAIT: history, Bead Plate, and derived roads do not all agree on the same side.';
-  else if(reg.regime==='SIDE-LEAN'){
-    tier='A+';
-    if(histStrength<minHist)waitReason=`WAIT: saved-history direction is only ${Math.round(histStrength*100)}%; need ${Math.round(minHist*100)}%+.`;
-    else if(beadStrength<minBead)waitReason=`WAIT: Bead Plate direction is only ${Math.round(beadStrength*100)}%; need ${Math.round(minBead*100)}%+.`;
-    else if(!roadMajority)waitReason='WAIT: derived roads do not have a real 2-of-3 majority.';
-    else if(decision.defensive&&!(roads.ready===3&&roads.agree===3))waitReason='WAIT: after 2 recent qualified losses, require 3-of-3 road agreement.';
-    else if(recentChopWarning)waitReason=`WAIT: recent switch rate is ${Math.round((reg.medium?.switchRate||0)*100)}%; SIDE-LEAN is deteriorating toward chop.`;
-    else if(edge<minEdge)waitReason=`WAIT: combined pattern edge is ${edge} points; need ${minEdge}+.`;
-    else if(quality<minQuality)waitReason=`WAIT: combined pattern quality is ${quality}/100; need ${minQuality}+.`;
-  }else if(reg.regime==='RUN/TREND'||reg.regime==='CHOP'||reg.regime==='MIXED'){
-    tier='A';
-    if(histStrength<minHist)waitReason=`WAIT: A-tier saved-history direction is only ${Math.round(histStrength*100)}%; need ${Math.round(minHist*100)}%+.`;
-    else if(beadStrength<minBead)waitReason=`WAIT: A-tier Bead Plate direction is only ${Math.round(beadStrength*100)}%; need ${Math.round(minBead*100)}%+.`;
-    else if(!(roads.ready===3&&roads.agree===3))waitReason='WAIT: A-tier requires all 3 derived roads ready and unanimous.';
-    else if(edge<minEdge)waitReason=`WAIT: A-tier combined edge is ${edge} points; need ${minEdge}+.`;
-    else if(quality<minQuality)waitReason=`WAIT: A-tier combined quality is ${quality}/100; need ${minQuality}+.`;
-  }else{
-    waitReason='WAIT: TRANSITION regime is unstable; wait for structure to settle.';
-  }
+  else if(familyCount<2)waitReason='WAIT: need at least two usable pattern evidence families.';
+  else if(edge<minEdge)waitReason=`WAIT: combined P/B edge is only ${edge} points; need ${minEdge}+.`;
+  else if(quality<minQuality)waitReason=`WAIT: combined pattern quality is ${quality}/100; need ${minQuality}+.`;
 
   if(waitReason){side=null;tier='';}
   if(side&&(!decisionRuntime.pending||decisionRuntime.pending.handN!==seq.length))decisionRuntime.pending={handN:seq.length,side};
   const strength=side?clamp(Math.round(50+edge*.65+quality*.22),52,91):0;
-  return {side,candidate:side,qualified:!!side,strength,pPct,bPct,edge,quality,matches:(hist.matches||0)+(bead.matches||0),bestLen:Math.max(hist.bestLen||0,bead.bestLen||0),bestSimilarity:Math.round((hist.bestSim||0)*100),roadMatches:hist.matches||0,beadMatches:bead.matches||0,roadVotes:roads.ready,roadsAgree:roads.agree,beadReady:(bead.matches||0)>0,beadP:Math.round(bead.vote.p*100),beadB:Math.round(bead.vote.b*100),waitReason,patternRecognizer:true,adaptiveLiveShoe:true,version:236,tier,hist,bead,roads,sources,adapt,decision:recentDecisionState()};
+  return {side,candidate:side,qualified:!!side,strength,pPct,bPct,edge,quality,matches:(hist.matches||0)+(bead.matches||0),bestLen:Math.max(hist.bestLen||0,bead.bestLen||0),bestSimilarity:Math.round((hist.bestSim||0)*100),roadMatches:hist.matches||0,beadMatches:bead.matches||0,roadVotes:roads.ready,roadsAgree:roads.agree,beadReady:(bead.matches||0)>0,beadP:Math.round(bead.vote.p*100),beadB:Math.round(bead.vote.b*100),waitReason,patternRecognizer:true,adaptiveLiveShoe:true,version:246,tier,hist,bead,roads,sources,adapt,decision:recentDecisionState()};
 }
 
 function paint(){
@@ -16619,8 +16596,8 @@ function paint(){
   set('roadAiAgree',String(r.matches||0));set('roadAiP',r.pPct+'%');set('roadAiB',r.bPct+'%');set('roadAiEdge',r.edge+' pts');
   const panel=document.getElementById('roadPreviewAiPanel');
   if(panel){
-    const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 AI Pattern Recognizer — Two-Tier Confirmation';
-    const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>PATTERN ENGINE V236 — TWO-TIER CONFIRMATION.</b> P/B only; no Main Road prediction logic. A+ uses the strongest SIDE-LEAN setup. A-tier also allows RUN/TREND, CHOP, or MIXED only when saved P/B history and Bead Plate are strong and all 3 derived roads are ready and unanimous. TRANSITION stays WAIT.';
+    const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 AI Pattern Recognizer — Adaptive Live';
+    const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>PATTERN ENGINE V246 — ADAPTIVE LIVE.</b> Uses the same saved P/B history, Bead Plate pattern, and derived-road confirmation, but no longer forces all three families to be unanimous. A+ = all three agree; A = history + Bead agree; LIVE = usable weighted evidence. Accuracy tracking is unchanged.';
   }
   const note=document.getElementById('roadAiNote');if(note){
     const hp=r.hist||{},bp=r.bead||{},rd=r.roads||{};
@@ -17452,6 +17429,10 @@ function hook(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',hook,{once:true});else hook();
 })();
+</script>
+
+<script id="v246-pattern-live-result-fix-marker">
+window.__V246_PATTERN_LIVE_RESULT_FIX__={version:246,removedExcessiveUnanimousGate:true,minFamilies:2,minEdgeNormal:4,minEdgeDefensive:7,accuracyTrackingUnchanged:true,predictionSourcesUnchanged:true};
 </script>
 </body>
 </html>
