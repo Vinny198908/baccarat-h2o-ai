@@ -17384,5 +17384,74 @@ window.__V228_SEQUENCE_V2_ORIGINAL__={
 
 window.__V244_SEQUENCE_V2_ROLLBACK__={enabled:true,removedV242QualityGate:true,removedV243ColorSideGate:true,restoredFromV228:true};
 </script>
+
+<!-- V245 — AI Pattern Recognizer accuracy/result display repair -->
+<script id="v245-pattern-accuracy-display-fix">
+(function(){
+'use strict';
+const VERSION=245, KEY='roadpreview';
+function getModel(){
+  try{return state?.accuracyVerified?.models?.[KEY]||null}catch(e){return null}
+}
+function ensureBox(){
+  const panel=document.getElementById('roadPreviewAiPanel');
+  if(!panel)return null;
+  let box=document.getElementById('patternAccuracyV245');
+  if(!box){
+    box=document.createElement('div');
+    box.id='patternAccuracyV245';
+    box.className='analyzer-grid';
+    box.style.marginTop='8px';
+    box.innerHTML=`
+      <div class="analyzer-card"><span>Pattern accuracy</span><strong id="patternAccRateV245">—</strong></div>
+      <div class="analyzer-card"><span>Wins / Losses</span><strong id="patternAccWLV245">0W-0L</strong></div>
+      <div class="analyzer-card"><span>Graded results</span><strong id="patternAccNV245">N 0</strong></div>
+      <div class="analyzer-card"><span>Last result</span><strong id="patternAccLastV245">—</strong></div>`;
+    const note=document.getElementById('roadAiNote');
+    if(note&&note.parentNode===panel) panel.insertBefore(box,note);
+    else panel.appendChild(box);
+  }
+  return box;
+}
+function renderPatternAccuracy(){
+  if(!ensureBox())return;
+  const m=getModel();
+  const w=Number(m?.wins)||0,l=Number(m?.losses)||0;
+  const n=Number(m?.predictions)||w+l;
+  const rate=n?((100*w/n).toFixed(1)+'%'):'—';
+  const last=m?.last||null;
+  const lastText=last
+    ? `${last.win===true?'WIN':last.win===false?'LOSS':'GRADED'} • ${last.predicted==='P'?'P':last.predicted==='B'?'B':'—'}→${last.actual==='P'?'P':last.actual==='B'?'B':last.actual||'—'}`
+    : '—';
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('patternAccRateV245',rate);
+  set('patternAccWLV245',`${w}W-${l}L`);
+  set('patternAccNV245',`N ${n}`);
+  set('patternAccLastV245',lastText);
+  // Also repair/refresh the legacy V73 card if it exists.
+  const card=document.querySelector('#roadPreviewAiPanel [data-v73-acc="roadpreview"]');
+  if(card){
+    const r=card.querySelector('.v73-rate'),d=card.querySelector('.v73-detail'),label=card.querySelector('span');
+    if(label)label.textContent='Pattern Recognizer verified accuracy';
+    if(r)r.textContent=rate;
+    if(d)d.textContent=`${w}W-${l}L • N ${n}${last?` • Last ${last.win===true?'W':last.win===false?'L':'—'}`:''}`;
+  }
+}
+function hook(){
+  renderPatternAccuracy();
+  const old=window.render;
+  if(typeof old==='function'&&!old.__v245PatternAccuracy){
+    const wrapped=function(){const out=old.apply(this,arguments);queueMicrotask(renderPatternAccuracy);return out};
+    wrapped.__v245PatternAccuracy=true;wrapped.__base=old;
+    window.render=wrapped;try{render=wrapped}catch(e){}
+  }
+  ['roadAiSide','roadAiStrength','roadAiAgree'].forEach(()=>{});
+  document.addEventListener('click',()=>setTimeout(renderPatternAccuracy,0),true);
+  setInterval(renderPatternAccuracy,500);
+  window.__V245_PATTERN_ACCURACY_DISPLAY__={version:VERSION,key:KEY,render:renderPatternAccuracy,directModelBinding:true,predictionLogicChanged:false};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',hook,{once:true});else hook();
+})();
+</script>
 </body>
 </html>
