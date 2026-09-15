@@ -310,6 +310,12 @@
 <div class="match-pct"><strong id="seqAiB">—</strong><span>Banker</span></div>
 <div class="match-pct"><strong id="seqAiT">—</strong><span>Tie</span></div>
 </div>
+<div class="analyzer-grid" id="seqV2AccuracyDisplayFix" style="margin-top:8px">
+<div class="analyzer-card"><span>Verified accuracy</span><strong id="seqV2AccuracyRate">—</strong></div>
+<div class="analyzer-card"><span>W / L</span><strong id="seqV2AccuracyWL">0W-0L</strong></div>
+<div class="analyzer-card"><span>Graded predictions</span><strong id="seqV2AccuracyN">N 0</strong></div>
+</div>
+<div class="analyzer-sub" id="seqV2AccuracyLast" style="margin-top:5px">Accuracy results ready.</div>
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
 <div class="analyzer" id="colorPatternAiPanel" style="border-color:#8b5cf6;box-shadow:0 0 0 1px rgba(139,92,246,.14) inset">
@@ -17266,7 +17272,21 @@ function update(){
 }
 function boot(){ensureUI();update();const old=window.render;if(typeof old==='function'&&!old.__v237DuplicateTrajectory){const w=function(){const r=old.apply(this,arguments);setTimeout(update,0);return r};w.__v237DuplicateTrajectory=true;w.__base=old;window.render=w;try{render=w}catch(e){}}document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(update,0)});}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1900),{once:true});else setTimeout(boot,1900);
-window.__V237_DUPLICATE_TRAJECTORY__={version:VERSION,scanStartsAt:8,exactPBPrefix:true,minTrajectory:99,minLeadPP:1,confirmHands:2,breakOnFirstDivergence:true,generalHistoricalFallback:true,patternRecognizerChanged:false,sequenceV2Changed:false,mainFutureChanged:false,confusionAIChanged:false};
+// V237.1 reliability patch — later runtime scripts can replace window.render after V237 boots.
+// Re-run this tiny updater after real hand-entry/undo/new-shoe actions so ACTIVE predictions are always settled and painted.
+['playerBtn','bankerBtn','tieBtn','undoBtn','newShoeBtn'].forEach(function(id){
+  const b=document.getElementById(id);
+  if(b&&!b.__dupTrajAccuracyHook){
+    b.__dupTrajAccuracyHook=true;
+    b.addEventListener('click',function(){setTimeout(update,0);setTimeout(update,80);});
+  }
+});
+// Lightweight fallback catches programmatic/imported hand changes without depending on the global render wrapper.
+let __dupLastPB=pbLive();
+setInterval(function(){
+  try{const now=pbLive();if(now!==__dupLastPB){__dupLastPB=now;update();}}catch(e){}
+},350);
+window.__V237_DUPLICATE_TRAJECTORY__={version:'V237.1',scanStartsAt:8,exactPBPrefix:true,minTrajectory:99,minLeadPP:1,confirmHands:2,breakOnFirstDivergence:true,generalHistoricalFallback:true,accuracyReliabilityPatch:true,patternRecognizerChanged:false,sequenceV2Changed:false,mainFutureChanged:false,confusionAIChanged:false};
 })();
 </script>
 
@@ -17997,5 +18017,94 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
+<!-- V256 Adaptive Library Intelligence live-feed/runtime repair. Prediction rules unchanged. -->
+<script id="v256-library-intel-live-feed-fix">
+(function(){
+'use strict';
+let lastSeq='', lastLen=-1;
+function seq(){
+  try{
+    if(typeof currentSequence==='function'){
+      const a=currentSequence();
+      if(Array.isArray(a)) return a.filter(x=>x==='P'||x==='B'||x==='T');
+    }
+  }catch(e){}
+  try{return (state&&Array.isArray(state.hands)?state.hands:[]).map(h=>h&&h.r).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}
+}
+function libCount(){
+  try{return (Array.isArray(state.redPatternLibrary)?state.redPatternLibrary.length:0)+(Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary.length:0)}catch(e){return 0}
+}
+function refresh(){
+  const a=seq(), k=a.join('');
+  if(k===lastSeq && a.length===lastLen) return;
+  lastSeq=k; lastLen=a.length;
+  // Run after the main input handler has committed state.hands.
+  setTimeout(function(){
+    try{ if(typeof window.renderLibraryIntelligence==='function') window.renderLibraryIntelligence(); }catch(e){}
+    try{ if(typeof window.armLibraryIntelligence==='function') window.armLibraryIntelligence(); }catch(e){}
+    // If the panel is still in its startup state, expose the real feed counts instead of a misleading generic message.
+    try{
+      const note=document.getElementById('libraryIntelNote');
+      const side=document.getElementById('libraryIntelSide');
+      const pb=seq().filter(x=>x==='P'||x==='B').length, lc=libCount();
+      if(note && side && side.textContent.trim()==='WAIT' && pb>=6 && lc>0 && /need at least 6 P\/B hands and a saved shoe library/i.test(note.textContent)){
+        note.textContent=`Live feed repaired: ${pb} P/B hands detected • ${lc} saved shoes loaded. Re-evaluating qualification gates…`;
+        try{ if(typeof window.renderLibraryIntelligence==='function') window.renderLibraryIntelligence(); }catch(e){}
+      }
+    }catch(e){}
+  },260);
+}
+function init(){
+  lastSeq=''; lastLen=-1; refresh();
+  document.addEventListener('click',function(ev){
+    const t=ev.target&&ev.target.closest?ev.target.closest('[data-result],#previewP,#previewB,#undoBtn,#clearBtn'):null;
+    if(t) setTimeout(refresh,80);
+  },true);
+  // Backup watcher protects this AI from later scripts replacing button handlers.
+  setInterval(refresh,350);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+</script>
+
+<script id="seq-v2-accuracy-display-fix-v255">
+(function(){
+'use strict';
+function renderSeqV2AccuracyFix(){
+  try{
+    const m=window.state?.accuracyVerified?.models?.seqv2 || (typeof state!=='undefined'?state?.accuracyVerified?.models?.seqv2:null) || null;
+    const w=Number(m?.wins)||0,l=Number(m?.losses)||0;
+    const storedN=Number(m?.predictions)||0;
+    const n=storedN || (w+l);
+    const rate=n?((100*w/n).toFixed(1)+'%'):'—';
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('seqV2AccuracyRate',rate);
+    set('seqV2AccuracyWL',w+'W-'+l+'L');
+    set('seqV2AccuracyN','N '+n);
+    const last=m?.ledger?.length?m.ledger[m.ledger.length-1]:null;
+    let detail='Accuracy results ready.';
+    if(last){
+      const pred=last.predicted||last.side||'—', actual=last.actual||'—';
+      const verdict=last.win===true?'WIN':last.win===false?'LOSS':'GRADED';
+      detail='Last: '+verdict+' • '+pred+' → '+actual;
+    } else if(n) detail='Sequence V2 accuracy is recording and displayed above.';
+    set('seqV2AccuracyLast',detail);
+    const legacy=document.querySelector('#sequenceAiPanel [data-v73-acc="seqv2"]');
+    if(legacy){
+      const r=legacy.querySelector('.v73-rate'),d=legacy.querySelector('.v73-detail');
+      if(r)r.textContent=rate;
+      if(d)d.textContent=w+'W-'+l+'L • N '+n;
+    }
+  }catch(e){}
+}
+function install(){
+ renderSeqV2AccuracyFix();
+ document.addEventListener('click',()=>setTimeout(renderSeqV2AccuracyFix,0),true);
+ setInterval(renderSeqV2AccuracyFix,350);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
+window.__SEQ_V2_ACCURACY_DISPLAY_FIX__={render:renderSeqV2AccuracyFix,displayOnly:true,predictionLogicChanged:false};
+})();
+</script>
 </body>
 </html>
