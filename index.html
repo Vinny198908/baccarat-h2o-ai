@@ -18541,8 +18541,8 @@ function apply(){
 function boot(){
   apply();
   [100,350,800,1500,3000,6000].forEach(ms=>setTimeout(apply,ms));
-  const mo=new MutationObserver(()=>apply());
-  mo.observe(document.documentElement,{childList:true,subtree:true});
+  // V272: no document-wide observer. The scheduled passes are sufficient and
+  // avoid self-triggering DOM mutation/render loops on large libraries.
   window.__V270_CLEAN_LAYOUT__={
     version:VERSION,
     mirrorRemoved:true,
@@ -18631,11 +18631,33 @@ function bindReset(){
 function boot(){
  lastPB=pb();ui();bindReset();tick();
  [100,350,800,1500,3000].forEach(ms=>setTimeout(()=>{bindReset();tick()},ms));
- const mo=new MutationObserver(()=>{bindReset();tick()});
- mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+ // V272: avoid a characterData/subtree observer here; render() changes text/HTML
+ // itself, which can recursively retrigger the observer and stall the page.
  window.__V271_TRAJECTORY_DISPLAY__={version:271,getLedger:()=>ledger.slice(),render,resetLedger};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+</script>
+
+
+<!-- V272 — load/freeze stabilization -->
+<script id="v272-load-freeze-stabilizer">
+(function(){
+'use strict';
+let last='';
+function safeRefresh(){
+  try{
+    const seq=(typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B').join('');
+    if(seq!==last){last=seq;window.__V271_TRAJECTORY_DISPLAY__?.render?.();}
+  }catch(e){}
+}
+function boot(){
+  try{last=(typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B').join('')}catch(e){}
+  // Low-cost fallback only; result buttons remain handled by the existing app.
+  setInterval(safeRefresh,1200);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+window.__V272_LOAD_FIX__={version:272,documentWideMutationObserversRemoved:true};
 })();
 </script>
 
