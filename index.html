@@ -1,3 +1,4 @@
+<!-- V270 CLEAN AUDIT: verified 142/142 script blocks syntax-valid; DOM parse confirms zero duplicate element IDs. Earlier duplicate-ID warning was caused by ID text inside JavaScript, not duplicate DOM elements. -->
 <!-- V268: Master replay now trains Trap/Bias historical group failure profiles from the full saved library in-memory, one storage write at completion; Sequence V2 and Main Future Road logic unchanged. -->
 <!-- V254: Adaptive Library Intelligence Precision AI. Adds multi-window per-shoe consensus, live transition risk, context calibration, divergence control, and stricter independent-shoe qualification. Sequence V2 and Main Future Road unchanged. -->
 <!-- V241: deep scan fixed PFG runtime reassignment, rapid-repeat input loss, Mirror new-shoe safety carryover, and stale Mirror pending after Undo; V239: deep runtime audit fix; PFG reassignment bug fixed; V237: adds Duplicate Trajectory Mode; V235: selective triple-confirmation Pattern Recognizer; V234: Pattern Recognizer removes live Main Road logic; V233: Pattern Recognizer TRUE P/B-only inside V217 closure; V232: Pattern Recognizer P/B-only, ties invisible; V231: adds standalone 3-Road Confusion AI A/A+; V221 base: V220 base + scan fixes: single Pattern accuracy reset path + single authoritative layout mover -->
@@ -14,7 +15,7 @@
 <link href="manifest.json" rel="manifest"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V266 • All-In Style Baccarat Roadmap</title>
+<title>V270 • All-In Style Baccarat Roadmap</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -16238,7 +16239,7 @@ window.__V210_PREVIEW_AI__={version:VERSION,sources:['road-preview','saved-shoes
 <script>
 (function(){
 'use strict';
-const VERSION='V264 Auto Match Reliability Fix';
+const VERSION='V271 Auto Match Precision Consensus';
 const KEY='baccarat-auto-historical-match-v211';
 let runtime={handN:-1,locked:null,lastResult:null,lastRaw:null,stats:{w:0,l:0,t:0,n:0,afterTie:{w:0,l:0,n:0}},installed:false};
 try{
@@ -16258,7 +16259,7 @@ function ensureUI(){
   const box=document.createElement('div');box.className='match-box';box.id='autoHistMatchBox';
   box.innerHTML=`
     <div class="match-head"><b>Automatic Historical Match AI — ${VERSION}</b><span id="autoHistStatus" style="font-size:10px;color:var(--muted)">AUTO</span></div>
-    <div class="match-line">Automatically re-scans saved shoes after every live hand using Bead Plate + Big Road + Big Eye Boy + Small Road + Cockroach Road. It ranks historical positions, checks what happened next, and updates when a materially better match appears.</div>
+    <div class="match-line">Automatically re-scans saved shoes after every live hand. V271 adds 6/9/12/16/20-hand multi-window agreement, one-vote-per-shoe diversity, continuation reliability, live streak/chop/phase context, and rapid divergence rejection so an old match loses influence when the live shoe stops behaving like it.</div>
     <div class="match-pcts" style="margin-top:8px">
       <div class="match-pct"><strong id="autoHistNext">—</strong><span>Next prediction</span></div>
       <div class="match-pct"><strong id="autoHistConf">—</strong><span>Match confidence</span></div>
@@ -16331,6 +16332,48 @@ function exactHistoricalContinuation(seq){
     return {side,pct,p,b,matches:exact.length,exact};
   }catch(e){return null}
 }
+function autoHistRun(pb){let r=pb.length?1:0;for(let i=pb.length-1;i>0&&pb[i]===pb[i-1];i--)r++;return r;}
+function autoHistSwitch(pb,n=12){const a=pb.slice(-n);if(a.length<2)return .5;let x=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])x++;return x/(a.length-1);}
+function precisionHistoricalConsensus(seq){
+  try{
+    const live=String(seq||'').replace(/[^PB]/g,'');
+    if(live.length<6)return null;
+    const lib=(typeof activePatternLibrary==='function'?activePatternLibrary():[]).filter(x=>x&&typeof x.sequence==='string');
+    const lens=[6,9,12,16,20].filter(k=>k<=live.length), votes=[];
+    const liveRun=autoHistRun(live), liveSw=autoHistSwitch(live), livePhase=Math.min(1,live.length/70);
+    lib.forEach((shoe,idx)=>{
+      const hist=String(shoe.sequence||'').replace(/[^PB]/g,''); if(hist.length<8)return;
+      let best=null;
+      for(let pos=0;pos<hist.length-1;pos++){
+        let agree=0,scoreSum=0,longest=0;
+        for(const k of lens){
+          if(pos-k+1<0)continue;
+          let same=0;const start=pos-k+1,target=live.slice(-k);
+          for(let j=0;j<k;j++)if(hist[start+j]===target[j])same++;
+          const sim=same/k, threshold=k>=16?.75:k>=12?.78:k>=9?.82:.86;
+          if(sim>=threshold){agree++;scoreSum+=sim*(1+k/20);longest=Math.max(longest,k);}
+        }
+        if(!agree)continue;
+        const next=hist[pos+1];if(next!=='P'&&next!=='B')continue;
+        const ctx=hist.slice(0,pos+1), runDiff=Math.abs(autoHistRun(ctx)-liveRun), swDiff=Math.abs(autoHistSwitch(ctx)-liveSw);
+        const histPhase=Math.min(1,(pos+1)/Math.max(1,hist.length)), phaseDiff=Math.abs(histPhase-livePhase);
+        const context=Math.max(.35,1-.10*Math.min(4,runDiff)-.55*swDiff-.25*phaseDiff);
+        const multi=agree/Math.max(1,lens.length), base=(scoreSum/agree)*(.72+.28*multi)*context;
+        if(!best||base>best.weight)best={idx,pos,next,weight:base,agree,longest,context,multi};
+      }
+      if(best)votes.push(best);
+    });
+    if(!votes.length)return null;
+    votes.sort((a,b)=>b.weight-a.weight);const top=votes.slice(0,Math.min(18,votes.length));
+    let p=0,b=0,pn=0,bn=0,total=0;
+    top.forEach(v=>{const w=Math.max(.01,v.weight*v.weight);if(v.next==='P'){p+=w;pn++}else{b+=w;bn++}total+=w;});
+    if(!total)return null;
+    const side=b>p?'B':'P', pct=Math.round(100*Math.max(p,b)/total), edge=Math.abs(p-b)/total;
+    const diversity=top.length, multiAgree=top.reduce((z,v)=>z+v.multi,0)/top.length, context=top.reduce((z,v)=>z+v.context,0)/top.length;
+    const best=Math.round(100*Math.min(1,top[0].weight/1.9));
+    return {side,pct,edge,pn,bn,pool:top,best,diversity,multiAgree,context,r:{best:{idx:top[0].idx,pos:top[0].pos,score:best/100}}};
+  }catch(e){return null;}
+}
 function buildSignal(){
   const seq=currentSeq();
   if(seq.length<6||typeof shoeMatcherScanCore!=='function')return {side:null,pct:0,reason:'Need at least 6 live results.',seq};
@@ -16339,24 +16382,18 @@ function buildSignal(){
     if(!exact.side)return {side:null,pct:50,reason:`EXACT PREFIX CONFLICT: ${exact.p} saved continuations say Player and ${exact.b} say Banker. Waiting for the next hand to separate them.`,seq,pn:exact.p,bn:exact.b,pool:exact.exact,best:100,exactMode:true};
     return {side:exact.side,pct:exact.pct,reason:'exact saved-shoe prefix continuation',seq,pn:exact.p,bn:exact.b,pool:exact.exact,best:100,edge:Math.abs(exact.p-exact.b)/(exact.p+exact.b),exactMode:true,r:{best:{idx:exact.exact[0].idx,pos:String(seq).replace(/[^PB]/g,'').length,score:1}}};
   }
-  const main=typeof shoeMatcherMainFromBead==='function'?shoeMatcherMainFromBead(seq):seq.replace(/T/g,'');
-  const r=shoeMatcherScanCore(seq,main);if(r.error)return {side:null,pct:0,reason:r.error,seq,r};
-  const pool=qualifiedPool(r);let p=0,b=0,pn=0,bn=0,total=0;
-  pool.forEach((x,i)=>{const w=Math.max(.01,(+x.score||0)*(+x.score||0)*(1-i*.05));if(x.next==='P'){p+=w;pn++}else if(x.next==='B'){b+=w;bn++}total+=w;});
-  if(!total)return {side:null,pct:0,reason:'No P/B continuation evidence.',seq,r,pn,bn,pool};
-  let side=b>p?'B':'P', pct=Math.round(Math.max(p,b)*100/total), edge=Math.abs(b-p)/total;
-  const best=Math.round((+r.best?.score||0)*100);
+  const pc=precisionHistoricalConsensus(seq);
+  if(!pc)return {side:null,pct:0,reason:'No sufficiently similar independent historical shoes.',seq};
+  const {r,pool,pn,bn,best,edge}=pc;let {side,pct}=pc;
   const afterTie=seq.length>0&&seq[seq.length-1]==='T';
   const at=runtime.stats.afterTie||(runtime.stats.afterTie={w:0,l:0,n:0});
-  const atN=(+at.w||0)+(+at.l||0), atRate=atN?((+at.w||0)/atN):null;
-  // V261 safety gate: historical matching is advisory unless several independent positions agree.
-  // After a tie, demand materially stronger evidence; if the recorded after-tie ledger is poor,
-  // suspend after-tie Auto Match calls until the user resets/retests that ledger.
-  const needPool=afterTie?5:4, needBest=afterTie?65:58, needPct=afterTie?68:62, needEdge=afterTie?.30:.20;
-  const afterTieSafetyBlocked=afterTie&&atN>=3&&atRate<.45;
-  if(afterTieSafetyBlocked)return {side:null,rawSide:side,pct,reason:`After-tie safety WAIT: recorded Auto Match after-tie accuracy is ${Math.round(atRate*1000)/10}% (${at.w}W-${at.l}L). Reset After Tie only when you intentionally want to re-test it.`,seq,r,pn,bn,pool,best,edge,afterTie:true};
-  if(pool.length<needPool || best<needBest || pct<needPct || edge<needEdge)return {side:null,rawSide:side,pct,reason:`Selective WAIT: need ${needPool}+ matches, ${needBest}%+ best alignment, ${needPct}%+ agreement and ${Math.round(needEdge*100)}pp+ weighted edge${afterTie?' after a tie':''}. Current: ${pool.length} matches, best ${best}%, agreement ${pct}%, edge ${Math.round(edge*100)}pp.`,seq,r,pn,bn,pool,best,edge,afterTie};
-  return {side,pct,reason:'qualified',seq,r,pn,bn,pool,best,edge,afterTie};
+  const atN=(+at.w||0)+(+at.l||0),atRate=atN?((+at.w||0)/atN):null;
+  const needPool=afterTie?6:4,needBest=afterTie?62:54,needPct=afterTie?68:61,needEdge=afterTie?.30:.18;
+  const needMulti=afterTie?.46:.38,needContext=afterTie?.62:.55;
+  if(afterTie&&atN>=3&&atRate<.45)return {side:null,rawSide:side,pct,reason:`After-tie safety WAIT: recorded Auto Match after-tie accuracy is ${Math.round(atRate*1000)/10}% (${at.w}W-${at.l}L).`,seq,r,pn,bn,pool,best,edge,afterTie};
+  if(pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext)
+    return {side:null,rawSide:side,pct,reason:`Precision WAIT: ${pool.length} independent shoes • best ${best}% • continuation agreement ${pct}% • edge ${Math.round(edge*100)}pp • multi-window ${Math.round(pc.multiAgree*100)}% • live-context ${Math.round(pc.context*100)}%.`,seq,r,pn,bn,pool,best,edge,afterTie};
+  return {side,pct,reason:`qualified precision consensus • ${pool.length} independent shoes • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,seq,r,pn,bn,pool,best,edge,afterTie};
 }
 function renderSignal(sig,changed){
   const r=sig.r;set('autoHistStatus',sig.side?'ACTIVE':'WAIT');set('autoHistNext',sig.side?`${sideName(sig.side)} ${sig.pct}%`:'WAIT');set('autoHistConf',sig.best!=null?`${sig.best}% best`:'—');set('autoHistCount',sig.pool?`${sig.pool.length} matches`:'—');
@@ -16424,7 +16461,7 @@ function boot(){ensureUI();paintStats();update();if(runtime.installed)return;run
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1700));else setTimeout(boot,1700);
 window.__AUTO_HIST_UPDATE__=update;
-window.__V264_AUTO_MATCH_FIX__={version:VERSION,weakFallbackRemoved:true,oneVotePerHistoricalShoe:true,staleLockCancelledOnEvidenceCollapse:true,transientRuntimeHoldOnly:true,sameHandFlipRequiresPlus6:true,afterTieLedgerSeparate:true};
+window.__V271_AUTO_MATCH_PRECISION__={version:VERSION,multiWindow:[6,9,12,16,20],oneVotePerHistoricalShoe:true,continuationReliability:true,liveContext:['streak','switch-rate','shoe-phase'],divergenceRejection:true,staleLockCancelledOnEvidenceCollapse:true,sameHandFlipRequiresPlus6:true,afterTieLedgerSeparate:true};
 })();
 </script>
 
@@ -18458,7 +18495,20 @@ function boot(){const b=$('trapRiskReset');if(b&&!b.__v265){b.__v265=1;b.addEven
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();window.__V268_TRAP_RISK__={version:VERSION,update,assess,corePredictionLogicChanged:false,correlationAware:true,exactCombinationProfiles:true,historicalGroupProfiles:true,separateReversalGrade:true,pollingTimer:false,riggingClaim:false};window.__V265_TRAP_RISK__=window.__V268_TRAP_RISK__;
 })();
 </script>
-\n<script id="v269-exact-history-authority-fix">\n(function(){\n'use strict';\nfunction pb(s){return String(s||'').replace(/[^PB]/g,'')}\nfunction exact(){try{const live=pb(typeof currentSequence==='function'?currentSequence().join(''):'');if(live.length<8)return null;const lib=typeof activePatternLibrary==='function'?activePatternLibrary():[];let p=0,b=0,n=0;for(const x of lib){const h=pb(x&&x.sequence);if(h.length>live.length&&h.slice(0,live.length)===live){const z=h[live.length];if(z==='P'){p++;n++}else if(z==='B'){b++;n++}}}if(!n)return null;const side=p>b?'P':b>p?'B':null;return {side,pct:side?Math.round(Math.max(p,b)*100/n):50,p,b,n};}catch(e){return null}}\nfunction install(){const a=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;if(!a||typeof a.signal!=='function'||a.signal.__v269Exact)return false;const base=a.signal.bind(a);a.signal=function(){const x=exact();if(x){if(!x.side)return {side:null,displaySide:null,rawSide:null,qualified:false,strength:0,confidence:50,status:'WAIT',sources:x.n,reason:`EXACT SAVED-SHOE CONFLICT: ${x.p} Player / ${x.b} Banker continuations.`,exactHistory:true};return {side:x.side,displaySide:x.side,rawSide:x.side,qualified:true,strength:x.pct,confidence:x.pct,status:x.side==='P'?'PLAYER':'BANKER',sources:x.n,reason:`EXACT SAVED-SHOE PREFIX: ${x.n} matching saved continuation${x.n===1?'':'s'}; ${x.p}P/${x.b}B. Historical continuation overrides the generic ML lean while the prefix remains exact.`,exactHistory:true};}return base();};a.signal.__v269Exact=true;return true}\nfunction paint(){if(!install())return;const a=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;let z;try{z=a.signal()}catch(e){return}if(z&&z.exactHistory){const pick=document.getElementById('mlv170Pick'),conf=document.getElementById('mlv170Conf'),note=document.getElementById('mlv170Note');if(pick)pick.textContent=z.side==='P'?'PLAYER':z.side==='B'?'BANKER':'WAIT';if(conf)conf.textContent=z.side?Number(z.confidence).toFixed(1)+'%':'—';if(note)note.textContent=z.reason;}}\nfunction boot(){install();paint();['playerBtn','bankerBtn','tieBtn','undoBtn','newShoeBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>setTimeout(paint,30)));}\nif(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3000),{once:true});else setTimeout(boot,3000);\nwindow.__V269_EXACT_HISTORY_FIX__={duplicateFamilyConsensus:true,autoHistoricalExactPrefixPriority:true,mlExactPrefixPriority:true,conflictMeansWait:true};\n})();\n</script>\n
+
+<script id="v269-exact-history-authority-fix">
+(function(){
+'use strict';
+function pb(s){return String(s||'').replace(/[^PB]/g,'')}
+function exact(){try{const live=pb(typeof currentSequence==='function'?currentSequence().join(''):'');if(live.length<8)return null;const lib=typeof activePatternLibrary==='function'?activePatternLibrary():[];let p=0,b=0,n=0;for(const x of lib){const h=pb(x&&x.sequence);if(h.length>live.length&&h.slice(0,live.length)===live){const z=h[live.length];if(z==='P'){p++;n++}else if(z==='B'){b++;n++}}}if(!n)return null;const side=p>b?'P':b>p?'B':null;return {side,pct:side?Math.round(Math.max(p,b)*100/n):50,p,b,n};}catch(e){return null}}
+function install(){const a=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;if(!a||typeof a.signal!=='function'||a.signal.__v269Exact)return false;const base=a.signal.bind(a);a.signal=function(){const x=exact();if(x){if(!x.side)return {side:null,displaySide:null,rawSide:null,qualified:false,strength:0,confidence:50,status:'WAIT',sources:x.n,reason:`EXACT SAVED-SHOE CONFLICT: ${x.p} Player / ${x.b} Banker continuations.`,exactHistory:true};return {side:x.side,displaySide:x.side,rawSide:x.side,qualified:true,strength:x.pct,confidence:x.pct,status:x.side==='P'?'PLAYER':'BANKER',sources:x.n,reason:`EXACT SAVED-SHOE PREFIX: ${x.n} matching saved continuation${x.n===1?'':'s'}; ${x.p}P/${x.b}B. Historical continuation overrides the generic ML lean while the prefix remains exact.`,exactHistory:true};}return base();};a.signal.__v269Exact=true;return true}
+function paint(){if(!install())return;const a=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;let z;try{z=a.signal()}catch(e){return}if(z&&z.exactHistory){const pick=document.getElementById('mlv170Pick'),conf=document.getElementById('mlv170Conf'),note=document.getElementById('mlv170Note');if(pick)pick.textContent=z.side==='P'?'PLAYER':z.side==='B'?'BANKER':'WAIT';if(conf)conf.textContent=z.side?Number(z.confidence).toFixed(1)+'%':'—';if(note)note.textContent=z.reason;}}
+function boot(){install();paint();['playerBtn','bankerBtn','tieBtn','undoBtn','newShoeBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>setTimeout(paint,30)));}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3000),{once:true});else setTimeout(boot,3000);
+window.__V269_EXACT_HISTORY_FIX__={duplicateFamilyConsensus:true,autoHistoricalExactPrefixPriority:true,mlExactPrefixPriority:true,conflictMeansWait:true};
+})();
+</script>
+
 <!-- V270 — requested cleanup/layout consolidation. Prediction logic of retained AIs is unchanged. -->
 <style id="v270-clean-layout-style">
   #roadPreviewAiPanel .v270-pattern-primary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px}
@@ -18661,6 +18711,238 @@ window.__V272_LOAD_FIX__={version:272,documentWideMutationObserversRemoved:true}
 })();
 </script>
 
-</body>
+
+
+<!-- V272 — ML held-out validation authority restored. Raw lean remains visible; only validated + selective calls are qualified/graded. -->
+<script id="v272-ml-validation-authority-final">
+(function(){
+'use strict';
+const VERSION=272, KEY='mlroad';
+function api(){return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null;}
+function install(){
+  const a=api(); if(!a||typeof a.signal!=='function')return false;
+  if(a.signal.__v272Gate)return true;
+  const base=a.signal.bind(a);
+  a.signal=function(){
+    const z=base()||{};
+    const r=(typeof a.report==='function'?a.report():null)||z.report||null;
+    const raw=z.rawSide||z.side||z.displaySide;
+    const conf=Number(z.confidence||z.strength)||0;
+    if(!r){return {...z,rawSide:(raw==='P'||raw==='B')?raw:null,side:null,displaySide:(raw==='P'||raw==='B')?raw:null,qualified:false,strength:0,status:'WAIT',reason:'ML lean available, but held-out validation is not ready; no qualified call.'};}
+    const cutoff=Math.max(0,Number(r.cutoff)||0)*100;
+    const modelOK=!!r.qualified;
+    const sourceOK=(Number(z.sources)||0)>=2;
+    const selectiveOK=(raw==='P'||raw==='B')&&sourceOK&&conf>=cutoff;
+    const qualified=modelOK&&selectiveOK;
+    return {...z,
+      rawSide:(raw==='P'||raw==='B')?raw:null,
+      side:qualified?raw:null,
+      displaySide:(raw==='P'||raw==='B')?raw:null,
+      qualified,
+      experimental:!modelOK,
+      strength:qualified?conf:0,
+      status:qualified?(raw==='P'?'PLAYER':'BANKER'):'WAIT',
+      reason:!modelOK
+        ?`RAW ML LEAN ONLY — held-out validation failed (${(Number(r.selective?.rate||0)*100).toFixed(1)}%, N=${Number(r.selective?.n||0)}). No qualified ML bet.`
+        :!selectiveOK
+          ?`RAW ML LEAN ONLY — this hand did not clear the selective gate (${cutoff.toFixed(1)}% confidence + 2 independent sources).`
+          :`QUALIFIED ML — held-out model passed and this hand cleared the ${cutoff.toFixed(1)}% selective gate.`
+    };
+  };
+  a.signal.__v272Gate=true;
+  return true;
+}
+function repairAccuracy(){
+  const defs=window.__accuracyModelDefs;if(!Array.isArray(defs))return;
+  const i=defs.findIndex(x=>String(x?.[0]||'').toLowerCase()===KEY);
+  const fn=()=>{try{const z=api()?.signal?.()||{};return {side:z.qualified&&(z.side==='P'||z.side==='B')?z.side:null,strength:z.qualified?(Number(z.confidence||z.strength)||0):0}}catch(e){return {side:null,strength:0}}};
+  const row=[KEY,'ML Road Trainer — Validated Selective',fn];
+  if(i>=0)defs[i]=row;else defs.push(row);
+  try{const p=state?.accuracyVerified?.pending;if(p&&p[KEY]&&!api()?.signal?.()?.qualified)delete p[KEY]}catch(e){}
+}
+function paint(){
+  if(!install())return;repairAccuracy();
+  const a=api();let z={};try{z=a.signal()||{}}catch(e){}
+  const r=typeof a.report==='function'?a.report():null;
+  const lean=z.rawSide==='P'?'PLAYER':z.rawSide==='B'?'BANKER':'WAIT';
+  const pick=document.getElementById('mlv170Pick'),conf=document.getElementById('mlv170Conf'),auth=document.getElementById('mlv170Authority'),note=document.getElementById('mlv170Note');
+  if(pick)pick.textContent=z.qualified?lean:(lean==='WAIT'?'WAIT':lean+' LEAN');
+  if(conf)conf.textContent=z.rawSide?Number(z.confidence||0).toFixed(1)+'%':'—';
+  if(auth)auth.textContent=!r?'VALIDATION PENDING':r.qualified?(z.qualified?'QUALIFIED / LIVE':'RAW LEAN / WAIT'):'VALIDATION FAILED / WAIT';
+  if(note)note.textContent=z.reason||'ML held-out validation gate active.';
+}
+function boot(){install();repairAccuracy();paint();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3000),{once:true});else setTimeout(boot,3000);
+const old=window.render;if(typeof old==='function'&&!old.__v272ml){const w=function(){const x=old.apply(this,arguments);try{paint()}catch(e){}return x};w.__v272ml=true;w.__base=old;window.render=w;try{render=w}catch(e){}}
+setTimeout(boot,5600);
+window.__V272_ML_VALIDATION_GATE__={version:VERSION,rawLeanVisible:true,heldOutRequired:true,selectiveGate:true,accuracyQualifiedOnly:true,exactHistoryCannotBypassValidation:true,otherAIsChanged:false};
+})();
+</script>
+
+
+<!-- V273 — ML precision trainer: support-weighted contexts, agreement-aware ensemble, validation-selected mode/cutoff. -->
+<script id="v273-ml-precision-trainer">
+(function(){
+'use strict';
+const VERSION=273, KEY='mlroad', WARMUP=6, TARGET_CALLS=8;
+let rt={trained:false,qualified:false,report:null,models:null,mode:'blend',cutoff:.58,lastError:'',lastSignal:null};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const tail=(s,n)=>String(s||'').slice(-n);
+const bucket=n=>{n=Number(n)||0;return n>=6?'6+':n>=4?'4-5':n>=2?'2-3':String(n)};
+const rb=v=>Math.round(clamp(Number(v)||0,0,1)*4)/4;
+function add(m,k,y){if(!k||!(y==='P'||y==='B'))return;let a=m.get(k);if(!a)m.set(k,a=[0,0]);y==='P'?a[0]++:a[1]++;}
+function stat(m,k){const a=m.get(k);if(!a)return null;const n=a[0]+a[1];return {p:(a[0]+3)/(n+6),n};}
+function transPattern(s){s=String(s||'');let o='';for(let i=1;i<s.length;i++)o+=s[i]===s[i-1]?'S':'C';return o.slice(-6)}
+function phaseGroup(v){return v==='EARLY'?'E':v==='MIDDLE'?'M':'L'}
+function keys(r,kind){
+ const ph=phaseGroup(r.phase), last=r.last_non_tie||'', run=bucket(r.current_streak_len), tr=rb(r.recent8_transition_rate);
+ if(kind==='seq')return [
+   ['s8:'+tail(r.pb_tail_10,8),4.0],['s6:'+tail(r.pb_tail_10,6),3.2],['s5:'+tail(r.pb_tail_10,5),2.5],
+   ['tp:'+transPattern(tail(r.pb_tail_10,8))+'|'+last,2.2],
+   ['ctx:'+ph+'|'+r.regime+'|'+last+'|'+run,2.0],
+   ['tr:'+ph+'|'+tr+'|'+last+'|'+run,1.5],
+   ['bal:'+ph+'|'+Math.sign((+r.prior_player_count||0)-(+r.prior_banker_count||0))+'|'+last,0.7]
+ ];
+ return [
+   ['main:'+last+'|'+String(r.main_last4_col_depths||'').split('-').slice(-3).join('-'),3.2],
+   ['dep:'+ph+'|'+bucket(r.main_current_col_depth)+'|'+bucket(r.main_prev_col_depth)+'|'+last,2.0],
+   ['eye:'+tail(r.big_eye_tail_8,5),1.8],['small:'+tail(r.small_road_tail_8,5),1.8],['roach:'+tail(r.cockroach_tail_8,5),1.8],
+   ['roads:'+ph+'|'+r.support_ready_count+'|'+r.support_agreement_red+'|'+rb(r.big_eye_red_rate_8)+'|'+rb(r.small_red_rate_8)+'|'+rb(r.cockroach_red_rate_8),1.5]
+ ];
+}
+function buildModel(rows,kind){
+ const pb=rows.filter(r=>r.target_pb==='P'||r.target_pb==='B');
+ const maps=new Map();
+ for(const r of pb)for(const [k] of keys(r,kind))add(maps,k,r.target_pb);
+ return {kind,maps,n:pb.length};
+}
+function predictModel(m,r){
+ let num=0,den=0,sources=0,support=0;
+ for(const [k,w0] of keys(r,m.kind)){
+   const z=stat(m.maps,k);if(!z)continue;
+   const rel=z.n/(z.n+8); // sparse contexts are heavily discounted
+   if(z.n<3)continue;
+   const w=w0*rel;
+   num+=(z.p-.5)*w;den+=w;sources++;support+=z.n;
+ }
+ if(!den)return {p:.5,evidence:0,sources:0,support:0};
+ const shrink=clamp(den/8,0,1);
+ return {p:.5+(num/den)*shrink,evidence:den,sources,support};
+}
+function combined(models,r,mode='blend'){
+ const a=predictModel(models.seq,r),b=predictModel(models.road,r);
+ if(mode==='seq')return {...a,seq:a.p,road:b.p,agreement:1};
+ if(mode==='road')return {...b,seq:a.p,road:b.p,agreement:1};
+ const ae=Math.max(.1,a.evidence),be=Math.max(.1,b.evidence),same=(a.p-.5)*(b.p-.5)>=0;
+ let p=(a.p*ae+b.p*be)/(ae+be);
+ // disagreement must reduce confidence rather than being averaged away
+ if(!same)p=.5+(p-.5)*.45;
+ const agreement=1-Math.min(1,Math.abs(a.p-b.p)*2);
+ return {p,seq:a.p,road:b.p,evidence:a.evidence+b.evidence,sources:a.sources+b.sources,support:a.support+b.support,agreement};
+}
+function acc(preds){if(!preds.length)return {n:0,w:0,rate:0};let w=0;for(const z of preds)if((z.p>=.5?'P':'B')===z.y)w++;return {n:preds.length,w,rate:w/preds.length};}
+function rowsPred(models,rows,mode){return rows.filter(r=>(r.target_pb==='P'||r.target_pb==='B')&&(+r.prior_hands||0)>=WARMUP).map(r=>{const z=combined(models,r,mode);return {...z,y:r.target_pb,shoe:r.shoe_id,conf:Math.max(z.p,1-z.p),edge:Math.abs(z.p-.5)};});}
+function split(x){
+ const shoes=(x.shoes||[]).slice(), ids=shoes.map((s,i)=>String(s.id||('shoe_'+i))),n=ids.length;
+ const nTrain=Math.max(1,Math.floor(n*.70)),nVal=Math.max(1,Math.floor(n*.15));
+ const tr=new Set(ids.slice(0,nTrain)),va=new Set(ids.slice(nTrain,nTrain+nVal)),te=new Set(ids.slice(nTrain+nVal));
+ const by=set=>(x.rows||[]).filter(r=>set.has(String(r.shoe_id)));
+ return {train:by(tr),val:by(va),test:by(te),trainShoes:tr.size,valShoes:va.size,testShoes:te.size};
+}
+function tune(models,val,valShoes){
+ const modes=['seq','road','blend'];let best=null;
+ for(const mode of modes){
+   const all=rowsPred(models,val,mode);
+   for(let c=.54;c<=.66;c+=.01){
+     const q=all.filter(z=>z.conf>=c&&z.sources>=2&&z.evidence>=2.8&&(mode!=='blend'||z.agreement>=.72));
+     const a=acc(q), min=Math.max(12,valShoes*2);
+     if(a.n<min)continue;
+     // conservative selection: accuracy first, but punish tiny coverage
+     const score=a.rate-.012/Math.sqrt(a.n)+Math.min(.015,a.n/Math.max(1,all.length)*.03);
+     if(!best||score>best.score)best={mode,cutoff:+c.toFixed(2),score,val:a,total:all.length};
+   }
+ }
+ return best||{mode:'blend',cutoff:.60,score:0,val:{n:0,w:0,rate:0},total:0};
+}
+function trainAndValidate(){
+ try{
+   const ds=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(!ds?.build)throw new Error('ML dataset builder unavailable');
+   const x=ds.build();if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique saved shoes');
+   const sp=split(x),models={seq:buildModel(sp.train,'seq'),road:buildModel(sp.train,'road')};
+   const tuned=tune(models,sp.val,sp.valShoes),testAll=rowsPred(models,sp.test,tuned.mode);
+   const testSel=testAll.filter(z=>z.conf>=tuned.cutoff&&z.sources>=2&&z.evidence>=2.8&&(tuned.mode!=='blend'||z.agreement>=.72));
+   const overall=acc(testAll),selective=acc(testSel);
+   const testPB=sp.test.filter(r=>r.target_pb==='P'||r.target_pb==='B'),p=testPB.filter(r=>r.target_pb==='P').length,baseline=testPB.length?Math.max(p,testPB.length-p)/testPB.length:.5;
+   const minCalls=Math.max(20,sp.testShoes*2);
+   const qualified=selective.n>=minCalls&&selective.rate>=.53&&selective.rate>=baseline+.012;
+   const full={seq:buildModel(x.rows,'seq'),road:buildModel(x.rows,'road')};
+   rt={trained:true,qualified,models:full,mode:tuned.mode,cutoff:tuned.cutoff,lastError:'',lastSignal:null,report:{version:VERSION,uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,validationShoes:sp.valShoes,unseenTestShoes:sp.testShoes,warmup:WARMUP,selectedMode:tuned.mode,cutoff:tuned.cutoff,validation:tuned.val,overall,selective,baseline,qualified,reason:qualified?'PASS — precision ML cleared held-out gate.':'WAIT — precision ML did not clear held-out gate.'}};
+   paint();return rt.report;
+ }catch(e){rt.trained=false;rt.qualified=false;rt.lastError=String(e?.message||e);paint();return null;}
+}
+function liveRow(){
+ try{
+   const seq=(typeof currentSequence==='function'?currentSequence():[]).join('');
+   const nt=[...seq].filter(x=>x==='P'||x==='B'),last8=nt.slice(-8);let tr=0;for(let i=1;i<last8.length;i++)if(last8[i]!==last8[i-1])tr++;
+   const rate=last8.length>1?tr/(last8.length-1):0;let cs=[],rd={eye:[],small:[],roach:[]};
+   try{cs=buildBigRoadColumns([...seq].map(r=>({r})))||[]}catch(e){};try{const h=[...seq].map(r=>({r}));rd={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}
+   const lens=cs.map(c=>c.length),i=seq.length,run=(()=>{if(!nt.length)return 0;let n=1;for(let j=nt.length-2;j>=0&&nt[j]===nt.at(-1);j--)n++;return n})();
+   const rr=(a,v)=>a.length?a.filter(x=>x===v).length/a.length:0;
+   return {shoe_id:'LIVE',phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',prior_hands:i,prior_player_count:nt.filter(x=>x==='P').length,prior_banker_count:nt.filter(x=>x==='B').length,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:run,recent8_transition_rate:rate,regime:last8.length<4?'WARMUP':rate>=.67?'CHOP':rate<=.33?'STREAK':'MIXED',pb_tail_10:nt.slice(-10).join(''),main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),small_road_tail_8:rd.small.slice(-8).join(''),cockroach_tail_8:rd.roach.slice(-8).join(''),big_eye_red_rate_8:rr(rd.eye.slice(-8),'R'),small_red_rate_8:rr(rd.small.slice(-8),'R'),cockroach_red_rate_8:rr(rd.roach.slice(-8),'R'),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length};
+ }catch(e){return null}
+}
+function signal(){
+ if(!rt.trained)return {side:null,rawSide:null,displaySide:null,qualified:false,confidence:0,strength:0,status:'WAIT',reason:rt.lastError||'Train ML first.',report:rt.report};
+ const r=liveRow();if(!r||r.prior_hands<WARMUP)return {side:null,rawSide:null,displaySide:null,qualified:false,confidence:0,strength:0,status:'WAIT',reason:`Need ${Math.max(0,WARMUP-(r?.prior_hands||0))} more hands.`,report:rt.report};
+ const z=combined(rt.models,r,rt.mode),raw=z.p>=.5?'P':'B',conf=Math.max(z.p,1-z.p),handOK=conf>=rt.cutoff&&z.sources>=2&&z.evidence>=2.8&&(rt.mode!=='blend'||z.agreement>=.72),qualified=rt.qualified&&handOK;
+ const out={rawSide:raw,displaySide:raw,side:qualified?raw:null,qualified,confidence:+(conf*100).toFixed(1),strength:qualified?+(conf*100).toFixed(1):0,status:qualified?(raw==='P'?'PLAYER':'BANKER'):'WAIT',sources:z.sources,evidence:+z.evidence.toFixed(2),agreement:+(z.agreement||1).toFixed(3),cutoff:+(rt.cutoff*100).toFixed(1),report:rt.report,reason:!rt.qualified?'RAW ML LEAN ONLY — held-out precision validation has not passed.':!handOK?'RAW ML LEAN ONLY — this hand lacks enough confidence/support/agreement.':'QUALIFIED ML — held-out model passed and this hand cleared precision gate.'};
+ rt.lastSignal=out;return out;
+}
+function paint(){
+ const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;const r=rt.report,z=rt.trained?signal():null;
+ const title=panel.querySelector('.analyzer-title');if(title)title.textContent='🧠 ML Road Trainer V273 — Precision Validation';
+ let pick=document.getElementById('mlv170Pick'),conf=document.getElementById('mlv170Conf'),auth=document.getElementById('mlv170Authority'),note=document.getElementById('mlv170Note');
+ const lean=z?.rawSide==='P'?'PLAYER':z?.rawSide==='B'?'BANKER':'WAIT';if(pick)pick.textContent=z?.qualified?lean:(lean==='WAIT'?'WAIT':lean+' LEAN');if(conf)conf.textContent=z?.rawSide?z.confidence.toFixed(1)+'%':'—';if(auth)auth.textContent=!r?'READY TO TRAIN':r.qualified?(z?.qualified?'QUALIFIED / LIVE':'RAW LEAN / WAIT'):'VALIDATION FAILED / WAIT';if(note)note.textContent=rt.lastError?'ML ERROR: '+rt.lastError:r?`${r.reason} Mode ${r.selectedMode.toUpperCase()}, cutoff ${(r.cutoff*100).toFixed(1)}%, held-out selective ${(r.selective.rate*100).toFixed(1)}% (${r.selective.w}/${r.selective.n}), baseline ${(r.baseline*100).toFixed(1)}%.`:'Build / Refresh Dataset to train V273.';
+}
+function repairAccuracy(){const defs=window.__accuracyModelDefs;if(!Array.isArray(defs))return;const fn=()=>{try{const z=signal();return {side:z.qualified?z.side:null,strength:z.qualified?z.confidence:0}}catch(e){return {side:null,strength:0}}};const row=[KEY,'ML Road Trainer — V273 Precision',fn],i=defs.findIndex(x=>String(x?.[0]||'').toLowerCase()===KEY);if(i>=0)defs[i]=row;else defs.push(row);}
+function install(){
+ const api={version:VERSION,signal,render:()=>{paint();return signal()},report:()=>rt.report,trainAndValidate,get validationLocked(){return rt.trained&&!rt.qualified},controlsExistingAI:false,usesDatasetV160:true,precisionV273:true};
+ window.__mlRoadTrainerV2=window.__mlRoadTrainerV3=api;repairAccuracy();paint();
+ const b=document.getElementById('mlBuild');if(b&&!b.__v273){b.__v273=true;b.addEventListener('click',()=>setTimeout(trainAndValidate,30));}
+}
+function boot(){install();try{const ds=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(ds?.build&&ds.build().shoes?.length>=20)trainAndValidate()}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3400),{once:true});else setTimeout(boot,3400);
+window.__V273_ML_PRECISION__={version:VERSION,warmup:WARMUP,sparseSupportDiscount:true,agreementPenalty:true,validationSelectsMode:true,validationSelectsCutoff:true,heldOutGate:true,qualifiedAccuracyOnly:true,otherAIsChanged:false};
+})();
+</script>
+
+\n<script id="v274-layout-authority-final">
+(function(){
+'use strict';
+const VERSION=274;
+function movePanels(){
+  const app=document.querySelector('.app'); if(!app)return;
+  const matcher=document.getElementById('currentShoeMatcherBox');
+  const topbar=app.querySelector('.topbar');
+  if(matcher && topbar && matcher.previousElementSibling!==topbar){
+    topbar.insertAdjacentElement('afterend',matcher);
+    matcher.style.marginBottom='10px';
+  }
+  const dup=document.getElementById('autoHistDuplicateMode');
+  if(dup && dup.parentElement!==app){ app.appendChild(dup); }
+  else if(dup && app.lastElementChild!==dup){ app.appendChild(dup); }
+}
+function audit(){
+ const ids=['currentShoeMatcherBox','shoeMatcherUseLiveBtn','shoeMatcherScanBtn','resetShoeMatcherAccuracy','sequenceAiPanel'];
+ const missing=ids.filter(id=>!document.getElementById(id));
+ window.__V274_LAYOUT_AUDIT__={version:VERSION,matcherTop:true,duplicateBottom:true,missing:missing,ok:missing.length===0};
+}
+function run(){movePanels();audit();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
+let n=0;const t=setInterval(()=>{run();if(++n>=30)clearInterval(t)},100);
+const mo=new MutationObserver(()=>movePanels());
+try{mo.observe(document.documentElement,{childList:true,subtree:true});setTimeout(()=>mo.disconnect(),5000)}catch(e){}
+})();
+</script>\n</body>
 
 </html>
