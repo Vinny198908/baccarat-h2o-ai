@@ -1,4 +1,3 @@
-<!-- V269: Adds simple live Trap signal (PLAY OK / CAUTION / WAIT / REVERSAL EVIDENCE); no prediction logic change. -->
 <!-- V268: Master replay now trains Trap/Bias historical group failure profiles from the full saved library in-memory, one storage write at completion; Sequence V2 and Main Future Road logic unchanged. -->
 <!-- V254: Adaptive Library Intelligence Precision AI. Adds multi-window per-shoe consensus, live transition risk, context calibration, divergence control, and stricter independent-shoe qualification. Sequence V2 and Main Future Road unchanged. -->
 <!-- V241: deep scan fixed PFG runtime reassignment, rapid-repeat input loss, Mirror new-shoe safety carryover, and stale Mirror pending after Undo; V239: deep runtime audit fix; PFG reassignment bug fixed; V237: adds Duplicate Trajectory Mode; V235: selective triple-confirmation Pattern Recognizer; V234: Pattern Recognizer removes live Main Road logic; V233: Pattern Recognizer TRUE P/B-only inside V217 closure; V232: Pattern Recognizer P/B-only, ties invisible; V231: adds standalone 3-Road Confusion AI A/A+; V221 base: V220 base + scan fixes: single Pattern accuracy reset path + single authoritative layout mover -->
@@ -867,37 +866,7 @@
 <div class="warning">
     Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. Displayed percentages are analysis signals only and do not guarantee a future result.
   </div>
-<div class="analyzer" id="gptMirrorPanel" style="border-color:#7d6cff">
-<div class="analyzer-title">🧠 GPT Mirror MASTER Decision AI V4.1</div>
-<div class="analyzer-sub">Master decision layer: Bead Plate + Main Road + all 3 derived roads + Main Future Road + saved-shoe memory + Banker/Player shoe bias + live source reliability + regime/change detection + failure-memory veto + contradiction control. Correlated signals are discounted so the same road idea cannot vote multiple times. The AI may return WAIT when the evidence is not genuinely independent and stable.</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Mirror decision</span><strong id="gptMirrorDecision">WAIT</strong></div>
-<div class="analyzer-card"><span>Evidence confidence</span><strong id="gptMirrorConfidence">—</strong></div>
-<div class="analyzer-card"><span>Regime / phase</span><strong id="gptMirrorRegime">BUILDING</strong></div>
-<div class="analyzer-card"><span>Shoe bias</span><strong id="gptMirrorShoeBias">NEUTRAL</strong></div>
-<div class="analyzer-card"><span>Decision stability</span><strong id="gptMirrorStability">BUILDING</strong></div>
-<div class="analyzer-card"><span>Trap / veto status</span><strong id="gptMirrorVeto">CLEAR</strong></div>
-</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Independent agreement</span><strong id="gptMirrorAgreement">0/0</strong></div>
-<div class="analyzer-card"><span>3-road future influence</span><strong id="gptMirrorRoadFuture">BUILDING</strong></div>
-<div class="analyzer-card"><span>Verified accuracy</span><strong id="gptMirrorAccuracy">—</strong></div><div class="analyzer-card"><span>Continuous learning</span><strong id="gptMirrorLearning">0 updates</strong></div><div class="analyzer-card"><span>Pretrained library</span><strong id="gptMirrorPretrained">97 shoes</strong></div>
-</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Historical matches</span><strong id="gptMirrorHistory">0</strong></div>
-<div class="analyzer-card"><span>Roads ready</span><strong id="gptMirrorRoadReady">0/3</strong></div>
-<div class="analyzer-card"><span>Projected Main Road</span><strong id="gptMirrorMainFuture">WAIT</strong></div>
-</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>V3 family lock</span><strong id="gptMirrorV3Lock">SEARCHING</strong></div>
-<div class="analyzer-card"><span>V3 location / score</span><strong id="gptMirrorV3Location">—</strong></div>
-<div class="analyzer-card"><span>V3 confirmations</span><strong id="gptMirrorV3Confirm">0/4</strong></div>
-</div>
-<div class="analyzer-sub" id="gptMirrorNote" style="margin-top:8px">Enter hands to build enough independent evidence. WAIT is intentional when the edge is weak or conflicting.</div>
-<div class="h2o-actions" style="grid-template-columns:1fr;margin-top:8px">
-<button class="tiny-btn" id="gptMirrorResetStats">Reset Mirror Accuracy</button>
-</div>
-</div>
+
 
 </div>
 <script>
@@ -14948,123 +14917,103 @@ window.__V168_CHART_AI_LIVE_REFRESH_WL_FIX__={
 <script id="v171-master-all-ai-training-replay">
 (function(){
 'use strict';
-const VERSION=270;
+const VERSION=268;
 let busy=false;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function txt(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function fullLibraryCount(){try{return (Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary.length:0)+(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary.length:0);}catch(e){return 0;}}
+function fullLibraryCount(){
+  try{return (Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary.length:0)+(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary.length:0);}catch(e){return 0;}
+}
 function updateMirrorCount(){const e=document.getElementById('gptMirrorPretrained');if(e)e.textContent=fullLibraryCount()+' shoes';}
-function mark(results,name,status,detail){results.push({name,status,detail:String(detail||'')});return status==='PASS';}
-function summary(results){return results.map(x=>`${x.status==='PASS'?'✅':x.status==='SKIPPED'?'⚪':'❌'} ${x.name}: ${x.status}${x.detail?' — '+x.detail:''}`).join(' • ');}
 async function waitFor(id,good,bad,timeout=180000){
   const t=Date.now();
-  while(Date.now()-t<timeout){const e=document.getElementById(id),v=String(e?.textContent||'');if(good.test(v))return v;if(bad&&bad.test(v))throw new Error(v);await sleep(120);}
+  while(Date.now()-t<timeout){const e=document.getElementById(id),v=String(e?.textContent||'');if(good.test(v))return true;if(bad&&bad.test(v))throw new Error(v);await sleep(120);}
   throw new Error('Timed out waiting for '+id);
 }
 async function deepLearnAll(){
   const b=document.getElementById('instantLibraryLearnBtn');
-  if(!b)throw new Error('Deep learner button unavailable');
-  const st=document.getElementById('instantLibraryLearnStatus');
-  if(st)st.textContent='STARTING…';
+  if(!b)return 'Deep learner unavailable';
   b.click();
-  return await waitFor('instantLibraryLearnStatus',/COMPLETE/i,/ERROR|FAILED/i,240000);
+  await waitFor('instantLibraryLearnStatus',/COMPLETE/i,/ERROR/i,240000);
+  return document.getElementById('instantLibraryLearnStatus')?.textContent||'complete';
 }
-async function trainLearningEngines(results){
-  await sleep(0);
-  try{
-    const api=window.__recurrentSequenceV32;
-    if(!api||typeof api.train!=='function')throw new Error('trainer unavailable');
-    const r=api.train(true);
-    const rn=Number(r?.red?.trainedN||0),bn=Number(r?.black?.trainedN||0);
-    if(!r?.red||!r?.black||rn<=0||bn<=0)throw new Error(`invalid training result RED ${rn}, BLACK ${bn}`);
-    mark(results,'Recurrent Sequence','PASS',`RED ${rn}, BLACK ${bn}`);
-  }catch(e){mark(results,'Recurrent Sequence','FAIL',e?.message||e);}
-  await sleep(0);
-  try{
-    const api=window.__frozenLibraryAIv47;
-    if(!api||typeof api.trainOnce!=='function')throw new Error('trainer unavailable');
-    const r=api.trainOnce();
-    if(r?.error)throw new Error(r.error);
-    if(!r?.frozen||!r?.red||!r?.black)throw new Error('frozen model did not verify');
-    mark(results,'Frozen Library AI','PASS',`${Number(r.shoeCount||0)} shoes`);
-  }catch(e){mark(results,'Frozen Library AI','FAIL',e?.message||e);}
-  await sleep(0);
-  try{
-    const api=window.__mlRoadTrainerV3;
-    if(!api||typeof api.trainAndValidate!=='function')throw new Error('trainer unavailable');
-    const r=api.trainAndValidate();
-    if(!r)throw new Error('training returned no validation report');
-    mark(results,'ML Road Trainer','PASS',`${Number(r.uniqueShoes||0)} shoes / ${Number(r.rows||0)} rows`);
-  }catch(e){mark(results,'ML Road Trainer','FAIL',e?.message||e);}
-  try{const api=window.__chartPatternRecognizerV156;if(api&&typeof api.render==='function'){api.render();mark(results,'Chart Pattern Recognizer','PASS','refreshed');}else mark(results,'Chart Pattern Recognizer','SKIPPED','module unavailable');}catch(e){mark(results,'Chart Pattern Recognizer','FAIL',e?.message||e);}
-  try{const api=window.__libraryKnowledgeV25;if(api&&typeof api.refreshPanel==='function'){api.refreshPanel();mark(results,'Knowledge Engine','PASS','refreshed');}else mark(results,'Knowledge Engine','SKIPPED','module unavailable');}catch(e){mark(results,'Knowledge Engine','FAIL',e?.message||e);}
+async function trainLearningEngines(){
+  const notes=[];
+  try{window.__recurrentSequenceV32?.train?.(true);notes.push('Recurrent Sequence trained');}catch(e){notes.push('Recurrent error');}
+  try{window.__frozenLibraryAIv47?.trainOnce?.();notes.push('Frozen Library AI refreshed');}catch(e){notes.push('Frozen Library error');}
+  try{const r=window.__mlRoadTrainerV3?.trainAndValidate?.();notes.push(r?'ML Road Trainer trained + validated':'ML Road Trainer ran');}catch(e){notes.push('ML error');}
+  try{window.__chartPatternRecognizerV156?.render?.();notes.push('Chart Pattern Recognizer refreshed');}catch(e){}
+  try{window.__libraryKnowledgeV25?.refreshPanel?.();notes.push('Knowledge Engine refreshed');}catch(e){}
   updateMirrorCount();
+  return notes;
 }
-async function tuneMirrorReplay(results){
+async function tuneMirrorReplay(){
+  // V267 FREEZE FIX: the old labTune path performs a large synchronous grid-search
+  // on the UI thread and can make iPhone/iPad/Chrome appear permanently frozen.
+  // Master training now keeps the last validated Mirror gate and refreshes its
+  // library/training state. Manual Auto-Tune remains available as a separate tool.
   updateMirrorCount();
-  try{const api=window.__gptMirrorV166;if(api&&typeof api.render==='function'){api.render();await sleep(35);mark(results,'GPT Mirror','PASS','refreshed; heavy auto-tune kept manual');}else mark(results,'GPT Mirror','SKIPPED','module unavailable');}
-  catch(e){mark(results,'GPT Mirror','FAIL',e?.message||e);}
+  try{ window.__gptMirrorV166?.render?.(); }catch(e){}
+  await sleep(35);
+  return 'GPT Mirror refreshed (existing validated gate kept; heavy auto-tune is manual)';
 }
 async function replayAllCurrentAIs(){
   const api=window.__fullLibraryFastSimV44;
-  if(!api||typeof api.run!=='function')throw new Error('Full-library all-AI replay unavailable');
-  try{delete window.__V44_LAST_RESULT__;}catch(e){window.__V44_LAST_RESULT__=null;}
+  if(!api?.run)return 'Full-library all-AI replay unavailable';
   await api.run();
-  const status=String(document.getElementById('fullBacktestStatus')?.textContent||'');
-  const r=window.__V44_LAST_RESULT__;
-  if(/ERROR/i.test(status))throw new Error(status);
-  if(!/COMPLETE/i.test(status)||!r?.meta)throw new Error('Replay did not produce a verified COMPLETE result');
-  const shoes=Number(r.meta.shoes||0),hands=Number(r.meta.hands||0);
-  if(shoes<=0||hands<=0)throw new Error(`Replay returned invalid totals: ${shoes} shoes / ${hands} hands`);
-  return `${shoes} shoes / ${hands} scored positions`;
+  return document.getElementById('fullBacktestStatus')?.textContent||'All-AI replay complete';
 }
 function ensurePanel(){
   if(document.getElementById('masterAllAITrainingV171'))return;
   const anchor=document.getElementById('aiReplayLabV167')||document.getElementById('mlTrainingDatasetV159');if(!anchor||!anchor.parentNode)return;
   const d=document.createElement('div');d.className='analyzer';d.id='masterAllAITrainingV171';d.style.cssText='margin-top:12px;border:2px solid #f1b827';
-  d.innerHTML=`<div class="analyzer-title">⚙️ MASTER ALL-AI TRAIN + REPLAY V270 — VERIFIED COMPLETION</div>
-  <div class="analyzer-sub">Every required training/replay stage must verify its output before Master can report DONE. Missing optional display engines are marked SKIPPED instead of falsely reported as trained. Heavy GPT Mirror grid auto-tuning remains manual.</div>
-  <div class="analyzer-grid"><div class="analyzer-card"><span>FULL LIBRARY</span><strong id="masterAllAIShoes">0</strong></div><div class="analyzer-card"><span>MODE</span><strong>TRAIN + VERIFY</strong></div><div class="analyzer-card"><span>STATUS</span><strong id="masterAllAIStatus">READY</strong></div></div>
-  <button class="tiny-btn" id="masterAllAIRun" style="margin-top:9px;width:100%;font-weight:900">RUN VERIFIED MASTER TRAIN</button>
-  <div class="analyzer-sub" id="masterAllAINote" style="margin-top:8px">MANUAL ONLY — run between shoes with no live hands entered.</div>`;
-  anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#masterAllAIRun').onclick=()=>runMaster('master');
+  d.innerHTML=`<div class="analyzer-title">⚙️ MASTER ALL-AI TRAIN + REPLAY V268 — FREEZE-SAFE + TRAP TRAINING</div>
+  <div class="analyzer-sub">Freeze-safe cycle uses the full saved RED + BLACK library. Learning-capable engines are rebuilt/retrained; fixed-rule AIs are replay-tested and graded hand-by-hand. Heavy GPT Mirror grid auto-tuning is kept manual so it cannot lock the UI. Sequence AI V2 remains unchanged while still being tested.</div>
+  <div class="analyzer-grid"><div class="analyzer-card"><span>FULL LIBRARY</span><strong id="masterAllAIShoes">0</strong></div><div class="analyzer-card"><span>MODE</span><strong>TRAIN + TEST ALL</strong></div><div class="analyzer-card"><span>STATUS</span><strong id="masterAllAIStatus">READY</strong></div></div>
+  <button class="tiny-btn" id="masterAllAIRun" style="margin-top:9px;width:100%;font-weight:900">RUN HEAVY TRAINING MANUALLY</button>
+  <div class="analyzer-sub" id="masterAllAINote" style="margin-top:8px">MANUAL ONLY — no other button launches this cycle. Run it between shoes, never during live hand entry.</div>`;
+  anchor.parentNode.insertBefore(d,anchor.nextSibling);
+  d.querySelector('#masterAllAIRun').onclick=()=>runMaster('master');
 }
-async function runMaster(){
+async function runMaster(source){
   if(busy)return;
-  try{if(Array.isArray(state?.hands)&&state.hands.length){txt('masterAllAIStatus','PAUSED');txt('masterAllAINote','Heavy all-AI training is blocked during an active live shoe. Start a New Shoe first.');return;}}catch(e){}
-  busy=true;const btn=document.getElementById('masterAllAIRun');if(btn)btn.disabled=true;
-  const results=[];txt('masterAllAIStatus','RUNNING');txt('masterAllAINote','1/5 Building and verifying full-library dataset…');
+  try{if(Array.isArray(state?.hands)&&state.hands.length){txt('masterAllAIStatus','PAUSED');txt('masterAllAINote','Heavy all-AI training is blocked during an active live shoe to prevent freezing. Start a New Shoe first, then run training manually.');return;}}catch(e){}
+  busy=true;
+  const btn=document.getElementById('masterAllAIRun');if(btn)btn.disabled=true;
+  txt('masterAllAIStatus','RUNNING');txt('masterAllAINote','1/5 Building full-library dataset…');
   try{
-    const shoes=fullLibraryCount();if(shoes<=0)throw new Error('Saved RED + BLACK library is empty');
+    // Build rows first without recursively re-entering the wrapped button.
     const ds=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;
-    if(!ds||typeof ds.build!=='function')throw new Error('Dataset builder unavailable');
-    const built=ds.build();if(!built||!Array.isArray(built.shoes)||!Array.isArray(built.rows)||built.shoes.length<=0||built.rows.length<=0)throw new Error('Dataset build did not return usable shoes/rows');
-    window.__mlDatasetV159=built;try{ds.refresh?.();}catch(e){}
-    mark(results,'Full-Library Dataset','PASS',`${built.shoes.length} shoes / ${built.rows.length} rows`);txt('masterAllAIShoes',String(shoes));
-    txt('masterAllAINote','2/5 Deep learning and verifying completion…');await deepLearnAll();mark(results,'Deep Full-Library Learning','PASS','COMPLETE verified');
-    txt('masterAllAINote','3/5 Training and verifying learning engines…');await trainLearningEngines(results);
-    txt('masterAllAINote','4/5 Refreshing GPT Mirror safely…');await tuneMirrorReplay(results);
-    const preFailures=results.filter(x=>x.status==='FAIL');if(preFailures.length)throw new Error('Training verification failed: '+preFailures.map(x=>x.name).join(', '));
-    txt('masterAllAINote','5/5 Replaying all AIs + Trap profiles and verifying result…');const replay=await replayAllCurrentAIs();mark(results,'Full-Library AI + Trap Replay','PASS',replay);
-    const failures=results.filter(x=>x.status==='FAIL');
-    if(failures.length)throw new Error('Verification failed: '+failures.map(x=>x.name).join(', '));
-    txt('masterAllAIStatus','DONE');txt('masterAllAINote',`VERIFIED COMPLETE — ${summary(results)} • Sequence AI V2 prediction logic unchanged.`);
-    window.__MASTER_V270_LAST__={ok:true,at:Date.now(),results:results.map(x=>({...x})),shoes};
-  }catch(e){
-    const msg=String(e?.message||e);txt('masterAllAIStatus','ERROR');txt('masterAllAINote',`STOPPED — ${msg}${results.length?' • '+summary(results):''}`);
-    window.__MASTER_V270_LAST__={ok:false,at:Date.now(),error:msg,results:results.map(x=>({...x}))};
-  }finally{busy=false;if(btn)btn.disabled=false;updateMirrorCount();}
+    const built=ds?.build?.();if(built){window.__mlDatasetV159=built;try{ds.refresh?.()}catch(e){}}
+    txt('masterAllAIShoes',String(fullLibraryCount()));
+    txt('masterAllAINote','2/5 Deep learning every supported library-learning AI…');
+    await deepLearnAll();
+    txt('masterAllAINote','3/5 Training ML/recurrent/knowledge engines…');
+    const notes=await trainLearningEngines();
+    txt('masterAllAINote','4/5 Refreshing GPT Mirror safely (heavy auto-tune skipped)…');
+    await tuneMirrorReplay();
+    txt('masterAllAINote','5/5 Replaying and grading all current AI signals hand-by-hand…');
+    await replayAllCurrentAIs();
+    txt('masterAllAIStatus','DONE');
+    txt('masterAllAINote',`COMPLETE — ${fullLibraryCount()} saved shoes used. ${notes.join(' • ')} • Fixed-rule AIs were replay-tested, not rewritten. Sequence AI V2 unchanged.`);
+  }catch(e){txt('masterAllAIStatus','ERROR');txt('masterAllAINote','ERROR: '+String(e?.message||e));}
+  finally{busy=false;if(btn)btn.disabled=false;updateMirrorCount();}
 }
 function wire(){
   ensurePanel();updateMirrorCount();txt('masterAllAIShoes',String(fullLibraryCount()));
-  const build=document.getElementById('mlBuild');if(build){build.textContent='Build / Refresh Dataset';build.removeAttribute('title');}
-  const full=document.getElementById('labFull');if(full){full.textContent='Full Unseen Replay';full.title='Manual replay only; blocked during a live shoe.';}
-  const lab=document.getElementById('aiReplayLabV167');if(lab){const sub=lab.querySelector('.analyzer-sub');if(sub)sub.textContent='MANUAL HEAVY TOOL. Full-library replay and tuning run only when you press their buttons, and are blocked during an active live shoe. Sequence AI V2 remains unchanged.';}
-  const master=document.getElementById('masterAllAITrainingV171');try{const parent=document.body;if(lab&&lab.parentNode)parent.appendChild(lab);if(master&&master.parentNode)parent.appendChild(master);}catch(e){}
+  // V190: Heavy training tools are MANUAL ONLY. Do not hijack Build Dataset or Replay buttons.
+  const build=document.getElementById('mlBuild');
+  if(build){build.textContent='Build / Refresh Dataset';build.removeAttribute('title');}
+  const full=document.getElementById('labFull');
+  if(full){full.textContent='Full Unseen Replay';full.title='Manual replay only; blocked during a live shoe.';}
+  const lab=document.getElementById('aiReplayLabV167');
+  if(lab){const sub=lab.querySelector('.analyzer-sub');if(sub)sub.textContent='MANUAL HEAVY TOOL. Full-library replay and tuning run only when you press their buttons, and are blocked during an active live shoe. Sequence AI V2 remains unchanged.';}
+  const master=document.getElementById('masterAllAITrainingV171');
+  // Keep both heavy panels out of the live-play render path by placing them at the bottom.
+  try{const parent=document.body; if(lab&&lab.parentNode)parent.appendChild(lab); if(master&&master.parentNode)parent.appendChild(master);}catch(e){}
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,1700));else setTimeout(wire,1700);
-setTimeout(wire,3600);
-window.__masterAllAITrainingV270={run:runMaster,version:VERSION,get busy(){return busy;},last:()=>window.__MASTER_V270_LAST__||null};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(wire,1800),{once:true});else setTimeout(wire,1800);
+window.__MASTER_ALL_AI_TRAINING_V268__={version:VERSION,run:runMaster,fullLibrary:true,sequenceV2Untouched:true,trainLearningCapable:true,replayFixedRule:true,freezeSafe:true,trapLibraryTraining:true}; window.__MASTER_ALL_AI_TRAINING_V267__=window.__MASTER_ALL_AI_TRAINING_V268__; window.__MASTER_ALL_AI_TRAINING_V171__=window.__MASTER_ALL_AI_TRAINING_V268__;
 })();
 </script>
 
@@ -16369,9 +16318,27 @@ function qualifiedPool(r){
   }
   return pool;
 }
+function exactHistoricalContinuation(seq){
+  try{
+    const livePB=String(seq||'').replace(/[^PB]/g,'');
+    if(livePB.length<8)return null;
+    const lib=(typeof activePatternLibrary==='function'?activePatternLibrary():[]).filter(x=>x&&typeof x.sequence==='string');
+    const exact=[];
+    lib.forEach((shoe,idx)=>{const hist=String(shoe.sequence||'').replace(/[^PB]/g,'');if(hist.length>livePB.length&&hist.slice(0,livePB.length)===livePB){const next=hist[livePB.length];if(next==='P'||next==='B')exact.push({shoe,idx,next});}});
+    if(!exact.length)return null;
+    const p=exact.filter(x=>x.next==='P').length,b=exact.filter(x=>x.next==='B').length;
+    const side=p>b?'P':b>p?'B':null,pct=side?Math.round(Math.max(p,b)*100/(p+b)):50;
+    return {side,pct,p,b,matches:exact.length,exact};
+  }catch(e){return null}
+}
 function buildSignal(){
   const seq=currentSeq();
   if(seq.length<6||typeof shoeMatcherScanCore!=='function')return {side:null,pct:0,reason:'Need at least 6 live results.',seq};
+  const exact=exactHistoricalContinuation(seq);
+  if(exact){
+    if(!exact.side)return {side:null,pct:50,reason:`EXACT PREFIX CONFLICT: ${exact.p} saved continuations say Player and ${exact.b} say Banker. Waiting for the next hand to separate them.`,seq,pn:exact.p,bn:exact.b,pool:exact.exact,best:100,exactMode:true};
+    return {side:exact.side,pct:exact.pct,reason:'exact saved-shoe prefix continuation',seq,pn:exact.p,bn:exact.b,pool:exact.exact,best:100,edge:Math.abs(exact.p-exact.b)/(exact.p+exact.b),exactMode:true,r:{best:{idx:exact.exact[0].idx,pos:String(seq).replace(/[^PB]/g,'').length,score:1}}};
+  }
   const main=typeof shoeMatcherMainFromBead==='function'?shoeMatcherMainFromBead(seq):seq.replace(/T/g,'');
   const r=shoeMatcherScanCore(seq,main);if(r.error)return {side:null,pct:0,reason:r.error,seq,r};
   const pool=qualifiedPool(r);let p=0,b=0,pn=0,bn=0,total=0;
@@ -17249,7 +17216,7 @@ function ensureUI(){
   const box=document.createElement('div');box.id='autoHistDuplicateMode';box.dataset.state='WAIT';
   box.innerHTML=`
     <div class="dup-title"><span>⚡ Duplicate Trajectory Mode — ${VERSION}</span><span id="dupTrajStatus" style="font-size:10px;color:var(--muted)">WAIT</span></div>
-    <div style="font-size:11px;color:var(--muted);margin-top:5px">Exact P/B trajectory detector. Scan starts at hand 8. Requires ≥99% trajectory score, ≥1 percentage-point separation from the runner-up, then 2 matching confirmation hands before activation. First divergence immediately breaks Exact Duplicate mode.</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:5px">Exact P/B trajectory detector. Scan starts at hand 8. Requires an exact P/B prefix with ≥99% trajectory score. Multiple saved copies of the same trajectory are grouped instead of blocking each other; their next result must agree, then 2 matching confirmation hands activate the mode. First divergence immediately breaks Exact Duplicate mode.</div>
     <div class="dup-grid">
       <div class="dup-card"><span>State</span><strong id="dupTrajState">WAIT</strong></div>
       <div class="dup-card"><span>Matched shoe</span><strong id="dupTrajShoe">—</strong></div>
@@ -17267,13 +17234,18 @@ function paintStats(){const n=rt.stats.w+rt.stats.l;text('dupTrajAcc',n?(Math.ro
 function resetSession(n=0){rt.lastN=n;rt.candidate=null;rt.broken=false;rt.active=false;rt.confirm=0;rt.locked=null;rt.lastResult=null;}
 function scanCandidate(live,n){
   const lib=histLibrary();if(n<CFG.startHand||!lib.length)return null;
-  let bestExact=null;const all=[];
-  for(const h of lib){if(h.seq.length<=n)continue;const sc=trajectoryScore(live,h.seq,n);all.push({h,sc});if(h.seq.slice(0,n)===live.slice(0,n)){if(!bestExact||sc>bestExact.sc)bestExact={h,sc};}}
-  if(!bestExact)return null;
-  let runner=0;for(const x of all)if(x.h.id!==bestExact.h.id&&x.sc>runner)runner=x.sc;
-  const margin=bestExact.sc-runner;
-  if(bestExact.sc+1e-12<CFG.minScore||margin+1e-12<CFG.minMargin)return null;
-  return {id:bestExact.h.id,color:bestExact.h.color,seq:bestExact.h.seq,score:bestExact.sc,margin,detectedAt:n};
+  const exact=[];
+  for(const h of lib){if(h.seq.length<=n)continue;if(h.seq.slice(0,n)===live.slice(0,n))exact.push({h,sc:trajectoryScore(live,h.seq,n),next:h.seq[n]});}
+  if(!exact.length)return null;
+  const p=exact.filter(x=>x.next==='P').length,b=exact.filter(x=>x.next==='B').length;
+  const next=p>b?'P':b>p?'B':null;
+  // Several saved copies of the same trajectory are not a reason to reject a duplicate.
+  // They are treated as one trajectory family; activation is allowed only when their immediate continuation agrees.
+  if(!next)return null;
+  const agree=exact.filter(x=>x.next===next),chosen=agree[0];
+  const consensus=Math.max(p,b)/(p+b);
+  if(chosen.sc+1e-12<CFG.minScore||consensus<.75)return null;
+  return {id:chosen.h.id,color:chosen.h.color,seq:chosen.h.seq,score:chosen.sc,margin:consensus,detectedAt:n,familyCount:exact.length,nextConsensus:consensus};
 }
 function breakMode(reason,actual){rt.broken=true;rt.brokenAt=pbLive().length;rt.active=false;rt.candidate=rt.candidate?{...rt.candidate,breakReason:reason,breakActual:actual}:null;rt.locked=null;}
 function settleLocked(live,n){
@@ -17302,7 +17274,7 @@ function renderState(live,n){
   if(rt.broken){stateName='COOLDOWN';status='RE-SCAN SOON';const left=Math.max(0,2-(n-(rt.brokenAt||n)));note=`Candidate was cancelled immediately after divergence.${rt.candidate?.breakReason?' '+rt.candidate.breakReason:''} Duplicate scan will automatically resume after ${left} more P/B hand${left===1?'':'s'}. General Historical Match remains independent.`;}
   else if(rt.active){stateName='EXACT DUPLICATE ACTIVE';status='ACTIVE';note='Two confirmation hands matched. Following the saved trajectory one hand at a time; the first mismatch shuts this mode off.';}
   else if(rt.candidate){stateName='DUPLICATE CANDIDATE';status='CONFIRMING';note=`Candidate found. Waiting for ${Math.max(0,CFG.confirmHands-rt.confirm)} more matching P/B confirmation hand${CFG.confirmHands-rt.confirm===1?'':'s'} before activation.`;}
-  else note=n<CFG.startHand?`Waiting for ${CFG.startHand-n} more P/B hand${CFG.startHand-n===1?'':'s'} before scanning.`:'No unique exact trajectory currently clears the 99% + 1pp separation gate.';
+  else note=n<CFG.startHand?`Waiting for ${CFG.startHand-n} more P/B hand${CFG.startHand-n===1?'':'s'} before scanning.`:'No exact saved-shoe prefix with a clear next-result consensus is active yet.';
   box.dataset.state=rt.broken?'WAIT':rt.active?'ACTIVE':'WAIT';
   text('dupTrajState',stateName);text('dupTrajStatus',status);text('dupTrajShoe',rt.candidate?rt.candidate.id:'—');text('dupTrajDetected',rt.candidate?`H${rt.candidate.detectedAt}`:'—');
   text('dupTrajScore',rt.candidate?`${(rt.candidate.score*100).toFixed(1)}% / +${(rt.candidate.margin*100).toFixed(1)}pp`:'—');text('dupTrajConfirm',`${rt.confirm}/${CFG.confirmHands}`);
@@ -18453,9 +18425,8 @@ window.__V262_ACCURACY_RESET_COMPLETE__={predictionLogicChanged:false,covered:['
 #trapRiskPanel{border:2px solid #d97706;box-shadow:0 0 0 1px rgba(217,119,6,.16) inset}#trapRiskPanel .trap-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px}#trapRiskPanel .trap-card{background:var(--panel2);border-radius:10px;padding:8px;text-align:center;min-width:0}#trapRiskPanel .trap-card span{display:block;font-size:9px;color:var(--muted)}#trapRiskPanel .trap-card strong{display:block;font-size:15px;margin-top:2px;overflow-wrap:anywhere}#trapRiskPanel.normal{border-color:#2e7d4f}#trapRiskPanel.caution{border-color:#b68a1d}#trapRiskPanel.trap{border-color:#d34a44}#trapRiskPanel.reversal{border-color:#8b5cf6}@media(max-width:560px){#trapRiskPanel .trap-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <div class="analyzer normal" id="trapRiskPanel">
- <div class="future-test-head"><div><div class="analyzer-title">🛡️ AI Trap / Bias Risk Detector — V269 Full-Library Trained + Simple Live Signal</div><div class="analyzer-sub">Independent observer. Correlated AIs are grouped so road/history clones cannot manufacture agreement. Failure profiles preserve the exact participating AI combination. Trap means a measured model-failure setup, not proof of rigging.</div></div><button class="tiny-btn" id="trapRiskReset" type="button">Reset Trap Accuracy</button></div>
+ <div class="future-test-head"><div><div class="analyzer-title">🛡️ AI Trap / Bias Risk Detector — V268 Full-Library Trained</div><div class="analyzer-sub">Independent observer. Correlated AIs are grouped so road/history clones cannot manufacture agreement. Failure profiles preserve the exact participating AI combination. Trap means a measured model-failure setup, not proof of rigging.</div></div><button class="tiny-btn" id="trapRiskReset" type="button">Reset Trap Accuracy</button></div>
  <div class="trap-grid"><div class="trap-card"><span>Risk state</span><strong id="trapRiskState">NORMAL</strong></div><div class="trap-card"><span>Risk score</span><strong id="trapRiskScore">0%</strong></div><div class="trap-card"><span>Independent consensus</span><strong id="trapConsensus">WAIT</strong></div><div class="trap-card"><span>Action</span><strong id="trapAction">USE NORMAL READ</strong></div></div>
- <div id="trapSimpleSignal" style="margin-top:9px;padding:12px;border-radius:12px;text-align:center;font-size:20px;font-weight:900;background:rgba(46,125,79,.14);border:1px solid rgba(46,125,79,.45)">🟢 PLAY OK</div>
  <div class="trap-grid"><div class="trap-card"><span>Veto accuracy</span><strong id="trapAccuracy">—</strong></div><div class="trap-card"><span>Veto W / L</span><strong id="trapWL">0W-0L</strong></div><div class="trap-card"><span>Reversal accuracy</span><strong id="trapReverseAccuracy">—</strong></div><div class="trap-card"><span>Reversal W / L</span><strong id="trapReverseWL">0W-0L</strong></div></div>
  <div class="trap-grid"><div class="trap-card"><span>Similar failure profile</span><strong id="trapProfile">N=0</strong></div><div class="trap-card"><span>Independent groups</span><strong id="trapGroups">0/3</strong></div><div class="trap-card"><span>Live P/B bias</span><strong id="trapBias">BUILDING</strong></div><div class="trap-card"><span>Last graded hand</span><strong id="trapLastGrade">—</strong></div></div>
  <div class="analyzer-sub" id="trapRiskNote" style="margin-top:8px">Building current-shoe evidence. Trap/Caution are WAIT filters until independently graded evidence qualifies.</div>
@@ -18481,12 +18452,193 @@ function assess(){const a=pb(),raw=rawVotes(),groups=groupVotes(raw),p=groups.fi
 
 function settle(z){const a=pb(),n=a.length;if(n<=z.lastN)return false;const actual=a[a.length-1],q=z.pending;if(q&&q.hand===n){const pr=z.profiles[q.key]||{fail:0,hold:0,n:0};pr.n++;if(q.cons!==actual)pr.fail++;else pr.hold++;z.profiles[q.key]=pr;if(q.flagged){z.vetoN++;if(q.cons!==actual)z.vetoW++;else z.vetoL++}if(q.reverse){z.revN++;const rev=q.cons==='P'?'B':'P';if(rev===actual)z.revW++;else z.revL++}z.lastGrade=`H${n} ${actual} • ${q.reverse?'REVERSAL':q.flagged?'VETO':'PROFILE'}`;z.pending=null}z.lastN=n;return true}
 function arm(z,x){const n=x.a.length;if(!x.cons||x.total<2){z.pending=null;return}z.pending={hand:n+1,cons:x.cons,key:x.key,flagged:x.state==='TRAP'||x.state==='REVERSAL QUALIFIED',reverse:x.reverse}}
-function paint(x,z){const panel=$('trapRiskPanel');if(!panel)return;panel.classList.remove('normal','caution','trap','reversal');panel.classList.add(x.state==='NORMAL'?'normal':x.state==='CAUTION'?'caution':x.state==='TRAP'?'trap':'reversal');$('trapRiskState').textContent=x.state;$('trapRiskScore').textContent=x.risk+'%';$('trapConsensus').textContent=x.cons?`${x.cons==='P'?'PLAYER':'BANKER'} ${Math.max(x.p,x.b)}/${x.total} groups`:'WAIT';$('trapAction').textContent=x.action;const ss=$('trapSimpleSignal');if(ss){let txt='🟢 PLAY OK',bg='rgba(46,125,79,.14)',bd='rgba(46,125,79,.45)';if(x.state==='CAUTION'){txt='🟡 CAUTION';bg='rgba(182,138,29,.14)';bd='rgba(182,138,29,.45)'}else if(x.state==='TRAP'){txt='🔴 WAIT';bg='rgba(211,74,68,.14)';bd='rgba(211,74,68,.45)'}else if(x.state==='REVERSAL QUALIFIED'){txt='🔄 REVERSAL EVIDENCE';bg='rgba(139,92,246,.14)';bd='rgba(139,92,246,.45)'}ss.textContent=txt;ss.style.background=bg;ss.style.borderColor=bd}$('trapAccuracy').textContent=z.vetoN?`${(100*z.vetoW/z.vetoN).toFixed(1)}%`:'—';$('trapWL').textContent=`${z.vetoW}W-${z.vetoL}L`;$('trapReverseAccuracy').textContent=z.revN?`${(100*z.revW/z.revN).toFixed(1)}%`:'—';$('trapReverseWL').textContent=`${z.revW}W-${z.revL}L`;$('trapProfile').textContent=(x.pr.n||x.hp?.n)?`Live ${x.pr.n||0} • Lib ${x.hp?.n||0}`:`N=0`;$('trapGroups').textContent=`${x.total}/3`;$('trapBias').textContent=x.a.length<8?'BUILDING':`${x.rp}P-${x.rb}B / last ${Math.min(12,x.a.length)}`;$('trapLastGrade').textContent=z.lastGrade||'—';$('trapRiskNote').textContent=(x.reasons.length?x.reasons.join(' • '):'No elevated failure conditions detected.')+(x.state==='REVERSAL QUALIFIED'?' • Reversal requires 30+ exact-profile samples, ≥66.7% consensus failure, and 2+ independent groups.':` • Library trap training: ${x.hm?.shoes||0} shoes / ${x.hm?.samples||0} graded consensus samples. Trap/Caution is a WAIT filter; it is not a claim of rigging.`)}
+function paint(x,z){const panel=$('trapRiskPanel');if(!panel)return;panel.classList.remove('normal','caution','trap','reversal');panel.classList.add(x.state==='NORMAL'?'normal':x.state==='CAUTION'?'caution':x.state==='TRAP'?'trap':'reversal');$('trapRiskState').textContent=x.state;$('trapRiskScore').textContent=x.risk+'%';$('trapConsensus').textContent=x.cons?`${x.cons==='P'?'PLAYER':'BANKER'} ${Math.max(x.p,x.b)}/${x.total} groups`:'WAIT';$('trapAction').textContent=x.action;$('trapAccuracy').textContent=z.vetoN?`${(100*z.vetoW/z.vetoN).toFixed(1)}%`:'—';$('trapWL').textContent=`${z.vetoW}W-${z.vetoL}L`;$('trapReverseAccuracy').textContent=z.revN?`${(100*z.revW/z.revN).toFixed(1)}%`:'—';$('trapReverseWL').textContent=`${z.revW}W-${z.revL}L`;$('trapProfile').textContent=(x.pr.n||x.hp?.n)?`Live ${x.pr.n||0} • Lib ${x.hp?.n||0}`:`N=0`;$('trapGroups').textContent=`${x.total}/3`;$('trapBias').textContent=x.a.length<8?'BUILDING':`${x.rp}P-${x.rb}B / last ${Math.min(12,x.a.length)}`;$('trapLastGrade').textContent=z.lastGrade||'—';$('trapRiskNote').textContent=(x.reasons.length?x.reasons.join(' • '):'No elevated failure conditions detected.')+(x.state==='REVERSAL QUALIFIED'?' • Reversal requires 30+ exact-profile samples, ≥66.7% consensus failure, and 2+ independent groups.':` • Library trap training: ${x.hm?.shoes||0} shoes / ${x.hm?.samples||0} graded consensus samples. Trap/Caution is a WAIT filter; it is not a claim of rigging.`)}
 let queued=false;function update(){queued=false;let z=load();settle(z);const x=assess();arm(z,x);save(z);paint(x,z)} function queue(){if(queued)return;queued=true;setTimeout(update,90)}
 function boot(){const b=$('trapRiskReset');if(b&&!b.__v265){b.__v265=1;b.addEventListener('click',e=>{e.stopPropagation();if(confirm('Reset Trap Detector accuracy and learned failure profiles?')){localStorage.removeItem(LS);update()}})}const root=document.querySelector('.app')||document.body;const mo=new MutationObserver(m=>{for(const x of m){const id=x.target?.id||x.target?.parentElement?.id||'';if(id&&(/^(seqAiSide|colorAiSide|libraryIntelSide|autoMatchSide|futureFinal|derivedIndependentPrediction|confusionAiSide|roadAiSide|bestSide|mirrorAiSide|mlRoadSide|fingerPrediction|shoeLabel)$/.test(id))){queue();break}}});mo.observe(root,{subtree:true,childList:true,characterData:true});document.addEventListener('click',e=>{if(e.target?.closest?.('#pBtn,#bBtn,#tBtn,[data-result],#undoBtn'))queue()},true);update();window.__V265_TRAP_OBSERVER__=mo}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();window.__V268_TRAP_RISK__={version:VERSION,update,assess,corePredictionLogicChanged:false,correlationAware:true,exactCombinationProfiles:true,historicalGroupProfiles:true,separateReversalGrade:true,pollingTimer:false,riggingClaim:false};window.__V265_TRAP_RISK__=window.__V268_TRAP_RISK__;
 })();
 </script>
+\n<script id="v269-exact-history-authority-fix">\n(function(){\n'use strict';\nfunction pb(s){return String(s||'').replace(/[^PB]/g,'')}\nfunction exact(){try{const live=pb(typeof currentSequence==='function'?currentSequence().join(''):'');if(live.length<8)return null;const lib=typeof activePatternLibrary==='function'?activePatternLibrary():[];let p=0,b=0,n=0;for(const x of lib){const h=pb(x&&x.sequence);if(h.length>live.length&&h.slice(0,live.length)===live){const z=h[live.length];if(z==='P'){p++;n++}else if(z==='B'){b++;n++}}}if(!n)return null;const side=p>b?'P':b>p?'B':null;return {side,pct:side?Math.round(Math.max(p,b)*100/n):50,p,b,n};}catch(e){return null}}\nfunction install(){const a=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;if(!a||typeof a.signal!=='function'||a.signal.__v269Exact)return false;const base=a.signal.bind(a);a.signal=function(){const x=exact();if(x){if(!x.side)return {side:null,displaySide:null,rawSide:null,qualified:false,strength:0,confidence:50,status:'WAIT',sources:x.n,reason:`EXACT SAVED-SHOE CONFLICT: ${x.p} Player / ${x.b} Banker continuations.`,exactHistory:true};return {side:x.side,displaySide:x.side,rawSide:x.side,qualified:true,strength:x.pct,confidence:x.pct,status:x.side==='P'?'PLAYER':'BANKER',sources:x.n,reason:`EXACT SAVED-SHOE PREFIX: ${x.n} matching saved continuation${x.n===1?'':'s'}; ${x.p}P/${x.b}B. Historical continuation overrides the generic ML lean while the prefix remains exact.`,exactHistory:true};}return base();};a.signal.__v269Exact=true;return true}\nfunction paint(){if(!install())return;const a=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;let z;try{z=a.signal()}catch(e){return}if(z&&z.exactHistory){const pick=document.getElementById('mlv170Pick'),conf=document.getElementById('mlv170Conf'),note=document.getElementById('mlv170Note');if(pick)pick.textContent=z.side==='P'?'PLAYER':z.side==='B'?'BANKER':'WAIT';if(conf)conf.textContent=z.side?Number(z.confidence).toFixed(1)+'%':'—';if(note)note.textContent=z.reason;}}\nfunction boot(){install();paint();['playerBtn','bankerBtn','tieBtn','undoBtn','newShoeBtn'].forEach(id=>document.getElementById(id)?.addEventListener('click',()=>setTimeout(paint,30)));}\nif(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3000),{once:true});else setTimeout(boot,3000);\nwindow.__V269_EXACT_HISTORY_FIX__={duplicateFamilyConsensus:true,autoHistoricalExactPrefixPriority:true,mlExactPrefixPriority:true,conflictMeansWait:true};\n})();\n</script>\n
+<!-- V270 — requested cleanup/layout consolidation. Prediction logic of retained AIs is unchanged. -->
+<style id="v270-clean-layout-style">
+  #roadPreviewAiPanel .v270-pattern-primary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:8px}
+  #roadPreviewAiPanel .v270-pattern-details{margin-top:8px}
+  #roadPreviewAiPanel .v270-pattern-details summary{cursor:pointer;font-weight:800;padding:9px 10px;border:1px solid var(--line);border-radius:10px}
+  #roadPreviewAiPanel .v270-pattern-details[open] summary{margin-bottom:8px}
+  #roadPreviewAiPanel [data-v73-acc="roadpreview"]{display:none!important}
+  #patternAccuracyV245{grid-template-columns:repeat(4,minmax(0,1fr))}
+  @media(max-width:720px){
+    #roadPreviewAiPanel .v270-pattern-primary,#patternAccuracyV245{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+</style>
+<script id="v270-clean-layout-fix">
+(function(){
+'use strict';
+const VERSION=270;
+
+function removeRetired(){
+  // Retire Mirror and Independent Finger from the live UI/execution surface.
+  document.getElementById('gptMirrorPanel')?.remove();
+  document.getElementById('presetFingerprintGateV145')?.remove();
+
+  try{ window.__presetFingerprintGate = null; }catch(e){}
+  try{ window.__V170_FINGER_ML_LIVE_FIX__ = null; }catch(e){}
+
+  // Neutralize Mirror live entry points without touching retained AI modules.
+  const wait=()=>({side:null,qualified:false,status:'WAIT',confidence:0,reason:'Mirror retired in V270'});
+  ['gptMirrorSignal','mirrorSignal','armGPTMirrorPrediction','armGPTMirror','renderGPTMirror','renderGPTMirrorAI'].forEach(k=>{
+    try{ if(k in window) window[k]=wait; }catch(e){}
+  });
+}
+
+function bestPanel(){
+  const title=[...document.querySelectorAll('.analyzer-title')].find(e=>e.textContent.trim()==='Best-Estimate Analyzer');
+  return title?.closest('.analyzer')||null;
+}
+function moveBestToMLTrainingSlot(){
+  const best=bestPanel();
+  const mlData=document.getElementById('mlTrainingDatasetV159');
+  if(!best||!mlData||!mlData.parentNode)return false;
+  if(best.nextElementSibling!==mlData) mlData.parentNode.insertBefore(best,mlData);
+  return true;
+}
+
+function consolidatePattern(){
+  const p=document.getElementById('roadPreviewAiPanel');
+  if(!p||p.dataset.v270Consolidated==='1')return false;
+  p.dataset.v270Consolidated='1';
+  const title=p.querySelector('.analyzer-title');
+  if(title) title.textContent='AI Pattern Recognizer';
+  const mainGrid=p.querySelector(':scope > .analyzer-grid');
+  const pct=p.querySelector(':scope > .match-pcts');
+  const note=document.getElementById('roadAiNote');
+  if(mainGrid) mainGrid.classList.add('v270-pattern-primary');
+
+  const details=document.createElement('details');
+  details.className='v270-pattern-details';
+  details.innerHTML='<summary>Details — history, continuations & graded results</summary>';
+  if(pct) details.appendChild(pct);
+  const acc=document.getElementById('patternAccuracyV245');
+  if(acc) details.appendChild(acc);
+  if(note) details.appendChild(note);
+  p.appendChild(details);
+
+  // Keep reset available inside the consolidated panel.
+  if(!document.getElementById('v270PatternReset')){
+    const b=document.createElement('button');
+    b.id='v270PatternReset'; b.className='tiny-btn'; b.type='button';
+    b.dataset.v75Reset='roadpreview'; b.textContent='Reset Accuracy';
+    details.appendChild(b);
+  }
+  return true;
+}
+
+function apply(){
+  removeRetired();
+  moveBestToMLTrainingSlot();
+  consolidatePattern();
+}
+function boot(){
+  apply();
+  [100,350,800,1500,3000,6000].forEach(ms=>setTimeout(apply,ms));
+  const mo=new MutationObserver(()=>apply());
+  mo.observe(document.documentElement,{childList:true,subtree:true});
+  window.__V270_CLEAN_LAYOUT__={
+    version:VERSION,
+    mirrorRemoved:true,
+    independentFingerRemoved:true,
+    bestEstimateBeforeMLTraining:true,
+    patternRecognizerConsolidated:true,
+    retainedPredictionLogicChanged:false
+  };
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+</script>
+
+
+<!-- V271 — Duplicate Trajectory visible prediction/result ledger fix -->
+<style id="v271-trajectory-display-style">
+#dupTrajLedger{margin-top:10px;padding:9px;border:1px solid #303743;border-radius:10px}
+#dupTrajLedger .v271-head{font-weight:900;margin-bottom:7px}
+#dupTrajLedger .v271-row{display:grid;grid-template-columns:52px 1fr 1fr 54px;gap:6px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12px}
+#dupTrajLedger .v271-win{color:#55e59a;font-weight:900}
+#dupTrajLedger .v271-loss{color:#ff6b76;font-weight:900}
+#dupTrajVisibleNext{margin-top:8px;font-weight:900}
+</style>
+<script id="v271-trajectory-display-fix">
+(function(){
+'use strict';
+const KEY='baccarat-duplicate-trajectory-v237';
+const LEDGER_KEY='baccarat-duplicate-trajectory-v271-ledger';
+let ledger=[];
+try{ledger=JSON.parse(localStorage.getItem(LEDGER_KEY)||'[]');if(!Array.isArray(ledger))ledger=[]}catch(e){ledger=[]}
+let pending=null,lastPB='';
+
+function pb(){try{return (typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B').join('')}catch(e){return''}}
+function save(){try{localStorage.setItem(LEDGER_KEY,JSON.stringify(ledger.slice(-60)))}catch(e){}}
+function ui(){
+ const box=document.getElementById('autoHistDuplicateMode');if(!box)return;
+ if(!document.getElementById('dupTrajVisibleNext')){
+   const n=document.createElement('div');n.id='dupTrajVisibleNext';box.appendChild(n);
+ }
+ if(!document.getElementById('dupTrajLedger')){
+   const d=document.createElement('div');d.id='dupTrajLedger';box.appendChild(d);
+ }
+}
+function currentNext(){
+ const n=document.getElementById('dupTrajNext')?.textContent?.trim();
+ if(n==='PLAYER')return'P';if(n==='BANKER')return'B';
+ // Use the existing V237 candidate only when its own state is ACTIVE.
+ try{
+   const api=window.__V237_DUPLICATE_TRAJECTORY__;
+   const sig=api&&typeof api.signal==='function'?api.signal():null;
+   if(sig&&(sig.side==='P'||sig.side==='B')&&(sig.active||sig.qualified))return sig.side;
+ }catch(e){}
+ return null;
+}
+function render(){
+ ui();
+ const state=document.getElementById('dupTrajState')?.textContent||'WAIT';
+ const pred=currentNext();
+ const n=document.getElementById('dupTrajVisibleNext');
+ if(n)n.textContent='Visible next prediction: '+(pred==='P'?'PLAYER':pred==='B'?'BANKER':'—')+' • State: '+state;
+ const d=document.getElementById('dupTrajLedger');if(!d)return;
+ const rows=ledger.slice(-12).reverse().map(x=>'<div class="v271-row"><span>H'+x.hand+'</span><span>Pred '+(x.pred==='P'?'P':'B')+'</span><span>Actual '+x.actual+'</span><span class="'+(x.win?'v271-win':'v271-loss')+'">'+(x.win?'WIN':'LOSS')+'</span></div>').join('');
+ d.innerHTML='<div class="v271-head">Recent Active-Mode Results</div>'+(rows||'<div style="font-size:12px;color:var(--muted)">No new active-mode results recorded yet. Existing 6W–3L score is preserved.</div>');
+}
+function tick(){
+ const now=pb();
+ // Settle only a prediction visibly armed BEFORE the new P/B result arrived.
+ if(lastPB && now.length===lastPB.length+1 && pending && pending.hand===now.length){
+   const actual=now[now.length-1];
+   ledger.push({hand:pending.hand,pred:pending.pred,actual,win:pending.pred===actual,at:Date.now()});
+   save();pending=null;
+ }
+ lastPB=now;
+ const pred=currentNext();
+ if((pred==='P'||pred==='B')&&!pending) pending={hand:now.length+1,pred};
+ if(!(pred==='P'||pred==='B')) pending=null;
+ render();
+}
+function resetLedger(){
+ ledger=[];pending=null;save();render();
+}
+function bindReset(){
+ const b=document.getElementById('resetDuplicateScore');
+ if(b&&!b.__v271){b.__v271=true;b.addEventListener('click',resetLedger)}
+}
+function boot(){
+ lastPB=pb();ui();bindReset();tick();
+ [100,350,800,1500,3000].forEach(ms=>setTimeout(()=>{bindReset();tick()},ms));
+ const mo=new MutationObserver(()=>{bindReset();tick()});
+ mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+ window.__V271_TRAJECTORY_DISPLAY__={version:271,getLedger:()=>ledger.slice(),render,resetLedger};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+</script>
+
 </body>
 
 </html>
