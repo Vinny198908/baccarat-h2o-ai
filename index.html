@@ -18406,6 +18406,64 @@ window.__V262_ACCURACY_RESET_COMPLETE__={predictionLogicChanged:false,covered:['
 })();
 </script>
 
+
+<!-- V263: final live accuracy-count reliability repair. Prediction logic unchanged. -->
+<script id="v263-final-accuracy-count-reliability">
+(function(){
+'use strict';
+const VERSION=263;
+function api(){return window.__V178_ACCURACY_COUNTS__||null}
+function resultOf(t){
+  if(!t)return null;
+  let r=String(t.getAttribute?.('data-result')||'').toUpperCase();
+  if(r==='P'||r==='B'||r==='T')return r;
+  const x=String(t.textContent||'').trim().toUpperCase();
+  return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':x==='T'||x==='TIE'?'T':null;
+}
+function refreshAll(){
+  try{api()?.refresh?.()}catch(e){}
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+  try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  try{window.__SEQ_V2_ACCURACY_DISPLAY_FIX__?.render?.()}catch(e){}
+  try{window.__V262_ACCURACY_RESET_COMPLETE__&&window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+  try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
+  try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
+  try{window.__FINGERPRINT_V260__?.paint?.()}catch(e){}
+  try{window.__mlRoadTrainerV3?.render?.();window.__mlRoadTrainerV2?.render?.()}catch(e){}
+}
+function settleBeforeCommit(actual){
+  const a=api(); if(!a?.settle)return;
+  try{a.settle(actual)}catch(e){console.warn('V263 accuracy settle',e)}
+}
+function armAfterCommit(){
+  const a=api(); if(!a?.arm)return;
+  try{a.arm()}catch(e){console.warn('V263 accuracy arm',e)}
+  refreshAll();
+}
+function install(){
+  if(document.documentElement.dataset.v263Accuracy==='1')return;
+  document.documentElement.dataset.v263Accuracy='1';
+  // Capture phase guarantees the pre-result lock is graded even if a later runtime wrapper is replaced.
+  document.addEventListener('click',function(ev){
+    const t=ev.target?.closest?.('[data-result]');
+    const r=resultOf(t); if(!r)return;
+    settleBeforeCommit(r);
+    setTimeout(armAfterCommit,0);
+    setTimeout(refreshAll,120);
+  },true);
+  const undo=document.getElementById('undoBtn');
+  if(undo)undo.addEventListener('click',()=>setTimeout(()=>{try{const a=api();if(a?.state){const z=a.state();z.pending={};z.__v178LastEvent=null}a?.arm?.()}catch(e){}refreshAll()},0),true);
+  const clear=document.getElementById('clearBtn');
+  if(clear)clear.addEventListener('click',()=>setTimeout(()=>{try{const a=api();if(a?.state){const z=a.state();z.pending={};z.__v178LastEvent=null}a?.arm?.()}catch(e){}refreshAll()},0),true);
+  setTimeout(()=>{armAfterCommit();refreshAll()},450);
+  setTimeout(refreshAll,1800);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+window.__V263_ACCURACY_RELIABILITY__={version:VERSION,predictionLogicChanged:false,preResultSettlementGuard:true,postResultRearm:true};
+})();
+</script>
+
+\n<!-- V264: deep-scan stability repair. Prediction logic unchanged. -->\n<script id="v264-deep-scan-stability-fix">\n(function(){\n'use strict';\nif(window.__V264_DEEP_SCAN_FIX__)return;\nfunction acc(){return window.__V178_ACCURACY_COUNTS__||null}\nfunction safeRefresh(){\n  try{acc()?.refresh?.()}catch(e){}\n  try{window.renderVerifiedAccuracy?.()}catch(e){}\n  try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}\n  try{window.__SEQ_V2_ACCURACY_DISPLAY_FIX__?.render?.()}catch(e){}\n  try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}\n  try{window.__mlRoadTrainerV3?.render?.()}catch(e){}\n  try{window.__mlRoadTrainerV2?.render?.()}catch(e){}\n}\nfunction repairPending(){\n  const a=acc(); if(!a?.state||!a?.arm)return;\n  try{\n    const z=a.state();\n    const next=(Array.isArray(window.state?.hands)?window.state.hands.length:0)+1;\n    let bad=false;\n    for(const p of Object.values(z.pending||{})){if(p&&Number(p.hand)!==next){bad=true;break}}\n    if(bad){z.pending={};z.__v178LastEvent=null;a.arm()}\n  }catch(e){}\n}\nfunction install(){\n  // Result commits: let the authoritative V178/V263 path grade first, then only verify/re-arm.\n  document.addEventListener('click',function(ev){\n    if(!ev.target?.closest?.('[data-result]'))return;\n    setTimeout(()=>{repairPending();safeRefresh()},40);\n    setTimeout(safeRefresh,220);\n  },false);\n  // History edits can invalidate a pre-result lock; rebuild it without grading.\n  for(const id of ['undoBtn','clearBtn']){\n    const b=document.getElementById(id); if(b&&!b.dataset.v264Repair){b.dataset.v264Repair='1';b.addEventListener('click',()=>setTimeout(()=>{\n      try{const a=acc(),z=a?.state?.();if(z){z.pending={};z.__v178LastEvent=null}a?.arm?.()}catch(e){}\n      safeRefresh();\n    },25),false)}\n  }\n  setTimeout(()=>{repairPending();safeRefresh()},700);\n}\nif(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();\nwindow.__V264_DEEP_SCAN_FIX__={version:264,predictionLogicChanged:false,duplicateIds:0,accuracyWatchdog:true,historyEditRearm:true};\n})();\n</script>\n
 </body>
 
 </html>
