@@ -864,36 +864,7 @@
 <div class="warning">
     Big Road, Big Eye Boy, Small Road, and Cockroach Road update from entered hands or a synchronized screenshot. The P?/B? preview shows how each hypothetical next result would change the derived roads. Derived-road percentages and Dragon Tail Watch are structural/pattern alerts only, not guaranteed win probabilities. Displayed percentages are analysis signals only and do not guarantee a future result.
   </div>
-<div class="analyzer" id="gptMirrorPanel" style="border-color:#7d6cff">
-<div class="analyzer-title">🧠 GPT Mirror MASTER Decision AI V4.1</div>
-<div class="analyzer-sub">Master decision layer: Bead Plate + Main Road + all 3 derived roads + Main Future Road + saved-shoe memory + Banker/Player shoe bias + live source reliability + regime/change detection + failure-memory veto + contradiction control. Correlated signals are discounted so the same road idea cannot vote multiple times. The AI may return WAIT when the evidence is not genuinely independent and stable.</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Mirror decision</span><strong id="gptMirrorDecision">WAIT</strong></div>
-<div class="analyzer-card"><span>Evidence confidence</span><strong id="gptMirrorConfidence">—</strong></div>
-<div class="analyzer-card"><span>Regime / phase</span><strong id="gptMirrorRegime">BUILDING</strong></div>
-<div class="analyzer-card"><span>Shoe bias</span><strong id="gptMirrorShoeBias">NEUTRAL</strong></div>
-<div class="analyzer-card"><span>Decision stability</span><strong id="gptMirrorStability">BUILDING</strong></div>
-<div class="analyzer-card"><span>Trap / veto status</span><strong id="gptMirrorVeto">CLEAR</strong></div>
-</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Independent agreement</span><strong id="gptMirrorAgreement">0/0</strong></div>
-<div class="analyzer-card"><span>3-road future influence</span><strong id="gptMirrorRoadFuture">BUILDING</strong></div>
-<div class="analyzer-card"><span>Verified accuracy</span><strong id="gptMirrorAccuracy">—</strong></div><div class="analyzer-card"><span>Continuous learning</span><strong id="gptMirrorLearning">0 updates</strong></div><div class="analyzer-card"><span>Pretrained library</span><strong id="gptMirrorPretrained">97 shoes</strong></div>
-</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>Historical matches</span><strong id="gptMirrorHistory">0</strong></div>
-<div class="analyzer-card"><span>Roads ready</span><strong id="gptMirrorRoadReady">0/3</strong></div>
-<div class="analyzer-card"><span>Projected Main Road</span><strong id="gptMirrorMainFuture">WAIT</strong></div>
-</div>
-<div class="analyzer-grid">
-<div class="analyzer-card"><span>V3 family lock</span><strong id="gptMirrorV3Lock">SEARCHING</strong></div>
-<div class="analyzer-card"><span>V3 location / score</span><strong id="gptMirrorV3Location">—</strong></div>
-<div class="analyzer-card"><span>V3 confirmations</span><strong id="gptMirrorV3Confirm">0/4</strong></div>
-</div>
-<div class="analyzer-sub" id="gptMirrorNote" style="margin-top:8px">Enter hands to build enough independent evidence. WAIT is intentional when the edge is weak or conflicting.</div>
-<div class="h2o-actions" style="grid-template-columns:1fr;margin-top:8px">
-<button class="tiny-btn" id="gptMirrorResetStats">Reset Mirror Accuracy</button>
-</div>
+<!-- GPT Mirror removed in V266 -->
 </div>
 
 </div>
@@ -18407,63 +18378,90 @@ window.__V262_ACCURACY_RESET_COMPLETE__={predictionLogicChanged:false,covered:['
 </script>
 
 
-<!-- V263: final live accuracy-count reliability repair. Prediction logic unchanged. -->
-<script id="v263-final-accuracy-count-reliability">
+
+<!-- V266: consolidated runtime + accuracy repair. Prediction formulas preserved. -->
+<style id="v266-runtime-clean-style">
+#gptMirrorPanel{display:none!important}
+</style>
+<script id="v266-consolidated-runtime-fix">
 (function(){
 'use strict';
-const VERSION=263;
-function api(){return window.__V178_ACCURACY_COUNTS__||null}
-function resultOf(t){
-  if(!t)return null;
-  let r=String(t.getAttribute?.('data-result')||'').toUpperCase();
-  if(r==='P'||r==='B'||r==='T')return r;
-  const x=String(t.textContent||'').trim().toUpperCase();
-  return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':x==='T'||x==='TIE'?'T':null;
+const VERSION=266, MLKEY='mlroad';
+function central(){return window.__V178_ACCURACY_COUNTS__||null}
+function ml(){return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null}
+function ensureMlDef(){
+  if(!Array.isArray(window.__accuracyModelDefs))return false;
+  for(let i=window.__accuracyModelDefs.length-1;i>=0;i--){
+    const k=String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase();
+    if(k===MLKEY)window.__accuracyModelDefs.splice(i,1);
+    if(k==='mirror'||k==='gptmirror'||k==='gpt_mirror')window.__accuracyModelDefs.splice(i,1);
+  }
+  window.__accuracyModelDefs.push([MLKEY,'ML Road Trainer',()=>{
+    try{
+      const z=ml()?.signal?.()||{};
+      const side=String(z.side||z.displaySide||z.rawSide||'').toUpperCase();
+      return {side:(side==='P'||side==='B')?side:null,strength:Number(z.confidence||z.strength)||0};
+    }catch(e){return {side:null,strength:0}}
+  }]);
+  return true;
 }
-function refreshAll(){
-  try{api()?.refresh?.()}catch(e){}
+function removeMirror(){
+  try{document.getElementById('gptMirrorPanel')?.remove()}catch(e){}
+  try{if(state?.gptMirror){state.gptMirror.pending=null;if(state.gptMirror.safety)state.gptMirror.safety.shadowPending=null}}catch(e){}
+  // Compatibility stubs stop legacy hooks from doing work while keeping old shared calls safe.
+  try{window.renderGPTMirrorAI=function(){};renderGPTMirrorAI=window.renderGPTMirrorAI}catch(e){}
+  try{window.armGPTMirrorPrediction=function(){};armGPTMirrorPrediction=window.armGPTMirrorPrediction}catch(e){}
+  try{window.settleGPTMirrorPrediction=function(){};settleGPTMirrorPrediction=window.settleGPTMirrorPrediction}catch(e){}
+}
+function clearStalePending(){
+  const a=central(); if(!a?.state)return;
+  const z=a.state(), next=(typeof currentSequence==='function'?currentSequence().length:(state.hands?.length||0))+1;
+  for(const [k,p] of Object.entries(z.pending||{})) if(!p||Number(p.hand)!==next) delete z.pending[k];
+}
+function paintMl(){
+  const a=central()?.state?.();if(!a)return;
+  const m=a.models?.[MLKEY]||{},p=a.pending?.[MLKEY];
+  const w=Number(m.wins)||0,l=Number(m.losses)||0,n=Number(m.predictions)||0;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('mlv203Accuracy',n?(100*w/n).toFixed(1)+'%':'—');
+  set('mlv203WL',`${w}W / ${l}L`);set('mlv203Count',`N=${n}`);set('mlv203Pending',p?.side?`${p.side} #${p.hand}`:'—');
+}
+function refresh(){
+  try{central()?.refresh?.()}catch(e){}
   try{window.renderVerifiedAccuracy?.()}catch(e){}
   try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
   try{window.__SEQ_V2_ACCURACY_DISPLAY_FIX__?.render?.()}catch(e){}
-  try{window.__V262_ACCURACY_RESET_COMPLETE__&&window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
   try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}
   try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
-  try{window.__FINGERPRINT_V260__?.paint?.()}catch(e){}
-  try{window.__mlRoadTrainerV3?.render?.();window.__mlRoadTrainerV2?.render?.()}catch(e){}
+  try{window.__mlRoadTrainerV3?.render?.()}catch(e){}
+  paintMl();
 }
-function settleBeforeCommit(actual){
-  const a=api(); if(!a?.settle)return;
-  try{a.settle(actual)}catch(e){console.warn('V263 accuracy settle',e)}
-}
-function armAfterCommit(){
-  const a=api(); if(!a?.arm)return;
-  try{a.arm()}catch(e){console.warn('V263 accuracy arm',e)}
-  refreshAll();
+function arm(){
+  ensureMlDef();clearStalePending();
+  try{central()?.arm?.()}catch(e){console.warn('V266 arm',e)}
+  paintMl();
 }
 function install(){
-  if(document.documentElement.dataset.v263Accuracy==='1')return;
-  document.documentElement.dataset.v263Accuracy='1';
-  // Capture phase guarantees the pre-result lock is graded even if a later runtime wrapper is replaced.
-  document.addEventListener('click',function(ev){
-    const t=ev.target?.closest?.('[data-result]');
-    const r=resultOf(t); if(!r)return;
-    settleBeforeCommit(r);
-    setTimeout(armAfterCommit,0);
-    setTimeout(refreshAll,120);
-  },true);
-  const undo=document.getElementById('undoBtn');
-  if(undo)undo.addEventListener('click',()=>setTimeout(()=>{try{const a=api();if(a?.state){const z=a.state();z.pending={};z.__v178LastEvent=null}a?.arm?.()}catch(e){}refreshAll()},0),true);
-  const clear=document.getElementById('clearBtn');
-  if(clear)clear.addEventListener('click',()=>setTimeout(()=>{try{const a=api();if(a?.state){const z=a.state();z.pending={};z.__v178LastEvent=null}a?.arm?.()}catch(e){}refreshAll()},0),true);
-  setTimeout(()=>{armAfterCommit();refreshAll()},450);
-  setTimeout(refreshAll,1800);
+  removeMirror();ensureMlDef();
+  const a=central();if(!a){setTimeout(install,150);return}
+  // V178 is the only settlement engine. Do not add another result-click settlement listener.
+  clearStalePending();arm();refresh();
+  for(const id of ['undoBtn','clearBtn']){
+    const b=document.getElementById(id);if(b&&!b.dataset.v266){b.dataset.v266='1';b.addEventListener('click',()=>setTimeout(()=>{
+      try{const z=central()?.state?.();if(z){z.pending={};z.__v178LastEvent=null}}catch(e){}
+      arm();refresh();removeMirror();
+    },20),false)}
+  }
+  const build=document.getElementById('mlBuild');if(build&&!build.dataset.v266){build.dataset.v266='1';build.addEventListener('click',()=>setTimeout(()=>{ensureMlDef();arm();refresh()},300),false)}
+  const reset=document.getElementById('mlv203Reset');if(reset&&!reset.dataset.v266){reset.dataset.v266='1';reset.addEventListener('click',()=>setTimeout(()=>{arm();refresh()},40),false)}
+  // Lightweight watchdog only repairs stale locks/paint; it never grades a hand.
+  if(!window.__v266Watch){window.__v266Watch=setInterval(()=>{if(document.visibilityState!=='hidden'){removeMirror();ensureMlDef();clearStalePending();paintMl()}},1800)}
+  window.__V266_RUNTIME_AUDIT__={version:VERSION,predictionLogicChanged:false,mirrorRemoved:true,centralAccuracy:'V178 only',mlRegisteredOnce:true,sequenceV2Changed:false,mainFutureChanged:false};
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.__V263_ACCURACY_RELIABILITY__={version:VERSION,predictionLogicChanged:false,preResultSettlementGuard:true,postResultRearm:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,250),{once:true});else setTimeout(install,250);
 })();
 </script>
 
-\n<!-- V264: deep-scan stability repair. Prediction logic unchanged. -->\n<script id="v264-deep-scan-stability-fix">\n(function(){\n'use strict';\nif(window.__V264_DEEP_SCAN_FIX__)return;\nfunction acc(){return window.__V178_ACCURACY_COUNTS__||null}\nfunction safeRefresh(){\n  try{acc()?.refresh?.()}catch(e){}\n  try{window.renderVerifiedAccuracy?.()}catch(e){}\n  try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}\n  try{window.__SEQ_V2_ACCURACY_DISPLAY_FIX__?.render?.()}catch(e){}\n  try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}\n  try{window.__mlRoadTrainerV3?.render?.()}catch(e){}\n  try{window.__mlRoadTrainerV2?.render?.()}catch(e){}\n}\nfunction repairPending(){\n  const a=acc(); if(!a?.state||!a?.arm)return;\n  try{\n    const z=a.state();\n    const next=(Array.isArray(window.state?.hands)?window.state.hands.length:0)+1;\n    let bad=false;\n    for(const p of Object.values(z.pending||{})){if(p&&Number(p.hand)!==next){bad=true;break}}\n    if(bad){z.pending={};z.__v178LastEvent=null;a.arm()}\n  }catch(e){}\n}\nfunction install(){\n  // Result commits: let the authoritative V178/V263 path grade first, then only verify/re-arm.\n  document.addEventListener('click',function(ev){\n    if(!ev.target?.closest?.('[data-result]'))return;\n    setTimeout(()=>{repairPending();safeRefresh()},40);\n    setTimeout(safeRefresh,220);\n  },false);\n  // History edits can invalidate a pre-result lock; rebuild it without grading.\n  for(const id of ['undoBtn','clearBtn']){\n    const b=document.getElementById(id); if(b&&!b.dataset.v264Repair){b.dataset.v264Repair='1';b.addEventListener('click',()=>setTimeout(()=>{\n      try{const a=acc(),z=a?.state?.();if(z){z.pending={};z.__v178LastEvent=null}a?.arm?.()}catch(e){}\n      safeRefresh();\n    },25),false)}\n  }\n  setTimeout(()=>{repairPending();safeRefresh()},700);\n}\nif(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();\nwindow.__V264_DEEP_SCAN_FIX__={version:264,predictionLogicChanged:false,duplicateIds:0,accuracyWatchdog:true,historyEditRearm:true};\n})();\n</script>\n
 </body>
 
 </html>
