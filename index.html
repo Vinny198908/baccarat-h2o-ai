@@ -11738,7 +11738,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 
 
 
-\n<script data-v127-order="62" id="v72-v52-main-future-adaptive-current-shoe" type="application/x-v127-deferred">
+
+<script data-v127-order="62" id="v72-v52-main-future-adaptive-current-shoe" type="application/x-v127-deferred">
 /* V72 — Restore Main Road Future Test to V52 core behavior.
    ONLY addition: mild adaptive weighting from the CURRENT live shoe.
    No library/history-shoe input is added here; no other AI/controller is changed. */
@@ -13096,7 +13097,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   };
 })();
 </script>
-\n<script data-v127-order="83" id="v105-full-scan-runtime-ui-fix" type="application/x-v127-deferred">
+
+<script data-v127-order="83" id="v105-full-scan-runtime-ui-fix" type="application/x-v127-deferred">
 (()=>{
 'use strict';
 if(window.__V105_FULL_SCAN_FIX__)return;
@@ -14426,7 +14428,8 @@ else boot();
 </script>
 
 
-\n<script id="v159-ml-training-dataset">
+
+<script id="v159-ml-training-dataset">
 (function(){
 'use strict';
 const VERSION=160;
@@ -18460,6 +18463,91 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
-\n<!-- V262 layout request: Best-Estimate Analyzer up; ML Training Dataset V160 down -->\n<script id="v262-best-up-ml-down">\n(function(){\n  function findBest(){\n    return Array.from(document.querySelectorAll('.analyzer')).find(function(p){\n      var t=p.querySelector('.analyzer-title');\n      return t && t.textContent.trim()==='Best-Estimate Analyzer';\n    });\n  }\n  function swap(){\n    var best=findBest(), ml=document.getElementById('mlTrainingDatasetV159');\n    if(!best||!ml||best===ml||!best.parentNode||!ml.parentNode) return false;\n    if(best.dataset.v262Moved==='1' && ml.dataset.v262Moved==='1') return true;\n    var bestMarker=document.createComment('v262-best-old-position');\n    var mlMarker=document.createComment('v262-ml-old-position');\n    best.parentNode.insertBefore(bestMarker,best);\n    ml.parentNode.insertBefore(mlMarker,ml);\n    mlMarker.parentNode.insertBefore(best,mlMarker);\n    bestMarker.parentNode.insertBefore(ml,bestMarker);\n    bestMarker.remove(); mlMarker.remove();\n    best.dataset.v262Moved='1'; ml.dataset.v262Moved='1';\n    return true;\n  }\n  function boot(){\n    if(swap()) return;\n    var n=0, timer=setInterval(function(){ if(swap()||++n>40) clearInterval(timer); },150);\n  }\n  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();\n})();\n</script>\n</body>
+<!-- Final layout-only controller: ML Road Trainer top; Best-Estimate in former Dataset spot; Dataset + Trajectory bottom. No prediction logic changes. -->
+<script id="v268-final-layout-controller">
+(function(){
+  'use strict';
 
+  function panelFromChild(id){
+    var x=document.getElementById(id);
+    return x && x.closest ? x.closest('.analyzer') : null;
+  }
+
+  function enforceLayout(){
+    var app=document.querySelector('.app');
+    if(!app)return;
+
+    var topbar=app.querySelector('.topbar');
+    var ml=document.getElementById('mlRoadTrainerV155');
+    var dataset=document.getElementById('mlTrainingDatasetV159');
+    var bestPanel=panelFromChild('bestSide');
+    var trajectory=document.getElementById('autoHistDuplicateMode');
+
+    /* ML Road Trainer: first panel immediately below the top bar. */
+    if(ml && topbar && topbar.parentNode===app && topbar.nextElementSibling!==ml){
+      app.insertBefore(ml, topbar.nextElementSibling);
+    }
+
+    /*
+      Best-Estimate Analyzer: occupy the exact location where the Dataset
+      panel was created. We only do this once, before moving Dataset away.
+    */
+    if(bestPanel && dataset && !bestPanel.dataset.v268Placed){
+      var datasetParent=dataset.parentNode;
+      if(datasetParent){
+        datasetParent.insertBefore(bestPanel,dataset);
+        bestPanel.dataset.v268Placed='1';
+      }
+    }
+
+    /* Bottom panels: put them at the true bottom of the app. */
+    if(dataset && dataset.parentNode!==app) app.appendChild(dataset);
+    else if(dataset && app.lastElementChild!==dataset && (!trajectory || app.lastElementChild!==trajectory)){
+      app.appendChild(dataset);
+    }
+
+    if(trajectory && trajectory.parentNode!==app) app.appendChild(trajectory);
+    else if(trajectory && app.lastElementChild!==trajectory) app.appendChild(trajectory);
+  }
+
+  function boot(){
+    enforceLayout();
+
+    /* Several legacy modules create/move panels on delayed timers.
+       Re-assert layout briefly while startup completes. */
+    var count=0;
+    var timer=setInterval(function(){
+      enforceLayout();
+      if(++count>=24) clearInterval(timer);
+    },250);
+
+    /* Catch late-created panels without touching AI logic/state. */
+    var app=document.querySelector('.app');
+    if(app && window.MutationObserver){
+      var busy=false;
+      var obs=new MutationObserver(function(){
+        if(busy)return;
+        busy=true;
+        setTimeout(function(){ enforceLayout(); busy=false; },0);
+      });
+      obs.observe(app,{childList:true,subtree:true});
+      setTimeout(function(){ try{obs.disconnect()}catch(e){} enforceLayout(); },10000);
+    }
+  }
+
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',boot,{once:true});
+  }else{
+    boot();
+  }
+
+  window.__V268_FINAL_LAYOUT__={
+    mlRoadTrainer:'top',
+    bestEstimate:'former ML Dataset position',
+    mlDataset:'bottom',
+    trajectory:'bottom',
+    predictionLogicChanged:false
+  };
+})();
+</script>
 </html>
