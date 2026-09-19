@@ -16757,21 +16757,19 @@ function moveFinalLayout(){
   const host=(ml&&ml.parentNode)||(mirror&&mirror.parentNode)||(firstAnalyzer&&firstAnalyzer.parentNode);
   if(!host)return false;
 
-  // Requested top order: Automatic Historical Match first, ML Road Trainer second.
+  // Keep Automatic Historical Match at the top.
   if(hist){
     if(hist.parentNode!==host)host.insertBefore(hist,host.firstChild);
     else if(host.firstChild!==hist)host.insertBefore(hist,host.firstChild);
   }
-  if(ml){
-    const afterHist=hist&&hist.parentNode===host?hist.nextSibling:host.firstChild;
-    if(afterHist!==ml)host.insertBefore(ml,afterHist);
-  }
 
-  // Requested bottom order: Finger above GPT Mirror, GPT Mirror final AI panel.
+  // Requested layout: ML Road Trainer all the way at the bottom.
+  // Mirror is removed by V266, so ML becomes the final live AI panel in this host.
   if(finger&&finger.parentNode===host)host.appendChild(finger);
   if(mirror&&mirror.parentNode===host)host.appendChild(mirror);
+  if(ml&&ml.parentNode===host)host.appendChild(ml);
 
-  return !!(ml&&mirror);
+  return !!ml;
 }
 
 function refresh(){
@@ -16786,7 +16784,7 @@ function install(){
     const w=function(){const r=old.apply(this,arguments);queueMicrotask(refresh);return r};
     w.__v221LayoutAccuracy=true;w.__base=old;window.render=w;try{render=w}catch(e){}
   }
-  window.__V221_FINAL_LAYOUT__={version:VERSION,top:['Automatic Historical Match AI','ML Road Trainer'],bottom:['Fingerprint Gate','GPT Mirror AI'],patternAccuracyRestored:true,logicChanged:false};
+  window.__V221_FINAL_LAYOUT__={version:VERSION,top:['Automatic Historical Match AI'],bottom:['Fingerprint Gate','GPT Mirror AI','ML Road Trainer'],patternAccuracyRestored:true,logicChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
@@ -18462,6 +18460,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
-</body>
+\n<!-- V262 layout request: Best-Estimate Analyzer up; ML Training Dataset V160 down -->\n<script id="v262-best-up-ml-down">\n(function(){\n  function findBest(){\n    return Array.from(document.querySelectorAll('.analyzer')).find(function(p){\n      var t=p.querySelector('.analyzer-title');\n      return t && t.textContent.trim()==='Best-Estimate Analyzer';\n    });\n  }\n  function swap(){\n    var best=findBest(), ml=document.getElementById('mlTrainingDatasetV159');\n    if(!best||!ml||best===ml||!best.parentNode||!ml.parentNode) return false;\n    if(best.dataset.v262Moved==='1' && ml.dataset.v262Moved==='1') return true;\n    var bestMarker=document.createComment('v262-best-old-position');\n    var mlMarker=document.createComment('v262-ml-old-position');\n    best.parentNode.insertBefore(bestMarker,best);\n    ml.parentNode.insertBefore(mlMarker,ml);\n    mlMarker.parentNode.insertBefore(best,mlMarker);\n    bestMarker.parentNode.insertBefore(ml,bestMarker);\n    bestMarker.remove(); mlMarker.remove();\n    best.dataset.v262Moved='1'; ml.dataset.v262Moved='1';\n    return true;\n  }\n  function boot(){\n    if(swap()) return;\n    var n=0, timer=setInterval(function(){ if(swap()||++n>40) clearInterval(timer); },150);\n  }\n  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();\n})();\n</script>\n</body>
 
 </html>
