@@ -9,10 +9,9 @@
 <meta content="yes" name="apple-mobile-web-app-capable"/>
 <meta content="black-translucent" name="apple-mobile-web-app-status-bar-style"/>
 <meta content="#101114" name="theme-color"/>
-<link href="manifest.json" rel="manifest"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V261 • All-In Style Baccarat Roadmap</title>
+<title>V282 • All-In Baccarat — After-Tie Settlement Fix</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -10146,7 +10145,8 @@ renderLibraryBackupStatus();
   window.sequenceAIDuplicateSignal=duplicateV32;
   window.__sequenceDuplicateV32={signal:duplicateV32,rawSequenceV2};
 
-  try{trainAll(false);}catch(e){}
+  // Manual-only legacy model: automatic recurrent training blocked mobile load.
+  window.__V32_MANUAL_TRAIN_ONLY__=true;
 })();
 </script>
 <script data-v127-order="31" id="all-ai-home-accuracy-v41-tag" type="application/x-v127-deferred">
@@ -10560,17 +10560,19 @@ window.__V24_DIAGNOSTIC_REPAIR__={
   window.sequenceAIDuplicateSignal=signal;
   window.__frozenLibraryAIv47={version:VERSION,trainOnce,status,signal,minimumShoes:MIN_SHOES,noAutoRetrain:true};
 
-  // Attempt the one-time freeze only when the complete 76-shoe library is already loaded.
-  try{trainOnce();}catch(e){}
+  // Legacy Sequence Duplicate is inactive. Keep the explicit trainOnce API,
+  // but never run its expensive neural training during page startup.
+  window.__V47_MANUAL_FREEZE_ONLY__=true;
 })();
 </script>
 <script data-v127-order="41" id="frozen-library-ai-v47-ui" type="application/x-v127-deferred">
 (function(){
   function update(){
     try{
-      const st=window.__frozenLibraryAIv47?.status?.();
       const p=document.getElementById('sequenceDuplicatePanel');
-      if(!p||!st)return;
+      if(!p)return;
+      const st=window.__frozenLibraryAIv47?.status?.();
+      if(!st)return;
       p.dataset.frozenLibraryAi='v47';
       const note=document.getElementById('seqDupNote');
       if(note){
@@ -10607,6 +10609,7 @@ window.__V24_DIAGNOSTIC_REPAIR__={
   }
   function fixUI(){
     try{
+      if(!document.getElementById('sequenceDuplicatePanel'))return;
       const x=window.__frozenLibraryAIv47?.signal?.();
       if(!x?.frozenV47)return;
       const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
@@ -13639,7 +13642,7 @@ async function run(){
   await sleep(1200);
   const p=document.querySelector('.main-buttons [data-result="P"]')||document.querySelector('[data-result="P"]');
   const b=document.querySelector('.main-buttons [data-result="B"]')||document.querySelector('[data-result="B"]');
-  if(!p||!b){document.body.insertAdjacentHTML('beforeend','<pre id="v139-test-report">NO_INPUT_BUTTONS</pre>');return;}
+  if(!p||!b){document.getElementById('v139-test-report')?.remove();document.body.insertAdjacentHTML('beforeend','<pre id="v139-test-report">NO_INPUT_BUTTONS</pre>');return;}
   try{
     if(Array.isArray(state?.hands)) state.hands.length=0;
   }catch(e){}
@@ -13660,7 +13663,7 @@ async function run(){
     redShoe:/red shoe/i.test(document.body.innerText),
     blackShoe:/black shoe/i.test(document.body.innerText)
   };
-  const pre=document.createElement('pre');pre.id='v139-test-report';pre.textContent=JSON.stringify(report);
+  document.getElementById('v139-test-report')?.remove();const pre=document.createElement('pre');pre.id='v139-test-report';pre.textContent=JSON.stringify(report);
   document.body.appendChild(pre);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run,{once:true});else run();
@@ -13782,7 +13785,10 @@ function v140BuildFamilyIndex(force=false){
   IDX.builtAt=Date.now();
   IDX.lastBuildMs=Math.round(performance.now()-t0);
 
-  v140StartRoadIndex();
+  // Mirror was removed from the active build. Keep its historical structures
+  // available, but do not build thousands of unused road states at startup.
+  IDX.roadReady=true;
+  IDX.roadBuilding=false;
   return IDX;
 }
 
@@ -13863,7 +13869,7 @@ function v140StartRoadIndex(){
 function v140Ensure(){
   const stamp=v140Stamp();
   if(!IDX.familyReady || IDX.stamp!==stamp) v140BuildFamilyIndex(true);
-  else if(!IDX.roadReady && !IDX.roadBuilding) v140StartRoadIndex();
+  // The retired Mirror road-memory index is intentionally not auto-started.
   return IDX;
 }
 
@@ -15109,7 +15115,7 @@ function stableTick(){
 }
 function startStableLoop(){
   stableTick();
-  if(!window.__chopV176StableTimer)window.__chopV176StableTimer=setInterval(()=>{if(document.visibilityState!=='hidden')stableTick();},5000);
+  if(!window.__chopV176StableTimer)window.__chopV176StableTimer=setInterval(()=>{if(document.visibilityState!=='hidden')stableTick();},15000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(startStableLoop,1300),{once:true});else setTimeout(startStableLoop,1300);
 window.__UniversalChopV173={version:VERSION,state:chopState,apply,install,allAI:true,v176StableLoop:true,rule:'follow only when stable multi-window alternation; stop when run/break evidence appears; weak conflicts wait; strong independent evidence may override'};
@@ -15316,8 +15322,13 @@ function finishAfterLoader(){
   run();
   const loader=window.__V129_PROGRESSIVE_STARTUP__;
   if(loader?.complete){window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:true,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};return;}
-  let tries=0;
-  const t=setInterval(()=>{tries++;run();if(window.__V129_PROGRESSIVE_STARTUP__?.complete||tries>=80){clearInterval(t);run();window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:!!window.__V129_PROGRESSIVE_STARTUP__?.complete,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};}},100);
+  // Bounded startup checks replace the former 80-pass interval.
+  [250,750,1500,3000,6000].forEach((ms,index)=>setTimeout(()=>{
+    run();
+    if(window.__V129_PROGRESSIVE_STARTUP__?.complete||index===4){
+      window.__V180_POST_CLEAN_SCAN__={version:VERSION,loaderComplete:!!window.__V129_PROGRESSIVE_STARTUP__?.complete,accuracyKeys:(window.__V178_ACCURACY_COUNTS__?.defs?.()||[]),removedStillDisabled:true};
+    }
+  },ms));
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',finishAfterLoader,{once:true});else finishAfterLoader();
 })();
@@ -15693,7 +15704,8 @@ function ensureBucket(o){
 function rate(z){const n=Number(z?.predictions)||0,w=Number(z?.wins)||0;return n?Math.round(w*1000/n)/10:null}
 function fmt(z){z=z||{};const w=Number(z.wins)||0,l=Number(z.losses)||0,n=Number(z.predictions)||0,r=rate(z);return `${r==null?'—':r+'%'} • ${w}W-${l}L • N=${n}`}
 function bump(z,pred,actual,hand,event){
-  z=ensureBucket({afterTie:z}).afterTie;
+  z=ensureBucket({afterTie:z});
+  if(!z)return false;
   if(z.lastEvent===event)return false;
   z.lastEvent=event;z.predictions++;const win=pred===actual;if(win)z.wins++;else z.losses++;
   z.last={predicted:pred,actual,win,hand,settledAt:Date.now()};return true;
@@ -15703,11 +15715,13 @@ function central(){
   state.accuracyVerified.models||={};state.accuracyVerified.pending||={};return state.accuracyVerified;
 }
 function installCentral(){
-  const old=window.__settleVerifiedPredictions;if(typeof old!=='function'||old.__v204AfterTie)return;
+  if(window.__v204CentralInstalled)return true;
+  const old=window.__settleVerifiedPredictions;if(typeof old!=='function'||old.__v204AfterTie)return false;
   const w=function(actual){
     const a=central(),post=isAfterTieNow(),hand=seq().length+1;
     const pending={};if(post&&isPB(actual))for(const [k,p] of Object.entries(a.pending||{}))if(p&&isPB(p.side))pending[k]={...p};
     const r=old.apply(this,arguments);
+    if(window.__V208_AFTER_TIE_ROOT_FIX__)return r;
     if(post&&isPB(actual)){
       const event=`central:${hand}:${actual}:${state.hands?.length||0}`;
       for(const [k,p] of Object.entries(pending)){
@@ -15718,7 +15732,7 @@ function installCentral(){
       setTimeout(paint,0);
     }
     return r;
-  };w.__v204AfterTie=true;w.__base=old;window.__settleVerifiedPredictions=w;
+  };w.__v204AfterTie=true;w.__base=old;window.__settleVerifiedPredictions=w;window.__v204CentralInstalled=true;return true;
 }
 function installMirror(){
   const old=window.settleGPTMirrorPrediction;if(typeof old!=='function'||old.__v204AfterTie)return;
@@ -15931,7 +15945,7 @@ function install(){
   let last=-1;
   window.__v207MLSyncTimer=setInterval(()=>{
     try{const n=Array.isArray(state?.hands)?state.hands.length:0;if(n!==last){last=n;removeChart();syncML();}}catch(e){}
-  },5000);
+  },15000);
   syncML();setTimeout(syncML,400);setTimeout(syncML,1400);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,2500),{once:true});else setTimeout(install,2500);
@@ -17004,7 +17018,7 @@ function restore(){
 function boot(){
   restore();
   [150,500,1200,2500,5000].forEach(ms=>setTimeout(restore,ms));
-  if(!window.__v226MlRestoreTimer)window.__v226MlRestoreTimer=setInterval(()=>{if(document.visibilityState!=='hidden')restore();},5000);
+  if(!window.__v226MlRestoreTimer)window.__v226MlRestoreTimer=setInterval(()=>{if(document.visibilityState!=='hidden')restore();},15000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.__V226_ML_DISPLAY__={version:VERSION,kept:['LIVE PREDICTION','LIVE CONFIDENCE','LIVE ACCURACY','WINS / LOSSES','COUNT','NEXT LOCK','AFTER TIE ACCURACY','RESET ML ACCURACY'],hidden:['validation stats','target pace','validation notes','live authority','unseen shoes','all test calls','selective test','selective N','baseline','live gate'],predictionLogicChanged:false};
@@ -17268,7 +17282,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 let __dupLastPB=pbLive();
 setInterval(function(){
   try{const now=pbLive();if(now!==__dupLastPB){__dupLastPB=now;update();}}catch(e){}
-},5000);
+},15000);
 window.__V237_DUPLICATE_TRAJECTORY__={version:'V237.1',scanStartsAt:8,exactPBPrefix:true,minTrajectory:99,minLeadPP:1,confirmHands:2,breakOnFirstDivergence:true,generalHistoricalFallback:true,accuracyReliabilityPatch:true,patternRecognizerChanged:false,sequenceV2Changed:false,mainFutureChanged:false,confusionAIChanged:false};
 })();
 </script>
@@ -17498,7 +17512,7 @@ function hook(){
   }
   ['roadAiSide','roadAiStrength','roadAiAgree'].forEach(()=>{});
   document.addEventListener('click',()=>setTimeout(renderPatternAccuracy,0),true);
-  setInterval(()=>{if(document.visibilityState!=='hidden')renderPatternAccuracy();},5000);
+  setInterval(()=>{if(document.visibilityState!=='hidden')renderPatternAccuracy();},15000);
   window.__V245_PATTERN_ACCURACY_DISPLAY__={version:VERSION,key:KEY,render:renderPatternAccuracy,directModelBinding:true,predictionLogicChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',hook,{once:true});else hook();
@@ -17671,7 +17685,7 @@ window.__V246_PATTERN_LIVE_RESULT_FIX__={version:246,removedExcessiveUnanimousGa
     const rs=x.r.parts.map(z=>`${z.name} ${nm(z.side)} ${Math.round(z.strength)}%`).join(' • ');
     set('v250Note',x.side?`${x.mode}: ${nm(x.side)} qualified at ${x.confidence}% evidence confidence. ${hs}${rs?' • '+rs:''}.`:`${x.reason||'WAIT'} ${hs?hs+'. ':''}${rs?rs+'.':''}`);
   }
-  function init(){panel();const s=ensure();s.lastTotal=currentSequence().length;arm();render();setInterval(()=>{if(document.visibilityState!=='hidden')tick();},5000);window.__V251_SHADOW__={version:VERSION,signal,render,grade,arm};window.__V250_SHADOW__=window.__V251_SHADOW__;}
+  function init(){panel();const s=ensure();s.lastTotal=currentSequence().length;arm();render();setInterval(()=>{if(document.visibilityState!=='hidden')tick();},15000);window.__V251_SHADOW__={version:VERSION,signal,render,grade,arm};window.__V250_SHADOW__=window.__V251_SHADOW__;}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
@@ -18044,7 +18058,7 @@ function init(){
     if(t) setTimeout(refresh,80);
   },true);
   // Backup watcher protects this AI from later scripts replacing button handlers.
-  setInterval(()=>{if(document.visibilityState!=='hidden')refresh();},5000);
+  setInterval(()=>{if(document.visibilityState!=='hidden')refresh();},15000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
@@ -18083,7 +18097,7 @@ function renderSeqV2AccuracyFix(){
 function install(){
  renderSeqV2AccuracyFix();
  document.addEventListener('click',()=>setTimeout(renderSeqV2AccuracyFix,0),true);
- setInterval(()=>{if(document.visibilityState!=='hidden')renderSeqV2AccuracyFix();},5000);
+ setInterval(()=>{if(document.visibilityState!=='hidden')renderSeqV2AccuracyFix();},15000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 window.__SEQ_V2_ACCURACY_DISPLAY_FIX__={render:renderSeqV2AccuracyFix,displayOnly:true,predictionLogicChanged:false};
@@ -18370,7 +18384,7 @@ function install(){
   // Existing dedicated systems retained: Main Future, Library Intelligence, 3-Road Confusion, Mirror, ML, Finger, Auto Match/Duplicate.
   document.addEventListener('click',function(e){const t=e.target?.closest?.('[data-result],#pBtn,#bBtn,#tBtn');if(!t)return;let r=t.getAttribute('data-result')||'';if(!r){const tx=(t.textContent||'').toUpperCase();r=tx.includes('PLAYER')?'P':tx.includes('BANKER')?'B':tx.includes('TIE')?'T':''}if(r==='P'||r==='B'||r==='T'){colorSettle(r);setTimeout(colorArm,260);setTimeout(render,320)}},true);
   btn(col,'v262ResetColorAfter','Reset Color After-Tie',()=>{const z=colorLoad();z.afterW=z.afterL=z.afterN=0;colorSave(z);render()});
-  render();setTimeout(colorArm,350);setInterval(()=>{if(document.visibilityState!=='hidden')render()},5000);
+  render();setTimeout(colorArm,350);setInterval(()=>{if(document.visibilityState!=='hidden')render()},15000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 window.__V262_ACCURACY_RESET_COMPLETE__={predictionLogicChanged:false,covered:['Sequence V2','Adaptive Historical Color Pattern','Library Intelligence','Main Future Road','Best Estimate','Independent Derived','3-Road Confusion','Road Preview','Mirror','ML Road','Finger','Auto Match/Duplicate']};
@@ -18455,7 +18469,7 @@ function install(){
   const build=document.getElementById('mlBuild');if(build&&!build.dataset.v266){build.dataset.v266='1';build.addEventListener('click',()=>setTimeout(()=>{ensureMlDef();arm();refresh()},300),false)}
   const reset=document.getElementById('mlv203Reset');if(reset&&!reset.dataset.v266){reset.dataset.v266='1';reset.addEventListener('click',()=>setTimeout(()=>{arm();refresh()},40),false)}
   // Lightweight watchdog only repairs stale locks/paint; it never grades a hand.
-  if(!window.__v266Watch){window.__v266Watch=setInterval(()=>{if(document.visibilityState!=='hidden'){removeMirror();ensureMlDef();clearStalePending();paintMl()}},1800)}
+  if(!window.__v266Watch){window.__v266Watch=setInterval(()=>{if(document.visibilityState!=='hidden'){removeMirror();ensureMlDef();clearStalePending();paintMl()}},15000)}
   window.__V266_RUNTIME_AUDIT__={version:VERSION,predictionLogicChanged:false,mirrorRemoved:true,centralAccuracy:'V178 only',mlRegisteredOnce:true,sequenceV2Changed:false,mainFutureChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,250),{once:true});else setTimeout(install,250);
@@ -18514,11 +18528,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
     /* Several legacy modules create/move panels on delayed timers.
        Re-assert layout briefly while startup completes. */
-    var count=0;
-    var timer=setInterval(function(){
-      enforceLayout();
-      if(++count>=24) clearInterval(timer);
-    },250);
+    [250,700,1400,2600,4500,7000].forEach(function(ms){
+      setTimeout(enforceLayout,ms);
+    });
 
     /* Catch late-created panels without touching AI logic/state. */
     var app=document.querySelector('.app');
@@ -18771,7 +18783,7 @@ function refreshLearning(){
 function boot(){
   ensurePanel();register();render();
   const deep=document.getElementById('instantLibraryLearnBtn');if(deep&&!deep.__v271){deep.__v271=true;deep.addEventListener('click',()=>setTimeout(refreshLearning,1400),false)}
-  const old=window.render;if(typeof old==='function'&&!old.__v271){const w=function(){const z=old.apply(this,arguments);queueMicrotask(()=>{register();render()});return z};w.__v271=true;w.__base=old;window.render=w;try{render=w}catch(e){}}
+  const old=window.render;if(typeof old==='function'&&!old.__v271){const w=function(){const z=old.apply(this,arguments);queueMicrotask(()=>{register();render()});return z};w.__v271=true;w.__base=old;window.render=w;}
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(()=>{register();render()},260)},false);
   setTimeout(()=>{register();window.__armVerifiedPredictions?.();render()},350);
 }
@@ -18957,4 +18969,408 @@ startWhenReady();
 window.__V272_LOCKED_FORWARD_VALIDATION__={version:VERSION,schema:SCHEMA,fixed:true,state:()=>S,arm:armLocked,settle:settleLocked,rollbackUndo,render:paint,protocol:'PRE_RESULT_ONLY_7_TO_35_FROZEN_SNAPSHOT',target:TARGET,predictionLogicChanged:false,sequenceV2Changed:false,mainFutureChanged:false,autoSaveIsolated:true,undoSafe:true,eligibleTiesOnly:true};
 })();
 </script>
+<style id="v277-main-future-awareness-style">
+#v277MainFutureAwareness{border:2px solid #a78bfa!important;background:linear-gradient(180deg,rgba(42,32,70,.97),rgba(19,18,34,.98))!important}
+#v277MainFutureAwareness[data-grade="QUALIFIED"]{border-color:#22c55e!important}
+#v277MainFutureAwareness[data-grade="CAUTION"]{border-color:#f59e0b!important}
+#v277MainFutureAwareness[data-grade="WAIT"]{border-color:#ef4444!important}
+</style>
+<script id="v277-main-future-awareness">
+(function(){
+'use strict';
+if(window.__V277_MAIN_FUTURE_AWARENESS__)return;
+const VERSION=277;
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const safe=(fn,fallback=null)=>{try{const x=fn();return x??fallback}catch(e){return fallback}};
+function seq(){return safe(()=>currentSequence().filter(x=>x==='P'||x==='B'||x==='T'),[])||[]}
+function pb(){return seq().filter(x=>x==='P'||x==='B')}
+function switches(a){if(a.length<2)return .5;let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n/(a.length-1)}
+function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a.at(-1);i--)n++;return n}
+function base(){return safe(()=>window.__V227_ORIGINAL_MAIN_FUTURE__?.test?.()||window.__V84_MAIN_FUTURE_TUNE__?.test?.()||mainRoadFutureTest(),{})||{}}
+function accuracy(){return safe(()=>window.__V84_MAIN_FUTURE_TUNE__?.accuracy?.()||state.futureTestAccuracyV84,{})||{}}
+function recentLossStreak(a){
+  const rows=Array.isArray(a?.ledger)?a.ledger:[];let n=0;
+  for(let i=rows.length-1;i>=0;i--){const x=rows[i];if(x?.actual==='T'||x?.excluded)continue;if(x?.win===false||x?.correct===false)n++;else break}
+  return n;
+}
+function roadVote(sig){
+  const p=Number(sig?.pPct),b=Number(sig?.bPct);
+  if(!Number.isFinite(p)||!Number.isFinite(b)||p===b)return null;
+  return p>b?'P':'B';
+}
+function evaluate(){
+  const x=base(),a=pb(),all=seq(),n=a.length,side=x?.side==='P'||x?.side==='B'?x.side:null;
+  const roads=Array.isArray(x?.roadSigs)?x.roadSigs:[];
+  const votes=roads.map(r=>({name:r.label||'Road',side:roadVote(r.sig),sig:r.sig})).filter(r=>r.side);
+  const support=votes.filter(r=>r.side===side).length,oppose=votes.filter(r=>side&&r.side!==side).length;
+  const ready=roads.filter(r=>r?.sig?.pMark&&r?.sig?.bMark&&r.sig.pMark!==r.sig.bMark).length;
+  const short=switches(a.slice(-6)),long=switches(a.slice(-14)),shift=Math.abs(short-long),runNow=run(a);
+  const afterTie=all.at(-1)==='T',losses=recentLossStreak(accuracy()),edge=Number(x?.edge)||0;
+  const baseConfidence=side?Number(side==='P'?x?.p?.norm:x?.b?.norm)||50:0;
+  const reasons=[];let penalty=0,bonus=0;
+  if(n<10){penalty+=30;reasons.push(`opening protection ${n}/10 P/B hands`)}
+  if(!side){penalty+=40;reasons.push('Main Future has no directional answer')}
+  if(ready<2){penalty+=14;reasons.push(`only ${ready}/3 derived roads ready`)}else if(ready===3){bonus+=3}
+  if(oppose>=2){penalty+=24;reasons.push(`${oppose} derived-road votes oppose the answer`)}
+  else if(oppose===1){penalty+=8;reasons.push('one derived-road vote opposes the answer')}
+  if(support>=2){bonus+=4;reasons.push(`${support} derived-road votes support the answer`)}
+  if(edge<5){penalty+=18;reasons.push(`weak ${edge.toFixed(1)}-point separation`)}
+  else if(edge>=10){bonus+=4}
+  if(shift>=.32){penalty+=22;reasons.push(`live rhythm shifted ${Math.round(shift*100)} points`)}
+  else if(shift>=.22){penalty+=10;reasons.push(`rhythm is changing ${Math.round(shift*100)} points`)}
+  if(losses>=2){penalty+=18;reasons.push(`${losses}-loss Main Future streak`)}
+  if(afterTie){penalty+=8;reasons.push('immediately after a tie')}
+  if(runNow>=6&&oppose){penalty+=8;reasons.push(`mature ${runNow}-hand run has break conflict`)}
+  const adjusted=side?Math.round(clamp(baseConfidence+bonus-penalty,0,88)):0;
+  let grade='QUALIFIED';
+  if(!side||n<10||oppose>=2||losses>=2||shift>=.32||adjusted<55)grade='WAIT';
+  else if(ready<2||oppose===1||afterTie||edge<7||shift>=.22||adjusted<60)grade='CAUTION';
+  const action=grade==='QUALIFIED'?(side==='P'?'PLAYER':'BANKER'):'WAIT';
+  if(!reasons.length)reasons.push('clean road agreement and stable live structure');
+  return {version:VERSION,grade,action,side,adjusted,baseConfidence,n,ready,support,oppose,edge,shift,run:runNow,afterTie,lossStreak:losses,reasons,votes,predictionChanged:false};
+}
+function ensure(){
+  let root=document.getElementById('v277MainFutureAwareness');if(root)return root;
+  root=document.createElement('div');root.id='v277MainFutureAwareness';root.className='analyzer';root.innerHTML=`
+    <div class="analyzer-title">🧠 Main Future Awareness V277</div>
+    <div class="analyzer-sub">Advisory safety layer only. It never flips or rewrites Main Future Road's Player/Banker answer.</div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>ADVISORY</span><strong id="v277Grade">WAIT</strong></div>
+      <div class="analyzer-card"><span>SAFE ACTION</span><strong id="v277Action">WAIT</strong></div>
+      <div class="analyzer-card"><span>ADJUSTED CONFIDENCE</span><strong id="v277Confidence">—</strong></div>
+      <div class="analyzer-card"><span>ROAD VOTES</span><strong id="v277Votes">0 support / 0 oppose</strong></div>
+    </div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>RHYTHM SHIFT</span><strong id="v277Shift">0%</strong></div>
+      <div class="analyzer-card"><span>LOSS STREAK</span><strong id="v277Losses">0</strong></div>
+      <div class="analyzer-card"><span>ROADS READY</span><strong id="v277Ready">0 / 3</strong></div>
+    </div>
+    <div class="analyzer-sub" id="v277Reason" style="margin-top:8px">Waiting for live evidence.</div>`;
+  const anchor=document.getElementById('mainRoadFutureTest');
+  if(anchor?.parentNode)anchor.insertAdjacentElement('afterend',root);else document.querySelector('.app')?.appendChild(root);
+  return root;
+}
+function renderAwareness(){
+  const root=ensure(),x=evaluate(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  if(!root)return x;root.dataset.grade=x.grade;
+  set('v277Grade',x.grade);set('v277Action',x.action);set('v277Confidence',x.side?x.adjusted+'%':'—');
+  set('v277Votes',`${x.support} support / ${x.oppose} oppose`);set('v277Shift',Math.round(x.shift*100)+'%');
+  set('v277Losses',String(x.lossStreak));set('v277Ready',`${x.ready} / 3`);set('v277Reason',x.reasons.join(' • '));return x;
+}
+function install(){
+  ensure();renderAwareness();
+  document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(renderAwareness,300)},false);
+  window.__v277AwarenessTimer=setInterval(()=>{if(document.visibilityState!=='hidden')renderAwareness()},15000);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+window.__V277_MAIN_FUTURE_AWARENESS__={version:VERSION,evaluate,render:renderAwareness,predictionLogicChanged:false,mainFutureCoreChanged:false,sequenceV2Changed:false,advisoryOnly:true};
+})();
+</script>
+<style id="v278-exact-history-style">
+#v278ExactHistoryAI{border:2px solid #14b8a6!important;background:linear-gradient(180deg,rgba(16,55,55,.98),rgba(12,27,31,.99))!important}
+#v278ExactHistoryAI[data-ready="true"]{border-color:#22c55e!important}
+</style>
+<script id="v278-exact-bead-three-road-history-ai">
+(function(){
+'use strict';
+if(window.__V281_EXACT_HISTORY_AI__||window.__V280_EXACT_HISTORY_AI__||window.__V279_EXACT_HISTORY_AI__||window.__V278_EXACT_HISTORY_AI__)return;
+const VERSION=281,KEY='exactbead3roadv281',START=10,BEAD_WINDOWS=[6,5,4],ROAD_TAIL=4,MIN_MATCHES=2,MIN_RATE=.75;
+const norm=x=>{x=String(x?.r??x?.result??x?.side??x?.winner??x?.outcome??x?.value??x??'').toUpperCase();return x==='PLAYER'?'P':x==='BANKER'?'B':(x==='P'||x==='B'||x==='T'?x:null)};
+const mark=x=>{x=String(x?.color??x?.mark??x?.r??x?.result??x??'').toUpperCase();return x.startsWith('R')?'R':x.startsWith('B')?'B':null};
+const safe=(fn,fallback=null)=>{try{const x=fn();return x??fallback}catch(e){return fallback}};
+function live(){return safe(()=>currentSequence().map(norm).filter(Boolean),[])||[]}
+function seqOf(shoe){
+  const a=Array.isArray(shoe)?shoe:(shoe?.hands??shoe?.sequence??shoe?.results??shoe?.history??shoe?.shoe??[]);
+  if(Array.isArray(a))return a.map(norm).filter(Boolean);
+  if(typeof a==='string')return a.toUpperCase().split('').map(norm).filter(Boolean);
+  return [];
+}
+function hashText(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16)}
+let libraryCache={stamp:'',shoes:[]};
+function libraryArrays(){
+  const out=[];
+  for(const name of ['redPatternLibrary','blackPatternLibrary','patternLibrary','redShoeLibrary','blackShoeLibrary']){
+    const a=safe(()=>state?.[name],null);if(Array.isArray(a))out.push(...a);
+  }
+  return out;
+}
+function historicalShoes(){
+  const raw=libraryArrays(),parsed=raw.map(seqOf),stamp=raw.length+':'+hashText(parsed.map(q=>q.join('')).join('|'));
+  if(libraryCache.stamp===stamp)return libraryCache.shoes;
+  const seen=new Set(),shoes=[];
+  for(const q of parsed){const id=q.join('');if(q.length<=START||seen.has(id))continue;seen.add(id);shoes.push(q)}
+  libraryCache={stamp,shoes};return shoes;
+}
+function roadTail(pre,offset){
+  const rows=pre.map(r=>({r}));
+  const road=safe(()=>deriveRoad(rows,offset),[])||[];
+  return road.map(mark).filter(Boolean).slice(-ROAD_TAIL).join('');
+}
+function roadState(pre){return [1,2,3].map(off=>roadTail(pre,off))}
+function sameRoads(a,b){return a.length===3&&b.length===3&&a.every((x,i)=>x.length>0&&x===b[i])}
+function mainPreview(){
+  const x=safe(()=>window.__V227_ORIGINAL_MAIN_FUTURE__?.test?.()||window.__V84_MAIN_FUTURE_TUNE__?.test?.()||mainRoadFutureTest(),{})||{};
+  return x.side==='P'||x.side==='B'?x.side:null;
+}
+let signalCache={key:'',value:null};
+function signal(){
+  const cur=live(),n=cur.length,shoes=historicalShoes(),previewNow=mainPreview(),cacheKey=cur.join('')+'|'+libraryCache.stamp+'|MP:'+(previewNow||'-');
+  if(signalCache.key===cacheKey&&signalCache.value)return signalCache.value;
+  const afterTie=cur.at(-1)==='T';
+  const finish=v=>(signalCache={key:cacheKey,value:{version:VERSION,source:'ADAPTIVE_BEAD_AND_EXACT_THREE_ROADS_WITH_LIGHT_MAIN_PREVIEW',afterTie,...v}},signalCache.value);
+  if(n<START)return finish({side:null,qualified:false,strength:0,status:'WAIT',reason:`WAIT: starts at hand ${START} (${n}/${START}).`,matches:0,p:0,b:0,tiesSkipped:0});
+  if(!shoes.length)return finish({side:null,qualified:false,strength:0,status:'WAIT',reason:'WAIT: no saved historical shoes are loaded.',matches:0,p:0,b:0,tiesSkipped:0});
+  const liveRoads=roadState(cur);
+  if(liveRoads.some(x=>x.length<ROAD_TAIL))return finish({side:null,qualified:false,strength:0,status:'WAIT',reason:`WAIT: all three derived roads need ${ROAD_TAIL} visible marks before matching.`,matches:0,p:0,b:0,tiesSkipped:0,roadState:liveRoads});
+  function scan(windowN){
+    const bead=cur.slice(-windowN).join('');let p=0,b=0,tiesSkipped=0,beadMatches=0,roadMatches=0,ambiguousShoes=0;const examples=[];
+    for(let s=0;s<shoes.length;s++){
+      const q=shoes[s],shoeNext=[];
+      for(let i=windowN;i<q.length;i++){
+        if(q.slice(i-windowN,i).join('')!==bead)continue;
+        if(afterTie&&q[i-1]!=='T')continue;
+        beadMatches++;
+        const roads=roadState(q.slice(0,i));if(!sameRoads(liveRoads,roads))continue;
+        roadMatches++;const next=q[i];if(next==='T'){tiesSkipped++;continue}shoeNext.push({next,hand:i+1});
+      }
+      const sides=[...new Set(shoeNext.map(x=>x.next))];
+      if(sides.length!==1){if(sides.length>1)ambiguousShoes++;continue}
+      const next=sides[0];if(next==='P')p++;else if(next==='B')b++;
+      if(examples.length<8)examples.push({shoe:s+1,hand:shoeNext[0].hand,next});
+    }
+    const matches=p+b,top=Math.max(p,b),rate=matches?top/matches:0,side=p===b?null:(p>b?'P':'B'),lead=Math.abs(p-b);
+    return {windowN,bead,beadMatches,roadMatches,ambiguousShoes,tiesSkipped,p,b,matches,rate,side,lead,examples,qualified:matches>=MIN_MATCHES&&!!side&&rate>=MIN_RATE&&lead>=2};
+  }
+  const scans=BEAD_WINDOWS.map(scan),z=scans.find(x=>x.qualified)||scans.slice().sort((a,b)=>b.matches-a.matches||b.roadMatches-a.roadMatches||b.windowN-a.windowN)[0];
+  if(!z?.qualified)return finish({...(z||{}),side:null,candidate:z?.side||null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:`WAIT: best exact state used ${z?.windowN||BEAD_WINDOWS[0]} bead hands with ${z?.matches||0} independent shoe votes (P ${z?.p||0} / B ${z?.b||0}); requires ${MIN_MATCHES}+ votes, ${Math.round(MIN_RATE*100)}% agreement, and a 2-vote lead.`,beadWindowLength:z?.windowN||null,roadState:liveRoads,scans:scans.map(x=>({window:x.windowN,beadMatches:x.beadMatches,roadMatches:x.roadMatches,matches:x.matches,p:x.p,b:x.b,rate:x.rate}))});
+  const {side,matches,p,b,rate,lead,tiesSkipped,beadMatches,roadMatches,examples}=z;
+  const preview=previewNow,previewStatus=!preview?'WAIT':preview===side?'AGREE':'DISAGREE';
+  const previewAdjustment=previewStatus==='AGREE'?3:previewStatus==='DISAGREE'?-3:0;
+  const confidence=Math.round(Math.min(88,Math.max(50,50+(rate-.5)*70+Math.min(8,matches)+previewAdjustment)));
+  const previewNote=previewStatus==='AGREE'?'Main Preview lightly confirms':previewStatus==='DISAGREE'?'Main Preview disagrees; historical match remains primary':'Main Preview is waiting';
+  const tieNote=afterTie?' • AFTER-TIE exact matching active':'';
+  return finish({side,qualified:true,strength:confidence,confidence,status:side==='P'?'PLAYER':'BANKER',reason:`QUALIFIED: ${z.windowN}-hand bead + exact 3-road match across ${matches} independent shoes • P ${p} / B ${b} • ${Math.round(rate*100)}% agreement${tieNote} • ${previewNote}.`,matches,p,b,rate,lead,tiesSkipped,beadMatches,roadMatches,beadWindow:z.bead,beadWindowLength:z.windowN,roadState:liveRoads,examples,ambiguousShoes:z.ambiguousShoes,mainPreview:preview,previewStatus,previewAdjustment,scans:scans.map(x=>({window:x.windowN,beadMatches:x.beadMatches,roadMatches:x.roadMatches,matches:x.matches,p:x.p,b:x.b,rate:x.rate}))});
+}
+function model(){return safe(()=>state?.accuracyVerified?.models?.[KEY],{})||{}}
+function accuracyText(){const m=model(),w=Number(m.wins)||0,l=Number(m.losses)||0,n=Number(m.predictions)||(w+l);return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n}`:'—'}
+function afterTieAccuracyText(){const z=model()?.afterTie||{},w=Number(z.wins)||0,l=Number(z.losses)||0,n=Number(z.predictions)||(w+l);return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n}`:'—'}
+function ensure(){
+  let root=document.getElementById('v278ExactHistoryAI');if(root)return root;
+  root=document.createElement('div');root.id='v278ExactHistoryAI';root.className='analyzer';root.innerHTML=`
+    <div class="analyzer-title">🔎 Adaptive Bead + 3-Road Historical Match AI V281</div>
+    <div class="analyzer-sub">Starts at hand ${START}, then tests 6-, 5-, and 4-hand bead patterns against exact ${ROAD_TAIL}-mark tails on all three roads. Each historical shoe gets at most one vote. Main Preview remains a light confidence confirmation only.</div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v278Pick">WAIT</strong></div>
+      <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v278Confidence">—</strong></div>
+      <div class="analyzer-card"><span>EXACT MATCHES</span><strong id="v278Matches">0</strong></div>
+      <div class="analyzer-card"><span>HISTORICAL SPLIT</span><strong id="v278Split">P 0 / B 0</strong></div>
+      <div class="analyzer-card"><span>BEAD WINDOW USED</span><strong id="v281Window">—</strong></div>
+    </div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>BEAD MATCHES</span><strong id="v278BeadMatches">0</strong></div>
+      <div class="analyzer-card"><span>3-ROAD MATCHES</span><strong id="v278RoadMatches">0</strong></div>
+      <div class="analyzer-card"><span>MAIN PREVIEW</span><strong id="v279Preview">WAIT</strong></div>
+      <div class="analyzer-card"><span>AFTER-TIE MODE</span><strong id="v279AfterTie">INACTIVE</strong></div>
+      <div class="analyzer-card"><span>AFTER-TIE ACCURACY</span><strong id="v279AfterTieAccuracy">—</strong></div>
+      <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v278Accuracy">—</strong></div>
+    </div>
+    <div class="analyzer-sub" id="v278Reason" style="margin-top:8px">Waiting for hand ${START}.</div>
+    <button class="tiny-btn" id="v278Reset" style="width:100%;margin-top:8px">Reset Exact Match AI Accuracy</button>`;
+  document.querySelector('.app')?.appendChild(root);
+  root.querySelector('#v278Reset').onclick=()=>{if(!confirm('Reset only Exact Bead + 3-Road Match AI accuracy?'))return;const A=safe(()=>state.accuracyVerified,null);if(A){delete A.models?.[KEY];delete A.pending?.[KEY]}safe(()=>persist());renderAI()};
+  return root;
+}
+function placeBottom(){const root=ensure(),app=document.querySelector('.app');if(root&&app&&app.lastElementChild!==root)app.appendChild(root)}
+function renderAI(){
+  const root=ensure(),x=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  root.dataset.ready=String(!!x.side);set('v278Pick',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v278Confidence',x.side?x.confidence+'%':'—');
+  set('v278Matches',String(x.matches||0));set('v278Split',`P ${x.p||0} / B ${x.b||0}`);set('v281Window',x.beadWindowLength?x.beadWindowLength+' hands':'—');set('v278BeadMatches',String(x.beadMatches||0));set('v278RoadMatches',String(x.roadMatches||0));set('v279Preview',x.previewStatus||'WAIT');set('v279AfterTie',x.afterTie?'ACTIVE • EXACT ONLY':'INACTIVE');set('v279AfterTieAccuracy',afterTieAccuracyText());set('v278Accuracy',accuracyText());set('v278Reason',x.reason||'WAIT');return x;
+}
+function register(){
+  window.__accuracyModelDefs ||= [];
+  for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===KEY)window.__accuracyModelDefs.splice(i,1);
+  window.__accuracyModelDefs.push([KEY,'Exact Bead + 3-Road Historical Match',signal]);
+}
+function install(){
+  register();placeBottom();renderAI();
+  document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(()=>{signalCache.key='';register();placeBottom();renderAI()},320)},false);
+  [600,2500,7500].forEach(ms=>setTimeout(()=>{register();placeBottom();renderAI()},ms));
+  window.__v278ExactTimer=setInterval(()=>{if(document.visibilityState!=='hidden'){register();placeBottom();renderAI()}},15000);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+window.__V281_EXACT_HISTORY_AI__={version:VERSION,signal,render:renderAI,register,config:{startHand:START,beadWindows:BEAD_WINDOWS.slice(),roadTail:ROAD_TAIL,minIndependentShoeVotes:MIN_MATCHES,minAgreement:MIN_RATE,mainPreviewAdjustment:3,afterTieExactOnly:true,oneVotePerHistoricalShoe:true},primaryInputs:['BEAD_PLATE','BIG_EYE','SMALL_ROAD','COCKROACH_ROAD'],confirmationInput:'MAIN_PREVIEW_ROAD',mainPreviewInfluence:'LIGHT_CONFIDENCE_ONLY',mainPreviewCanCreate:false,mainPreviewCanReverse:false,mainPreviewCanVeto:false,afterTieLogic:'MATCH_ONLY_HISTORICAL_AFTER_TIE_STATES',separateAfterTieAccuracy:true,stringSequenceCompatible:true,contentFingerprintCache:true,predictionLogicIndependent:true};
+window.__V280_EXACT_HISTORY_AI__=window.__V281_EXACT_HISTORY_AI__;
+window.__V279_EXACT_HISTORY_AI__=window.__V281_EXACT_HISTORY_AI__;
+window.__V278_EXACT_HISTORY_AI__=window.__V281_EXACT_HISTORY_AI__;
+})();
+</script>
+\n<!-- V283: Independent 3-Road Structural Fingerprint AI. Existing AI cores untouched. -->
+<style id="v283-structural-ai-style">
+#v283StructuralAI{border:2px solid #9a7cff!important;background:linear-gradient(180deg,rgba(37,28,64,.98),rgba(16,20,34,.99))!important}
+#v283StructuralAI .v283-state{font-weight:900;letter-spacing:.4px}
+</style>
+<script id="v283-structural-ai">
+(function(){'use strict';
+const VERSION=283, KEY='structural3road', START=10;
+const pb=a=>a.filter(x=>x==='P'||x==='B');
+function seqFrom(rec){let x=rec?.sequence??rec?.seq??rec?.results??'';if(Array.isArray(x))x=x.map(v=>typeof v==='string'?v:(v?.r||v?.result||'')).join('');return String(x).toUpperCase().match(/[PBT]/g)||[]}
+function runLen(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}
+function regime(a){const q=pb(a).slice(-12);if(q.length<5)return'EARLY';const r=runLen(q);if(r>=6)return'DRAGON';if(r>=3)return'STREAK';let sw=0;for(let i=1;i<q.length;i++)sw+=q[i]!==q[i-1];return sw/Math.max(1,q.length-1)>=.64?'CHOP':'MIXED'}
+function roads(h){const H=h.map(r=>({r}));return [deriveRoad(H,1),deriveRoad(H,2),deriveRoad(H,3)]}
+function roadState(R){return R.map(x=>x.at(-1)||'-').join('')}
+function age(x){return runLen(x)}
+function propagationTiming(h){
+  const names=['EYE','SMALL','ROACH'], lookback=Math.min(14,h.length), events=[];
+  let last=null;
+  for(let cut=Math.max(1,h.length-lookback);cut<=h.length;cut++){
+    const st=roadState(roads(h.slice(0,cut)));
+    if(last){
+      for(let i=0;i<3;i++){
+        if(st[i]&&last[i]&&st[i]!=='-'&&last[i]!=='-'&&st[i]!==last[i]) events.push({road:i,name:names[i],hand:cut,to:st[i]});
+      }
+    }
+    last=st;
+  }
+  if(!events.length)return{order:'NONE',lags:'—',spread:99,velocity:'STABLE'};
+  const recent=events.slice(-6), latestByRoad=[null,null,null];
+  for(let i=recent.length-1;i>=0;i--){const e=recent[i];if(!latestByRoad[e.road])latestByRoad[e.road]=e}
+  const active=latestByRoad.filter(Boolean).sort((a,b)=>a.hand-b.hand);
+  if(active.length<2)return{order:active[0]?.name||'NONE',lags:'—',spread:99,velocity:'SINGLE CHANGE'};
+  const first=active[0].hand, lastHand=active.at(-1).hand, spread=lastHand-first;
+  const order=active.map(e=>e.name).join('>');
+  const lags=active.map(e=>`${e.name}:${e.hand-first}`).join(' ');
+  const velocity=spread<=2?'FAST':spread<=5?'MEDIUM':'SLOW';
+  return{order,lags,spread,velocity};
+}
+function snapshot(h){const R=roads(h),cur=roadState(R);const prev=h.length>1?roadState(roads(h.slice(0,-1))):'---';const prev2=h.length>2?roadState(roads(h.slice(0,-2))):'---';const ages=R.map(age);const changed=[0,1,2].filter(i=>cur[i]&&prev[i]&&cur[i]!==prev[i]&&cur[i]!=='-'&&prev[i]!=='-');let lead=changed.length?['EYE','SMALL','ROACH'][changed[0]]:'NONE';const conv=(new Set(cur.replace(/-/g,'')).size<=1)?'ALIGNED':(new Set(prev.replace(/-/g,'')).size>new Set(cur.replace(/-/g,'')).size?'CONVERGING':'DIVERGED');const prop=propagationTiming(h);return{cur,prev,prev2,ages,lead,conv,reg:regime(h),afterTie:h.at(-1)==='T',pbrun:runLen(pb(h)),propOrder:prop.order,propLags:prop.lags,propSpread:prop.spread,velocity:prop.velocity}}
+function dist(a,b){let d=0;if(a.cur!==b.cur)d+=3;if(a.prev!==b.prev)d+=2;if(a.prev2!==b.prev2)d+=1;if(a.reg!==b.reg)d+=2;if(a.conv!==b.conv)d+=1;if(a.lead!==b.lead)d+=1;if(a.velocity!==b.velocity)d+=1.25;if(a.propOrder!==b.propOrder)d+=.75;if(a.afterTie!==b.afterTie)d+=3;d+=Math.min(2,Math.abs(a.pbrun-b.pbrun)*.35);if(Number.isFinite(a.propSpread)&&Number.isFinite(b.propSpread)&&a.propSpread<90&&b.propSpread<90)d+=Math.min(1.5,Math.abs(a.propSpread-b.propSpread)*.25);for(let i=0;i<3;i++)d+=Math.min(1.5,Math.abs(a.ages[i]-b.ages[i])*.25);return d}
+function historyVotes(h){const f=snapshot(h),lib=typeof activePatternLibrary==='function'?activePatternLibrary():[],votes=[];for(const rec of lib){const a=seqFrom(rec);for(let i=START;i<a.length;i++){const next=a[i];if(next==='T')continue;const pre=a.slice(0,i),g=snapshot(pre),d=dist(f,g);if(d<=3.25)votes.push({side:next,d,w:1/(1+d),id:rec.id||rec.savedAt||'shoe'});}}
+  votes.sort((x,y)=>x.d-y.d);const chosen=votes.slice(0,80);let p=0,b=0;for(const v of chosen){if(v.side==='P')p+=v.w;else b+=v.w;}return{f,n:chosen.length,p,b,raw:votes.length};}
+function branch(h,side){const x=snapshot(h.concat(side));return x.cur}
+function signal(){try{const h=state.hands.map(x=>x.r);if(pb(h).length<START)return{side:null,strength:0,reason:`WAIT • starts after hand ${START}`,matches:0};const z=historyVotes(h),tot=z.p+z.b,top=Math.max(z.p,z.b),rate=tot?top/tot:0,lead=Math.abs(z.p-z.b),side=z.p>z.b?'P':z.b>z.p?'B':null;const enough=z.n>=6&&rate>=.62&&lead>=.55;const f=z.f;let strength=enough?Math.round(Math.min(92,50+rate*35+Math.min(7,z.n/8))):0;return{side:enough?side:null,strength,matches:z.n,rate,p:z.p,b:z.b,state:f.cur,path:`${f.prev2}>${f.prev}>${f.cur}`,ages:f.ages.join('/'),lead:f.lead,convergence:f.conv,regime:f.reg,afterTie:f.afterTie,velocity:f.velocity,propOrder:f.propOrder,propLags:f.propLags,pBranch:branch(h,'P'),bBranch:branch(h,'B'),reason:enough?`${side==='P'?'PLAYER':'BANKER'} • ${z.n} structural matches • ${Math.round(rate*100)}% weighted agreement`:`WAIT • ${z.n} matches • ${Math.round(rate*100)}% agreement; fingerprint not strong enough`};}catch(e){return{side:null,strength:0,matches:0,reason:'WAIT • structural reader initializing'}}}
+function ensure(){let r=document.getElementById('v283StructuralAI');if(r)return r;r=document.createElement('div');r.id='v283StructuralAI';r.className='analyzer';r.innerHTML=`<div class="analyzer-title">🧬 3-Road Structural Fingerprint AI V285</div><div class="analyzer-sub">Independent AI • Big Eye + Small + Cockroach as fast/medium/slow structural sensors • propagation, velocity/path, road age, convergence, regime, after-tie state, historical fingerprint matching, and P/B hypothetical branches. Existing AI logic is untouched.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v283Pick">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v283Conf">—</strong></div><div class="analyzer-card"><span>3-ROAD STATE</span><strong id="v283State">—</strong></div><div class="analyzer-card"><span>PATH</span><strong id="v283Path">—</strong></div><div class="analyzer-card"><span>ROAD AGES E/S/C</span><strong id="v283Ages">—</strong></div><div class="analyzer-card"><span>PROPAGATION LEAD</span><strong id="v283Lead">—</strong></div><div class="analyzer-card"><span>PROPAGATION VELOCITY</span><strong id="v283Velocity">—</strong></div><div class="analyzer-card"><span>PROPAGATION ORDER / LAGS</span><strong id="v283Prop">—</strong></div></div><div class="analyzer-grid"><div class="analyzer-card"><span>CONVERGENCE</span><strong id="v283Conv">—</strong></div><div class="analyzer-card"><span>REGIME</span><strong id="v283Reg">—</strong></div><div class="analyzer-card"><span>HISTORICAL MATCHES</span><strong id="v283Matches">0</strong></div><div class="analyzer-card"><span>PLAYER BRANCH</span><strong id="v283PB">—</strong></div><div class="analyzer-card"><span>BANKER BRANCH</span><strong id="v283BB">—</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v283Acc">—</strong></div></div><div class="analyzer-sub" id="v283Reason" style="margin-top:8px">Waiting for hand ${START}.</div><button class="tiny-btn" id="v283Reset" style="width:100%;margin-top:8px">Reset Structural AI Accuracy</button>`;document.querySelector('.app')?.appendChild(r);r.querySelector('#v283Reset').onclick=()=>{if(!confirm('Reset only 3-Road Structural AI accuracy?'))return;const A=state?.accuracyVerified;if(A){delete A.models?.[KEY];delete A.pending?.[KEY]}try{persist()}catch(e){}render()};return r}
+function acc(){const m=state?.accuracyVerified?.models?.[KEY]||{},w=+m.wins||0,l=+m.losses||0,n=+m.predictions||(w+l);return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n}`:'—'}
+function register(){window.__accuracyModelDefs ||= [];for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===KEY)window.__accuracyModelDefs.splice(i,1);window.__accuracyModelDefs.push([KEY,'3-Road Structural Fingerprint AI',signal])}
+function render(){const r=ensure(),x=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};const app=document.querySelector('.app');if(app&&app.lastElementChild!==r)app.appendChild(r);set('v283Pick',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v283Conf',x.side?x.strength+'%':'—');set('v283State',x.state||'—');set('v283Path',x.path||'—');set('v283Ages',x.ages||'—');set('v283Lead',x.lead||'—');set('v283Velocity',x.velocity||'—');set('v283Prop',x.propOrder&&x.propOrder!=='NONE'?`${x.propOrder} • ${x.propLags}`:'—');set('v283Conv',x.convergence||'—');set('v283Reg',x.regime||'—');set('v283Matches',String(x.matches||0));set('v283PB',x.pBranch||'—');set('v283BB',x.bBranch||'—');set('v283Acc',acc());set('v283Reason',x.reason||'WAIT');return x}
+function boot(){register();ensure();render();document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(()=>{register();render()},350)},false);[1000,3500,8000].forEach(ms=>setTimeout(()=>{register();render()},ms));setInterval(()=>{if(document.visibilityState!=='hidden'){register();render()}},15000)}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+window.__V283_STRUCTURAL_3ROAD_AI__={version:VERSION,signal,snapshot,historyVotes,independent:true,startHand:START,inputs:['BIG_EYE','SMALL_ROAD','COCKROACH_ROAD','BIG_ROAD_REGIME','AFTER_TIE','HISTORICAL_LIBRARY'],features:['PROPAGATION','PROPAGATION_VELOCITY','PROPAGATION_LAGS','STATE_PATH','ROAD_AGE','CONVERGENCE','REGIME','HYPOTHETICAL_BRANCHES','HISTORICAL_FINGERPRINT'],sequenceV2CoreChanged:false,mainFutureCoreChanged:false};
+})();
+</script>\n
+<!-- V284: Main-Road-Only Future AI + universal registered-AI accuracy/reset controls. -->
+<style id="v284-style">
+#v284MainOnlyAI{border:2px solid #38bdf8!important;background:linear-gradient(180deg,rgba(9,42,58,.98),rgba(12,20,31,.99))!important}
+.v284-accuracy-row{margin-top:8px;padding:7px 8px;border:1px solid #303743;border-radius:9px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:11px}.v284-accuracy-row button{margin-left:auto}
+</style>
+<script id="v284-main-only-ai">
+(function(){'use strict';
+const VERSION=286,KEY='mainroadonlyfuturev284',START=10;
+function signal(){try{
+ const h=state.hands.map(x=>x.r), n=h.filter(x=>x!=='T').length;
+ if(n<START)return{side:null,strength:0,pPct:50,bPct:50,reason:`WAIT • starts after ${START} non-tie hands (${n}/${START})`};
+
+ // V286: clone the ORIGINAL Main Future Road scoring/decision mechanics.
+ // Only the Main Road evidence leg is enabled here. The original Main Future function is untouched.
+ const main=sequenceAISignal();
+
+ const scoreSide=(side)=>{
+   let weighted=0, weight=0, readyRoads=0;
+   // Exact Main Future Road Main-Road contribution: pct * 2, weight +2.
+   const mainPct=side==='P'?(main.pPct||0):(main.bPct||0);
+   if(mainPct>0){ weighted+=mainPct*2; weight+=2; }
+   // Deliberately NO derived-road loop in this independent clone.
+   const pct=weight?weighted/weight:50;
+   return {pct,readyRoads,weight};
+ };
+
+ const p=scoreSide('P'), b=scoreSide('B');
+ const total=(p.pct+b.pct)||100;
+ const pNorm=Math.round(100*p.pct/total);
+ const bNorm=100-pNorm;
+ const edge=Math.abs(pNorm-bNorm);
+ const evidence=Math.max(p.weight,b.weight);
+
+ let side=null,label='WAIT';
+ if(evidence>0){
+   side=pNorm>bNorm?'P':bNorm>pNorm?'B':null;
+   if(side)label=edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN';
+ }
+
+ // Match Main Future Road decision behavior: evidence + unequal normalized scores creates the call.
+ if(!side)return{side:null,strength:0,pPct:pNorm,bPct:bNorm,edge,evidence,label:'WAIT',reason:`WAIT • Main Future clone/Main Road only • P ${pNorm}% / B ${bNorm}%`};
+
+ return{
+   side,
+   strength:side==='P'?pNorm:bNorm,
+   pPct:pNorm,bPct:bNorm,edge,evidence,label,
+   reason:`${side==='P'?'PLAYER':'BANKER'} • ${label} • cloned Main Future scoring • Main Road only ${pNorm}% P / ${bNorm}% B`
+ };
+}catch(e){return{side:null,strength:0,pPct:50,bPct:50,reason:'WAIT • Main Future clone initializing'}}}
+function model(){return state?.accuracyVerified?.models?.[KEY]||{}}
+function acc(){const m=model(),w=+m.wins||0,l=+m.losses||0,n=+m.predictions||(w+l),wait=+m.waits||0;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n} • WAIT ${wait}`:`— • 0W-0L • N 0 • WAIT ${wait}`}
+function ensure(){let r=document.getElementById('v284MainOnlyAI');if(r)return r;r=document.createElement('div');r.id='v284MainOnlyAI';r.className='analyzer';r.innerHTML=`<div class="analyzer-title">🛣️ Main Road Only Future AI V286</div><div class="analyzer-sub">Independent clone of the original Main Future Road scoring/decision mechanics, restricted to its Main Road evidence leg only. The original Main Future Road is untouched. No Bead Plate, Big Eye, Small Road, or Cockroach Road contributes to this new AI.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v284Pick">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v284Conf">—</strong></div><div class="analyzer-card"><span>PLAYER PATH</span><strong id="v284P">50%</strong></div><div class="analyzer-card"><span>BANKER PATH</span><strong id="v284B">50%</strong></div><div class="analyzer-card"><span>EDGE</span><strong id="v284Edge">—</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v284Acc">—</strong></div></div><div class="analyzer-sub" id="v284Reason" style="margin-top:8px">Waiting.</div><button class="tiny-btn" id="v284Reset" style="width:100%;margin-top:8px">Reset Main-Road-Only Accuracy</button>`;document.querySelector('.app')?.appendChild(r);r.querySelector('#v284Reset').onclick=()=>{if(!confirm('Reset only Main Road Only Future AI accuracy?'))return;const A=state?.accuracyVerified;if(A){delete A.models?.[KEY];delete A.pending?.[KEY]}try{persist()}catch(e){}render()};return r}
+function register(){window.__accuracyModelDefs ||= [];for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===KEY)window.__accuracyModelDefs.splice(i,1);window.__accuracyModelDefs.push([KEY,'Main Road Only Future AI',signal])}
+function render(){const r=ensure(),x=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v},app=document.querySelector('.app');if(app&&app.lastElementChild!==r)app.appendChild(r);set('v284Pick',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v284Conf',x.side?x.strength+'%':'—');set('v284P',(x.pPct??50)+'%');set('v284B',(x.bPct??50)+'%');set('v284Edge',x.edge!=null?x.edge+'%':'—');set('v284Acc',acc());set('v284Reason',x.reason||'WAIT');return x}
+function boot(){register();ensure();render();document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(()=>{register();render();installUniversalControls()},380)},false);[900,3000,7500].forEach(ms=>setTimeout(()=>{register();render();installUniversalControls()},ms));setInterval(()=>{if(document.visibilityState!=='hidden'){register();render();installUniversalControls()}},15000)}
+// Add visible accuracy + reset controls to every REGISTERED AI panel that lacks them.
+function installUniversalControls(){try{
+ const defs=window.__accuracyModelDefs||[];
+ const exactPanels={
+   structural3road:'#v283StructuralAI',
+   mainroadonlyfuturev284:'#v284MainOnlyAI',
+   seqv2:'#sequenceAiPanel',
+   sequencev2:'#sequenceAiPanel',
+   roadpreview:'#roadPreviewPanel,#roadPreviewAI',
+   derivedorig:'#derivedIndependentFinal',
+   mainfuture:'#mainRoadFutureTest'
+ };
+ // Never fuzzy-match titles: a wrong panel is worse than a centralized control.
+ for(const d of defs){
+   const key=String(d?.[0]||''),label=String(d?.[1]||key); if(!key)continue;
+   const sel=exactPanels[key.toLowerCase()]; if(!sel)continue;
+   const panel=document.querySelector(sel); if(!panel||panel.querySelector(`[data-v284-key="${key}"]`))continue;
+   const hasNativeReset=[...panel.querySelectorAll('button')].some(b=>/reset/i.test(b.textContent||''));
+   const row=document.createElement('div');row.className='v284-accuracy-row';row.dataset.v284Key=key;
+   row.innerHTML=`<strong>Accuracy:</strong><span data-v284-acc>—</span>${hasNativeReset?'':`<button class="tiny-btn" data-v284-reset>Reset Accuracy</button>`}`;
+   panel.appendChild(row);
+   const btn=row.querySelector('[data-v284-reset]'); if(btn)btn.onclick=()=>resetKey(key,label);
+ }
+ let audit=document.getElementById('v285AllAiAccuracy');
+ if(!audit){
+   audit=document.createElement('div');audit.id='v285AllAiAccuracy';audit.className='analyzer';
+   audit.innerHTML=`<div class="analyzer-title">📊 All AI Accuracy / Reset Audit V285</div><div class="analyzer-sub">Deterministic registry view. Every currently registered AI appears here with its own verified W-L/N/WAIT count and reset button. This replaces fuzzy panel matching and prevents counters from attaching to the wrong AI.</div><div id="v285AllAiRows"></div>`;
+   document.querySelector('.app')?.appendChild(audit);
+ }
+ const box=audit.querySelector('#v285AllAiRows'); if(box){
+   const seen=new Set(); box.innerHTML='';
+   for(const d of defs){
+     const key=String(d?.[0]||''),label=String(d?.[1]||key);if(!key||seen.has(key))continue;seen.add(key);
+     const row=document.createElement('div');row.className='v284-accuracy-row';row.dataset.v285AuditKey=key;
+     row.innerHTML=`<strong style="min-width:180px">${label}</strong><span data-v285-acc>—</span><button class="tiny-btn" data-v285-reset>Reset</button>`;
+     row.querySelector('[data-v285-reset]').onclick=()=>resetKey(key,label);box.appendChild(row);
+   }
+ }
+ for(const row of document.querySelectorAll('.v284-accuracy-row[data-v284-key]')){
+   paintCount(row,row.dataset.v284Key,'[data-v284-acc]');
+ }
+ for(const row of document.querySelectorAll('[data-v285-audit-key]')){
+   paintCount(row,row.dataset.v285AuditKey,'[data-v285-acc]');
+ }
+ const app=document.querySelector('.app'); if(app&&audit&&app.lastElementChild!==audit)app.appendChild(audit);
+ }catch(e){console.warn('V285 accuracy controls',e)}
+}
+function paintCount(row,key,selector){
+ const m=state?.accuracyVerified?.models?.[key]||{},w=+m.wins||0,l=+m.losses||0,n=+m.predictions||(w+l),wait=+m.waits||0,span=row.querySelector(selector);
+ if(span)span.textContent=n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n} • WAIT ${wait}`:`— • 0W-0L • N 0 • WAIT ${wait}`;
+}
+function resetKey(key,label){
+ if(!confirm(`Reset only ${label} accuracy?`))return;
+ const A=state?.accuracyVerified;if(A){delete A.models?.[key];delete A.pending?.[key]}
+ try{persist()}catch(e){} installUniversalControls(); render();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+window.__V286_MAIN_ROAD_ONLY_AI__={version:VERSION,signal,independent:true,input:'BIG_ROAD_ONLY',excluded:['BEAD_PLATE','BIG_EYE','SMALL_ROAD','COCKROACH_ROAD'],mainFutureCoreChanged:false,sequenceV2CoreChanged:false};
+})();
+</script>
+</body>
 </html>
