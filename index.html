@@ -11,7 +11,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V288 • All-In Baccarat — Stable Layout Fix</title>
+<title>V290 • All-In Baccarat — AI Runtime Cleanup</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -19412,8 +19412,76 @@ function boot(){
   }
   window.__V288_LAYOUT__={mlRoadTrainer:'TOP',accuracyAudit:'BOTTOM_MINIMIZABLE',singleLayoutOwner:true,logicChanged:false};
 }
+/* V290: V288 layout boot disabled. V289+ is the sole active layout owner. */
+window.__V288_LAYOUT__={mlRoadTrainer:'LEGACY_DISABLED',accuracyAudit:'UNCHANGED',singleLayoutOwner:false,logicChanged:false};
+})();
+</script>
+
+
+<!-- V289 USER LAYOUT LOCK: Best Estimate top; Sequence V2 compact; Fingerprint + Duplicate Trajectory bottom. Layout only. -->
+<style id="v289-user-layout-style">
+/* Compact Sequence V2 without changing any Sequence AI logic or element IDs. */
+#sequenceAiPanel{padding:8px!important;margin-top:6px!important}
+#sequenceAiPanel>.analyzer-title{margin-bottom:2px}
+#sequenceAiPanel>.analyzer-sub:first-of-type{display:none!important}
+#sequenceAiPanel .analyzer-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px!important;margin-top:5px!important}
+#sequenceAiPanel .analyzer-card{padding:5px 4px!important;border-radius:8px!important}
+#sequenceAiPanel .analyzer-card span{font-size:9px!important}
+#sequenceAiPanel .analyzer-card strong{font-size:14px!important}
+#sequenceAiPanel .match-pcts{gap:5px!important;margin-top:5px!important}
+#sequenceAiPanel .match-pct{padding:5px 3px!important}
+#sequenceAiPanel .match-pct strong{font-size:14px!important}
+#sequenceAiPanel #seqV2AccuracyLast,#sequenceAiPanel #seqAiNote{display:none!important}
+@media(max-width:430px){#sequenceAiPanel .analyzer-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+</style>
+<script id="v289-user-layout-controller">
+(function(){
+'use strict';
+let busy=false;
+function panelFromChild(id){const x=document.getElementById(id);return x&&x.closest?x.closest('.analyzer'):null}
+function place(){
+  if(busy)return; busy=true;
+  try{
+    const app=document.querySelector('.app'); if(!app)return;
+    const topbar=app.querySelector('.topbar');
+    const best=panelFromChild('bestSide');
+    const finger=document.getElementById('presetFingerprintGateV145');
+    const duplicate=document.getElementById('autoHistDuplicateMode');
+    /* Newest user instruction overrides legacy ML-top controllers. */
+    if(best&&topbar&&topbar.parentNode===app&&topbar.nextElementSibling!==best) app.insertBefore(best,topbar.nextElementSibling);
+    /* Requested bottom pair, fixed order: Fingerprint then Duplicate Trajectory. */
+    if(finger&&finger.parentNode!==app) app.appendChild(finger);
+    else if(finger&&app.lastElementChild!==finger&&(!duplicate||app.lastElementChild!==duplicate)) app.appendChild(finger);
+    if(duplicate&&duplicate.parentNode!==app) app.appendChild(duplicate);
+    else if(duplicate&&app.lastElementChild!==duplicate) app.appendChild(duplicate);
+  }finally{busy=false}
+}
+function boot(){
+  place();
+  [50,200,500,1000,2500,5000,8000].forEach(ms=>setTimeout(place,ms));
+  const app=document.querySelector('.app');
+  if(app&&window.MutationObserver){
+    const obs=new MutationObserver(()=>{if(!busy)requestAnimationFrame(place)});
+    obs.observe(app,{childList:true});
+  }
+  window.__V289_LAYOUT__={bestEstimate:'TOP',sequenceV2:'COMPACT',fingerprintGate:'BOTTOM',duplicateTrajectory:'BOTTOM_LAST',logicChanged:false};
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+</script>
+<script id="v290-runtime-cleanup-marker">
+window.__V290_RUNTIME_CLEANUP__={
+  version:290,
+  legacyV288LayoutDisabled:true,
+  activeLayoutOwner:'V289',
+  bestEstimate:'TOP',
+  sequenceV2:'COMPACT',
+  fingerprintGate:'BOTTOM',
+  duplicateTrajectory:'BOTTOM_LAST',
+  sequenceV2CoreChanged:false,
+  mainFutureCoreChanged:false,
+  predictionLogicChanged:false
+};
 </script>
 </body>
 </html>
