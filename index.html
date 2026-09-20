@@ -18614,4 +18614,348 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 window.__V270_UNIVERSAL_TIE_LEARNING__={version:VERSION,build,evidence,attach,model:()=>model,appliesTo:'all compatible AI signals + verified pending predictions',predictionLogicChanged:false,sequenceV2CoreChanged:false,mainFutureCoreChanged:false};
 })();
 </script>
+<!-- V271: missing-piece repair. A separate live decision/trap guard consumes the
+     existing AI outputs plus Deep Library, regime, and tie learning. It may only
+     qualify an existing consensus or return WAIT; it never rewrites core signals. -->
+<style id="v271-live-decision-guard-style">
+#v271DecisionGuard{border:2px solid #f59e0b;box-shadow:0 0 0 1px rgba(245,158,11,.14) inset}
+#v271DecisionGuard[data-risk="HIGH"]{border-color:#ef4444}
+#v271DecisionGuard[data-risk="LOW"]{border-color:#22c55e}
+#v271DecisionGuard .v271-decision{font-size:24px}
+#v271DecisionGuard .v271-risk-high{color:#fb7185}
+#v271DecisionGuard .v271-risk-medium{color:#fbbf24}
+#v271DecisionGuard .v271-risk-low{color:#4ade80}
+</style>
+<script id="v271-live-decision-trap-guard">
+(function(){
+'use strict';
+if(window.__V271_LIVE_DECISION_GUARD__)return;
+const VERSION=271, KEY='decisionguard';
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const norm=x=>{x=String(x||'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':null};
+const safe=(fn,fallback=null)=>{try{return fn()||fallback}catch(e){return fallback}};
+const strength=x=>{let n=Number(x?.strength??x?.confidence??x?.conf??x?.top??0);if(!Number.isFinite(n))n=0;if(n>0&&n<=1)n*=100;return clamp(n||52,45,95)};
+function live(){return safe(()=>currentSequence().filter(x=>x==='P'||x==='B'||x==='T'),[])||[]}
+function pb(){return live().filter(x=>x==='P'||x==='B')}
+function sw(a){if(a.length<2)return .5;let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n/(a.length-1)}
+function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a.at(-1);i--)n++;return n}
+function deepRate(key){
+  const p=state?.selfLearning?.libraryPriors?.[key],n=Number(p?.n)||0,r=Number(p?.rate);
+  if(!Number.isFinite(r)||n<12)return {rate:.5,n:0,weight:1};
+  return {rate:r,n,weight:clamp(.90+(r-.5)*1.2,.82,1.12)};
+}
+function source(key,name,family,get,priorKey=key){
+  const x=safe(get,{}),side=norm(x?.side),st=strength(x),prior=deepRate(priorKey);
+  return {key,name,family,side,strength:st,weight:(.58+st/140)*prior.weight,prior,x};
+}
+function mainFuture(){
+  const api=window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__||window.__mainRoadFutureV55;
+  return safe(()=>api?.test?.(),{});
+}
+function roadPreview(){
+  if(typeof window.patternRecognizerSignal==='function')return window.patternRecognizerSignal();
+  if(typeof window.roadPreviewAISignal==='function')return window.roadPreviewAISignal();
+  if(typeof window.roadStructureSignal==='function')return window.roadStructureSignal();
+  return {};
+}
+function mlSignal(){return safe(()=>window.__mlRoadTrainerV3?.signal?.()||window.__mlRoadTrainerV2?.signal?.(),{})}
+function inputs(){
+  return [
+    source('seqv2','Sequence V2','HISTORY',()=>sequenceAISignal(),'seqv2'),
+    source('libraryintel','Library Intelligence','HISTORY',()=>window.libraryIntelligenceSignal?.(),'color'),
+    source('roadpreview','Pattern / Road Preview','ROADS',roadPreview,'roadpreview'),
+    source('mainfuture','Main Future Road','ROADS',mainFuture,'derivedmain'),
+    source('mlroad','ML Road Trainer','ML',mlSignal,'bestestimate')
+  ].filter(x=>x.side);
+}
+function familyVotes(rows){
+  const out=[];
+  for(const family of ['HISTORY','ROADS','ML']){
+    const a=rows.filter(x=>x.family===family);if(!a.length)continue;
+    let p=0,b=0;for(const x of a){if(x.side==='P')p+=x.weight;else b+=x.weight}
+    const den=p+b||1,edge=Math.abs(p-b)/den,side=p===b?null:(p>b?'P':'B');
+    out.push({family,side,edge,ready:a.length,p,b,sources:a});
+  }
+  return out;
+}
+function learnedContext(){
+  const regime=safe(()=>window.__V269_REGIME_LIBRARY_LEARNING__?.evidence?.(),{})||{};
+  const tie=safe(()=>window.__V270_UNIVERSAL_TIE_LEARNING__?.evidence?.(),{})||{};
+  const lib=safe(()=>window.libraryIntelligenceSignal?.(),{})||{};
+  return {regime,tie,lib};
+}
+function trap(candidate,families,ctx){
+  const a=pb(),recent=a.slice(-6),middle=a.slice(-14),shortRate=sw(recent),longRate=sw(middle),delta=Math.abs(shortRate-longRate),r=run(a);
+  const reasons=[];let score=0;
+  const opposing=families.filter(x=>x.side&&x.side!==candidate),support=families.filter(x=>x.side===candidate);
+  if(opposing.length){score+=opposing.length>=2?42:22;reasons.push(`${opposing.length} independent family${opposing.length===1?'':'ies'} oppose the candidate`)}
+  if(delta>=.34){score+=30;reasons.push(`live rhythm shifted ${Math.round(delta*100)} points`)}
+  else if(delta>=.24){score+=16;reasons.push(`live rhythm is changing (${Math.round(delta*100)}-point shift)`)}
+  const tr=Number(ctx.lib?.transitionRisk)||0;
+  if(tr>=.72){score+=34;reasons.push(`library transition risk is ${Math.round(tr*100)}%`)}
+  else if(tr>=.58){score+=18;reasons.push(`library transition risk is elevated at ${Math.round(tr*100)}%`)}
+  if(r>=5&&support.length&&opposing.length){score+=16;reasons.push(`mature ${r}-hand run has split continuation/break evidence`)}
+  const re=ctx.regime||{},rn=Number(re.matches)||0;
+  if(candidate&&rn>=8){const rp=Number(re.pPct)||50,rb=Number(re.bPct)||50,rs=rp>rb?'P':rb>rp?'B':null,edge=Math.abs(rp-rb);if(rs&&rs!==candidate&&edge>=18){score+=24;reasons.push(`${rn} same-regime library states lean opposite ${edge} points`)}}
+  const te=ctx.tie||{},tn=Number(te.matches)||0;
+  if(te.afterTie&&candidate&&tn>=6){const tp=Number(te.pPct)||50,tb=Number(te.bPct)||50,ts=tp>tb?'P':tb>tp?'B':null,edge=Math.abs(tp-tb);if(ts&&ts!==candidate&&edge>=18){score+=32;reasons.push(`${tn} after-tie library states lean opposite ${edge} points`)}}
+  score=clamp(score,0,100);
+  return {score,level:score>=55?'HIGH':score>=28?'MEDIUM':'LOW',reasons,shortRate,longRate,delta,run:r};
+}
+function signal(){
+  const n=pb().length,rows=inputs(),families=familyVotes(rows),ctx=learnedContext();
+  let p=0,b=0;for(const f of families){if(!f.side)continue;const w=.80+f.edge;if(f.side==='P')p+=w;else b+=w}
+  const candidate=p===b?null:(p>b?'P':'B'),support=families.filter(x=>x.side===candidate),opposing=families.filter(x=>x.side&&x.side!==candidate);
+  const margin=(p+b)?Math.abs(p-b)/(p+b):0,avg=support.length?support.reduce((z,f)=>z+f.sources.reduce((q,x)=>q+x.strength,0)/f.sources.length,0)/support.length:0;
+  const t=trap(candidate,families,ctx);let side=null,reason='';
+  if(n<10)reason=`WAIT: opening protection (${n}/10 P/B hands).`;
+  else if(!candidate)reason='WAIT: independent AI families are tied.';
+  else if(support.length<2)reason=`WAIT: only ${support.length} independent family supports ${candidate==='P'?'Player':'Banker'}.`;
+  else if(opposing.length>=2)reason='WAIT: two independent information families contradict the candidate.';
+  else if(margin<.16)reason=`WAIT: family separation is only ${Math.round(margin*100)}%.`;
+  else if(avg<57)reason=`WAIT: supporting evidence averages only ${Math.round(avg)}%.`;
+  else if(t.level==='HIGH')reason=`WAIT: high structural trap risk — ${t.reasons.join('; ')}.`;
+  else if(ctx.tie?.afterTie&&t.level!=='LOW')reason=`WAIT: after-tie context is not clean — ${t.reasons.join('; ')||'mixed learned evidence'}.`;
+  else side=candidate;
+  const confidence=side?Math.round(clamp(avg+margin*12-support.length+(t.level==='MEDIUM'?-6:0),55,88)):0;
+  return {side,candidate,qualified:!!side,confidence,reason,rows,families,support:support.length,opposing:opposing.length,margin,avg,trap:t,context:ctx,hand:n+1};
+}
+function ensurePanel(){
+  if(document.getElementById('v271DecisionGuard'))return;
+  const anchor=document.getElementById('v269RegimeLearning')||document.getElementById('instantLibraryLearnPanel')||document.getElementById('libraryIntelPanel');
+  if(!anchor?.parentNode)return;
+  const d=document.createElement('div');d.className='analyzer';d.id='v271DecisionGuard';d.innerHTML=`
+    <div class="analyzer-title">🛡️ Live Decision + Trap Guard V271</div>
+    <div class="analyzer-sub">Final qualification layer. It reads independent AI families plus Deep Library, chop/streak/dragon, and after-tie learning. It can approve an existing consensus or say WAIT; it never flips or rewrites Sequence AI V2 or Main Future Road.</div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>FINAL LIVE DECISION</span><strong class="v271-decision" id="v271Decision">WAIT</strong></div>
+      <div class="analyzer-card"><span>Evidence confidence</span><strong id="v271Confidence">—</strong></div>
+      <div class="analyzer-card"><span>Structural trap risk</span><strong id="v271Trap">BUILDING</strong></div>
+      <div class="analyzer-card"><span>Independent families</span><strong id="v271Families">0 / 0</strong></div>
+    </div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>Deep Library status</span><strong id="v271Deep">NOT RUN</strong></div>
+      <div class="analyzer-card"><span>Regime evidence</span><strong id="v271Regime">BUILDING</strong></div>
+      <div class="analyzer-card"><span>After-tie evidence</span><strong id="v271Tie">INACTIVE</strong></div>
+      <div class="analyzer-card"><span>Verified accuracy</span><strong id="v271Accuracy">—</strong></div>
+    </div>
+    <div class="analyzer-sub" id="v271Sources" style="margin-top:8px">Waiting for independent source evidence.</div>
+    <div class="analyzer-sub" id="v271Reason" style="margin-top:6px">WAIT: opening protection.</div>
+    <button class="tiny-btn" id="v271Reset" style="width:100%;margin-top:8px">Reset Decision Guard Accuracy</button>`;
+  anchor.insertAdjacentElement('afterend',d);
+  d.querySelector('#v271Reset').onclick=()=>{if(!confirm('Reset only Live Decision + Trap Guard accuracy?'))return;try{const A=window.__V178_ACCURACY_COUNTS__?.state?.();if(A){delete A.models[KEY];delete A.pending[KEY]}persist();window.__armVerifiedPredictions?.();render()}catch(e){}};
+}
+function accuracy(){
+  const A=safe(()=>window.__V178_ACCURACY_COUNTS__?.state?.(),{}),m=A?.models?.[KEY]||{};
+  const w=Number(m.wins)||0,l=Number(m.losses)||0,n=Number(m.predictions)||0;
+  return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L`:'—';
+}
+function render(){
+  ensurePanel();const root=document.getElementById('v271DecisionGuard');if(!root)return;const x=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  root.dataset.risk=x.trap.level;set('v271Decision',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v271Confidence',x.side?x.confidence+'%':'—');
+  const te=document.getElementById('v271Trap');if(te){te.className='v271-risk-'+x.trap.level.toLowerCase();te.textContent=`${x.trap.level} • ${x.trap.score}/100`}
+  set('v271Families',`${x.support} support / ${x.opposing} oppose`);
+  const f=state?.fastLibraryLearning;set('v271Deep',f?.learnedAt?`${f.shoeCount||0} shoes • CONNECTED`:'NOT RUN');
+  const r=x.context.regime||{};set('v271Regime',r.matches?`${String(r.regime||'MIXED').replaceAll('_',' ')} • N ${r.matches}`:String(r.regime||'BUILDING').replaceAll('_',' '));
+  const t=x.context.tie||{};set('v271Tie',t.afterTie?(t.matches?`ACTIVE • N ${t.matches}`:'ACTIVE • NO MATCH'):'INACTIVE');set('v271Accuracy',accuracy());
+  set('v271Sources',x.rows.length?x.rows.map(z=>`${z.name}: ${z.side==='P'?'P':'B'} ${Math.round(z.strength)}% [${z.family}]`).join(' • '):'No qualified source signals yet.');
+  set('v271Reason',x.side?`${x.side==='P'?'PLAYER':'BANKER'} qualified by ${x.support} independent families. Trap detector does not see a veto-level conflict.`:(x.reason||'WAIT: evidence is not qualified.'));
+}
+function register(){
+  window.__accuracyModelDefs ||= [];
+  for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===KEY)window.__accuracyModelDefs.splice(i,1);
+  window.__accuracyModelDefs.push([KEY,'Live Decision + Trap Guard',signal]);
+}
+function refreshLearning(){
+  safe(()=>window.__V269_REGIME_LIBRARY_LEARNING__?.build?.());safe(()=>window.__V270_UNIVERSAL_TIE_LEARNING__?.build?.());render();
+}
+function boot(){
+  ensurePanel();register();refreshLearning();
+  const deep=document.getElementById('instantLibraryLearnBtn');if(deep&&!deep.__v271){deep.__v271=true;deep.addEventListener('click',()=>setTimeout(refreshLearning,1400),false)}
+  const old=window.render;if(typeof old==='function'&&!old.__v271){const w=function(){const z=old.apply(this,arguments);queueMicrotask(()=>{register();render()});return z};w.__v271=true;w.__base=old;window.render=w;try{render=w}catch(e){}}
+  document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(()=>{register();render()},260)},false);
+  setTimeout(()=>{register();window.__armVerifiedPredictions?.();render()},350);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3300),{once:true});else setTimeout(boot,3300);
+window.__V271_LIVE_DECISION_GUARD__={version:VERSION,signal,render,refreshLearning,trap,sequenceV2CoreChanged:false,mainFutureCoreChanged:false,canReverse:false,decisionPolicy:'QUALIFY_OR_WAIT'};
+})();
+</script>
+<!-- V272: locked prospective validation. Prediction logic is read-only. -->
+<style id="v272-forward-validation-style">
+#v272ForwardValidation{border:2px solid #63d3ff!important;background:linear-gradient(180deg,rgba(21,48,63,.97),rgba(14,24,34,.98))!important}
+#v272ForwardValidation .v272-lock{color:#7ee6a8;font-weight:900}
+#v272ForwardValidation[data-status="paused"] .v272-lock{color:#ffcc66}
+</style>
+<script id="v272-locked-forward-validation">
+(function(){
+'use strict';
+const VERSION=272;
+const SCHEMA=2;
+const BUILD_LOCK='V272-FIX-20260920-1';
+const KEY='baccarat-v272-locked-derived-forward-test-v2';
+const TARGET=200;
+const defaults=()=>({
+  version:VERSION,schema:SCHEMA,buildLock:BUILD_LOCK,protocol:'LOCKED-DERIVED-PRE-RESULT-V2',startedAt:new Date().toISOString(),
+  initialized:false,ready:false,shoeSerial:1,lastSeq:'',libraryFingerprint:'',
+  modelFingerprint:'',lockFingerprint:'',librarySnapshot:null,adaptiveSnapshot:null,
+  wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitKey:'',lastEvent:'',
+  ledger:[],seenShoes:[],red:{w:0,l:0,n:0},black:{w:0,l:0,n:0},
+  early:{w:0,l:0,n:0},middle:{w:0,l:0,n:0}
+});
+function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'{}');return x?.schema===SCHEMA?Object.assign(defaults(),x):defaults()}catch(e){return defaults()}}
+let S=load();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function clone(x){try{return JSON.parse(JSON.stringify(x))}catch(e){return null}}
+function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
+function pb(){return seq().filter(x=>x==='P'||x==='B')}
+function color(){try{return state.currentShoeColor==='red'||state.currentShoeColor==='black'?state.currentShoeColor:'combined'}catch(e){return 'combined'}}
+function hashText(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16)}
+function libraryFingerprint(red=state.redPatternLibrary||[],black=state.blackPatternLibrary||[]){try{const a=[...red,...black];return `${a.length}:${hashText(a.map(x=>`${x.id||''}|${x.sequence||''}`).join('\n'))}`}catch(e){return 'unavailable'}}
+function modelFingerprint(){try{return hashText([BUILD_LOCK,derivedRoadSequenceAI,derivedRoadSequencePatternSignal,originalDerivedRoadReliability].map(String).join('\n---\n'))}catch(e){return 'unavailable'}}
+function captureLock(){
+  try{if(typeof ensureAdaptiveOriginalDerivedState==='function')ensureAdaptiveOriginalDerivedState()}catch(e){}
+  S.librarySnapshot={red:clone(state.redPatternLibrary||[])||[],black:clone(state.blackPatternLibrary||[])||[]};
+  S.adaptiveSnapshot=clone(state.adaptiveDerivedOriginal||null);
+  S.libraryFingerprint=libraryFingerprint(S.librarySnapshot.red,S.librarySnapshot.black);
+  S.modelFingerprint=modelFingerprint();
+  S.lockFingerprint=hashText([S.protocol,S.libraryFingerprint,S.modelFingerprint,JSON.stringify(S.adaptiveSnapshot)].join('|'));
+}
+function syncShoe(){
+  const q=seq().join('');
+  if(!S.initialized){captureLock();S.initialized=true;S.ready=q.length===0;S.lastSeq=q;save();return}
+  if(S.lastSeq.length&&q.length===0){S.shoeSerial++;S.ready=true;S.pending=null;S.lastWaitKey='';}
+  S.lastSeq=q;save();
+}
+function phaseFor(nextPB){return nextPB<18?'early':nextPB<36?'middle':'late'}
+function validModel(){return S.buildLock===BUILD_LOCK&&S.modelFingerprint===modelFingerprint()}
+function liveLibraryChanged(){return !!S.libraryFingerprint&&S.libraryFingerprint!==libraryFingerprint()}
+function signal(){
+  if(typeof derivedRoadSequenceAI!=='function'||!S.librarySnapshot)return null;
+  const liveRed=state.redPatternLibrary,liveBlack=state.blackPatternLibrary;
+  const hadAdaptive=Object.prototype.hasOwnProperty.call(state,'adaptiveDerivedOriginal'),liveAdaptive=state.adaptiveDerivedOriginal;
+  try{
+    state.redPatternLibrary=S.librarySnapshot.red;state.blackPatternLibrary=S.librarySnapshot.black;
+    state.adaptiveDerivedOriginal=clone(S.adaptiveSnapshot);
+    return derivedRoadSequenceAI();
+  }catch(e){return null}
+  finally{
+    state.redPatternLibrary=liveRed;state.blackPatternLibrary=liveBlack;
+    if(hadAdaptive)state.adaptiveDerivedOriginal=liveAdaptive;else delete state.adaptiveDerivedOriginal;
+  }
+}
+function markSeen(){if(!S.seenShoes.includes(S.shoeSerial))S.seenShoes.push(S.shoeSerial)}
+function armLocked(){
+  syncShoe();
+  if(!S.ready||!validModel()){S.pending=null;save();paint();return}
+  const n=pb().length,nextPB=n+1,phase=phaseFor(nextPB),eligible=nextPB>=7&&nextPB<=35;
+  if(!eligible){S.pending=null;paint();return}
+  const x=signal()||{},side=x.side==='P'||x.side==='B'?x.side:null,lockKey=`${S.shoeSerial}|${nextPB}`;
+  if(side){
+    S.pending={side,shoe:S.shoeSerial,nextPB,phase,color:color(),confidence:Number(x.confidence||x.strength)||0,
+      modelVersion:x.version||'current',modelFingerprint:S.modelFingerprint,lockFingerprint:S.lockFingerprint,
+      sequence:seq().join(''),lockedAt:Date.now(),lockKey};
+  }else{
+    S.pending=null;
+    if(S.lastWaitKey!==lockKey){S.waits++;S.lastWaitKey=lockKey;markSeen()}
+  }
+  save();paint();
+}
+function bumpSplit(bucket,win){if(!bucket)return;bucket.n++;if(win)bucket.w++;else bucket.l++}
+function unbumpSplit(bucket,win){if(!bucket)return;bucket.n=Math.max(0,bucket.n-1);if(win)bucket.w=Math.max(0,bucket.w-1);else bucket.l=Math.max(0,bucket.l-1)}
+function settleLocked(actual){
+  actual=String(actual||'').toUpperCase();if(!['P','B','T'].includes(actual))return;
+  syncShoe();
+  const p=S.pending;S.pending=null;if(!p){save();paint();return}
+  const event=`${p.lockKey}|${actual}|${p.lockedAt}`;if(S.lastEvent===event)return;S.lastEvent=event;
+  if(actual==='T'){
+    S.ties++;markSeen();S.ledger.push({...p,actual,correct:null,excluded:true,eventId:event,settledAt:Date.now()});
+    save();paint();return;
+  }
+  const win=p.side===actual;if(win)S.wins++;else S.losses++;
+  if(p.color==='red'||p.color==='black')bumpSplit(S[p.color],win);
+  if(p.phase==='early'||p.phase==='middle')bumpSplit(S[p.phase],win);
+  markSeen();
+  S.ledger.push({...p,actual,correct:win,eventId:event,settledAt:Date.now()});
+  if(S.ledger.length>1000)S.ledger=S.ledger.slice(-1000);
+  save();paint();
+}
+function rollbackUndo(){
+  const last=S.ledger[S.ledger.length-1];if(!last||seq().join('')!==last.sequence)return false;
+  S.ledger.pop();
+  if(last.actual==='T')S.ties=Math.max(0,S.ties-1);
+  else{
+    if(last.correct)S.wins=Math.max(0,S.wins-1);else S.losses=Math.max(0,S.losses-1);
+    if(last.color==='red'||last.color==='black')unbumpSplit(S[last.color],!!last.correct);
+    if(last.phase==='early'||last.phase==='middle')unbumpSplit(S[last.phase],!!last.correct);
+  }
+  S.pending=null;S.lastEvent=S.ledger[S.ledger.length-1]?.eventId||'';S.lastSeq=seq().join('');
+  save();paint();return true;
+}
+function fmt(z){const n=(z?.n||0);return n?`${(100*(z.w||0)/n).toFixed(1)}% • ${z.w||0}W-${z.l||0}L`:'—'}
+function ensurePanel(){
+  let root=document.getElementById('v272ForwardValidation');if(root)return root;
+  root=document.createElement('div');root.id='v272ForwardValidation';root.className='analyzer';root.innerHTML=`
+    <div class="analyzer-title">🔒 Independent Derived — Locked Forward Validation V272 FIXED</div>
+    <div class="analyzer-sub">Prospective test only: predictions lock before each result against a frozen library + adaptive-state snapshot. Hands 7–35 only. Eligible ties are excluded from W/L. Undo safely reverses the last audit entry. Existing AI logic, Sequence AI V2, and Main Future Road are unchanged.</div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>TEST STATUS</span><strong class="v272-lock" id="v272Status">LOCKED</strong></div>
+      <div class="analyzer-card"><span>FORWARD ACCURACY</span><strong id="v272Accuracy">—</strong></div>
+      <div class="analyzer-card"><span>RESULTS</span><strong id="v272WL">0W-0L</strong></div>
+      <div class="analyzer-card"><span>PROGRESS</span><strong id="v272Progress">0 / ${TARGET}</strong></div>
+    </div>
+    <div class="analyzer-grid">
+      <div class="analyzer-card"><span>RED SHOES</span><strong id="v272Red">—</strong></div>
+      <div class="analyzer-card"><span>BLACK SHOES</span><strong id="v272Black">—</strong></div>
+      <div class="analyzer-card"><span>EARLY</span><strong id="v272Early">—</strong></div>
+      <div class="analyzer-card"><span>MIDDLE</span><strong id="v272Middle">—</strong></div>
+    </div>
+    <div class="analyzer-sub" id="v272Note" style="margin-top:8px">Start with a new empty shoe.</div>
+    <button class="tiny-btn" id="v272Export" style="width:100%;margin-top:8px">Export Locked Forward Ledger</button>`;
+  const card=document.getElementById('derivedIndependentFinal');const anchor=card?.closest?.('.road-predict,.analyzer')||card;
+  if(anchor?.parentNode)anchor.insertAdjacentElement('afterend',root);else document.body.appendChild(root);
+  root.querySelector('#v272Export').onclick=()=>{
+    const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=`derived-forward-v272-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  };
+  return root;
+}
+function paint(){
+  const root=ensurePanel(),n=S.wins+S.losses,rate=n?(100*S.wins/n).toFixed(1)+'%':'—',set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  let status='LOCKED • SNAPSHOT',note=`${S.seenShoes.length} new shoe${S.seenShoes.length===1?'':'s'} observed • ${S.waits} WAIT • ${S.ties} eligible ties skipped.`;
+  if(!S.ready){status='WAITING FOR NEW SHOE';note='This build was opened during an existing shoe. Clear/start a new shoe so the prospective test begins cleanly.'}
+  else if(!validModel()){status='PAUSED • MODEL CHANGED';note='The tested model code changed after this validation was locked. Start a fresh fixed-protocol validation.'}
+  else if(n>=TARGET){status='LOCKED • REVIEW READY';note=`Target reached: ${n} untouched pre-result calls across ${S.seenShoes.length} shoes. Export the ledger for audit.`}
+  else if(n>=50){status='LOCKED • PRELIMINARY';note=`${n}/${TARGET} untouched calls • ${S.seenShoes.length} shoes • ${S.waits} WAIT. Do not retune until the target is reached.`}
+  if(S.ready&&validModel()&&liveLibraryChanged()&&n<TARGET)note+=` Live library updates are isolated; predictions still use the original locked snapshot.`;
+  root.dataset.status=status.startsWith('PAUSED')||status.startsWith('WAITING')?'paused':'active';
+  set('v272Status',status);set('v272Accuracy',rate);set('v272WL',`${S.wins}W-${S.losses}L`);set('v272Progress',`${n} / ${TARGET}`);
+  set('v272Red',fmt(S.red));set('v272Black',fmt(S.black));set('v272Early',fmt(S.early));set('v272Middle',fmt(S.middle));set('v272Note',note);
+}
+function installHooks(){
+  const arm=window.__armVerifiedPredictions;
+  if(typeof arm==='function'&&!arm.__v272Forward){const w=function(){const r=arm.apply(this,arguments);try{armLocked()}catch(e){console.warn('V272 arm',e)}return r};w.__v272Forward=true;w.__base=arm;window.__armVerifiedPredictions=w}
+  const settle=window.__settleVerifiedPredictions;
+  if(typeof settle==='function'&&!settle.__v272Forward){const w=function(actual){let r;try{r=settle.apply(this,arguments)}finally{try{settleLocked(actual)}catch(e){console.warn('V272 settle',e)}}return r};w.__v272Forward=true;w.__base=settle;window.__settleVerifiedPredictions=w}
+}
+function installHistoryHooks(){
+  const undo=document.getElementById('undoBtn');
+  if(undo&&!undo.__v272Undo){undo.__v272Undo=true;undo.addEventListener('click',()=>queueMicrotask(()=>{if(rollbackUndo())armLocked()}),false)}
+  const clear=document.getElementById('clearBtn');
+  if(clear&&!clear.__v272Clear){clear.__v272Clear=true;clear.addEventListener('click',()=>queueMicrotask(()=>armLocked()),false)}
+}
+function coreReady(){try{return typeof state==='object'&&typeof currentSequence==='function'&&typeof derivedRoadSequenceAI==='function'&&typeof window.__armVerifiedPredictions==='function'&&typeof window.__settleVerifiedPredictions==='function'&&Array.isArray(state.redPatternLibrary)&&Array.isArray(state.blackPatternLibrary)&&(state.redPatternLibrary.length+state.blackPatternLibrary.length)>0}catch(e){return false}}
+let started=false,attempts=0;
+function startWhenReady(){
+  ensurePanel();installHooks();installHistoryHooks();
+  if(coreReady()){
+    if(!started){started=true;syncShoe();armLocked();paint();[250,1000,3000,6000].forEach(ms=>setTimeout(()=>{installHooks();installHistoryHooks()},ms))}
+    return;
+  }
+  const e=document.getElementById('v272Status');if(e)e.textContent='INITIALIZING • LOCK ENGINE';
+  if(attempts++<300)setTimeout(startWhenReady,50);
+}
+startWhenReady();
+window.__V272_LOCKED_FORWARD_VALIDATION__={version:VERSION,schema:SCHEMA,fixed:true,state:()=>S,arm:armLocked,settle:settleLocked,rollbackUndo,render:paint,protocol:'PRE_RESULT_ONLY_7_TO_35_FROZEN_SNAPSHOT',target:TARGET,predictionLogicChanged:false,sequenceV2Changed:false,mainFutureChanged:false,autoSaveIsolated:true,undoSafe:true,eligibleTiesOnly:true};
+})();
+</script>
 </html>
