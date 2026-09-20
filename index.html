@@ -11,7 +11,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V282 • All-In Baccarat — After-Tie Settlement Fix</title>
+<title>V288 • All-In Baccarat — Stable Layout Fix</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -281,6 +281,12 @@
 <style id="v142-removal-style">#focusAIV26,#blackContextV22,#trainingV42Panel{display:none!important}</style>
 
 <style id="v183-hide-adaptive-derived-main-panel">#adaptiveMainDerivedFinal{display:none!important}</style>
+
+<style id="v287-audit-bottom-lock">
+#v285AllAiAccuracy{width:calc(100% - 16px);box-sizing:border-box}
+#v285AllAiAccuracy .v285-audit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+#v285AllAiAccuracy #v285AuditToggle{flex:0 0 auto;margin:0}
+</style>
 </head>
 <body>
 <div class="app">
@@ -16780,12 +16786,9 @@ function moveFinalLayout(){
     else if(host.firstChild!==hist)host.insertBefore(hist,host.firstChild);
   }
 
-  // Requested layout: ML Road Trainer all the way at the bottom.
-  // Mirror is removed by V266, so ML becomes the final live AI panel in this host.
-  if(finger&&finger.parentNode===host)host.appendChild(finger);
-  if(mirror&&mirror.parentNode===host)host.appendChild(mirror);
-  if(ml&&ml.parentNode===host)host.appendChild(ml);
-
+  // V288: legacy bottom-layout movement disabled.
+  // Final panel placement is owned only by the V288 stable layout controller below.
+  // Keep this legacy function for its accuracy-display repair, but do not move ML, Finger, or Mirror.
   return !!ml;
 }
 
@@ -18546,11 +18549,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     }
   }
 
-  if(document.readyState==='loading'){
-    document.addEventListener('DOMContentLoaded',boot,{once:true});
-  }else{
-    boot();
-  }
+  // V288: superseded by the single stable layout controller at end of file.
+  // Do not boot this older MutationObserver/layout mover.
 
   window.__V268_FINAL_LAYOUT__={
     mlRoadTrainer:'top',
@@ -19338,8 +19338,12 @@ function installUniversalControls(){try{
  let audit=document.getElementById('v285AllAiAccuracy');
  if(!audit){
    audit=document.createElement('div');audit.id='v285AllAiAccuracy';audit.className='analyzer';
-   audit.innerHTML=`<div class="analyzer-title">📊 All AI Accuracy / Reset Audit V285</div><div class="analyzer-sub">Deterministic registry view. Every currently registered AI appears here with its own verified W-L/N/WAIT count and reset button. This replaces fuzzy panel matching and prevents counters from attaching to the wrong AI.</div><div id="v285AllAiRows"></div>`;
-   document.querySelector('.app')?.appendChild(audit);
+   audit.innerHTML=`<div class="v285-audit-head"><div><div class="analyzer-title">📊 All AI Accuracy / Reset Audit V285</div><div class="analyzer-sub">Deterministic registry view. Every currently registered AI appears here with its own verified W-L/N/WAIT count and reset button. This replaces fuzzy panel matching and prevents counters from attaching to the wrong AI.</div></div><button class="tiny-btn" id="v285AuditToggle" type="button">Minimize</button></div><div id="v285AllAiRows"></div>`;
+   audit.style.cssText='max-width:1200px;margin:8px auto;padding:10px;';
+   document.body.appendChild(audit);
+   const toggle=audit.querySelector('#v285AuditToggle');
+   if(toggle)toggle.onclick=()=>{const rows=audit.querySelector('#v285AllAiRows');const collapsed=audit.dataset.collapsed==='1';audit.dataset.collapsed=collapsed?'0':'1';if(rows)rows.style.display=collapsed?'':'none';const sub=audit.querySelector('.analyzer-sub');if(sub)sub.style.display=collapsed?'':'none';toggle.textContent=collapsed?'Minimize':'Expand';try{localStorage.setItem('v285AuditCollapsed',collapsed?'0':'1')}catch(e){}};
+   try{if(localStorage.getItem('v285AuditCollapsed')==='1'){audit.dataset.collapsed='1';const rows=audit.querySelector('#v285AllAiRows');if(rows)rows.style.display='none';const sub=audit.querySelector('.analyzer-sub');if(sub)sub.style.display='none';if(toggle)toggle.textContent='Expand'}}catch(e){}
  }
  const box=audit.querySelector('#v285AllAiRows'); if(box){
    const seen=new Set(); box.innerHTML='';
@@ -19356,7 +19360,7 @@ function installUniversalControls(){try{
  for(const row of document.querySelectorAll('[data-v285-audit-key]')){
    paintCount(row,row.dataset.v285AuditKey,'[data-v285-acc]');
  }
- const app=document.querySelector('.app'); if(app&&audit&&app.lastElementChild!==audit)app.appendChild(audit);
+ if(audit&&audit.parentNode!==document.body)document.body.appendChild(audit);
  }catch(e){console.warn('V285 accuracy controls',e)}
 }
 function paintCount(row,key,selector){
@@ -19370,6 +19374,45 @@ function resetKey(key,label){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.__V286_MAIN_ROAD_ONLY_AI__={version:VERSION,signal,independent:true,input:'BIG_ROAD_ONLY',excluded:['BEAD_PLATE','BIG_EYE','SMALL_ROAD','COCKROACH_ROAD'],mainFutureCoreChanged:false,sequenceV2CoreChanged:false};
+})();
+</script>
+
+<!-- V288 SINGLE STABLE LAYOUT CONTROLLER: ML TOP + Audit BOTTOM. Layout only; no AI prediction logic changed. -->
+<script id="v288-stable-layout-controller">
+(function(){
+'use strict';
+let scheduled=false;
+function placeStable(){
+  scheduled=false;
+  try{
+    const app=document.querySelector('.app');
+    const ml=document.getElementById('mlRoadTrainerV155');
+    const topbar=app&&app.querySelector('.topbar');
+    if(app&&ml&&topbar&&topbar.parentNode===app&&topbar.nextElementSibling!==ml){
+      app.insertBefore(ml,topbar.nextElementSibling);
+    }
+    const audit=document.getElementById('v285AllAiAccuracy');
+    if(audit&&document.body.lastElementChild!==audit){
+      document.body.appendChild(audit);
+    }
+  }catch(e){console.warn('V288 stable layout',e)}
+}
+function requestPlace(){
+  if(scheduled)return;
+  scheduled=true;
+  requestAnimationFrame(placeStable);
+}
+function boot(){
+  placeStable();
+  [100,400,1000,2500,5000].forEach(ms=>setTimeout(placeStable,ms));
+  const app=document.querySelector('.app');
+  if(app&&window.MutationObserver){
+    const obs=new MutationObserver(requestPlace);
+    obs.observe(app,{childList:true});
+  }
+  window.__V288_LAYOUT__={mlRoadTrainer:'TOP',accuracyAudit:'BOTTOM_MINIMIZABLE',singleLayoutOwner:true,logicChanged:false};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
 </body>
