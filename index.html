@@ -18303,9 +18303,8 @@ function train(){
 }
 function boot(){
   installSelective();
-  // Train once automatically after the saved-shoe library and dataset builder are ready.
-  setTimeout(train,700);
-  setTimeout(train,1800);
+  // Mobile-safe startup: ML training is intentionally user-triggered. Running the
+  // full trainer while every dashboard module is mounting can freeze iOS browsers.
   setTimeout(paint,2200);
   const btn=document.getElementById('mlBuild');
   if(btn&&!btn.__v259){
@@ -18320,7 +18319,7 @@ if(typeof oldRender==='function'&&!oldRender.__v259ml){
   const w=function(){const x=oldRender.apply(this,arguments);try{installSelective();paint()}catch(e){}return x};
   w.__v259ml=true; w.__base=oldRender; window.render=w; try{render=w}catch(e){}
 }
-window.__V259_ML_FIX__={version:VERSION,autoTrain:true,requiresHeldOutQualification:true,selectiveConfidenceGate:true,minSources:2,accuracyOnlyQualified:true,otherAIsChanged:false};
+window.__V259_ML_FIX__={version:VERSION,autoTrain:false,mobileSafeManualTrain:true,requiresHeldOutQualification:true,selectiveConfidenceGate:true,minSources:2,accuracyOnlyQualified:true,otherAIsChanged:false};
 })();
 </script>
 
@@ -18579,7 +18578,7 @@ function attachContext(name,sig){if(!sig||typeof sig!=='object')return sig;sig.r
 const prev=window.applySharedShoeContextToSignal;window.applySharedShoeContextToSignal=function(name,sig){try{sig=typeof prev==='function'?prev(name,sig):sig}catch(e){}return attachContext(name,sig)};
 function ensureUI(){if(document.getElementById('v269RegimeLearning'))return;const anchor=document.getElementById('instantLibraryLearnPanel')||document.getElementById('libraryIntelPanel');if(!anchor?.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='v269RegimeLearning';d.style.cssText='margin-top:8px;border:1px solid #22d3ee';d.innerHTML=`<div class="analyzer-title">🧠 Chop • Streak • Dragon Library Learning V269</div><div class="analyzer-sub">Learns these pre-result regimes from saved shoes the same way special states are tracked around ties. It records historical next-result behavior and each AI's verified performance by regime. This layer does NOT reverse, replace, or rewrite an AI prediction.</div><div class="analyzer-grid"><div class="analyzer-card"><span>Library learned</span><strong id="v269Shoes">0 shoes</strong></div><div class="analyzer-card"><span>Live regime</span><strong id="v269Regime">BUILDING</strong></div><div class="analyzer-card"><span>Historical matches</span><strong id="v269Matches">0</strong></div></div><div class="match-pcts"><div class="match-pct"><strong id="v269P">—</strong><span>PLAYER followed</span></div><div class="match-pct"><strong id="v269B">—</strong><span>BANKER followed</span></div><div class="match-pct"><strong id="v269CB">—</strong><span>Continue / Break</span></div></div><button class="tiny-btn" id="v269Build" style="margin-top:8px;width:100%">Learn Chop / Streak / Dragon From Full Library</button><div class="analyzer-sub" id="v269Note" style="margin-top:7px">No core AI logic changed.</div>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#v269Build').onclick=()=>build()}
 function paint(){ensureUI();const e=evidence(),set=(id,v)=>{const x=document.getElementById(id);if(x)x.textContent=v};set('v269Shoes',model.shoes+' shoes');set('v269Regime',e.regime.replaceAll('_',' '));set('v269Matches',e.matches);set('v269P',e.matches?e.pPct+'%':'—');set('v269B',e.matches?e.bPct+'%':'—');set('v269CB',e.matches&&e.last?e.continuePct+'% / '+e.breakPct+'%':'—');set('v269Note',e.matches?`Learned from ${e.matches} matching historical pre-result states. Context is attached to AI signals and verified accuracy is split by regime; predictions themselves are untouched.`:'No matching learned state yet. Build from the full saved library or keep adding shoes.')}
-function boot(){ensureUI();if(!model.builtAt||model.shoes!==libraries().length)build();installAccuracyHooks();annotatePending();paint();const deep=document.getElementById('instantLibraryLearnBtn');if(deep&&!deep.__v269){deep.__v269=true;deep.addEventListener('click',()=>setTimeout(build,800),false)}const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v269){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(()=>{installAccuracyHooks();annotatePending();paint()},0);return r};w.__v269=true;w.__base=oldRender;window.render=w;try{render=w}catch(e){}}}
+function boot(){ensureUI();installAccuracyHooks();annotatePending();paint();const deep=document.getElementById('instantLibraryLearnBtn');if(deep&&!deep.__v269){deep.__v269=true;deep.addEventListener('click',()=>setTimeout(build,800),false)}const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v269){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(()=>{installAccuracyHooks();annotatePending();paint()},0);return r};w.__v269=true;w.__base=oldRender;window.render=w;try{render=w}catch(e){}}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2800),{once:true});else setTimeout(boot,2800);
 window.__V269_REGIME_LIBRARY_LEARNING__={version:VERSION,build,evidence,model:()=>model,attachContext,predictionLogicChanged:false,sequenceV2CoreChanged:false,mainFutureCoreChanged:false,learns:['CHOP','STREAK','DRAGON'],perAIAccuracySplits:true};
 })();
@@ -18609,7 +18608,7 @@ function annotate(){const e=evidence();if(!e.afterTie)return;try{const A=window.
 function attach(name,sig){if(!sig||typeof sig!=='object')return sig;sig.tieLearning=evidence();sig.tieLearningVersion=VERSION;return sig}
 const prev=window.applySharedShoeContextToSignal;window.applySharedShoeContextToSignal=function(name,sig){try{sig=typeof prev==='function'?prev(name,sig):sig}catch(e){}return attach(name,sig)};
 function hook(){const arm=window.__armVerifiedPredictions;if(typeof arm==='function'&&!arm.__v270){const w=function(){const r=arm.apply(this,arguments);annotate();return r};w.__v270=true;w.__base=arm;window.__armVerifiedPredictions=w}return true}
-function boot(){if(!model.builtAt||model.shoes!==libs().length)build();hook();annotate();const old=window.render;if(typeof old==='function'&&!old.__v270){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{hook();annotate()},0);return r};w.__v270=true;w.__base=old;window.render=w;try{render=w}catch(e){}}}
+function boot(){hook();annotate();const old=window.render;if(typeof old==='function'&&!old.__v270){const w=function(){const r=old.apply(this,arguments);setTimeout(()=>{hook();annotate()},0);return r};w.__v270=true;w.__base=old;window.render=w;try{render=w}catch(e){}}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3000),{once:true});else setTimeout(boot,3000);
 window.__V270_UNIVERSAL_TIE_LEARNING__={version:VERSION,build,evidence,attach,model:()=>model,appliesTo:'all compatible AI signals + verified pending predictions',predictionLogicChanged:false,sequenceV2CoreChanged:false,mainFutureCoreChanged:false};
 })();
@@ -18770,7 +18769,7 @@ function refreshLearning(){
   safe(()=>window.__V269_REGIME_LIBRARY_LEARNING__?.build?.());safe(()=>window.__V270_UNIVERSAL_TIE_LEARNING__?.build?.());render();
 }
 function boot(){
-  ensurePanel();register();refreshLearning();
+  ensurePanel();register();render();
   const deep=document.getElementById('instantLibraryLearnBtn');if(deep&&!deep.__v271){deep.__v271=true;deep.addEventListener('click',()=>setTimeout(refreshLearning,1400),false)}
   const old=window.render;if(typeof old==='function'&&!old.__v271){const w=function(){const z=old.apply(this,arguments);queueMicrotask(()=>{register();render()});return z};w.__v271=true;w.__base=old;window.render=w;try{render=w}catch(e){}}
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(()=>{register();render()},260)},false);
