@@ -6,6 +6,7 @@
      - Library auto-save removed; manual Save Current Shoe remains
      - ML V204 repair preserved: RED/BLACK-stratified held-out split, 6-hand warmup, real validation qualification
      - V290 UI/layout and other AI modules preserved -->
+<!-- V301: Automatic Historical Match AI adaptive-context upgrade. ML V300 preserved; Sequence V2 and Main Future Road unchanged. -->
 <!DOCTYPE html>
 
 <html lang="en">
@@ -16295,7 +16296,7 @@ window.__V210_PREVIEW_AI__={version:VERSION,sources:['road-preview','saved-shoes
 <script>
 (function(){
 'use strict';
-const VERSION='V271 Auto Match Precision Consensus';
+const VERSION='V301 Auto Match Adaptive Context';
 const KEY='baccarat-auto-historical-match-v211';
 let runtime={handN:-1,locked:null,lastResult:null,lastRaw:null,stats:{w:0,l:0,t:0,n:0,afterTie:{w:0,l:0,n:0}},installed:false};
 try{
@@ -16315,7 +16316,7 @@ function ensureUI(){
   const box=document.createElement('div');box.className='match-box';box.id='autoHistMatchBox';
   box.innerHTML=`
     <div class="match-head"><b>Automatic Historical Match AI — ${VERSION}</b><span id="autoHistStatus" style="font-size:10px;color:var(--muted)">AUTO</span></div>
-    <div class="match-line">Automatically re-scans saved shoes after every live hand. V271 adds 6/9/12/16/20-hand multi-window agreement, one-vote-per-shoe diversity, continuation reliability, live streak/chop/phase context, and rapid divergence rejection so an old match loses influence when the live shoe stops behaving like it.</div>
+    <div class="match-line">Automatically re-scans saved shoes after every live hand. V301 uses adaptive 6/9/12/16/20-hand consensus, regime-aware streak/chop/dragon/mixed context, one effective vote per historical shoe, a protected multi-shoe exact-match path, and dynamic qualification so 2–3 exceptionally strong independent matches may qualify while weak volume still returns WAIT.</div>
     <div class="match-pcts" style="margin-top:8px">
       <div class="match-pct"><strong id="autoHistNext">—</strong><span>Next prediction</span></div>
       <div class="match-pct"><strong id="autoHistConf">—</strong><span>Match confidence</span></div>
@@ -16382,10 +16383,12 @@ function exactHistoricalContinuation(seq){
     const lib=(typeof activePatternLibrary==='function'?activePatternLibrary():[]).filter(x=>x&&typeof x.sequence==='string');
     const exact=[];
     lib.forEach((shoe,idx)=>{const hist=String(shoe.sequence||'').replace(/[^PB]/g,'');if(hist.length>livePB.length&&hist.slice(0,livePB.length)===livePB){const next=hist[livePB.length];if(next==='P'||next==='B')exact.push({shoe,idx,next});}});
-    if(!exact.length)return null;
-    const p=exact.filter(x=>x.next==='P').length,b=exact.filter(x=>x.next==='B').length;
-    const side=p>b?'P':b>p?'B':null,pct=side?Math.round(Math.max(p,b)*100/(p+b)):50;
-    return {side,pct,p,b,matches:exact.length,exact};
+    if(exact.length<2)return null; // V301: never trust a lone exact-prefix shoe by itself.
+    const p=exact.filter(x=>x.next==='P').length,b=exact.filter(x=>x.next==='B').length,total=p+b;
+    const edge=total?Math.abs(p-b)/total:0;
+    const side=(edge>=.20)?(p>b?'P':b>p?'B':null):null;
+    const pct=side?Math.round(Math.max(p,b)*100/total):50;
+    return {side,pct,p,b,matches:exact.length,exact,edge};
   }catch(e){return null}
 }
 function autoHistRun(pb){let r=pb.length?1:0;for(let i=pb.length-1;i>0&&pb[i]===pb[i-1];i--)r++;return r;}
@@ -16444,12 +16447,22 @@ function buildSignal(){
   const afterTie=seq.length>0&&seq[seq.length-1]==='T';
   const at=runtime.stats.afterTie||(runtime.stats.afterTie={w:0,l:0,n:0});
   const atN=(+at.w||0)+(+at.l||0),atRate=atN?((+at.w||0)/atN):null;
-  const needPool=afterTie?6:4,needBest=afterTie?62:54,needPct=afterTie?68:61,needEdge=afterTie?.30:.18;
-  const needMulti=afterTie?.46:.38,needContext=afterTie?.62:.55;
-  if(afterTie&&atN>=3&&atRate<.45)return {side:null,rawSide:side,pct,reason:`After-tie safety WAIT: recorded Auto Match after-tie accuracy is ${Math.round(atRate*1000)/10}% (${at.w}W-${at.l}L).`,seq,r,pn,bn,pool,best,edge,afterTie};
-  if(pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext)
-    return {side:null,rawSide:side,pct,reason:`Precision WAIT: ${pool.length} independent shoes • best ${best}% • continuation agreement ${pct}% • edge ${Math.round(edge*100)}pp • multi-window ${Math.round(pc.multiAgree*100)}% • live-context ${Math.round(pc.context*100)}%.`,seq,r,pn,bn,pool,best,edge,afterTie};
-  return {side,pct,reason:`qualified precision consensus • ${pool.length} independent shoes • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,seq,r,pn,bn,pool,best,edge,afterTie};
+  const livePB=String(seq||'').replace(/[^PB]/g,'');
+  const liveRun=autoHistRun(livePB), liveSw=autoHistSwitch(livePB);
+  const regime=liveRun>=4?'DRAGON':liveSw>=.67?'CHOP':liveSw<=.33?'STREAK':'MIXED';
+  const phase=livePB.length<20?'EARLY':livePB.length<45?'MIDDLE':'LATE';
+  // V301 adaptive gates: ordinary calls need 3 independent shoes; exceptionally
+  // strong agreement can qualify on 2. After a tie remains more conservative.
+  let needPool=afterTie?4:3, needBest=afterTie?64:50, needPct=afterTie?67:58, needEdge=afterTie?.25:.14;
+  let needMulti=afterTie?.44:.34, needContext=afterTie?.60:.50;
+  if(regime==='DRAGON'){needBest+=2;needPct+=2;needEdge+=.02;}
+  if(regime==='CHOP'){needMulti+=.03;needContext+=.02;}
+  if(phase==='EARLY'){needBest+=2;needContext+=.03;}
+  const elite=pool.length>=2 && best>=72 && pct>=67 && edge>=.25 && pc.multiAgree>=.42 && pc.context>=.58;
+  if(afterTie&&atN>=3&&atRate<.45)return {side:null,rawSide:side,pct,reason:`After-tie safety WAIT: recorded Auto Match after-tie accuracy is ${Math.round(atRate*1000)/10}% (${at.w}W-${at.l}L).`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+  if(!elite && (pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext))
+    return {side:null,rawSide:side,pct,reason:`Adaptive WAIT (${regime}/${phase}): ${pool.length} independent shoes • best ${best}% • continuation ${pct}% • edge ${Math.round(edge*100)}pp • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%.`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+  return {side,pct,reason:`${elite?'ELITE 2+':'ADAPTIVE'} historical consensus • ${regime}/${phase} • ${pool.length} independent shoes • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
 }
 function renderSignal(sig,changed){
   const r=sig.r;set('autoHistStatus',sig.side?'ACTIVE':'WAIT');set('autoHistNext',sig.side?`${sideName(sig.side)} ${sig.pct}%`:'WAIT');set('autoHistConf',sig.best!=null?`${sig.best}% best`:'—');set('autoHistCount',sig.pool?`${sig.pool.length} matches`:'—');
@@ -16517,7 +16530,7 @@ function boot(){ensureUI();paintStats();update();if(runtime.installed)return;run
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1700));else setTimeout(boot,1700);
 window.__AUTO_HIST_UPDATE__=update;
-window.__V271_AUTO_MATCH_PRECISION__={version:VERSION,multiWindow:[6,9,12,16,20],oneVotePerHistoricalShoe:true,continuationReliability:true,liveContext:['streak','switch-rate','shoe-phase'],divergenceRejection:true,staleLockCancelledOnEvidenceCollapse:true,sameHandFlipRequiresPlus6:true,afterTieLedgerSeparate:true};
+window.__V301_AUTO_MATCH_ADAPTIVE__={version:VERSION,multiWindow:[6,9,12,16,20],oneVotePerHistoricalShoe:true,continuationReliability:true,liveContext:['streak','switch-rate','shoe-phase','dragon','regime'],protectedExactPath:'2+ independent shoes, >=20pp edge',eliteTwoMatchPath:true,dynamicRegimeGates:true,divergenceRejection:true,staleLockCancelledOnEvidenceCollapse:true,sameHandFlipRequiresPlus6:true,afterTieLedgerSeparate:true};
 })();
 </script>
 
@@ -19575,117 +19588,44 @@ window.__V278_EXACT_HISTORY_AI__=window.__V281_EXACT_HISTORY_AI__;
 </style>
 <script id="v284-main-only-ai">
 (function(){'use strict';
-const VERSION=286,KEY='mainroadonlyfuturev284',START=10;
-function signal(){try{
- const h=state.hands.map(x=>x.r), n=h.filter(x=>x!=='T').length;
- if(n<START)return{side:null,strength:0,pPct:50,bPct:50,reason:`WAIT • starts after ${START} non-tie hands (${n}/${START})`};
-
- // V286: clone the ORIGINAL Main Future Road scoring/decision mechanics.
- // Only the Main Road evidence leg is enabled here. The original Main Future function is untouched.
- const main=sequenceAISignal();
-
- const scoreSide=(side)=>{
-   let weighted=0, weight=0, readyRoads=0;
-   // Exact Main Future Road Main-Road contribution: pct * 2, weight +2.
-   const mainPct=side==='P'?(main.pPct||0):(main.bPct||0);
-   if(mainPct>0){ weighted+=mainPct*2; weight+=2; }
-   // Deliberately NO derived-road loop in this independent clone.
-   const pct=weight?weighted/weight:50;
-   return {pct,readyRoads,weight};
- };
-
- const p=scoreSide('P'), b=scoreSide('B');
- const total=(p.pct+b.pct)||100;
- const pNorm=Math.round(100*p.pct/total);
- const bNorm=100-pNorm;
- const edge=Math.abs(pNorm-bNorm);
- const evidence=Math.max(p.weight,b.weight);
-
- let side=null,label='WAIT';
- if(evidence>0){
-   side=pNorm>bNorm?'P':bNorm>pNorm?'B':null;
-   if(side)label=edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN';
- }
-
- // Match Main Future Road decision behavior: evidence + unequal normalized scores creates the call.
- if(!side)return{side:null,strength:0,pPct:pNorm,bPct:bNorm,edge,evidence,label:'WAIT',reason:`WAIT • Main Future clone/Main Road only • P ${pNorm}% / B ${bNorm}%`};
-
- return{
-   side,
-   strength:side==='P'?pNorm:bNorm,
-   pPct:pNorm,bPct:bNorm,edge,evidence,label,
-   reason:`${side==='P'?'PLAYER':'BANKER'} • ${label} • cloned Main Future scoring • Main Road only ${pNorm}% P / ${bNorm}% B`
- };
-}catch(e){return{side:null,strength:0,pPct:50,bPct:50,reason:'WAIT • Main Future clone initializing'}}}
+const VERSION=305,KEY='mainroadonlyfuturev284',START=10,BASE_EDGE=.12,MIN_SHOES=3,MIN_PATH_SHOES=2;
+let cache={sig:'',levels:null,pathLevels:null,shoeCount:0,examples:0};
+function sideOf(x){x=String(x||'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':x==='T'||x==='TIE'?'T':''}
+function seqOf(shoe){const s=shoe?.sequence??shoe?.seq??shoe?.history??shoe?.results??shoe?.hands??'';if(typeof s==='string')return [...s].map(sideOf).filter(Boolean);if(Array.isArray(s))return s.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean);return []}
+function libraryShoes(){const out=[];try{for(const x of (state?.redPatternLibrary||[]))out.push(x);for(const x of (state?.blackPatternLibrary||[]))out.push(x)}catch(e){};if(!out.length){try{const a=typeof activePatternLibrary==='function'?activePatternLibrary():[];for(const x of (a||[]))out.push(x)}catch(e){}}return out}
+function shoeId(shoe,si){return String(shoe?.id||`shoe_${si}`)}
+function clip(x){return Math.min(4,Math.max(0,Number(x)||0))}
+function transitionBits(pb,n){let s='';for(let i=Math.max(1,pb.length-n);i<pb.length;i++)s+=pb[i]===pb[i-1]?'C':'S';return s}
+function stateKeysFromResults(arr){const pb=arr.filter(x=>x==='P'||x==='B');const cols=buildBigRoadColumns(arr.map(r=>({r})))||[];const lens=cols.map(c=>c.length),ph=pb.length<20?0:pb.length<45?1:2;const last5=lens.slice(-5).map(clip).join('-'),last3=lens.slice(-3).map(clip).join('-');return [
+ `E|${ph}|${last5}|${transitionBits(pb,8)}`,
+ `M|${ph}|${last3}|${transitionBits(pb,6)}`,
+ `C|${ph}|${clip(lens.at(-1))}|${clip(lens.at(-2))}|${transitionBits(pb,4)}`,
+ `R|${ph}|${clip(lens.at(-1))}|${transitionBits(pb,5)}`
+]}
+function project(arr,side){const before=buildBigRoadColumns(arr.map(r=>({r})))||[],h=arr.map(r=>({r}));h.push({r:side});const pos=bigRoadPositions(h)||[],cols=buildBigRoadColumns(h)||[],last=pos.at(-1)||{col:0,row:0},pb=arr.filter(x=>x==='P'||x==='B'),continued=pb.at(-1)===side;const preDepth=before.at(-1)?.length||0,depth=cols.at(-1)?.length||0,prevDepth=cols.at(-2)?.length||0,newColumn=cols.length>before.length;return{side,col:last.col,row:last.row,columns:cols.length,depth,prevDepth,preDepth,newColumn,continued}}
+function pathSig(p){const rel=p.depth>p.prevDepth?'G':p.depth<p.prevDepth?'L':'E';return `${p.newColumn?'N':'S'}|R${clip(p.row)}|D${clip(p.depth)}|P${clip(p.prevDepth)}|${rel}|${p.continued?'C':'X'}`}
+function libSignature(shoes){let n=0,h=2166136261>>>0;for(const s of shoes){const q=seqOf(s);n+=q.length;const z=String(s?.id||'')+'|'+q.length+'|'+q.slice(-8).join('');for(let i=0;i<z.length;i++){h^=z.charCodeAt(i);h=Math.imul(h,16777619)}}return `${shoes.length}:${n}:${h>>>0}`}
+function buildCache(){const shoes=libraryShoes(),sig=libSignature(shoes);if(cache.sig===sig&&cache.levels&&cache.pathLevels)return cache;const levels=[new Map(),new Map(),new Map(),new Map()],pathLevels=[new Map(),new Map(),new Map(),new Map()];let examples=0;shoes.forEach((shoe,si)=>{const a=seqOf(shoe),sid=shoeId(shoe,si);let prior=[];for(let i=0;i<a.length;i++){const actual=a[i];const pb=prior.filter(x=>x==='P'||x==='B');if((actual==='P'||actual==='B')&&pb.length>=START){const rel=actual===pb.at(-1)?0:1,ks=stateKeysFromResults(prior),pth=project(prior,actual),ps=pathSig(pth);ks.forEach((k,li)=>{let byShoe=levels[li].get(k);if(!byShoe){byShoe=new Map();levels[li].set(k,byShoe)}let z=byShoe.get(sid);if(!z){z=[0,0];byShoe.set(sid,z)}z[rel]++;const pk=`${k}|${actual}|${ps}`;let pset=pathLevels[li].get(pk);if(!pset){pset=new Set();pathLevels[li].set(pk,pset)}pset.add(sid)});examples++}prior.push(actual)}});cache={sig,levels,pathLevels,shoeCount:shoes.length,examples};return cache}
+function replayExclusion(arr){const live=arr.join(''),shoes=libraryShoes(),ids=[];if(arr.length<START)return new Set();shoes.forEach((s,si)=>{const q=seqOf(s);if(q.length>arr.length&&q.slice(0,arr.length).join('')===live)ids.push(shoeId(s,si))});ids.sort();return ids.length?new Set([ids[0]]):new Set()}
+function historical(arr,excluded){const C=buildCache(),ks=stateKeysFromResults(arr),weights=[1,.72,.48,.34];let cont=0,sw=0,totalW=0;const independent=new Set(),detail=[];ks.forEach((k,li)=>{const m=C.levels[li].get(k);if(!m||!m.size)return;let c=0,s=0,n=0;for(const [sid,v] of m){if(excluded?.has(sid))continue;const t=v[0]+v[1];if(!t)continue;const pc=(v[0]+.75)/(t+1.5);c+=pc;s+=1-pc;n++;independent.add(sid)}if(!n)return;const w=weights[li]*Math.min(1.2,.5+n/8);cont+=w*c/n;sw+=w*s/n;totalW+=w;detail.push({level:li,shoes:n,pc:c/n})});if(!totalW)return{ready:false,pc:.5,edge:0,shoes:0,detail,cache:C};const pc=cont/totalW,edge=Math.abs(pc-.5)*2;return{ready:independent.size>=MIN_SHOES,pc,edge,shoes:independent.size,detail,cache:C}}
+function pathSupport(arr,side,pth,excluded){const C=buildCache(),ks=stateKeysFromResults(arr),weights=[1,.72,.48,.34],ps=pathSig(pth),independent=new Set();let score=0,weight=0;const detail=[];ks.forEach((k,li)=>{const set=C.pathLevels[li].get(`${k}|${side}|${ps}`);if(!set||!set.size)return;let n=0;for(const sid of set){if(excluded?.has(sid))continue;n++;independent.add(sid)}if(!n)return;const w=weights[li];score+=w*Math.min(1.35,.35+n/5);weight+=w;detail.push({level:li,shoes:n})});return{side,score:weight?score/weight:0,shoes:independent.size,detail,sig:ps}}
+function modelStats(){try{return state?.accuracyVerified?.models?.[KEY]||{}}catch(e){return{}}}
+function dynamicEdge(){const m=modelStats(),w=+m.wins||0,l=+m.losses||0,n=w+l;if(n>=12){const r=w/n;if(r<.48)return .16;if(n>=20&&r>=.58)return .10}return BASE_EDGE}
+function signal(){try{const arr=(state?.hands||[]).map(x=>sideOf(x?.r||x?.side||x?.result||x)).filter(Boolean),pb=arr.filter(x=>x==='P'||x==='B'),n=pb.length;if(n<START)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:`WAIT • starts after ${START} non-tie hands (${n}/${START})`};const last=pb.at(-1),excluded=replayExclusion(arr),hist=historical(arr,excluded),pPath=project(arr,'P'),bPath=project(arr,'B'),pSup=pathSupport(arr,'P',pPath,excluded),bSup=pathSupport(arr,'B',bPath,excluded),cut=dynamicEdge();if(!hist.ready)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:Math.round(hist.edge*100),evidence:hist.shoes,label:'WAIT',pPath,bPath,hist,pSup,bSup,excludedCount:excluded.size,reason:`WAIT • only ${hist.shoes} independent Main-Road historical shoes match this structure; need ${MIN_SHOES}.`};const histP=(last==='P'?hist.pc:1-hist.pc),histB=1-histP;const ps=pSup.score,bs=bSup.score,pathTotal=ps+bs,pathP=pathTotal?ps/pathTotal:.5,pathB=1-pathP;const pathReady=(pSup.shoes+bSup.shoes)>=MIN_PATH_SHOES;const pathWeight=pathReady?.45:.18,histWeight=1-pathWeight;let pRaw=histWeight*histP+pathWeight*pathP,bRaw=histWeight*histB+pathWeight*pathB;const z=pRaw+bRaw||1;pRaw/=z;bRaw/=z;const pPct=Math.round(100*pRaw),bPct=100-pPct,pathPPct=Math.round(pathP*100),pathBPct=100-pathPPct,edge=Math.abs(pRaw-bRaw);let raw=pPct>bPct?'P':bPct>pPct?'B':null;const histSide=histP>histB?'P':histB>histP?'B':null,pathSide=pathP>pathB?'P':pathB>pathP?'B':null,strongConflict=pathReady&&histSide&&pathSide&&histSide!==pathSide&&Math.abs(pathP-pathB)>=.24&&hist.edge>=.20;const qualified=raw&&!strongConflict&&edge>=cut&&hist.shoes>=MIN_SHOES&&(pathReady||hist.edge>=cut+.04);const label=!qualified?'RAW LEAN':edge>=.20?'STRONG':edge>=.12?'LIKELY':'SELECTIVE',side=qualified?raw:null,chosen=raw==='P'?pPath:bPath,confidence=raw==='P'?pPct:bPct;const conflictNote=strongConflict?' • PATH/HISTORY CONFLICT → WAIT':'';const guardNote=excluded.size?' • replay guard excluded 1 exact-prefix shoe':'';return{side,rawSide:raw,strength:side?confidence:0,pPct,bPct,pathP:pathPPct,pathB:pathBPct,edge:Math.round(edge*100),evidence:hist.shoes,label,pPath,bPath,hist,pSup,bSup,pathReady,cutoff:Math.round(cut*100),excludedCount:excluded.size,reason:qualified?`${raw==='P'?'PLAYER':'BANKER'} • ${label} • combined Main-Road future score ${pPct}% P / ${bPct}% B • projected path score ${pathPPct}% P / ${pathBPct}% B • lands C${chosen.col+1}/R${chosen.row+1} • ${hist.shoes} independent historical shoes${guardNote}`:`WAIT • raw ${raw==='P'?'PLAYER':raw==='B'?'BANKER':'TIE'} ${confidence||50}% • combined edge ${Math.round(edge*100)}pp vs ${Math.round(cut*100)}pp gate • path ${pathPPct}% P / ${pathBPct}% B • P lands C${pPath.col+1}/R${pPath.row+1}, B lands C${bPath.col+1}/R${bPath.row+1}${conflictNote}${guardNote}.`};}catch(e){return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:'WAIT • Main Road Only V305 initializing: '+String(e?.message||e)}}}
 function model(){return state?.accuracyVerified?.models?.[KEY]||{}}
 function acc(){const m=model(),w=+m.wins||0,l=+m.losses||0,n=+m.predictions||(w+l),wait=+m.waits||0;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n} • WAIT ${wait}`:`— • 0W-0L • N 0 • WAIT ${wait}`}
-function ensure(){let r=document.getElementById('v284MainOnlyAI');if(r)return r;r=document.createElement('div');r.id='v284MainOnlyAI';r.className='analyzer';r.innerHTML=`<div class="analyzer-title">🛣️ Main Road Only Future AI V286</div><div class="analyzer-sub">Independent clone of the original Main Future Road scoring/decision mechanics, restricted to its Main Road evidence leg only. The original Main Future Road is untouched. No Bead Plate, Big Eye, Small Road, or Cockroach Road contributes to this new AI.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v284Pick">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v284Conf">—</strong></div><div class="analyzer-card"><span>PLAYER PATH</span><strong id="v284P">50%</strong></div><div class="analyzer-card"><span>BANKER PATH</span><strong id="v284B">50%</strong></div><div class="analyzer-card"><span>EDGE</span><strong id="v284Edge">—</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v284Acc">—</strong></div></div><div class="analyzer-sub" id="v284Reason" style="margin-top:8px">Waiting.</div><button class="tiny-btn" id="v284Reset" style="width:100%;margin-top:8px">Reset Main-Road-Only Accuracy</button>`;document.querySelector('.app')?.appendChild(r);r.querySelector('#v284Reset').onclick=()=>{if(!confirm('Reset only Main Road Only Future AI accuracy?'))return;const A=state?.accuracyVerified;if(A){delete A.models?.[KEY];delete A.pending?.[KEY]}try{persist()}catch(e){}render()};return r}
-function register(){window.__accuracyModelDefs ||= [];for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===KEY)window.__accuracyModelDefs.splice(i,1);window.__accuracyModelDefs.push([KEY,'Main Road Only Future AI',signal])}
-function render(){const r=ensure(),x=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v},app=document.querySelector('.app');if(app&&app.lastElementChild!==r)app.appendChild(r);set('v284Pick',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v284Conf',x.side?x.strength+'%':'—');set('v284P',(x.pPct??50)+'%');set('v284B',(x.bPct??50)+'%');set('v284Edge',x.edge!=null?x.edge+'%':'—');set('v284Acc',acc());set('v284Reason',x.reason||'WAIT');return x}
+function ensure(){let r=document.getElementById('v284MainOnlyAI');if(r){const t=r.querySelector('.analyzer-title');if(t)t.textContent='🛣️ Main Road Only Future AI V305 — True Path Scoring + Main-Road Memory';const s=r.querySelector('.analyzer-sub');if(s)s.textContent='Independent Main-Road-only engine. PLAYER-next and BANKER-next are both projected on the Big Road and their resulting structures are scored against saved Main-Road outcomes. Historical continuation and projected-path evidence are combined; exact-prefix replay leakage is conservatively guarded. Sequence V2, Bead Plate, derived roads, ML, and Main Future Road are not prediction inputs.';return r}r=document.createElement('div');r.id='v284MainOnlyAI';r.className='analyzer';r.innerHTML=`<div class="analyzer-title">🛣️ Main Road Only Future AI V305 — True Path Scoring + Main-Road Memory</div><div class="analyzer-sub">Independent Main-Road-only engine. PLAYER-next and BANKER-next are both projected on the Big Road and their resulting structures are scored against saved Main-Road outcomes. Historical continuation and projected-path evidence are combined; exact-prefix replay leakage is conservatively guarded. Sequence V2, Bead Plate, derived roads, ML, and Main Future Road are not prediction inputs.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v284Pick">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v284Conf">—</strong></div><div class="analyzer-card"><span>PLAYER PATH SCORE</span><strong id="v284P">50%</strong></div><div class="analyzer-card"><span>BANKER PATH SCORE</span><strong id="v284B">50%</strong></div><div class="analyzer-card"><span>COMBINED EDGE</span><strong id="v284Edge">—</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v284Acc">—</strong></div></div><div class="analyzer-sub" id="v284Reason" style="margin-top:8px">Waiting.</div><button class="tiny-btn" id="v284Reset" style="width:100%;margin-top:8px">Reset Main-Road-Only Accuracy</button>`;document.querySelector('.app')?.appendChild(r);r.querySelector('#v284Reset').onclick=()=>{if(!confirm('Reset only Main Road Only Future AI accuracy?'))return;const A=state?.accuracyVerified;if(A){delete A.models?.[KEY];delete A.pending?.[KEY]}try{persist()}catch(e){}render()};return r}
+function register(){window.__accuracyModelDefs ||= [];for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===KEY)window.__accuracyModelDefs.splice(i,1);window.__accuracyModelDefs.push([KEY,'Main Road Only Future AI V305',signal])}
+function render(){const r=ensure(),x=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('v284Pick',x.side?(x.side==='P'?'PLAYER':'BANKER'):(x.rawSide?`WAIT (${x.rawSide==='P'?'P':'B'} lean)`:'WAIT'));set('v284Conf',x.side?x.strength+'%':(x.rawSide?`${x.rawSide==='P'?x.pPct:x.bPct}% raw`:'—'));set('v284P',(x.pathP??50)+'%');set('v284B',(x.pathB??50)+'%');set('v284Edge',x.edge!=null?x.edge+'%':'—');set('v284Acc',acc());set('v284Reason',x.reason||'WAIT');return x}
+function installUniversalControls(){try{window.__V285_INSTALL_ACCURACY_CONTROLS__?.()}catch(e){}}
 function boot(){register();ensure();render();document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(()=>{register();render();installUniversalControls()},380)},false);[900,3000,7500].forEach(ms=>setTimeout(()=>{register();render();installUniversalControls()},ms));setInterval(()=>{if(document.visibilityState!=='hidden'){register();render();installUniversalControls()}},15000)}
-// Add visible accuracy + reset controls to every REGISTERED AI panel that lacks them.
-function installUniversalControls(){try{
- const defs=window.__accuracyModelDefs||[];
- const exactPanels={
-   mainroadonlyfuturev284:'#v284MainOnlyAI',
-   seqv2:'#sequenceAiPanel',
-   sequencev2:'#sequenceAiPanel',
-   roadpreview:'#roadPreviewPanel,#roadPreviewAI',
-   derivedorig:'#derivedIndependentFinal',
-   mainfuture:'#mainRoadFutureTest'
- };
- // Never fuzzy-match titles: a wrong panel is worse than a centralized control.
- for(const d of defs){
-   const key=String(d?.[0]||''),label=String(d?.[1]||key); if(!key)continue;
-   const sel=exactPanels[key.toLowerCase()]; if(!sel)continue;
-   const panel=document.querySelector(sel); if(!panel||panel.querySelector(`[data-v284-key="${key}"]`))continue;
-   const hasNativeReset=[...panel.querySelectorAll('button')].some(b=>/reset/i.test(b.textContent||''));
-   const row=document.createElement('div');row.className='v284-accuracy-row';row.dataset.v284Key=key;
-   row.innerHTML=`<strong>Accuracy:</strong><span data-v284-acc>—</span>${hasNativeReset?'':`<button class="tiny-btn" data-v284-reset>Reset Accuracy</button>`}`;
-   panel.appendChild(row);
-   const btn=row.querySelector('[data-v284-reset]'); if(btn)btn.onclick=()=>resetKey(key,label);
- }
- let audit=document.getElementById('v285AllAiAccuracy');
- if(!audit){
-   audit=document.createElement('div');audit.id='v285AllAiAccuracy';audit.className='analyzer';
-   audit.innerHTML=`<div class="v285-audit-head"><div><div class="analyzer-title">📊 All AI Accuracy / Reset Audit V285</div><div class="analyzer-sub">Deterministic registry view. Every currently registered AI appears here with its own verified W-L/N/WAIT count and reset button. This replaces fuzzy panel matching and prevents counters from attaching to the wrong AI.</div></div><button class="tiny-btn" id="v285AuditToggle" type="button">Minimize</button></div><div id="v285AllAiRows"></div>`;
-   audit.style.cssText='max-width:1200px;margin:8px auto;padding:10px;';
-   document.body.appendChild(audit);
-   const toggle=audit.querySelector('#v285AuditToggle');
-   if(toggle)toggle.onclick=()=>{const rows=audit.querySelector('#v285AllAiRows');const collapsed=audit.dataset.collapsed==='1';audit.dataset.collapsed=collapsed?'0':'1';if(rows)rows.style.display=collapsed?'':'none';const sub=audit.querySelector('.analyzer-sub');if(sub)sub.style.display=collapsed?'':'none';toggle.textContent=collapsed?'Minimize':'Expand';try{localStorage.setItem('v285AuditCollapsed',collapsed?'0':'1')}catch(e){}};
-   try{if(localStorage.getItem('v285AuditCollapsed')==='1'){audit.dataset.collapsed='1';const rows=audit.querySelector('#v285AllAiRows');if(rows)rows.style.display='none';const sub=audit.querySelector('.analyzer-sub');if(sub)sub.style.display='none';if(toggle)toggle.textContent='Expand'}}catch(e){}
- }
- const box=audit.querySelector('#v285AllAiRows'); if(box){
-   const seen=new Set(); box.innerHTML='';
-   for(const d of defs){
-     const key=String(d?.[0]||''),label=String(d?.[1]||key);if(!key||seen.has(key))continue;seen.add(key);
-     const row=document.createElement('div');row.className='v284-accuracy-row';row.dataset.v285AuditKey=key;
-     row.innerHTML=`<strong style="min-width:180px">${label}</strong><span data-v285-acc>—</span><button class="tiny-btn" data-v285-reset>Reset</button>`;
-     row.querySelector('[data-v285-reset]').onclick=()=>resetKey(key,label);box.appendChild(row);
-   }
- }
- for(const row of document.querySelectorAll('.v284-accuracy-row[data-v284-key]')){
-   paintCount(row,row.dataset.v284Key,'[data-v284-acc]');
- }
- for(const row of document.querySelectorAll('[data-v285-audit-key]')){
-   paintCount(row,row.dataset.v285AuditKey,'[data-v285-acc]');
- }
- if(audit&&audit.parentNode!==document.body)document.body.appendChild(audit);
- }catch(e){console.warn('V285 accuracy controls',e)}
-}
-function paintCount(row,key,selector){
- const m=state?.accuracyVerified?.models?.[key]||{},w=+m.wins||0,l=+m.losses||0,n=+m.predictions||(w+l),wait=+m.waits||0,span=row.querySelector(selector);
- if(span)span.textContent=n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n} • WAIT ${wait}`:`— • 0W-0L • N 0 • WAIT ${wait}`;
-}
-function resetKey(key,label){
- if(!confirm(`Reset only ${label} accuracy?`))return;
- const A=state?.accuracyVerified;if(A){delete A.models?.[key];delete A.pending?.[key]}
- try{persist()}catch(e){} installUniversalControls(); render();
-}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-window.__V286_MAIN_ROAD_ONLY_AI__={version:VERSION,signal,independent:true,input:'BIG_ROAD_ONLY',excluded:['BEAD_PLATE','BIG_EYE','SMALL_ROAD','COCKROACH_ROAD'],mainFutureCoreChanged:false,sequenceV2CoreChanged:false};
+window.__V305_MAIN_ROAD_ONLY_AI__={version:VERSION,signal,render,independent:true,trueTwoPathSimulation:true,pathScoresDriveDecision:true,historicalMainRoadOnly:true,oneVotePerHistoricalShoe:true,replayLeakGuard:true,startHand:START,baseEdge:BASE_EDGE,minIndependentShoes:MIN_SHOES,minPathShoes:MIN_PATH_SHOES,excluded:['SEQUENCE_V2','BEAD_PLATE','BIG_EYE','SMALL_ROAD','COCKROACH_ROAD','ML','MAIN_FUTURE'],mainFutureCoreChanged:false,sequenceV2CoreChanged:false};
+window.__V304_MAIN_ROAD_ONLY_AI__=window.__V305_MAIN_ROAD_ONLY_AI__;
+window.__V286_MAIN_ROAD_ONLY_AI__=window.__V305_MAIN_ROAD_ONLY_AI__;
 })();
 </script>
+
 
 <!-- V288 SINGLE STABLE LAYOUT CONTROLLER: ML TOP + Audit BOTTOM. Layout only; no AI prediction logic changed. -->
 <script id="v288-stable-layout-controller">
@@ -19754,14 +19694,25 @@ function place(){
   try{
     const app=document.querySelector('.app'); if(!app)return;
     const topbar=app.querySelector('.topbar');
+    const mainOnly=document.getElementById('v284MainOnlyAI');
     const best=panelFromChild('bestSide');
+    const colorPattern=document.getElementById('colorPatternAiPanel');
+    const libraryIntel=document.getElementById('libraryIntelPanel');
     const finger=document.getElementById('presetFingerprintGateV145');
     const duplicate=document.getElementById('autoHistDuplicateMode');
-    /* Newest user instruction overrides legacy ML-top controllers. */
-    if(best&&topbar&&topbar.parentNode===app&&topbar.nextElementSibling!==best) app.insertBefore(best,topbar.nextElementSibling);
-    /* Requested bottom pair, fixed order: Fingerprint then Duplicate Trajectory. */
+    /* Newest user instruction: Main Road Only Future AI is the first panel under the top bar.
+       Keep Best-Estimate immediately below it. Layout only; no prediction logic changes. */
+    if(mainOnly&&topbar&&topbar.parentNode===app&&topbar.nextElementSibling!==mainOnly) app.insertBefore(mainOnly,topbar.nextElementSibling);
+    if(best&&mainOnly&&mainOnly.parentNode===app&&mainOnly.nextElementSibling!==best) app.insertBefore(best,mainOnly.nextElementSibling);
+    else if(best&&!mainOnly&&topbar&&topbar.parentNode===app&&topbar.nextElementSibling!==best) app.insertBefore(best,topbar.nextElementSibling);
+    /* User layout: Color Pattern + Adaptive Library Intelligence belong at the bottom.
+       Preserve the existing bottom Fingerprint / Duplicate Trajectory order after them. */
+    if(colorPattern&&colorPattern.parentNode!==app) app.appendChild(colorPattern);
+    else if(colorPattern&&app.lastElementChild!==colorPattern) app.appendChild(colorPattern);
+    if(libraryIntel&&libraryIntel.parentNode!==app) app.appendChild(libraryIntel);
+    else if(libraryIntel&&app.lastElementChild!==libraryIntel) app.appendChild(libraryIntel);
     if(finger&&finger.parentNode!==app) app.appendChild(finger);
-    else if(finger&&app.lastElementChild!==finger&&(!duplicate||app.lastElementChild!==duplicate)) app.appendChild(finger);
+    else if(finger&&app.lastElementChild!==finger) app.appendChild(finger);
     if(duplicate&&duplicate.parentNode!==app) app.appendChild(duplicate);
     else if(duplicate&&app.lastElementChild!==duplicate) app.appendChild(duplicate);
   }finally{busy=false}
@@ -19774,7 +19725,7 @@ function boot(){
     const obs=new MutationObserver(()=>{if(!busy)requestAnimationFrame(place)});
     obs.observe(app,{childList:true});
   }
-  window.__V289_LAYOUT__={bestEstimate:'TOP',sequenceV2:'COMPACT',fingerprintGate:'BOTTOM',duplicateTrajectory:'BOTTOM_LAST',logicChanged:false};
+  window.__V289_LAYOUT__={mainRoadOnlyFuture:'TOP',bestEstimate:'SECOND',sequenceV2:'COMPACT',colorPattern:'BOTTOM',libraryIntel:'BOTTOM',fingerprintGate:'BOTTOM',duplicateTrajectory:'BOTTOM_LAST',logicChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
@@ -19784,7 +19735,8 @@ window.__V290_RUNTIME_CLEANUP__={
   version:290,
   legacyV288LayoutDisabled:true,
   activeLayoutOwner:'V289',
-  bestEstimate:'TOP',
+  mainRoadOnlyFuture:'TOP',
+  bestEstimate:'SECOND',
   sequenceV2:'COMPACT',
   fingerprintGate:'BOTTOM',
   duplicateTrajectory:'BOTTOM_LAST',
@@ -19792,6 +19744,47 @@ window.__V290_RUNTIME_CLEANUP__={
   mainFutureCoreChanged:false,
   predictionLogicChanged:false
 };
+</script>
+\n<script id="v300-ml-specialist-learning">
+(function(){
+'use strict';
+const VERSION=300,WARMUP=6,TARGET_CALLS=10;
+let runtime={trained:false,qualified:false,report:null,model:null,cutoff:.545,lastError:'',lastSignal:null};
+const sideOf=v=>{const x=String(v??'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':x==='T'||x==='TIE'?'T':''};
+const bucket=n=>{n=Number(n)||0;return n>=6?'6+':n>=4?'4-5':n>=2?'2-3':String(n)};
+const tail=(s,n)=>String(s||'').slice(-n);
+function specs(r){const q=Math.round((Number(r.recent8_transition_rate)||0)*4)/4;return {
+ seq4:tail(r.pb_tail_6,4),seq6:tail(r.pb_tail_6,6),seq10:tail(r.pb_tail_10,10),
+ regime:`${r.phase}|${r.regime}|${r.current_streak_side}|${bucket(r.current_streak_len)}`,
+ trans:`${r.phase}|${q}|${r.last_non_tie}`,
+ main:`${r.current_streak_side}|${r.main_last4_col_depths}`,
+ depth:`${r.phase}|${bucket(r.main_current_col_depth)}|${bucket(r.main_prev_col_depth)}`,
+ eye4:tail(r.big_eye_tail_8,4),small4:tail(r.small_road_tail_8,4),roach4:tail(r.cockroach_tail_8,4),
+ roads:`${tail(r.big_eye_tail_8,3)}|${tail(r.small_road_tail_8,3)}|${tail(r.cockroach_tail_8,3)}`,
+ support:`${r.phase}|${r.regime}|${r.support_ready_count}|${r.support_agreement_red}`,
+ colorreg:`${String(r.shoe_color||'').toLowerCase()}|${r.phase}|${r.regime}|${r.current_streak_side}|${bucket(r.current_streak_len)}`
+};}
+function trainModel(rows){const names=Object.keys(specs(rows[0]||{})),model={};names.forEach(n=>model[n]=new Map());
+ for(const r of rows){if(r.target_pb!=='P'&&r.target_pb!=='B')continue;const sp=specs(r);for(const n of names){const k=sp[n];if(!k)continue;let z=model[n].get(k);if(!z){z={P:0,B:0,shoes:new Set()};model[n].set(k,z)}z[r.target_pb]++;z.shoes.add(String(r.shoe_id||''));}}return model;}
+function predict(model,r){const groups={seq:['seq4','seq6','seq10'],context:['regime','trans','colorreg'],main:['main','depth'],roads:['eye4','small4','roach4','roads','support']};const fam=[];const sp=specs(r);
+ for(const [g,names] of Object.entries(groups)){const vals=[];for(const n of names){const z=model[n]?.get(sp[n]);if(!z)continue;const cnt=z.P+z.B,sh=z.shoes.size;if(sh<3||cnt<6)continue;const p=(z.P+2)/(cnt+4),rel=Math.min(1,sh/8)*Math.min(1,cnt/18);vals.push({edge:(p-.5)*rel,rel});}if(vals.length){const den=vals.reduce((a,v)=>a+v.rel,0),edge=vals.reduce((a,v)=>a+v.edge,0)/(den||1);fam.push({g,edge,w:Math.min(2,den)});}}
+ if(!fam.length)return {p:.5,families:0,evidence:0};const den=fam.reduce((a,v)=>a+v.w,0),edge=(fam.reduce((a,v)=>a+v.edge*v.w,0)/(den||1))*Math.min(1,fam.length/3);return {p:Math.max(.05,Math.min(.95,.5+edge)),families:fam.length,evidence:den};}
+function splitDataset(x){const groups={red:[],black:[],other:[]};(x.shoes||[]).forEach((s,i)=>{const id=String(s.id||('shoe_'+i)),c=String(s.shoeColor||s.__color||s.color||'').toLowerCase();(c==='red'?groups.red:c==='black'?groups.black:groups.other).push(id)});const tr=new Set(),va=new Set(),te=new Set();for(const ids of Object.values(groups)){if(!ids.length)continue;const n=ids.length,nt=Math.max(1,Math.floor(n*.70)),nv=Math.max(1,Math.floor(n*.10));ids.slice(0,nt).forEach(x=>tr.add(x));ids.slice(nt,nt+nv).forEach(x=>va.add(x));ids.slice(nt+nv).forEach(x=>te.add(x));}const by=set=>x.rows.filter(r=>set.has(String(r.shoe_id)));return {train:by(tr),val:by(va),test:by(te),trainShoes:tr.size,valShoes:va.size,testShoes:te.size};}
+function accuracy(a){if(!a.length)return {n:0,w:0,rate:0};let w=0;for(const z of a)if((z.p>=.5?'P':'B')===z.y)w++;return {n:a.length,w,rate:w/a.length};}
+function rowsPred(model,rows){return rows.filter(r=>(r.target_pb==='P'||r.target_pb==='B')&&Number(r.prior_hands)>=WARMUP).map(r=>{const z=predict(model,r);return {...z,y:r.target_pb,shoe:r.shoe_id,confidence:Math.max(z.p,1-z.p)}});}
+function chooseCutoff(preds,shoeCount){let best={th:.545,rate:0,n:0};for(let th=.515;th<=.65;th+=.005){const a=preds.filter(z=>z.families>=2&&z.confidence>=th);if(a.length<Math.max(30,shoeCount*4))continue;const q=accuracy(a);if(q.rate>best.rate||(q.rate===best.rate&&Math.abs(q.n-shoeCount*TARGET_CALLS)<Math.abs(best.n-shoeCount*TARGET_CALLS)))best={th:+th.toFixed(3),rate:q.rate,n:q.n};}return best.th;}
+function trainAndValidate(){try{const api=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(!api?.build)throw new Error('ML Training Dataset V160 unavailable');const x=api.build();window.__mlDatasetV159=x;if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique shoes');const sp=splitDataset(x),m=trainModel(sp.train),vp=rowsPred(m,sp.val),cutoff=chooseCutoff(vp,sp.valShoes),tp=rowsPred(m,sp.test),all=accuracy(tp),selective=accuracy(tp.filter(z=>z.families>=2&&z.confidence>=cutoff));const pb=sp.train.filter(r=>r.target_pb==='P'||r.target_pb==='B'),pc=pb.filter(r=>r.target_pb==='P').length,baseline=pb.length?Math.max(pc,pb.length-pc)/pb.length:.5;const qualified=selective.n>=Math.max(30,sp.testShoes*4)&&selective.rate>=.53&&selective.rate>=baseline+.015;runtime={trained:true,qualified,cutoff,model:trainModel(x.rows),lastError:'',lastSignal:null,report:{version:VERSION,architecture:'4 specialist families + cross-shoe support',uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,validationShoes:sp.valShoes,unseenTestShoes:sp.testShoes,overall:all,selective,baseline,cutoff,qualified,reason:qualified?'PASS — specialist ML cleared held-out gate.':'RAW LEAN ONLY — redesigned ML improved structure but did not clear the 53% held-out gate.'}};renderReport();return runtime.report;}catch(e){runtime.trained=false;runtime.qualified=false;runtime.lastError=String(e?.message||e);renderReport();return null;}}
+function liveSeq(){try{const a=state?.results||state?.hands||[];return a.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean).join('')}catch(e){return ''}}
+function trans(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}function rate(a,v){return a.length?a.filter(x=>x===v).length/a.length:0}
+function liveRow(){const pre=liveSeq(),arr=[...pre],nt=arr.filter(x=>x!=='T'),last8=nt.slice(-8),tr=last8.length>1?trans(last8)/(last8.length-1):0;let cs=[],rd={eye:[],small:[],roach:[]};try{cs=buildBigRoadColumns(arr.map(r=>({r})))||[]}catch(e){}try{const h=arr.map(r=>({r}));rd={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}const lens=cs.map(c=>c.length),i=arr.length;return {shoe_id:'LIVE',shoe_color:state?.currentShoeColor||'',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',target_pb:'',prior_hands:i,prior_non_tie_hands:nt.length,prior_player_count:nt.filter(x=>x==='P').length,prior_banker_count:nt.filter(x=>x==='B').length,prior_tie_count:arr.filter(x=>x==='T').length,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:run(nt),recent8_transition_rate:tr,regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_road_columns:cs.length,main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),big_eye_red_rate_8:rate(rd.eye.slice(-8),'R'),small_road_tail_8:rd.small.slice(-8).join(''),small_red_rate_8:rate(rd.small.slice(-8),'R'),cockroach_tail_8:rd.roach.slice(-8).join(''),cockroach_red_rate_8:rate(rd.roach.slice(-8),'R'),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length};}
+function signal(){if(!runtime.trained)return {side:null,displaySide:null,rawSide:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.lastError||'Training not complete'};const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,displaySide:null,rawSide:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};const z=predict(runtime.model,r),conf=Math.max(z.p,1-z.p),side=z.p>=.5?'P':'B',qualified=runtime.qualified&&z.families>=2&&conf>=runtime.cutoff;return runtime.lastSignal={side,displaySide:side,rawSide:side,qualified,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':'BANKER',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:z.evidence,cutoff:+(runtime.cutoff*100).toFixed(1),reason:qualified?'QUALIFIED SPECIALIST ML':'RAW SPECIALIST ML LEAN — held-out gate not cleared or live evidence below cutoff.',report:runtime.report};}
+function renderReport(){const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;const r=runtime.report;const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 ML Road Trainer V300 — Independent Specialist Learning';const sub=panel.querySelector('.analyzer-sub');if(sub)sub.textContent='Independent ML only. Four specialist families learn sequence, live regime, Big Road structure, and derived-road structure. Historical evidence is discounted unless it repeats across independent shoes. Sequence V2 and Main Future Road are not inputs.';const grid=panel.querySelector('.analyzer-grid');let live=null;try{live=runtime.trained?signal():null}catch(e){};if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong>${live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT'}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong>${live?.confidence?live.confidence.toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>AUTHORITY</span><strong>${runtime.trained?(runtime.qualified?'VALIDATED / SELECTIVE':'RAW LEAN ONLY'):'TRAINING'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>CUTOFF</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div>`;let note=document.getElementById('mlv170Note')||document.getElementById('mlv155Note');if(note)note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${r.reason} Held-out selective ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} calls across ${r.unseenTestShoes} unseen shoes.`:'Training specialist model…';}
+window.__mlRoadTrainerV2=window.__mlRoadTrainerV3={version:VERSION,signal,render:()=>{renderReport();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true,independentSpecialists:true};
+setTimeout(()=>{try{trainAndValidate()}catch(e){}},1800);
+})();
+</script>\n
+<script id="v302-layout-marker">
+window.__V304_LAYOUT__={version:305,mainRoadOnlyFuture:'TOP',bestEstimate:'SECOND',colorPattern:'BOTTOM',adaptiveLibraryIntelligence:'BOTTOM',predictionLogicChanged:false,sequenceV2Changed:false,mainFutureChanged:false};
 </script>
 </body>
 </html>
