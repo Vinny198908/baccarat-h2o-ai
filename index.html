@@ -14394,60 +14394,7 @@ else boot();
      - removed always-qualified ML bug
      - live lean remains visible, but only validated/cutoff-clearing calls are qualified
      - Sequence V2, Main Future Road, Best Estimate, and Pattern Recognizer unchanged -->
-<script id="v155-ml-road-trainer-v2-validation-lock">
-(function(){
-  'use strict';
-  const REPORT={
-    version:155,
-    name:'ML Road Trainer V2',
-    status:'VALIDATION LOCK — WAIT',
-    uniqueShoes:97,
-    trainShoes:67,
-    validationShoes:9,
-    unseenTestShoes:21,
-    testRows:1083,
-    targetCallsPerShoe:10,
-    xgb:{overall:51.62,selective:48.95,avgCalls:9.05},
-    lgb:{overall:51.52,selective:48.19,avgCalls:9.19},
-    ensemble:{selective:49.20,avgCalls:8.90},
-    qualified:false,
-    reason:'Road-state ML did not beat a 50% baseline strongly enough on chronologically held-out, deduplicated shoes. It is intentionally prevented from issuing live Player/Banker picks.'
-  };
-  function ensure(){
-    if(document.getElementById('mlRoadTrainerV155')) return;
-    const anchor=document.getElementById('presetFingerprintGateV145') || document.querySelector('.analyzer');
-    if(!anchor) return;
-    const el=document.createElement('div');
-    el.className='analyzer';
-    el.id='mlRoadTrainerV155';
-    el.style.borderColor='#e6a23c';
-    el.innerHTML=`
-      <div class="analyzer-title">🧠 ML Road Trainer V2 — Cross-Shoe Validation Gate</div>
-      <div class="analyzer-sub">Experimental XGBoost + LightGBM road-state trainer. It reads sequence, streak/chop, ties, Big Road column structure, Big Eye/Small/Roach histories, hypothetical P/B road previews, and historical continuation evidence. It cannot control any existing AI.</div>
-      <div class="analyzer-grid">
-        <div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv155Status">LOCKED / WAIT</strong></div>
-        <div class="analyzer-card"><span>UNSEEN SHOES</span><strong>21</strong></div>
-        <div class="analyzer-card"><span>XGBOOST ALL CALLS</span><strong>51.6%</strong></div>
-        <div class="analyzer-card"><span>XGBOOST SELECTIVE</span><strong>48.9%</strong></div>
-        <div class="analyzer-card"><span>LIGHTGBM ALL CALLS</span><strong>51.5%</strong></div>
-        <div class="analyzer-card"><span>LIGHTGBM SELECTIVE</span><strong>48.2%</strong></div>
-        <div class="analyzer-card"><span>ENSEMBLE SELECTIVE</span><strong>49.2%</strong></div>
-        <div class="analyzer-card"><span>TARGET PACE</span><strong>≈10 / shoe</strong></div>
-      </div>
-      <div class="analyzer-sub" id="mlv155Note" style="margin-top:8px">
-        VALIDATION LOCK: the ML model failed the unseen-shoe qualification gate, so it returns WAIT and does not alter Sequence AI V2, Main Road Future Test, Mirror logic, buttons, library, or accuracy counters.
-      </div>`;
-    if(anchor.parentNode) anchor.parentNode.insertBefore(el,anchor);
-  }
-  function signal(){
-    return {side:null,strength:0,status:'WAIT',qualified:false,version:155,report:REPORT};
-  }
-  function render(){ensure();return signal();}
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(render,450));
-  else setTimeout(render,450);
-  window.__mlRoadTrainerV2={version:155,signal,render,report:()=>REPORT,validationLocked:true,controlsExistingAI:false};
-})();
-</script>
+
 
 
 
@@ -14487,201 +14434,10 @@ window.__mlTrainingDatasetV159=window.__mlTrainingDatasetV160={version:VERSION,b
 
 
 
-<script id="v162-ml-road-trainer-live-dataset-connection">
-(function(){
-'use strict';
-const VERSION=204, WARMUP=6, TARGET_CALLS=10;
-let runtime={trained:false,qualified:false,report:null,model:null,cutoff:.56,lastError:'',lastSignal:null};
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const sideOf=v=>{const s=String(v??'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':s==='T'||s==='TIE'?'T':''};
-function mapAdd(m,k,y){if(!k||!(y==='P'||y==='B'))return;let a=m.get(k);if(!a)m.set(k,a=[0,0]);if(y==='P')a[0]++;else a[1]++;}
-function mapProb(m,k){const a=m.get(k);if(!a)return null;const n=a[0]+a[1];return {p:(a[0]+2)/(n+4),n};}
-function bucket(n){n=Number(n)||0;return n>=6?'6+':n>=4?'4-5':n>=2?'2-3':String(n)}
-function tail(s,n){s=String(s||'');return s.slice(-n)}
-function buildModel(rows,kind){
-  const pb=rows.filter(r=>r.target_pb==='P'||r.target_pb==='B');
-  const pN=pb.filter(r=>r.target_pb==='P').length, prior=(pN+5)/(pb.length+10);
-  const maps={a:new Map(),b:new Map(),c:new Map(),d:new Map(),e:new Map(),f:new Map()};
-  for(const r of pb){
-    const y=r.target_pb;
-    if(kind==='seq'){
-      mapAdd(maps.a,'p10:'+tail(r.pb_tail_10,10),y);
-      mapAdd(maps.b,'p6:'+tail(r.pb_tail_6,6),y);
-      mapAdd(maps.c,'bead:'+tail(r.bead_tail_6,6),y);
-      mapAdd(maps.d,'reg:'+r.phase+'|'+r.regime+'|'+r.current_streak_side+'|'+bucket(r.current_streak_len),y);
-      mapAdd(maps.e,'tr:'+r.phase+'|'+Math.round((Number(r.recent8_transition_rate)||0)*4)/4+'|'+r.last_non_tie,y);
-      mapAdd(maps.f,'cnt:'+r.phase+'|'+Math.sign((Number(r.prior_player_count)||0)-(Number(r.prior_banker_count)||0)),y);
-    }else{
-      mapAdd(maps.a,'main:'+r.current_streak_side+'|'+r.main_last4_col_depths,y);
-      mapAdd(maps.b,'depth:'+r.phase+'|'+bucket(r.main_current_col_depth)+'|'+bucket(r.main_prev_col_depth),y);
-      mapAdd(maps.c,'eye:'+tail(r.big_eye_tail_8,6),y);
-      mapAdd(maps.d,'small:'+tail(r.small_road_tail_8,6),y);
-      mapAdd(maps.e,'roach:'+tail(r.cockroach_tail_8,6),y);
-      mapAdd(maps.f,'support:'+r.phase+'|'+r.support_ready_count+'|'+r.support_agreement_red,y);
-    }
-  }
-  return {kind,prior,maps,n:pb.length};
-}
-function modelProb(m,r){
-  const src=[];
-  const add=(mp,key,w)=>{const z=mapProb(mp,key);if(z){const rel=Math.min(1,z.n/6);src.push({p:z.p,w:w*rel,n:z.n});}};
-  if(m.kind==='seq'){
-    add(m.maps.a,'p10:'+tail(r.pb_tail_10,10),5.5); add(m.maps.b,'p6:'+tail(r.pb_tail_6,6),4.0);
-    add(m.maps.c,'bead:'+tail(r.bead_tail_6,6),2.4); add(m.maps.d,'reg:'+r.phase+'|'+r.regime+'|'+r.current_streak_side+'|'+bucket(r.current_streak_len),2.2);
-    add(m.maps.e,'tr:'+r.phase+'|'+Math.round((Number(r.recent8_transition_rate)||0)*4)/4+'|'+r.last_non_tie,1.6); add(m.maps.f,'cnt:'+r.phase+'|'+Math.sign((Number(r.prior_player_count)||0)-(Number(r.prior_banker_count)||0)),.8);
-  }else{
-    add(m.maps.a,'main:'+r.current_streak_side+'|'+r.main_last4_col_depths,4.2); add(m.maps.b,'depth:'+r.phase+'|'+bucket(r.main_current_col_depth)+'|'+bucket(r.main_prev_col_depth),2.2);
-    add(m.maps.c,'eye:'+tail(r.big_eye_tail_8,6),2.2); add(m.maps.d,'small:'+tail(r.small_road_tail_8,6),2.0); add(m.maps.e,'roach:'+tail(r.cockroach_tail_8,6),2.0);
-    add(m.maps.f,'support:'+r.phase+'|'+r.support_ready_count+'|'+r.support_agreement_red,1.3);
-  }
-  let num=m.prior*2.5, den=2.5, evidence=0;
-  for(const z of src){num+=z.p*z.w;den+=z.w;evidence+=z.w;}
-  const raw=num/den;
-  // Shrink sparse contexts toward 50% so confidence cannot be manufactured by tiny samples.
-  const shrink=Math.min(1,evidence/9);
-  return {p:.5+(raw-.5)*shrink,evidence,sources:src.length};
-}
-function ensemble(models,r){const a=modelProb(models.seq,r),b=modelProb(models.road,r);const ev=a.evidence+b.evidence;const wp=a.evidence/(ev||1);const p=ev?wp*a.p+(1-wp)*b.p:.5;return {p,seq:a.p,road:b.p,evidence:ev,sources:a.sources+b.sources};}
-function accuracy(preds){if(!preds.length)return {n:0,w:0,rate:0};let w=0;for(const z of preds)if((z.p>=.5?'P':'B')===z.y)w++;return {n:preds.length,w,rate:w/preds.length};}
-function predictRows(models,rows){return rows.filter(r=>(r.target_pb==='P'||r.target_pb==='B')&&Number(r.prior_hands)>=WARMUP).map(r=>{const z=ensemble(models,r);return {...z,y:r.target_pb,shoe:r.shoe_id,edge:Math.abs(z.p-.5)};});}
-function chooseCutoff(preds,shoeCount){if(!preds.length)return .60;const desired=Math.max(1,shoeCount*TARGET_CALLS), edges=preds.map(x=>x.edge).sort((a,b)=>b-a);const idx=Math.min(edges.length-1,desired-1);return clamp(.5+edges[idx],.515,.65);}
-function splitDataset(x){
-  const shoes=(x.shoes||[]).slice();
-  const groups={red:[],black:[],other:[]};
-  shoes.forEach((s,i)=>{
-    const id=String(s.id||('shoe_'+i));
-    const c=String(s.shoeColor||s.__color||s.color||'').toLowerCase();
-    (c==='red'?groups.red:c==='black'?groups.black:groups.other).push(id);
-  });
-  const trainIds=new Set(), valIds=new Set(), testIds=new Set();
-  const splitGroup=(ids)=>{
-    if(!ids.length)return;
-    const n=ids.length;
-    const nTrain=Math.max(1,Math.floor(n*.70));
-    const nVal=Math.max(1,Math.floor(n*.10));
-    ids.slice(0,nTrain).forEach(id=>trainIds.add(id));
-    ids.slice(nTrain,nTrain+nVal).forEach(id=>valIds.add(id));
-    ids.slice(nTrain+nVal).forEach(id=>testIds.add(id));
-  };
-  splitGroup(groups.red);
-  splitGroup(groups.black);
-  splitGroup(groups.other);
-  const by=(set)=>x.rows.filter(r=>set.has(String(r.shoe_id)));
-  return {
-    train:by(trainIds),val:by(valIds),test:by(testIds),
-    trainShoes:trainIds.size,valShoes:valIds.size,testShoes:testIds.size,
-    splitMode:'color-stratified-held-out'
-  };
-}
-function trainAndValidate(){
-  try{
-    const api=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(!api?.build)throw new Error('V160 dataset builder unavailable');
-    setText('mlv155Status','TRAINING…');setText('mlv155Note','Rebuilding V160 rows and running held-out shoe validation…');
-    const x=api.build(); window.__mlDatasetV159=x;
-    if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique saved shoes for cross-shoe validation');
-    const sp=splitDataset(x); if(!sp.testShoes)throw new Error('No held-out test shoes available');
-    const trainModels={seq:buildModel(sp.train,'seq'),road:buildModel(sp.train,'road')};
-    const valPred=predictRows(trainModels,sp.val), cutoff=chooseCutoff(valPred,sp.valShoes);
-    const testPred=predictRows(trainModels,sp.test), all=accuracy(testPred), selective=accuracy(testPred.filter(z=>Math.max(z.p,1-z.p)>=cutoff));
-    const trainPB=sp.train.filter(r=>r.target_pb==='P'||r.target_pb==='B'); const p=trainPB.filter(r=>r.target_pb==='P').length, b=trainPB.length-p; const baseline=trainPB.length?Math.max(p,b)/trainPB.length:.5;
-    const minCalls=Math.max(30,sp.testShoes*4); const qualified=selective.n>=minCalls && selective.rate>=.53 && selective.rate>=baseline+.015;
-    const fullModels={seq:buildModel(x.rows,'seq'),road:buildModel(x.rows,'road')};
-    runtime={trained:true,qualified,cutoff,model:fullModels,lastError:'',lastSignal:null,report:{version:VERSION,uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,validationShoes:sp.valShoes,unseenTestShoes:sp.testShoes,testRows:testPred.length,overall:all,selective,baseline,cutoff,targetCallsPerShoe:TARGET_CALLS,qualified,reason:qualified?'PASS — held-out selective accuracy cleared the cross-shoe gate.':'WAIT — held-out selective accuracy did not clear the cross-shoe gate.'}};
-    renderReport();
-    return runtime.report;
-  }catch(e){runtime.trained=false;runtime.qualified=false;runtime.lastError=String(e?.message||e);renderReport();return null;}
-}
-function liveSequence(){
-  try{const a=state?.results||state?.hands||[];return a.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean).join('');}catch(e){return '';}
-}
-function transition(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}
-function runLen(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}
-function rate(a,v){return a.length?a.filter(x=>x===v).length/a.length:0}
-function liveRow(){
-  const pre=liveSequence(), arr=[...pre],nt=arr.filter(x=>x!=='T'),last8=nt.slice(-8),tr=last8.length>1?transition(last8)/(last8.length-1):0;
-  let cs=[],rd={eye:[],small:[],roach:[]};try{cs=buildBigRoadColumns(arr.map(r=>({r})))||[]}catch(e){};try{const h=arr.map(r=>({r}));rd={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}
-  const lens=cs.map(c=>c.length),i=arr.length;
-  return {shoe_id:'LIVE',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',target_pb:'',prior_hands:i,prior_non_tie_hands:nt.length,prior_player_count:nt.filter(x=>x==='P').length,prior_banker_count:nt.filter(x=>x==='B').length,prior_tie_count:arr.filter(x=>x==='T').length,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:runLen(nt),recent8_transition_rate:+tr.toFixed(4),regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_road_columns:cs.length,main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),big_eye_red_rate_8:+rate(rd.eye.slice(-8),'R').toFixed(4),small_road_tail_8:rd.small.slice(-8).join(''),small_red_rate_8:+rate(rd.small.slice(-8),'R').toFixed(4),cockroach_tail_8:rd.roach.slice(-8).join(''),cockroach_red_rate_8:+rate(rd.roach.slice(-8),'R').toFixed(4),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length};
-}
-function signal(){
-  if(!runtime.trained)return {side:null,displaySide:null,rawSide:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:runtime.lastError||'Training has not completed yet.'};
-  const r=liveRow();
-  if(r.prior_hands<WARMUP)return {side:null,displaySide:null,rawSide:null,qualified:false,strength:0,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands before live ML scoring.`,report:runtime.report};
-  const z=ensemble(runtime.model,r), conf=Math.max(z.p,1-z.p), side=z.p>=.5?'P':'B';
-  const selectivePass=conf>=runtime.cutoff && z.sources>=2;
-  // V204: always show the raw P/B lean after warmup, but only mark it QUALIFIED
-  // when the held-out model passed validation AND the current confidence clears
-  // the calibrated selective cutoff. Other AIs remain independent.
-  const qualified=!!runtime.qualified && selectivePass;
-  const displayPass=true;
-  const out={
-    side:displayPass?side:null,
-    displaySide:displayPass?side:null,
-    rawSide:side,
-    qualified,
-    experimental:false,
-    strength:displayPass?+(conf*100).toFixed(1):0,
-    confidence:+(conf*100).toFixed(1),
-    status:displayPass?(side==='P'?'PLAYER':'BANKER'):'WAIT',
-    pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),
-    evidence:z.evidence,sources:z.sources,cutoff:+(runtime.cutoff*100).toFixed(1),
-    reason:qualified?'QUALIFIED ML: held-out validation passed and this live call cleared the calibrated cutoff.':'RAW ML LEAN: visible for reference, but not qualified because held-out validation or the live cutoff did not pass.',
-    report:runtime.report
-  };
-  runtime.lastSignal=out;return out;
-}
-function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function renderReport(){
-  const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;
-  const r=runtime.report;
-  panel.querySelector('.analyzer-title').textContent='🧠 ML Road Trainer V204 — Stratified Held-Out Validation';
-  const sub=panel.querySelector('.analyzer-sub');if(sub)sub.textContent='Connected directly to ML Training Dataset V160. Build / Refresh now rebuilds rows, trains two independent in-browser feature models, calibrates a selective gate on validation shoes, and tests that gate on completely held-out shoes. It cannot control other AIs.';
-  const grid=panel.querySelector('.analyzer-grid');
-  let live=null;try{live=runtime.trained?signal():null}catch(e){}
-  const liveTxt=live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT';
-  const liveConf=Number.isFinite(Number(live?.confidence))?Number(live.confidence).toFixed(1)+'%':'—';
-  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv170Authority">${runtime.trained?(runtime.qualified?'VALIDATED / SELECTIVE':'RAW LEAN ONLY'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>OFF / UNRESTRICTED</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
-  let note=document.getElementById('mlv170Note'); if(!note){note=document.createElement('div');note.id='mlv170Note';note.className='analyzer-sub';note.style.marginTop='8px';panel.appendChild(note)}
-  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${live?.reason||''} Validation reference: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%. Validation does NOT block live ML calls in V203.`:'Press Build / Refresh Dataset below to train the ML engine.';
-}
-function install(){
-  const panel=document.getElementById('mlRoadTrainerV155');if(panel)renderReport();
-  const btn=document.getElementById('mlBuild');if(btn&&!btn.__v162){const old=btn.onclick;btn.onclick=function(){try{old&&old.call(this)}catch(e){};setTimeout(trainAndValidate,20)};btn.__v162=true;}
-  // Keep dataset exports intact; training only runs when the user explicitly refreshes the dataset.
-}
-const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v162ml){const w=function(){const x=oldRender.apply(this,arguments);try{if(runtime.trained)runtime.lastSignal=signal()}catch(e){}return x};w.__v162ml=true;window.render=w;}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1350));else setTimeout(install,1350);
-window.__mlRoadTrainerV2=window.__mlRoadTrainerV3={version:VERSION,signal,render:()=>{renderReport();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true};
-})();
-</script>
 
 
-<script id="v163-ml-auto-train-and-visible-status">
-(function(){
-'use strict';
-function boot(){
-  try{
-    const api=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;
-    const panel=document.getElementById('mlRoadTrainerV155');
-    if(panel){
-      const t=panel.querySelector('.analyzer-title');
-      if(t)t.textContent='🧠 ML Road Trainer V170 — Live Prediction + Validation';
-      panel.dataset.connected='v163';
-    }
-    if(api){
-      try{api.render&&api.render()}catch(e){}
-      window.__V163_ML_MANUAL_ONLY__=true;
-    }
-  }catch(e){
-    const n=document.getElementById('mlv155Note');
-    if(n)n.textContent='AUTO-TRAIN ERROR: '+String(e&&e.message||e);
-  }
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1800),{once:true});
-else setTimeout(boot,1800);
-window.__V163_ML_AUTO_TRAIN__=false; window.__V163_ML_MANUAL_ONLY__=true;
-})();
-</script>
+
+
 
 <script>window.__V170_FINGER_ML_LIVE_FIX__={version:170,fingerprintDecisionPersistsPerHand:true,mlLiveLeanVisibleAfterWarmup:true,validationStillReported:true};</script>
 
@@ -15667,6 +15423,25 @@ window.__V201_MIRROR_LIGHT_TUNE__={version:201,changes:{normalMarginGate:'12%→
 window.__V202_ROAD_PREVIEW_BEAD_PLATE_INFLUENCE__={version:202,roadPreview:true,beadPlateInfluence:true,beadPlateMaxWeight:.15,historicalAnchor:true,directBeadStructure:true,otherAIsChanged:false};
 </script>
 
+<script id="v312-ml-canonical-panel-host">
+(function(){
+'use strict';
+function ensureMLPanel(){
+  let p=document.getElementById('mlRoadTrainerV155');
+  if(p)return p;
+  const app=document.querySelector('.app'); if(!app)return null;
+  p=document.createElement('section');
+  p.id='mlRoadTrainerV155'; p.className='analyzer';
+  p.innerHTML='<div class="analyzer-title">🧠 ML Road Trainer V309 — Champion Stack</div><div class="analyzer-sub">Champion Stack ML: Ordered Pattern + Regularized Sequence + Road Structure specialists, whole-shoe validation, reliability weighting, agreement gating, and qualified-only scoring.</div>';
+  const topbar=app.querySelector('.topbar');
+  if(topbar&&topbar.nextSibling)app.insertBefore(p,topbar.nextSibling); else app.appendChild(p);
+  return p;
+}
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',ensureMLPanel,{once:true});}else ensureMLPanel();
+window.__V312_ML_PANEL_HOST__={ensure:ensureMLPanel,version:312};
+})();
+</script>
+
 <script id="v203-remove-walk-forward-unlock-ml-accuracy">
 (function(){
 'use strict';
@@ -15933,63 +15708,7 @@ window.__V206_DEEP_SCAN_FIX__={
 })();
 </script>
 
-<script id="v207-ml-live-refresh-last-chance">
-(function(){
-'use strict';
-const VERSION=207;
-function mlApi(){return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null;}
-function sideText(z){const s=String(z?.displaySide||z?.side||z?.rawSide||'').toUpperCase();return s==='P'?'PLAYER':s==='B'?'BANKER':'WAIT';}
-function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function syncML(){
-  try{
-    const api=mlApi(), panel=document.getElementById('mlRoadTrainerV155');
-    if(!api||!panel)return;
-    const z=api.signal?.()||{};
-    const pick=sideText(z);
-    const c=Number(z.confidence||z.strength);
-    setText('mlv170Pick',pick);
-    setText('mlv170Conf',Number.isFinite(c)?c.toFixed(1)+'%':'—');
-    setText('mlv170Authority',pick==='WAIT'?'READY / NEED TRAINING':'UNRESTRICTED / LIVE');
-    let status=document.getElementById('mlv207LiveStatus');
-    if(!status){
-      status=document.createElement('div');status.id='mlv207LiveStatus';status.className='analyzer-sub';status.style.marginTop='8px';
-      panel.appendChild(status);
-    }
-    const n=(()=>{try{return Array.isArray(state?.hands)?state.hands.length:0}catch(e){return 0}})();
-    status.textContent=pick==='WAIT'
-      ? 'V207 LIVE SYNC: no prediction because the ML model has not been trained in this session. Press Build / Refresh Dataset once.'
-      : `V207 LIVE SYNC: ${pick} ${Number.isFinite(c)?c.toFixed(1)+'%':'—'} for hand #${n+1}. Recomputed after every entered result; no live WAIT gate.`;
-    // Keep the accuracy lock card current after the central accuracy engine arms the next hand.
-    try{
-      const a=state?.accuracyVerified, p=a?.pending?.mlroad;
-      setText('mlv203Pending',p?.side?`${p.side} #${p.hand}`:(pick==='PLAYER'?'P':pick==='BANKER'?'B':'—')+(pick==='WAIT'?'':` #${n+1}`));
-    }catch(e){}
-  }catch(e){console.warn('V207 ML live sync',e);}
-}
-function removeChart(){
-  try{document.getElementById('chartPatternRecognizerV156')?.remove();}catch(e){}
-  // Safe no-op compatibility object: older optional hooks will not recreate or score the removed AI.
-  const stub={version:VERSION,removed:true,scan:()=>({side:null,confidence:0,note:'REMOVED V207'}),render:()=>null,settle:()=>false,accuracy:()=>({w:0,l:0,pending:null,ledger:[]})};
-  try{window.__chartPatternRecognizerV156=window.__chartPatternRecognizerV172=window.__chartPatternRecognizerV188=window.__chartPatternRecognizerV199=window.__chartPatternRecognizerV200=stub;}catch(e){}
-}
-function install(){
-  removeChart();
-  const old=window.render;
-  if(typeof old==='function'&&!old.__v207MLLive){
-    const w=function(){const r=old.apply(this,arguments);try{removeChart();syncML();setTimeout(syncML,0)}catch(e){}return r;};
-    w.__v207MLLive=true;w.__base=old;window.render=w;try{render=w}catch(e){}
-  }
-  // A short low-frequency safety timer covers legacy code paths that update the shoe without calling render.
-  let last=-1;
-  window.__v207MLSyncTimer=setInterval(()=>{
-    try{const n=Array.isArray(state?.hands)?state.hands.length:0;if(n!==last){last=n;removeChart();syncML();}}catch(e){}
-  },15000);
-  syncML();setTimeout(syncML,400);setTimeout(syncML,1400);
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,2500),{once:true});else setTimeout(install,2500);
-window.__V207_ML_LAST_CHANCE__={version:VERSION,chartPatternRecognizerRemoved:true,mlLivePredictionRecomputedEveryHand:true,mlLiveWaitGate:false,uiRefreshBugFixed:true};
-})();
-</script>
+
 
 
 <script id="v208-after-tie-accuracy-root-fix">
@@ -17267,33 +16986,7 @@ window.__V225_FINAL_SCAN__={version:VERSION,syntaxChecked:true,duplicateIdsCheck
 #mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox)>.analyzer-card:has(#mlv170Conf){display:block!important}
 #mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox){grid-template-columns:repeat(2,minmax(0,1fr))!important}
 </style>
-<script id="v226-ml-accuracy-restore-runtime">
-(function(){
-'use strict';
-const VERSION=226;
-function restore(){
-  const panel=document.getElementById('mlRoadTrainerV155'); if(!panel)return false;
-  try{window.__V203_ML_UNLOCK__&&window.render?.call?.(window)}catch(e){}
-  const box=document.getElementById('mlv203AccuracyBox');
-  const reset=document.getElementById('mlv203Reset');
-  const tie=document.getElementById('mlv204AfterTie');
-  if(box){box.style.setProperty('display','grid','important');box.querySelectorAll('.analyzer-card').forEach(c=>c.style.setProperty('display','block','important'));}
-  if(reset)reset.style.setProperty('display','inline-block','important');
-  if(tie)tie.style.setProperty('display','block','important');
-  const note=document.getElementById('mlv170Note'); if(note)note.style.setProperty('display','none','important');
-  const grids=[...panel.querySelectorAll(':scope > .analyzer-grid')].filter(g=>g.id!=='mlv203AccuracyBox');
-  grids.forEach(g=>{g.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';g.querySelectorAll(':scope > .analyzer-card').forEach(card=>{const keep=!!(card.querySelector('#mlv170Pick')||card.querySelector('#mlv170Conf'));card.style.setProperty('display',keep?'block':'none','important');});});
-  return !!(box&&reset);
-}
-function boot(){
-  restore();
-  [150,500,1200,2500,5000].forEach(ms=>setTimeout(restore,ms));
-  if(!window.__v226MlRestoreTimer)window.__v226MlRestoreTimer=setInterval(()=>{if(document.visibilityState!=='hidden')restore();},15000);
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-window.__V226_ML_DISPLAY__={version:VERSION,kept:['LIVE PREDICTION','LIVE CONFIDENCE','LIVE ACCURACY','WINS / LOSSES','COUNT','NEXT LOCK','AFTER TIE ACCURACY','RESET ML ACCURACY'],hidden:['validation stats','target pace','validation notes','live authority','unseen shoes','all test calls','selective test','selective N','baseline','live gate'],predictionLogicChanged:false};
-})();
-</script>
+
 
 <script id="v231-three-road-confusion-ai">
 (function(){
@@ -18626,94 +18319,7 @@ window.__FINGERPRINT_V260__={version:VERSION,signal,register,paint,target:TARGET
 
 
 <!-- V259 — ML selective validation + auto-train fix. Prediction logic of all non-ML AIs unchanged. -->
-<script id="v259-ml-selective-validation-auto-train-fix">
-(function(){
-'use strict';
-const VERSION=259;
-let training=false, trainedOnce=false;
-function api(){ return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null; }
-function setText(id,v){ const e=document.getElementById(id); if(e)e.textContent=v; }
-function installSelective(){
-  const a=api(); if(!a) return false;
-  if(a.signal&&a.signal.__v259SelectiveFn) return true;
-  const raw=a.signal?.bind(a); if(typeof raw!=='function') return false;
-  a.__v259RawSignal=raw;
-  a.signal=function(){
-    const z=raw()||{};
-    const r=a.report?.()||z.report||null;
-    if(!r){ return {...z,side:null,displaySide:null,qualified:false,strength:0,status:'WAIT',reason:'ML is training / validation is not ready.'}; }
-    const side=z.rawSide||z.side||z.displaySide;
-    const conf=Number(z.confidence||z.strength)||0;
-    const cutoff=(Number(r.cutoff)||0)*100;
-    const evidenceOK=(Number(z.sources)||0)>=2;
-    const selectiveOK=(side==='P'||side==='B') && evidenceOK && conf>=cutoff;
-    const modelOK=!!r.qualified;
-    const qualified=modelOK && selectiveOK;
-    return {...z,
-      side:qualified?side:null,
-      displaySide:qualified?side:null,
-      qualified,
-      experimental:!modelOK,
-      strength:qualified?conf:0,
-      status:qualified?(side==='P'?'PLAYER':'BANKER'):'WAIT',
-      reason: !modelOK
-        ? `WAIT: ML failed held-out cross-shoe validation (${(Number(r.selective?.rate||0)*100).toFixed(1)}% selective, N=${Number(r.selective?.n||0)}). No live bet is authorized.`
-        : !selectiveOK
-          ? `WAIT: ML evidence did not clear its selective gate (${cutoff.toFixed(1)}% confidence, 2-source minimum).`
-          : `QUALIFIED ML: held-out model passed and this hand cleared the ${cutoff.toFixed(1)}% selective gate.`
-    };
-  };
-  try{a.signal.__v259SelectiveFn=true;}catch(e){}
-  a.__v259Selective=true;
-  return true;
-}
-function paint(){
-  const a=api(); if(!a) return;
-  let z={}; try{z=a.signal?.()||{}}catch(e){}
-  const r=a.report?.()||z.report||null;
-  const pick=z.side==='P'?'PLAYER':z.side==='B'?'BANKER':'WAIT';
-  setText('mlv170Pick',pick);
-  setText('mlv170Conf',z.side?`${Number(z.confidence||0).toFixed(1)}%`:'—');
-  setText('mlv170Authority',!r?'TRAINING':r.qualified?'SELECTIVE / VALIDATED':'VALIDATION FAILED / WAIT');
-  const note=document.getElementById('mlv170Note');
-  if(note) note.textContent=z.reason||'ML selective validation gate active.';
-}
-function train(){
-  const a=api(); if(!a||training||trainedOnce||typeof a.trainAndValidate!=='function') return;
-  let shoes=0; try{shoes=(window.__mlTrainingDatasetV160?.build?.().shoes||[]).length}catch(e){}
-  if(!shoes) return;
-  training=true;
-  try{
-    setText('mlv170Authority','AUTO-TRAINING…');
-    a.trainAndValidate();
-    trainedOnce=true;
-    installSelective();
-    paint();
-  }catch(e){
-    console.warn('V259 ML auto-train',e);
-  }finally{training=false;}
-}
-function boot(){
-  installSelective();
-  // Mobile-safe startup: ML training is intentionally user-triggered. Running the
-  // full trainer while every dashboard module is mounting can freeze iOS browsers.
-  setTimeout(paint,2200);
-  const btn=document.getElementById('mlBuild');
-  if(btn&&!btn.__v259){
-    btn.addEventListener('click',()=>setTimeout(()=>{trainedOnce=true;installSelective();paint();},120));
-    btn.__v259=true;
-  }
-}
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2400),{once:true});
-else setTimeout(boot,2400);
-const oldRender=window.render;
-if(typeof oldRender==='function'&&!oldRender.__v259ml){
-  const w=function(){const x=oldRender.apply(this,arguments);try{installSelective();paint()}catch(e){}return x};
-  w.__v259ml=true; w.__base=oldRender; window.render=w; try{render=w}catch(e){}
-}
-window.__V259_ML_FIX__={version:VERSION,autoTrain:false,mobileSafeManualTrain:true,requiresHeldOutQualification:true,selectiveConfidenceGate:true,minSources:2,accuracyOnlyQualified:true,otherAIsChanged:false};
-})();
-</script>
+
 
 <!-- V261 — Auto Match / Duplicate Trajectory / ML authority safety fix -->
 <script id="v261-match-ml-safety-marker">
@@ -19745,100 +19351,12 @@ window.__V290_RUNTIME_CLEANUP__={
   predictionLogicChanged:false
 };
 </script>
-\n<script id="v300-ml-specialist-learning">
-(function(){
-'use strict';
-const VERSION=300,WARMUP=6,TARGET_CALLS=10;
-let runtime={trained:false,qualified:false,report:null,model:null,cutoff:.545,lastError:'',lastSignal:null};
-const sideOf=v=>{const x=String(v??'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':x==='T'||x==='TIE'?'T':''};
-const bucket=n=>{n=Number(n)||0;return n>=6?'6+':n>=4?'4-5':n>=2?'2-3':String(n)};
-const tail=(s,n)=>String(s||'').slice(-n);
-function specs(r){const q=Math.round((Number(r.recent8_transition_rate)||0)*4)/4;return {
- seq4:tail(r.pb_tail_6,4),seq6:tail(r.pb_tail_6,6),seq10:tail(r.pb_tail_10,10),
- regime:`${r.phase}|${r.regime}|${r.current_streak_side}|${bucket(r.current_streak_len)}`,
- trans:`${r.phase}|${q}|${r.last_non_tie}`,
- main:`${r.current_streak_side}|${r.main_last4_col_depths}`,
- depth:`${r.phase}|${bucket(r.main_current_col_depth)}|${bucket(r.main_prev_col_depth)}`,
- eye4:tail(r.big_eye_tail_8,4),small4:tail(r.small_road_tail_8,4),roach4:tail(r.cockroach_tail_8,4),
- roads:`${tail(r.big_eye_tail_8,3)}|${tail(r.small_road_tail_8,3)}|${tail(r.cockroach_tail_8,3)}`,
- support:`${r.phase}|${r.regime}|${r.support_ready_count}|${r.support_agreement_red}`,
- colorreg:`${String(r.shoe_color||'').toLowerCase()}|${r.phase}|${r.regime}|${r.current_streak_side}|${bucket(r.current_streak_len)}`
-};}
-function trainModel(rows){const names=Object.keys(specs(rows[0]||{})),model={};names.forEach(n=>model[n]=new Map());
- for(const r of rows){if(r.target_pb!=='P'&&r.target_pb!=='B')continue;const sp=specs(r);for(const n of names){const k=sp[n];if(!k)continue;let z=model[n].get(k);if(!z){z={P:0,B:0,shoes:new Set()};model[n].set(k,z)}z[r.target_pb]++;z.shoes.add(String(r.shoe_id||''));}}return model;}
-function predict(model,r){const groups={seq:['seq4','seq6','seq10'],context:['regime','trans','colorreg'],main:['main','depth'],roads:['eye4','small4','roach4','roads','support']};const fam=[];const sp=specs(r);
- for(const [g,names] of Object.entries(groups)){const vals=[];for(const n of names){const z=model[n]?.get(sp[n]);if(!z)continue;const cnt=z.P+z.B,sh=z.shoes.size;if(sh<3||cnt<6)continue;const p=(z.P+2)/(cnt+4),rel=Math.min(1,sh/8)*Math.min(1,cnt/18);vals.push({edge:(p-.5)*rel,rel});}if(vals.length){const den=vals.reduce((a,v)=>a+v.rel,0),edge=vals.reduce((a,v)=>a+v.edge,0)/(den||1);fam.push({g,edge,w:Math.min(2,den)});}}
- if(!fam.length)return {p:.5,families:0,evidence:0};const den=fam.reduce((a,v)=>a+v.w,0),edge=(fam.reduce((a,v)=>a+v.edge*v.w,0)/(den||1))*Math.min(1,fam.length/3);return {p:Math.max(.05,Math.min(.95,.5+edge)),families:fam.length,evidence:den};}
-function splitDataset(x){const groups={red:[],black:[],other:[]};(x.shoes||[]).forEach((s,i)=>{const id=String(s.id||('shoe_'+i)),c=String(s.shoeColor||s.__color||s.color||'').toLowerCase();(c==='red'?groups.red:c==='black'?groups.black:groups.other).push(id)});const tr=new Set(),va=new Set(),te=new Set();for(const ids of Object.values(groups)){if(!ids.length)continue;const n=ids.length,nt=Math.max(1,Math.floor(n*.70)),nv=Math.max(1,Math.floor(n*.10));ids.slice(0,nt).forEach(x=>tr.add(x));ids.slice(nt,nt+nv).forEach(x=>va.add(x));ids.slice(nt+nv).forEach(x=>te.add(x));}const by=set=>x.rows.filter(r=>set.has(String(r.shoe_id)));return {train:by(tr),val:by(va),test:by(te),trainShoes:tr.size,valShoes:va.size,testShoes:te.size};}
-function accuracy(a){if(!a.length)return {n:0,w:0,rate:0};let w=0;for(const z of a)if((z.p>=.5?'P':'B')===z.y)w++;return {n:a.length,w,rate:w/a.length};}
-function rowsPred(model,rows){return rows.filter(r=>(r.target_pb==='P'||r.target_pb==='B')&&Number(r.prior_hands)>=WARMUP).map(r=>{const z=predict(model,r);return {...z,y:r.target_pb,shoe:r.shoe_id,confidence:Math.max(z.p,1-z.p)}});}
-function chooseCutoff(preds,shoeCount){let best={th:.545,rate:0,n:0};for(let th=.515;th<=.65;th+=.005){const a=preds.filter(z=>z.families>=2&&z.confidence>=th);if(a.length<Math.max(30,shoeCount*4))continue;const q=accuracy(a);if(q.rate>best.rate||(q.rate===best.rate&&Math.abs(q.n-shoeCount*TARGET_CALLS)<Math.abs(best.n-shoeCount*TARGET_CALLS)))best={th:+th.toFixed(3),rate:q.rate,n:q.n};}return best.th;}
-function trainAndValidate(){try{const api=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(!api?.build)throw new Error('ML Training Dataset V160 unavailable');const x=api.build();window.__mlDatasetV159=x;if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique shoes');const sp=splitDataset(x),m=trainModel(sp.train),vp=rowsPred(m,sp.val),cutoff=chooseCutoff(vp,sp.valShoes),tp=rowsPred(m,sp.test),all=accuracy(tp),selective=accuracy(tp.filter(z=>z.families>=2&&z.confidence>=cutoff));const pb=sp.train.filter(r=>r.target_pb==='P'||r.target_pb==='B'),pc=pb.filter(r=>r.target_pb==='P').length,baseline=pb.length?Math.max(pc,pb.length-pc)/pb.length:.5;const qualified=selective.n>=Math.max(30,sp.testShoes*4)&&selective.rate>=.53&&selective.rate>=baseline+.015;runtime={trained:true,qualified,cutoff,model:trainModel(x.rows),lastError:'',lastSignal:null,report:{version:VERSION,architecture:'4 specialist families + cross-shoe support',uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,validationShoes:sp.valShoes,unseenTestShoes:sp.testShoes,overall:all,selective,baseline,cutoff,qualified,reason:qualified?'PASS — specialist ML cleared held-out gate.':'RAW LEAN ONLY — redesigned ML improved structure but did not clear the 53% held-out gate.'}};renderReport();return runtime.report;}catch(e){runtime.trained=false;runtime.qualified=false;runtime.lastError=String(e?.message||e);renderReport();return null;}}
-function liveSeq(){try{const a=state?.results||state?.hands||[];return a.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean).join('')}catch(e){return ''}}
-function trans(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}function rate(a,v){return a.length?a.filter(x=>x===v).length/a.length:0}
-function liveRow(){const pre=liveSeq(),arr=[...pre],nt=arr.filter(x=>x!=='T'),last8=nt.slice(-8),tr=last8.length>1?trans(last8)/(last8.length-1):0;let cs=[],rd={eye:[],small:[],roach:[]};try{cs=buildBigRoadColumns(arr.map(r=>({r})))||[]}catch(e){}try{const h=arr.map(r=>({r}));rd={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}const lens=cs.map(c=>c.length),i=arr.length;return {shoe_id:'LIVE',shoe_color:state?.currentShoeColor||'',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',target_pb:'',prior_hands:i,prior_non_tie_hands:nt.length,prior_player_count:nt.filter(x=>x==='P').length,prior_banker_count:nt.filter(x=>x==='B').length,prior_tie_count:arr.filter(x=>x==='T').length,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:run(nt),recent8_transition_rate:tr,regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_road_columns:cs.length,main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),big_eye_red_rate_8:rate(rd.eye.slice(-8),'R'),small_road_tail_8:rd.small.slice(-8).join(''),small_red_rate_8:rate(rd.small.slice(-8),'R'),cockroach_tail_8:rd.roach.slice(-8).join(''),cockroach_red_rate_8:rate(rd.roach.slice(-8),'R'),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length};}
-function signal(){if(!runtime.trained)return {side:null,displaySide:null,rawSide:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.lastError||'Training not complete'};const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,displaySide:null,rawSide:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};const z=predict(runtime.model,r),conf=Math.max(z.p,1-z.p),side=z.p>=.5?'P':'B',qualified=runtime.qualified&&z.families>=2&&conf>=runtime.cutoff;return runtime.lastSignal={side,displaySide:side,rawSide:side,qualified,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':'BANKER',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:z.evidence,cutoff:+(runtime.cutoff*100).toFixed(1),reason:qualified?'QUALIFIED SPECIALIST ML':'RAW SPECIALIST ML LEAN — held-out gate not cleared or live evidence below cutoff.',report:runtime.report};}
-function renderReport(){const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;const r=runtime.report;const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 ML Road Trainer V300 — Independent Specialist Learning';const sub=panel.querySelector('.analyzer-sub');if(sub)sub.textContent='Independent ML only. Four specialist families learn sequence, live regime, Big Road structure, and derived-road structure. Historical evidence is discounted unless it repeats across independent shoes. Sequence V2 and Main Future Road are not inputs.';const grid=panel.querySelector('.analyzer-grid');let live=null;try{live=runtime.trained?signal():null}catch(e){};if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong>${live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT'}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong>${live?.confidence?live.confidence.toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>AUTHORITY</span><strong>${runtime.trained?(runtime.qualified?'VALIDATED / SELECTIVE':'RAW LEAN ONLY'):'TRAINING'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>CUTOFF</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div>`;let note=document.getElementById('mlv170Note')||document.getElementById('mlv155Note');if(note)note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${r.reason} Held-out selective ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} calls across ${r.unseenTestShoes} unseen shoes.`:'Training specialist model…';}
-window.__mlRoadTrainerV2=window.__mlRoadTrainerV3={version:VERSION,signal,render:()=>{renderReport();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true,independentSpecialists:true};
-setTimeout(()=>{try{trainAndValidate()}catch(e){}},1800);
-})();
-</script>\n
+\n\n
 <script id="v302-layout-marker">
 window.__V304_LAYOUT__={version:305,mainRoadOnlyFuture:'TOP',bestEstimate:'SECOND',colorPattern:'BOTTOM',adaptiveLibraryIntelligence:'BOTTOM',predictionLogicChanged:false,sequenceV2Changed:false,mainFutureChanged:false};
 </script>
 
-<script id="v306-ml-live-result-display-repair">
-(function(){
-'use strict';
-const VERSION=306;
-function api(){return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null;}
-function label(side){return side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT';}
-function ensureBox(){
-  const panel=document.getElementById('mlRoadTrainerV155');
-  if(!panel)return null;
-  let box=document.getElementById('mlv306LiveResultBox');
-  if(!box){
-    box=document.createElement('div');
-    box.id='mlv306LiveResultBox';
-    box.className='analyzer-grid';
-    box.style.marginTop='8px';
-    box.innerHTML=`
-      <div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv306Pick">WAIT</strong></div>
-      <div class="analyzer-card"><span>ML CONFIDENCE</span><strong id="mlv306Confidence">—</strong></div>
-      <div class="analyzer-card"><span>PLAYER / BANKER</span><strong id="mlv306Split">—</strong></div>
-      <div class="analyzer-card"><span>MODEL STATUS</span><strong id="mlv306Status">WAIT</strong></div>
-      <div class="analyzer-card"><span>EVIDENCE</span><strong id="mlv306Evidence">—</strong></div>
-      <div class="analyzer-card"><span>LIVE CUTOFF</span><strong id="mlv306Cutoff">—</strong></div>`;
-    const acc=document.getElementById('mlv203AccuracyBox');
-    if(acc&&acc.parentNode===panel)panel.insertBefore(box,acc);else panel.appendChild(box);
-    let note=document.getElementById('mlv306LiveReason');
-    if(!note){note=document.createElement('div');note.id='mlv306LiveReason';note.className='analyzer-sub';note.style.marginTop='8px';panel.insertBefore(note,box.nextSibling);}
-  }
-  return box;
-}
-function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function paint(){
-  const box=ensureBox(); if(!box)return;
-  let z={};try{z=api()?.signal?.()||{};}catch(e){z={reason:'ML display error: '+(e?.message||e)};}
-  const side=(z.displaySide==='P'||z.displaySide==='B')?z.displaySide:(z.side==='P'||z.side==='B')?z.side:(z.rawSide==='P'||z.rawSide==='B')?z.rawSide:null;
-  const conf=Number(z.confidence||z.strength)||0;
-  set('mlv306Pick',label(side));
-  set('mlv306Confidence',conf?conf.toFixed(1)+'%':'—');
-  set('mlv306Split',(Number.isFinite(Number(z.pPct))&&Number.isFinite(Number(z.bPct)))?`${Number(z.pPct).toFixed(1)}% P / ${Number(z.bPct).toFixed(1)}% B`:'—');
-  set('mlv306Status',side?(z.qualified?'QUALIFIED':'RAW LEAN'):'WAIT');
-  const ev=Number(z.evidence); const fam=Number(z.families||z.sources);
-  set('mlv306Evidence',(Number.isFinite(ev)&&ev>0)?`${ev.toFixed(1)}${Number.isFinite(fam)&&fam>0?' • '+fam+' families':''}`:(Number.isFinite(fam)&&fam>0?fam+' families':'—'));
-  set('mlv306Cutoff',Number(z.cutoff)?Number(z.cutoff).toFixed(1)+'%':'—');
-  const note=document.getElementById('mlv306LiveReason');if(note)note.textContent=z.reason||(!side?'ML is waiting for enough live hands/evidence.':'');
-  // Keep this dedicated result box ahead of accuracy even if older renderers rebuild their own grids.
-  const panel=document.getElementById('mlRoadTrainerV155'),acc=document.getElementById('mlv203AccuracyBox');
-  if(panel&&acc&&box.parentNode===panel&&box.nextSibling!==acc){panel.insertBefore(box,acc);if(note)panel.insertBefore(note,acc);}
-}
-function boot(){paint();setInterval(paint,1000);document.addEventListener('click',()=>setTimeout(paint,40),true);}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2600),{once:true});else setTimeout(boot,2600);
-window.__V306_ML_DISPLAY_REPAIR__={version:VERSION,paint};
-})();
-</script>
+
 
 
 <script id="v307-ml-single-owner-qualified-controller">
@@ -19860,8 +19378,8 @@ function installQualifiedAccuracy(){
 }
 function ensure(){
   const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return null;
-  const title=panel.querySelector('.analyzer-title');if(title)title.textContent='🧠 ML Road Trainer V307 — Qualified Specialist Learning';
-  const sub=panel.querySelector('.analyzer-sub');if(sub&&!sub.id)sub.textContent='Independent ML specialist. The official pick is graded only when the held-out model gate AND live evidence gate are both cleared. RAW LEAN stays visible for information but is not counted as an ML prediction.';
+  const title=panel.querySelector('.analyzer-title');if(title)title.textContent='🧠 ML Road Trainer V309 — Champion Stack';
+  const sub=panel.querySelector('.analyzer-sub');if(sub&&!sub.id)sub.textContent='Champion Stack ML: Ordered Pattern + Regularized Sequence + Road Structure specialists, whole-shoe validation, reliability weighting, agreement gating, and qualified-only scoring.';
   let box=document.getElementById('mlv307Canonical');
   if(!box){
     box=document.createElement('div');box.id='mlv307Canonical';box.className='analyzer-grid';box.style.marginTop='8px';
@@ -19911,43 +19429,9 @@ window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:tru
 })();
 </script>
 
-</body>
-</html>
 
-<script id="v308-ml-champion-ensemble">
-(function(){
-'use strict';
-const VERSION=308,WARMUP=6,TARGET_CALLS=10;
-let runtime={trained:false,qualified:false,model:null,weights:null,cutoff:.55,report:null,lastError:'',lastSignal:null};
-const sideOf=v=>{const x=String(v??'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':x==='T'||x==='TIE'?'T':''};
-const tail=(s,n)=>String(s||'').slice(-n),bucket=n=>{n=Number(n)||0;return n>=7?'7+':n>=5?'5-6':n>=3?'3-4':String(n)};
-function features(r){const tr=Math.round((Number(r.recent8_transition_rate)||0)*5)/5;return {
- bead:{b6:tail(r.bead_tail_6,6),b10:tail(r.bead_tail_10,10)},
- sequence:{s4:tail(r.pb_tail_6,4),s6:tail(r.pb_tail_6,6),s10:tail(r.pb_tail_10,10)},
- context:{c1:`${r.phase}|${r.regime}|${r.last_non_tie}`,c2:`${r.phase}|${r.current_streak_side}|${bucket(r.current_streak_len)}`,c3:`${String(r.shoe_color||'').toLowerCase()}|${r.phase}|${r.regime}`,c4:`${r.phase}|${tr}`},
- main:{m1:`${r.current_streak_side}|${r.main_last4_col_depths}`,m2:`${r.phase}|${bucket(r.main_current_col_depth)}|${bucket(r.main_prev_col_depth)}`},
- roads:{r1:tail(r.big_eye_tail_8,5),r2:tail(r.small_road_tail_8,5),r3:tail(r.cockroach_tail_8,5),r4:`${tail(r.big_eye_tail_8,3)}|${tail(r.small_road_tail_8,3)}|${tail(r.cockroach_tail_8,3)}`,r5:`${r.support_ready_count}|${r.support_agreement_red}|${r.phase}`}
-};}
-function train(rows){const M={};for(const fam of Object.keys(features(rows[0]||{})))M[fam]={};for(const r of rows){if(r.target_pb!=='P'&&r.target_pb!=='B')continue;const fs=features(r),sid=String(r.shoe_id||'');for(const [fam,vals] of Object.entries(fs)){for(const [name,key] of Object.entries(vals)){if(!key)continue;const map=M[fam][name]||(M[fam][name]=new Map());let z=map.get(key);if(!z){z={P:0,B:0,shoes:new Set()};map.set(key,z)}z[r.target_pb]++;z.shoes.add(sid);}}}return M;}
-function famScore(model,r,fam){const vals=features(r)[fam]||{},scores=[];for(const [name,key] of Object.entries(vals)){const z=model[fam]?.[name]?.get(key);if(!z)continue;const n=z.P+z.B,sh=z.shoes.size;if(sh<3||n<7)continue;const p=(z.P+3)/(n+6),support=Math.min(1,sh/10)*Math.min(1,n/24),edge=(p-.5)*2*support;scores.push({edge,support});}if(!scores.length)return null;const den=scores.reduce((a,x)=>a+x.support,0);return {edge:scores.reduce((a,x)=>a+x.edge*x.support,0)/(den||1),support:den};}
-function predict(model,weights,r){const fams=[];for(const fam of Object.keys(model)){const z=famScore(model,r,fam);if(!z)continue;const w=Math.max(.15,Number(weights?.[fam]||1));fams.push({fam,edge:z.edge,support:z.support,w});}if(!fams.length)return {p:.5,families:0,evidence:0,detail:[]};let den=0,num=0,ev=0;for(const f of fams){const ww=f.w*Math.min(1.5,f.support);den+=ww;num+=f.edge*ww;ev+=f.support;}let edge=(num/(den||1))*Math.min(1,fams.length/3);edge=Math.max(-.43,Math.min(.43,edge));return {p:.5+edge/2,families:fams.length,evidence:ev,detail:fams};}
-function split(x){const ids=(x.shoes||[]).map((s,i)=>({id:String(s.id||('shoe_'+i)),c:String(s.shoeColor||s.__color||s.color||'').toLowerCase()}));const groups={red:[],black:[],other:[]};ids.forEach(o=>(o.c==='red'?groups.red:o.c==='black'?groups.black:groups.other).push(o.id));const tr=new Set(),va=new Set(),te=new Set();for(const a of Object.values(groups)){const n=a.length;if(!n)continue;const nt=Math.max(1,Math.floor(n*.68)),nv=Math.max(1,Math.floor(n*.16));a.slice(0,nt).forEach(v=>tr.add(v));a.slice(nt,nt+nv).forEach(v=>va.add(v));a.slice(nt+nv).forEach(v=>te.add(v));}const by=s=>x.rows.filter(r=>s.has(String(r.shoe_id)));return {train:by(tr),val:by(va),test:by(te),trainShoes:tr.size,valShoes:va.size,testShoes:te.size};}
-function acc(a){let w=0;for(const z of a)if((z.p>=.5?'P':'B')===z.y)w++;return {n:a.length,w,rate:a.length?w/a.length:0};}
-function familyWeights(model,rows){const out={};for(const fam of Object.keys(model)){let n=0,w=0;for(const r of rows){if((r.target_pb!=='P'&&r.target_pb!=='B')||Number(r.prior_hands)<WARMUP)continue;const z=famScore(model,r,fam);if(!z||Math.abs(z.edge)<.02)continue;n++;if((z.edge>=0?'P':'B')===r.target_pb)w++;}const rate=n?w/n:.5;out[fam]=Math.max(.35,Math.min(1.8,.55+Math.max(0,rate-.5)*5))*Math.min(1,Math.sqrt(n/80));}return out;}
-function preds(model,weights,rows){return rows.filter(r=>(r.target_pb==='P'||r.target_pb==='B')&&Number(r.prior_hands)>=WARMUP).map(r=>{const z=predict(model,weights,r);return {...z,y:r.target_pb,shoe:r.shoe_id,confidence:Math.max(z.p,1-z.p)}});}
-function cutoffFor(a,shoeN){let best={score:-1,th:.55,n:0,rate:0};for(let th=.515;th<=.68;th+=.005){const q=a.filter(z=>z.families>=2&&z.evidence>=1.2&&z.confidence>=th),s=acc(q);if(s.n<Math.max(24,shoeN*3))continue;const pace=s.n/Math.max(1,shoeN),score=s.rate-.0015*Math.abs(pace-TARGET_CALLS);if(score>best.score)best={score,th:+th.toFixed(3),n:s.n,rate:s.rate};}return best.th;}
-function trainAndValidate(){try{const api=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(!api?.build)throw new Error('ML Training Dataset unavailable');const x=api.build();window.__mlDatasetV159=x;if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique shoes');const sp=split(x),base=train(sp.train),weights=familyWeights(base,sp.val),vp=preds(base,weights,sp.val),cutoff=cutoffFor(vp,sp.valShoes),tp=preds(base,weights,sp.test),overall=acc(tp),sel=acc(tp.filter(z=>z.families>=2&&z.evidence>=1.2&&z.confidence>=cutoff));const pb=sp.train.filter(r=>r.target_pb==='P'||r.target_pb==='B'),pc=pb.filter(r=>r.target_pb==='P').length,baseline=pb.length?Math.max(pc,pb.length-pc)/pb.length:.5;const qualified=sel.n>=Math.max(24,sp.testShoes*3)&&sel.rate>=Math.max(.53,baseline+.012);runtime={trained:true,qualified,model:train(x.rows),weights,cutoff,lastError:'',lastSignal:null,report:{version:VERSION,architecture:'5-family reliability-weighted ensemble',uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,valShoes:sp.valShoes,testShoes:sp.testShoes,overall,selective:sel,baseline,cutoff,weights,qualified,reason:qualified?'PASS — held-out selective gate cleared.':'RAW LEAN ONLY — held-out gate not cleared yet.'}};return runtime.report}catch(e){runtime.trained=false;runtime.qualified=false;runtime.lastError=String(e?.message||e);return null}}
-function liveSeq(){try{const a=state?.results||state?.hands||[];return a.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean).join('')}catch(e){return ''}}
-function transitions(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}function rate(a,v){return a.length?a.filter(x=>x===v).length/a.length:0}
-function liveRow(){const pre=liveSeq(),arr=[...pre],nt=arr.filter(x=>x!=='T'),last8=nt.slice(-8),tr=last8.length>1?transitions(last8)/(last8.length-1):0;let cs=[],rd={eye:[],small:[],roach:[]};try{cs=buildBigRoadColumns(arr.map(r=>({r})))||[]}catch(e){}try{const h=arr.map(r=>({r}));rd={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}const lens=cs.map(c=>c.length),i=arr.length;return {shoe_id:'LIVE',shoe_color:state?.currentShoeColor||'',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',prior_hands:i,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:run(nt),recent8_transition_rate:tr,regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),small_road_tail_8:rd.small.slice(-8).join(''),cockroach_tail_8:rd.roach.slice(-8).join(''),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length,big_eye_red_rate_8:rate(rd.eye.slice(-8),'R'),small_red_rate_8:rate(rd.small.slice(-8),'R'),cockroach_red_rate_8:rate(rd.roach.slice(-8),'R')};}
-function signal(){if(!runtime.trained)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.lastError||'Training not complete'};const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};const z=predict(runtime.model,runtime.weights,r),conf=Math.max(z.p,1-z.p),side=z.p>=.5?'P':'B',qualified=runtime.qualified&&z.families>=2&&z.evidence>=1.2&&conf>=runtime.cutoff;return runtime.lastSignal={side,displaySide:side,rawSide:side,qualified,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':'BANKER',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:+z.evidence.toFixed(2),cutoff:+(runtime.cutoff*100).toFixed(1),reason:qualified?'QUALIFIED CHAMPION ML':'RAW ML LEAN — waiting for validated confidence/evidence.',report:runtime.report};}
-function render(){return signal()}
-const api={version:VERSION,signal,render,report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true,independentSpecialists:true,championEnsemble:true};
-window.__mlRoadTrainerV2=window.__mlRoadTrainerV3=api;
-function title(){const p=document.getElementById('mlRoadTrainerV155');if(p){const t=p.querySelector('.analyzer-title');if(t)t.textContent='🧠 ML Road Trainer V308 — Champion Ensemble';}}
-setTimeout(()=>{trainAndValidate();title();try{window.__V307_ML_CONTROLLER__?.paint?.()}catch(e){}},3200);
-window.__V308_ML_CHAMPION__={version:VERSION,trainAndValidate,signal,report:()=>runtime.report};
-})();
+<script id="v311-ml-cleanup-marker">
+window.__V311_ML_CLEANUP__={version:311,activeEngine:'V309 Champion Stack',activeController:'V307 single-owner qualified controller',legacyMLEnginesRemoved:true,preservedDataset:'V160',preservedAccuracy:'V203 + V307 qualified-only'};
 </script>
 
 
@@ -19994,3 +19478,129 @@ setTimeout(()=>{trainAndValidate();title();repaint()},3600);[5000,7000].forEach(
 window.__V309_ML_CHAMPION_STACK__={version:VERSION,trainAndValidate,signal,report:()=>runtime.report};
 })();
 </script>
+
+<script id="v310-v309-title-display-lock">
+(function(){
+'use strict';
+function lock(){
+  const p=document.getElementById('mlRoadTrainerV155'); if(!p)return;
+  const t=p.querySelector('.analyzer-title'); if(t)t.textContent='🧠 ML Road Trainer V309 — Champion Stack';
+  const sub=p.querySelector('.analyzer-sub'); if(sub&&!sub.id)sub.textContent='Champion Stack ML: Ordered Pattern + Regularized Sequence + Road Structure specialists, whole-shoe validation, reliability weighting, agreement gating, and qualified-only scoring.';
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',lock,{once:true}); else lock();
+[50,500,1500,3000,6000,10000].forEach(ms=>setTimeout(lock,ms));
+const p=document.getElementById('mlRoadTrainerV155');
+if(p&&window.MutationObserver){new MutationObserver(lock).observe(p,{subtree:true,childList:true,characterData:true});}
+window.__V310_DISPLAY_LOCK__={active:true,engineVersion:309};
+})();
+</script>
+
+
+<script id="v312-verification-marker">
+window.__V312_VERIFIED_FIX__={version:312,mlPanelHost:true,activeEngine:'V309 Champion Stack',qualifiedController:'V307 single-owner',tailScriptsInsideBody:true};
+</script>
+
+<script id="v313-ml-accuracy-runtime-owner">
+(function(){
+'use strict';
+const VERSION=313, KEY='mlroad';
+let busy=false;
+function api(){return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null}
+function ledger(){
+  if(typeof state==='undefined'||!state||typeof state!=='object') return null;
+  if(!state.accuracyVerified||typeof state.accuracyVerified!=='object') state.accuracyVerified={models:{},pending:{},ties:0,version:VERSION};
+  state.accuracyVerified.models ||= {}; state.accuracyVerified.pending ||= {};
+  return state.accuracyVerified;
+}
+function bucket(){
+  const a=ledger(); if(!a)return null;
+  return a.models[KEY]||(a.models[KEY]={name:'ML Road Trainer — Champion Stack',wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+}
+function removeGenericML(){
+  const defs=window.__accuracyModelDefs;
+  if(!Array.isArray(defs))return;
+  for(let i=defs.length-1;i>=0;i--) if(String(defs[i]?.[0]||'').toLowerCase()===KEY) defs.splice(i,1);
+}
+function sig(){try{return api()?.signal?.()||{}}catch(e){return {qualified:false,side:null,reason:String(e?.message||e)}}}
+function seqLen(){try{return typeof currentSequence==='function'?currentSequence().length:Number(state?.hands?.length||0)}catch(e){return Number(state?.hands?.length||0)}}
+function ctx(){
+  const n=seqLen();
+  return {color:String(state?.currentShoeColor||'combined').toLowerCase(),phase:n<18?'early':n<36?'middle':'late'};
+}
+function arm(){
+  if(busy)return; const a=ledger(); if(!a)return;
+  removeGenericML();
+  const z=sig(), side=(z.side==='P'||z.side==='B')?z.side:((z.displaySide==='P'||z.displaySide==='B')?z.displaySide:null), hand=seqLen()+1;
+  const m=bucket();
+  if(z.qualified&&side){
+    a.pending[KEY]={side,hand,lockedAt:Date.now(),strength:Number(z.confidence||z.strength)||0,...ctx(),source:'V313-dedicated'};
+  }else{
+    delete a.pending[KEY];
+    if(m&&m.lastWaitHand!==hand){m.waits=(m.waits||0)+1;m.lastWaitHand=hand;}
+  }
+  try{persist()}catch(e){}
+  render();
+}
+function settle(actual){
+  const a=ledger(); if(!a)return;
+  removeGenericML();
+  if(actual==='T'){
+    a.ties=(a.ties||0)+1;
+    // Tie is not graded. The post-tie arm will create the next official ML lock.
+    delete a.pending[KEY];
+    try{persist()}catch(e){}; render(); return;
+  }
+  if(actual!=='P'&&actual!=='B')return;
+  const p=a.pending[KEY]; if(!p)return;
+  const settlingHand=seqLen()+1;
+  if(Number(p.hand)!==settlingHand){delete a.pending[KEY];try{persist()}catch(e){};render();return;}
+  const m=bucket(); if(!m)return;
+  const win=p.side===actual;
+  m.predictions=(Number(m.predictions)||0)+1;
+  if(win)m.wins=(Number(m.wins)||0)+1;else m.losses=(Number(m.losses)||0)+1;
+  [10,25,50].forEach(n=>{const k='last'+n;m[k]=Array.isArray(m[k])?m[k]:[];m[k].push(win?1:0);if(m[k].length>n)m[k]=m[k].slice(-n)});
+  m.last={predicted:p.side,actual,win,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase};
+  delete a.pending[KEY];
+  try{persist()}catch(e){}
+  render();
+}
+function render(){
+  const a=ledger();if(!a)return;const m=bucket()||{},p=a.pending[KEY];
+  const n=Number(m.predictions)||0,w=Number(m.wins)||0,l=Number(m.losses)||0,rate=n?(w*100/n):null;
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('mlv203Accuracy',rate==null?'—':rate.toFixed(1)+'%');
+  set('mlv203WL',`${w}W / ${l}L`); set('mlv203Count',`N=${n}`); set('mlv203Pending',p?.side?`${p.side==='P'?'PLAYER':'BANKER'} #${p.hand}`:'—');
+  const b=document.getElementById('mlv203Reset');if(b){b.style.display='';b.textContent='Reset ML Accuracy';b.onclick=function(){if(!confirm('Reset only ML Road Trainer accuracy?'))return;const a=ledger();if(!a)return;delete a.models[KEY];delete a.pending[KEY];try{persist()}catch(e){};render();setTimeout(arm,0)}}
+}
+function install(){
+  if(window.__V313_ML_ACCURACY_INSTALLED__)return;
+  window.__V313_ML_ACCURACY_INSTALLED__=true;
+  removeGenericML();
+  const oldSettle=window.__settleVerifiedPredictions;
+  window.__settleVerifiedPredictions=function(actual){
+    try{settle(actual)}catch(e){console.error('V313 ML settle',e)}
+    removeGenericML();
+    const r=typeof oldSettle==='function'?oldSettle.apply(this,arguments):undefined;
+    removeGenericML();render();return r;
+  };
+  const oldArm=window.__armVerifiedPredictions;
+  window.__armVerifiedPredictions=function(){
+    removeGenericML();
+    const r=typeof oldArm==='function'?oldArm.apply(this,arguments):undefined;
+    removeGenericML();
+    try{arm()}catch(e){console.error('V313 ML arm',e)}
+    return r;
+  };
+  // Prevent the legacy V307 painter from putting ML back into the generic ledger.
+  const oldPaint=window.__V307_ML_SINGLE_OWNER__?.paint;
+  if(window.__V307_ML_SINGLE_OWNER__&&typeof oldPaint==='function'){
+    window.__V307_ML_SINGLE_OWNER__.paint=function(){const r=oldPaint.apply(this,arguments);removeGenericML();render();return r};
+  }
+  [0,300,1200,3500,6000].forEach(ms=>setTimeout(()=>{removeGenericML();render();if(ms>=3500)arm()},ms));
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,50),{once:true});else setTimeout(install,50);
+window.__V313_ML_ACCURACY__={version:VERSION,arm,settle,render,removeGenericML,dedicatedOwner:true,qualifiedOnly:true};
+})();
+</script>
+</body>
+</html>
