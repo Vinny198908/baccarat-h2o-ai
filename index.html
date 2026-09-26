@@ -19413,6 +19413,166 @@ setTimeout(()=>{try{const t=window.__V84_MAIN_FUTURE_TUNE__;if(t){t.test=enhance
 })();
 </script>
 
+\n<!-- V328: Second Main Future Road clone + saved derived-road-history + rhythm/regime memory. Original Main Future remains untouched. -->
+<script id="v327-main-future-library-road-copy">
+(function(){
+'use strict';
+if(window.__V327_MAIN_FUTURE_LIBRARY_ROAD__)return;
+const VERSION=328, MEMORY_WEIGHT=.30, BASE_WEIGHT=.70, KEY='mainFutureLibraryRoadV328';
+const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+const norm=x=>String(x||'').toUpperCase().replace(/[^PBT]/g,'');
+const pbN=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}};
+const handN=()=>{try{return currentSequence().length}catch(e){return 0}};
+function baseTest(){
+  try{
+    const f=window.__V326_MAIN_FUTURE_RAW__?.test || window.__V227_ORIGINAL_MAIN_FUTURE__?.test || window.__V84_MAIN_FUTURE_TUNE__?.test || window.mainRoadFutureTest;
+    return typeof f==='function'?f():{};
+  }catch(e){return {}}
+}
+function libs(){
+  const rows=[];
+  try{
+    const src=typeof activePatternLibrary==='function'?activePatternLibrary():[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])];
+    const seen=new Set();
+    for(const x of (Array.isArray(src)?src:[])){
+      const q=norm(x?.sequence); if(q.length<10||seen.has(q))continue; seen.add(q); rows.push({record:x,seq:q});
+    }
+  }catch(e){}
+  return rows;
+}
+function tailSim(a,b,maxLen=10){
+  a=Array.isArray(a)?a:[]; b=Array.isArray(b)?b:[];
+  const k=Math.min(maxLen,a.length,b.length); if(k<3)return null;
+  let hit=0,weighted=0,total=0;
+  for(let i=0;i<k;i++){
+    const w=1+i*.12; // newest marks carry a little more weight
+    total+=w; if(a[a.length-k+i]===b[b.length-k+i])hit+=w;
+  }
+  return {score:total?hit/total:0,k};
+}
+function rhythmProfile(seq){
+  const nt=[...String(seq||'')].filter(x=>x==='P'||x==='B');
+  const trans=a=>{if(a.length<2)return 0;let z=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])z++;return z/(a.length-1)};
+  const run=()=>{if(!nt.length)return 0;let z=1;for(let i=nt.length-2;i>=0&&nt[i]===nt[nt.length-1];i--)z++;return z};
+  const a8=nt.slice(-8),a16=nt.slice(-16),t8=trans(a8),t16=trans(a16),r=run();
+  let regime='BUILDING';
+  if(a8.length>=4){
+    if(t8>=.68)regime='CHOP';
+    else if(t8<=.32 || r>=4)regime='STREAK';
+    else regime='MIXED';
+  }
+  const runBucket=r>=5?'5+':r>=3?'3-4':r===2?'2':'1';
+  const trBucket=t8>=.75?'HIGH':t8>=.50?'MED-HIGH':t8>=.30?'MED-LOW':'LOW';
+  return {regime,t8,t16,run:r,runBucket,trBucket,n:nt.length};
+}
+function rhythmSimilarity(a,b){
+  if(!a||!b||a.regime==='BUILDING'||b.regime==='BUILDING')return .5;
+  let score=0;
+  score += a.regime===b.regime ? .48 : (a.regime==='MIXED'||b.regime==='MIXED' ? .18 : 0);
+  score += .24*Math.max(0,1-Math.abs(a.t8-b.t8)/.55);
+  score += .13*Math.max(0,1-Math.abs(a.t16-b.t16)/.50);
+  score += a.runBucket===b.runBucket ? .15 : (Math.abs(a.run-b.run)<=1 ? .07 : 0);
+  return Math.max(0,Math.min(1,score));
+}
+function roadMemory(){
+  const liveSeq=(()=>{try{return currentSequence()}catch(e){return []}})();
+  const n=liveSeq.length;
+  const liveRhythm=rhythmProfile(liveSeq.join(''));
+  let live={eye:[],small:[],roach:[]};
+  try{const h=liveSeq.map(r=>({r}));live={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}
+  const ready=[live.eye,live.small,live.roach].filter(a=>a.length>=3).length;
+  if(n<8||ready<2)return {qualified:false,matches:0,pPct:50,bPct:50,edge:0,best:0,ready,reason:'Road memory is still building.'};
+  const candidates=[];
+  for(const row of libs()){
+    const q=row.seq; if(q.length<=n)continue;
+    const next=q[n]; if(next!=='P'&&next!=='B')continue;
+    let hist={eye:[],small:[],roach:[]};
+    try{const h=[...q.slice(0,n)].map(r=>({r}));hist={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){continue}
+    const sims=[tailSim(live.eye,hist.eye),tailSim(live.small,hist.small),tailSim(live.roach,hist.roach)].filter(Boolean);
+    if(sims.length<2)continue;
+    const roadScore=sims.reduce((z,x)=>z+x.score*Math.min(10,x.k),0)/sims.reduce((z,x)=>z+Math.min(10,x.k),0);
+    const histRhythm=rhythmProfile(q.slice(0,n));
+    const rhythmScore=rhythmSimilarity(liveRhythm,histRhythm);
+    const score=.82*roadScore+.18*rhythmScore;
+    if(roadScore<.56||rhythmScore<.36||score<.56)continue;
+    candidates.push({next,score,roadScore,rhythmScore,regime:histRhythm.regime,shoe:row.record?.id||'',parts:sims.length});
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  const use=candidates.slice(0,24); // one vote per independent shoe; cap weak tail matches
+  let p=0,b=0,w=0;
+  for(const x of use){const wt=Math.pow(x.score,3)*(x.parts/3);w+=wt;if(x.next==='P')p+=wt;else b+=wt;}
+  const pPct=w?100*p/w:50,bPct=100-pPct,edge=Math.abs(pPct-bPct),best=use[0]?.score||0;
+  const avgRhythm=use.length?use.reduce((z,x)=>z+x.rhythmScore,0)/use.length:0;
+  const qualified=use.length>=5&&best>=.62&&edge>=7&&avgRhythm>=.48;
+  return {qualified,matches:use.length,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(best*100).toFixed(1),ready,candidates:use,regime:liveRhythm.regime,rhythm:+(avgRhythm*100).toFixed(1),reason:qualified?'Saved-road + rhythm/regime history qualified.':`WAIT memory gate • ${use.length} matches • best ${(best*100).toFixed(0)}% • rhythm ${(avgRhythm*100).toFixed(0)}% • edge ${edge.toFixed(1)}pp`};
+}
+function test(){
+  const base=baseTest()||{},mem=roadMemory();
+  const bp=Number(base?.p?.norm ?? base?.pNorm ?? 50)||50, bb=Number(base?.b?.norm ?? base?.bNorm ?? (100-bp))||50;
+  let p=bp,b=bb,used=false;
+  if(mem.qualified){p=BASE_WEIGHT*bp+MEMORY_WEIGHT*mem.pPct;b=BASE_WEIGHT*bb+MEMORY_WEIGHT*mem.bPct;used=true;}
+  const total=p+b||100;p=Math.round(100*p/total);b=100-p;
+  const side=p>b?'P':b>p?'B':null,edge=Math.abs(p-b);
+  return {side,p,b,edge,baseSide:base.side||null,baseP:bp,baseB:bb,base,mem,used,label:edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN'};
+}
+function stats(){
+  state.v328MainFutureLibraryAccuracy ||= state.v327MainFutureLibraryAccuracy || {wins:0,losses:0,ties:0,pending:null,lastHand:-1};
+  return state.v328MainFutureLibraryAccuracy;
+}
+function ensure(){
+  let box=document.getElementById('v327MainFutureLibrary'); if(box)return box;
+  const anchor=document.getElementById('mainRoadFutureTest'); if(!anchor?.parentNode)return null;
+  box=document.createElement('div'); box.id='v327MainFutureLibrary'; box.className='analyzer'; box.style.marginTop='8px';
+  box.innerHTML=`<div class="analyzer-title">📚 Main Future Road Test 2 — Road History + Rhythm/Regime V328</div>
+  <div class="analyzer-sub">Independent copy of the current Main Future Road engine. Its original score remains 70% of the decision; 30% comes from saved Big Eye Boy, Small Road, and Cockroach Road history. V328 also requires the historical prefix to fit the live rhythm/regime (chop, streak, mixed, transition rate, and run length). The original Main Future Road above is not modified.</div>
+  <div class="analyzer-grid">
+   <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v327Pick">WAIT</strong></div>
+   <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v327Conf">—</strong></div>
+   <div class="analyzer-card"><span>ORIGINAL COPY</span><strong id="v327Base">—</strong></div>
+   <div class="analyzer-card"><span>ROAD MEMORY</span><strong id="v327Mem">BUILDING</strong></div>
+   <div class="analyzer-card"><span>LIBRARY MATCHES</span><strong id="v327Matches">0</strong></div>
+   <div class="analyzer-card"><span>RHYTHM / REGIME</span><strong id="v328Regime">BUILDING</strong></div>
+   <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v327Acc">—</strong></div>
+  </div>
+  <div class="analyzer-sub" id="v327Note" style="margin-top:8px">Building saved-road memory.</div>
+  <button class="tiny-btn" id="v327Reset" style="width:100%;margin-top:8px">Reset Test 2 Accuracy</button>`;
+  anchor.parentNode.insertBefore(box,anchor.nextSibling);
+  box.querySelector('#v327Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 2 accuracy?')){state.v328MainFutureLibraryAccuracy={wins:0,losses:0,ties:0,pending:null,lastHand:-1};try{persist()}catch(e){}paint();}};
+  return box;
+}
+function settleAndArm(){
+  const a=stats(),hn=handN();
+  if(a.pending&&hn>a.pending.handN){
+    let actual=null;try{actual=currentSequence().at(-1)}catch(e){}
+    if(actual==='T'){a.ties++;a.pending.handN=hn;}
+    else if(actual==='P'||actual==='B'){if(actual===a.pending.side)a.wins++;else a.losses++;a.pending=null;}
+  }
+  if(!a.pending){
+    const x=test(); if(x.side==='P'||x.side==='B')a.pending={side:x.side,handN:hn,pbN:pbN(),armedAt:Date.now(),usedMemory:x.used};
+  }
+  try{persist()}catch(e){}
+}
+function paint(){
+  ensure(); const x=test(),a=stats(),n=a.wins+a.losses;
+  set('v327Pick',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');
+  set('v327Conf',x.side?Math.max(x.p,x.b)+'%':'—');
+  set('v327Base',`${x.baseSide==='P'?'P':x.baseSide==='B'?'B':'WAIT'} ${x.baseP}/${x.baseB}`);
+  set('v327Mem',x.mem.qualified?`${x.mem.pPct>x.mem.bPct?'P':'B'} ${Math.max(x.mem.pPct,x.mem.bPct).toFixed(1)}%`:'WAIT');
+  set('v327Matches',`${x.mem.matches} • best ${x.mem.best||0}%`);
+  set('v328Regime',`${x.mem.regime||'BUILDING'} • ${x.mem.rhythm||0}% fit`);
+  set('v327Acc',n?`${(100*a.wins/n).toFixed(1)}% • ${a.wins}W-${a.losses}L • N=${n}`:`— • 0W-0L • N=0`);
+  set('v327Note',x.mem.qualified?`ROAD + RHYTHM MEMORY ACTIVE • ${x.mem.regime||'—'} regime • ${x.mem.rhythm||0}% rhythm fit • Original copy ${x.baseP}/${x.baseB} + saved memory ${x.mem.pPct}/${x.mem.bPct} → final ${x.p}/${x.b}. ${x.mem.matches} independent saved shoes matched.`:`Original copy ${x.baseP}/${x.baseB}. Saved road history is loaded but not strong enough to influence this hand: ${x.mem.reason}`);
+  return x;
+}
+function cycle(){try{settleAndArm();paint()}catch(e){console.warn('V328 Main Future library+rhythm copy',e)}}
+const oldRender=window.render;
+if(typeof oldRender==='function'&&!oldRender.__v327){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(cycle,0);return r};w.__v327=true;w.__base=oldRender;window.render=w;try{render=w}catch(e){}}
+window.__V328_MAIN_FUTURE_LIBRARY_RHYTHM__={version:VERSION,test,roadMemory,rhythmProfile,rhythmSimilarity,paint,cycle,baseWeight:BASE_WEIGHT,memoryWeight:MEMORY_WEIGHT,originalMainFutureChanged:false};
+window.__V327_MAIN_FUTURE_LIBRARY_ROAD__=window.__V328_MAIN_FUTURE_LIBRARY_RHYTHM__;
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(cycle,3200),{once:true});else setTimeout(cycle,3200);
+setTimeout(cycle,5200);
+})();
+</script>
 </body>
 </html>
 
