@@ -20083,3 +20083,96 @@ window.__V308_ML_CHAMPION__={version:VERSION,trainAndValidate,signal,report:()=>
 <script id="v318-strong-raw-audit-marker">
 window.__V318_STRONG_RAW_UPGRADE__={version:'318',targets:['bestestimate','auto-historical-match','pattern-recognizer','ml-road-trainer'],sequenceV2Changed:false,mainFutureChanged:false,bestEstimateV317Preserved:true,autoMatch:{ordinary:{minShoes:2,best:60,pct:60,edge:.18,multi:.38,context:.55},afterTie:{minShoes:3,best:67,pct:65,edge:.22,multi:.42,context:.60}},pattern:{historyAnchored:true,minReady:2,minSupport:2,maxOppose:1,histStrength:.52,edge:10,quality:40},ml:{requiresValidatedModel:true,minFamilies:2,minEvidence:1.0,maxBelowNativeCutoff:.025}};
 </script>
+
+<!-- V320: deep-scan runtime cleanup. Makes V308 Champion the only ML trainer triggered by Dataset V160,
+     keeps V307 as the only ML live/accuracy renderer, blocks legacy V162/V259/V266 build-button handlers,
+     and repairs the old V308 repaint alias. Sequence V2, Main Future Road, Best Estimate V317/V318 unchanged. -->
+<script id="v320-deep-scan-runtime-cleanup">
+(function(){
+'use strict';
+const VERSION=320;
+let busy=false;
+function dataset(){return window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159||null}
+function ml(){return window.__V308_ML_CHAMPION__||window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null}
+function painter(){return window.__V307_ML_SINGLE_OWNER__?.paint||null}
+function setStatus(msg){
+  try{const e=document.getElementById('mlStatus');if(e)e.textContent=msg}catch(e){}
+  try{const e=document.getElementById('mlv307Reason');if(e)e.textContent=msg}catch(e){}
+}
+function repaint(){
+  try{painter()?.()}catch(e){}
+  try{window.renderVerifiedAccuracy?.()}catch(e){}
+}
+function lockLegacyMlBuildHandlers(btn){
+  if(!btn)return;
+  // These flags prevent delayed legacy installers from attaching old trainers/listeners later.
+  btn.__v162=true;
+  btn.__v259=true;
+  try{btn.dataset.v266='1'}catch(e){}
+}
+function train(reason){
+  if(busy)return null;
+  busy=true;
+  try{
+    const ds=dataset();
+    if(!ds?.build)throw new Error('ML Training Dataset V160 is not available');
+    const built=ds.build();
+    window.__mlDatasetV159=built;
+    if(!built?.shoes?.length)throw new Error('Dataset V160 built 0 shoes');
+    setStatus(`ML V320: Dataset ready — ${built.shoes.length} unique shoes / ${(built.rows||[]).length} rows. Training Champion engine…`);
+    const engine=ml();
+    if(!engine?.trainAndValidate)throw new Error('ML Champion trainer is not available');
+    const report=engine.trainAndValidate();
+    if(!report)throw new Error('Champion training returned no validation report');
+    setStatus(`ML V320 READY — ${report.uniqueShoes||built.shoes.length} shoes • ${(report.rows||built.rows?.length||0)} rows • ${report.qualified?'VALIDATED':'RAW LEAN MODE'}${reason?' • '+reason:''}`);
+    repaint();
+    setTimeout(repaint,0);setTimeout(repaint,100);setTimeout(repaint,500);
+    return report;
+  }catch(e){
+    const msg='ML V320 ERROR — '+String(e?.message||e);
+    setStatus(msg);repaint();
+    try{console.error(msg,e)}catch(_){}
+    return null;
+  }finally{busy=false}
+}
+function wireButton(){
+  const btn=document.getElementById('mlBuild');
+  if(!btn)return false;
+  lockLegacyMlBuildHandlers(btn);
+  if(!btn.__v320){
+    // Replace any previous onclick chain. Legacy addEventListener installers are blocked by flags above.
+    btn.onclick=function(ev){
+      try{ev?.preventDefault?.()}catch(e){}
+      try{dataset()?.refresh?.()}catch(e){}
+      setTimeout(()=>train('manual rebuild'),0);
+      return false;
+    };
+    btn.__v320=true;
+  }
+  btn.textContent='Build / Refresh Dataset + Retrain ML';
+  return true;
+}
+function ensureUi(){
+  try{
+    const panel=document.getElementById('mlRoadTrainerV155');
+    const t=panel?.querySelector('.analyzer-title');
+    if(t)t.textContent='🧠 ML Road Trainer V320 — Champion Runtime Clean';
+    const reset=document.getElementById('mlv203Reset');
+    if(reset){reset.style.display='';reset.textContent='Reset ML Accuracy'}
+  }catch(e){}
+}
+function boot(){
+  // Repair the stale alias used by the V308 startup callback.
+  if(window.__V307_ML_SINGLE_OWNER__)window.__V307_ML_CONTROLLER__=window.__V307_ML_SINGLE_OWNER__;
+  wireButton();ensureUi();
+  // Run after all delayed legacy installers have had a chance to mount, then reassert sole ownership.
+  setTimeout(()=>{wireButton();ensureUi();train('automatic startup validation')},300);
+  setTimeout(()=>{wireButton();ensureUi();repaint()},1700);
+  setTimeout(()=>{wireButton();ensureUi();repaint()},2800);
+  setTimeout(()=>{wireButton();ensureUi();repaint()},3800);
+  document.addEventListener('click',()=>{wireButton();ensureUi();setTimeout(repaint,20)},true);
+}
+window.__V320_DEEP_SCAN_RUNTIME__={version:VERSION,train,wireButton,repaint,dataset,ml,legacyMlBuildHandlersBlocked:true,sequenceV2Changed:false,mainFutureChanged:false,bestEstimateChanged:false};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,50),{once:true});else setTimeout(boot,50);
+})();
+</script>
