@@ -16070,8 +16070,14 @@ function buildSignal(){
   if(regime==='CHOP'){needMulti+=.03;needContext+=.02;}
   if(phase==='EARLY'){needBest+=2;needContext+=.03;}
   const elite=pool.length>=2 && best>=72 && pct>=67 && edge>=.25 && pc.multiAgree>=.42 && pc.context>=.58;
+  // V325 diversity override: when many independent historical shoes agree, do not let
+  // the adaptive regime/phase gate suppress a usable 56-59% consensus just because it
+  // misses the normal percentage/edge threshold by 1-2 points. This is intentionally
+  // disabled after ties, where the separate safety ledger remains authoritative.
+  const diverseConsensus = !afterTie && pool.length>=10 && best>=65 && pct>=56 && edge>=.10 &&
+    pc.multiAgree>=.34 && pc.context>=.50;
   if(afterTie&&atN>=3&&atRate<.45)return {side:null,rawSide:side,pct,reason:`After-tie safety WAIT: recorded Auto Match after-tie accuracy is ${Math.round(atRate*1000)/10}% (${at.w}W-${at.l}L).`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
-  if(!elite && (pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext)){
+  if(!elite && !diverseConsensus && (pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext)){
     // V318 Strong RAW: surface only high-quality near-matches that narrowly miss
     // the normal Auto Match gate. After-tie remains stricter and the existing
     // after-tie performance veto above is never bypassed.
@@ -16086,7 +16092,7 @@ function buildSignal(){
     }
     return {side:null,rawSide:side,pct,reason:`Adaptive WAIT (${regime}/${phase}): ${pool.length} independent shoes • best ${best}% • continuation ${pct}% • edge ${Math.round(edge*100)}pp • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%.`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
   }
-  return {side,pct,reason:`${elite?'ELITE 2+':'ADAPTIVE'} historical consensus • ${regime}/${phase} • ${pool.length} independent shoes • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+  return {side,pct,diverseConsensus,reason:`${elite?'ELITE 2+':diverseConsensus?'DIVERSE CONSENSUS':'ADAPTIVE'} historical consensus • ${regime}/${phase} • ${pool.length} independent shoes • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
 }
 function renderSignal(sig,changed){
   const r=sig.r;set('autoHistStatus',sig.side?'ACTIVE':'WAIT');set('autoHistNext',sig.side?`${sideName(sig.side)} ${sig.pct}%`:'WAIT');set('autoHistConf',sig.best!=null?`${sig.best}% best`:'—');set('autoHistCount',sig.pool?`${sig.pool.length} matches`:'—');
@@ -16154,7 +16160,7 @@ function boot(){ensureUI();paintStats();update();if(runtime.installed)return;run
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1700));else setTimeout(boot,1700);
 window.__AUTO_HIST_UPDATE__=update;
-window.__V301_AUTO_MATCH_ADAPTIVE__={version:VERSION,multiWindow:[6,9,12,16,20],oneVotePerHistoricalShoe:true,continuationReliability:true,liveContext:['streak','switch-rate','shoe-phase','dragon','regime'],protectedExactPath:'2+ independent shoes, >=20pp edge',eliteTwoMatchPath:true,dynamicRegimeGates:true,divergenceRejection:true,staleLockCancelledOnEvidenceCollapse:true,sameHandFlipRequiresPlus6:true,afterTieLedgerSeparate:true};
+window.__V325_AUTO_MATCH_ADAPTIVE__={version:'V325',multiWindow:[6,9,12,16,20],oneVotePerHistoricalShoe:true,continuationReliability:true,liveContext:['streak','switch-rate','shoe-phase','dragon','regime'],protectedExactPath:'2+ independent shoes, >=20pp edge',eliteTwoMatchPath:true,dynamicRegimeGates:true,divergenceRejection:true,staleLockCancelledOnEvidenceCollapse:true,sameHandFlipRequiresPlus6:true,afterTieLedgerSeparate:true};
 })();
 </script>
 
@@ -18946,7 +18952,7 @@ function historical(arr,excluded){const C=buildCache(),ks=stateKeysFromResults(a
 function pathSupport(arr,side,pth,excluded){const C=buildCache(),ks=stateKeysFromResults(arr),weights=[1,.72,.48,.34],ps=pathSig(pth),independent=new Set();let score=0,weight=0;const detail=[];ks.forEach((k,li)=>{const set=C.pathLevels[li].get(`${k}|${side}|${ps}`);if(!set||!set.size)return;let n=0;for(const sid of set){if(excluded?.has(sid))continue;n++;independent.add(sid)}if(!n)return;const w=weights[li];score+=w*Math.min(1.35,.35+n/5);weight+=w;detail.push({level:li,shoes:n})});return{side,score:weight?score/weight:0,shoes:independent.size,detail,sig:ps}}
 function modelStats(){try{return state?.accuracyVerified?.models?.[KEY]||{}}catch(e){return{}}}
 function dynamicEdge(){const m=modelStats(),w=+m.wins||0,l=+m.losses||0,n=w+l;if(n>=12){const r=w/n;if(r<.48)return .16;if(n>=20&&r>=.58)return .10}return BASE_EDGE}
-function signal(){try{const arr=(state?.hands||[]).map(x=>sideOf(x?.r||x?.side||x?.result||x)).filter(Boolean),pb=arr.filter(x=>x==='P'||x==='B'),n=pb.length;if(n<START)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:`WAIT • starts after ${START} non-tie hands (${n}/${START})`};const last=pb.at(-1),excluded=replayExclusion(arr),hist=historical(arr,excluded),pPath=project(arr,'P'),bPath=project(arr,'B'),pSup=pathSupport(arr,'P',pPath,excluded),bSup=pathSupport(arr,'B',bPath,excluded),cut=dynamicEdge();if(!hist.ready)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:Math.round(hist.edge*100),evidence:hist.shoes,label:'WAIT',pPath,bPath,hist,pSup,bSup,excludedCount:excluded.size,reason:`WAIT • only ${hist.shoes} independent Main-Road historical shoes match this structure; need ${MIN_SHOES}.`};const histP=(last==='P'?hist.pc:1-hist.pc),histB=1-histP;const ps=pSup.score,bs=bSup.score,pathTotal=ps+bs,pathP=pathTotal?ps/pathTotal:.5,pathB=1-pathP;const pathReady=(pSup.shoes+bSup.shoes)>=MIN_PATH_SHOES;const pathWeight=pathReady?.45:.18,histWeight=1-pathWeight;let pRaw=histWeight*histP+pathWeight*pathP,bRaw=histWeight*histB+pathWeight*pathB;const z=pRaw+bRaw||1;pRaw/=z;bRaw/=z;const pPct=Math.round(100*pRaw),bPct=100-pPct,pathPPct=Math.round(pathP*100),pathBPct=100-pathPPct,edge=Math.abs(pRaw-bRaw);let raw=pPct>bPct?'P':bPct>pPct?'B':null;const histSide=histP>histB?'P':histB>histP?'B':null,pathSide=pathP>pathB?'P':pathB>pathP?'B':null,strongConflict=pathReady&&histSide&&pathSide&&histSide!==pathSide&&Math.abs(pathP-pathB)>=.24&&hist.edge>=.20;const qualified=raw&&!strongConflict&&edge>=cut&&hist.shoes>=MIN_SHOES&&(pathReady||hist.edge>=cut+.04);const label=!qualified?'RAW LEAN':edge>=.20?'STRONG':edge>=.12?'LIKELY':'SELECTIVE',side=qualified?raw:null,chosen=raw==='P'?pPath:bPath,confidence=raw==='P'?pPct:bPct;const conflictNote=strongConflict?' • PATH/HISTORY CONFLICT → WAIT':'';const guardNote=excluded.size?' • replay guard excluded 1 exact-prefix shoe':'';return{side,rawSide:raw,strength:side?confidence:0,pPct,bPct,pathP:pathPPct,pathB:pathBPct,edge:Math.round(edge*100),evidence:hist.shoes,label,pPath,bPath,hist,pSup,bSup,pathReady,cutoff:Math.round(cut*100),excludedCount:excluded.size,reason:qualified?`${raw==='P'?'PLAYER':'BANKER'} • ${label} • combined Main-Road future score ${pPct}% P / ${bPct}% B • projected path score ${pathPPct}% P / ${pathBPct}% B • lands C${chosen.col+1}/R${chosen.row+1} • ${hist.shoes} independent historical shoes${guardNote}`:`WAIT • raw ${raw==='P'?'PLAYER':raw==='B'?'BANKER':'TIE'} ${confidence||50}% • combined edge ${Math.round(edge*100)}pp vs ${Math.round(cut*100)}pp gate • path ${pathPPct}% P / ${pathBPct}% B • P lands C${pPath.col+1}/R${pPath.row+1}, B lands C${bPath.col+1}/R${bPath.row+1}${conflictNote}${guardNote}.`};}catch(e){return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:'WAIT • Main Road Only V305 initializing: '+String(e?.message||e)}}}
+function signal(){try{const arr=(state?.hands||[]).map(x=>sideOf(x?.r||x?.side||x?.result||x)).filter(Boolean),pb=arr.filter(x=>x==='P'||x==='B'),n=pb.length;if(n<START)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:`WAIT • starts after ${START} non-tie hands (${n}/${START})`};const last=pb.at(-1),excluded=replayExclusion(arr),hist=historical(arr,excluded),pPath=project(arr,'P'),bPath=project(arr,'B'),pSup=pathSupport(arr,'P',pPath,excluded),bSup=pathSupport(arr,'B',bPath,excluded),cut=dynamicEdge();if(!hist.ready)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:Math.round(hist.edge*100),evidence:hist.shoes,label:'WAIT',pPath,bPath,hist,pSup,bSup,excludedCount:excluded.size,reason:`WAIT • only ${hist.shoes} independent Main-Road historical shoes match this structure; need ${MIN_SHOES}.`};const histP=(last==='P'?hist.pc:1-hist.pc),histB=1-histP;const ps=pSup.score,bs=bSup.score,pathTotal=ps+bs,pathP=pathTotal?ps/pathTotal:.5,pathB=1-pathP;const pathReady=(pSup.shoes+bSup.shoes)>=MIN_PATH_SHOES;const pathWeight=pathReady?.45:.18,histWeight=1-pathWeight;let pRaw=histWeight*histP+pathWeight*pathP,bRaw=histWeight*histB+pathWeight*pathB;const z=pRaw+bRaw||1;pRaw/=z;bRaw/=z;const pPct=Math.round(100*pRaw),bPct=100-pPct,pathPPct=Math.round(pathP*100),pathBPct=100-pathPPct,edge=Math.abs(pRaw-bRaw);let raw=pPct>bPct?'P':bPct>pPct?'B':null;const histSide=histP>histB?'P':histB>histP?'B':null,pathSide=pathP>pathB?'P':pathB>pathP?'B':null,strongConflict=pathReady&&histSide&&pathSide&&histSide!==pathSide&&Math.abs(pathP-pathB)>=.24&&hist.edge>=.20;const nativeQualified=raw&&!strongConflict&&edge>=cut&&hist.shoes>=MIN_SHOES&&(pathReady||hist.edge>=cut+.04);const selectiveRaw=raw&&!strongConflict&&hist.shoes>=MIN_SHOES&&edge>=.03;const qualified=nativeQualified||selectiveRaw;const label=!qualified?'RAW LEAN':nativeQualified?(edge>=.20?'STRONG':edge>=.12?'LIKELY':'SELECTIVE'):'SELECTIVE RAW',side=qualified?raw:null,chosen=raw==='P'?pPath:bPath,confidence=raw==='P'?pPct:bPct;const conflictNote=strongConflict?' • PATH/HISTORY CONFLICT → WAIT':'';const guardNote=excluded.size?' • replay guard excluded 1 exact-prefix shoe':'';return{side,rawSide:raw,strength:side?confidence:0,pPct,bPct,pathP:pathPPct,pathB:pathBPct,edge:Math.round(edge*100),evidence:hist.shoes,label,pPath,bPath,hist,pSup,bSup,pathReady,cutoff:Math.round(cut*100),excludedCount:excluded.size,reason:qualified?`${raw==='P'?'PLAYER':'BANKER'} • ${label} • combined Main-Road future score ${pPct}% P / ${bPct}% B • projected path score ${pathPPct}% P / ${pathBPct}% B • edge ${Math.round(edge*100)}pp${nativeQualified?'':' (raw fallback)'} • lands C${chosen.col+1}/R${chosen.row+1} • ${hist.shoes} independent historical shoes${guardNote}`:`WAIT • raw ${raw==='P'?'PLAYER':raw==='B'?'BANKER':'TIE'} ${confidence||50}% • combined edge ${Math.round(edge*100)}pp vs ${Math.round(cut*100)}pp gate • path ${pathPPct}% P / ${pathBPct}% B • P lands C${pPath.col+1}/R${pPath.row+1}, B lands C${bPath.col+1}/R${bPath.row+1}${conflictNote}${guardNote}.`};}catch(e){return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:'WAIT • Main Road Only V305 initializing: '+String(e?.message||e)}}}
 function model(){return state?.accuracyVerified?.models?.[KEY]||{}}
 function acc(){const m=model(),w=+m.wins||0,l=+m.losses||0,n=+m.predictions||(w+l),wait=+m.waits||0;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n} • WAIT ${wait}`:`— • 0W-0L • N 0 • WAIT ${wait}`}
 function ensure(){let r=document.getElementById('v284MainOnlyAI');if(r){const t=r.querySelector('.analyzer-title');if(t)t.textContent='🛣️ Main Road Only Future AI V305 — True Path Scoring + Main-Road Memory';const s=r.querySelector('.analyzer-sub');if(s)s.textContent='Independent Main-Road-only engine. PLAYER-next and BANKER-next are both projected on the Big Road and their resulting structures are scored against saved Main-Road outcomes. Historical continuation and projected-path evidence are combined; exact-prefix replay leakage is conservatively guarded. Sequence V2, Bead Plate, derived roads, ML, and Main Future Road are not prediction inputs.';return r}r=document.createElement('div');r.id='v284MainOnlyAI';r.className='analyzer';r.innerHTML=`<div class="analyzer-title">🛣️ Main Road Only Future AI V305 — True Path Scoring + Main-Road Memory</div><div class="analyzer-sub">Independent Main-Road-only engine. PLAYER-next and BANKER-next are both projected on the Big Road and their resulting structures are scored against saved Main-Road outcomes. Historical continuation and projected-path evidence are combined; exact-prefix replay leakage is conservatively guarded. Sequence V2, Bead Plate, derived roads, ML, and Main Future Road are not prediction inputs.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v284Pick">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v284Conf">—</strong></div><div class="analyzer-card"><span>PLAYER PATH SCORE</span><strong id="v284P">50%</strong></div><div class="analyzer-card"><span>BANKER PATH SCORE</span><strong id="v284B">50%</strong></div><div class="analyzer-card"><span>COMBINED EDGE</span><strong id="v284Edge">—</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v284Acc">—</strong></div></div><div class="analyzer-sub" id="v284Reason" style="margin-top:8px">Waiting.</div><button class="tiny-btn" id="v284Reset" style="width:100%;margin-top:8px">Reset Main-Road-Only Accuracy</button>`;document.querySelector('.app')?.appendChild(r);r.querySelector('#v284Reset').onclick=()=>{if(!confirm('Reset only Main Road Only Future AI accuracy?'))return;const A=state?.accuracyVerified;if(A){delete A.models?.[KEY];delete A.pending?.[KEY]}try{persist()}catch(e){}render()};return r}
@@ -19301,6 +19307,112 @@ window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:tru
 </script>
 
 <script id="v322-stability-recovery-marker">window.__V322_STABILITY_RECOVERY__={version:322,removed:['3-Road Confusion AI','Deep Full-Library Learning V15','Independent Derived Locked Forward Validation V272'],backupRecoveryPreserved:true,mlV306PollingRemoved:true,mlV307SelfObserverRemoved:true,sequenceV2Changed:false,mainFutureChanged:false,bestEstimateChanged:false};</script>
+
+<script id="v324-main-road-call-frequency-fix">window.__V324_MAINROAD_CALL_FIX__={version:324,minRawEdgePP:3,strongConflictStillWaits:true,minimumHistoricalShoesPreserved:true,mlV323FixPreserved:true,sequenceV2LogicChanged:false};</script>
+
+
+<!-- V326 Main Future Road Test — 25% RAW Production A/B layer -->
+<script id="v326-main-future-raw-production-compare">
+(function(){
+'use strict';
+const VERSION='V326';
+const RAW_WEIGHT=.25;
+const BASE_WEIGHT=.75;
+const baseApi=window.__V227_ORIGINAL_MAIN_FUTURE__;
+const baseTest=(baseApi&&typeof baseApi.test==='function')?baseApi.test:(typeof window.mainRoadFutureTest==='function'?window.mainRoadFutureTest:null);
+if(!baseTest)return;
+const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+const html=(id,v)=>{const e=document.getElementById(id);if(e)e.innerHTML=v};
+const pbN=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B').length}catch(e){return 0}};
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function sourceQuality(sig,isMain){
+  if(!sig)return 0;
+  const sim=clamp(Number(sig.similarityScore||0)/100,0,1);
+  const matches=clamp(Number(sig.matches||0)/(isMain?12:10),0,1);
+  return sim*matches;
+}
+function rawProduction(base){
+  const src=[];
+  const m=base.main||{};
+  if((Number(m.pPct)||0)+(Number(m.bPct)||0)>0){
+    const z=(Number(m.pPct)||0)+(Number(m.bPct)||0)||1;
+    src.push({name:'Main',w:2,p:(Number(m.pPct)||0)/z,q:sourceQuality(m,true)});
+  }
+  for(const r of (base.roadSigs||[])){
+    const g=r&&r.sig||{};
+    if(!(g.pMark&&g.bMark&&g.pMark!==g.bMark))continue;
+    const z=(Number(g.pPct)||0)+(Number(g.bPct)||0)||100;
+    src.push({name:r.label||'Road',w:1,p:(Number(g.pPct)||50)/z,q:sourceQuality(g,false)});
+  }
+  if(!src.length)return {p:.5,b:.5,side:null,edge:0,quality:0,sources:0};
+  let num=0,den=0,qsum=0;
+  for(const x of src){
+    // RAW production keeps every pre-gate source available, but weak/noisy raw evidence
+    // receives less production weight instead of being allowed to dominate the core.
+    const qw=.35+.65*x.q;
+    const w=x.w*qw;
+    num+=x.p*w;den+=w;qsum+=x.q;
+  }
+  const p=den?num/den:.5,b=1-p,edge=Math.abs(p-b)*100;
+  return {p,b,side:p>b?'P':b>p?'B':null,edge,quality:qsum/src.length,sources:src.length};
+}
+function enhancedTest(){
+  const base=baseTest();
+  if(!base||!base.p||!base.b)return base;
+  const raw=rawProduction(base);
+  const baseP=clamp(Number(base.p.norm||50)/100,0,1);
+  const finalP=BASE_WEIGHT*baseP+RAW_WEIGHT*raw.p;
+  const pNorm=Math.round(finalP*100),bNorm=100-pNorm;
+  const edge=Math.abs(pNorm-bNorm);
+  let side=pNorm>bNorm?'P':bNorm>pNorm?'B':null;
+  // Preserve a genuine original tie unless RAW has material evidence from >=2 sources.
+  if(!base.side && !(raw.sources>=2&&raw.edge>=6&&raw.quality>=.35)) side=null;
+  const label=!side?'WAIT':edge>=10?'STRONG LEAN':edge>=5?'LIKELY':'SLIGHT LEAN';
+  return {...base,
+    p:{...base.p,norm:pNorm},b:{...base.b,norm:bNorm},side,label,edge,
+    rawProduction:{enabled:true,weight:RAW_WEIGHT,baseWeight:BASE_WEIGHT,p:+(raw.p*100).toFixed(1),b:+(raw.b*100).toFixed(1),side:raw.side,edge:+raw.edge.toFixed(1),quality:+(raw.quality*100).toFixed(1),sources:raw.sources,baseP:Number(base.p.norm||50),baseB:Number(base.b.norm||50),baseSide:base.side},
+    version:VERSION
+  };
+}
+function acc(){
+  const api=window.__V84_MAIN_FUTURE_TUNE__;
+  if(api&&typeof api.accuracy==='function')return api.accuracy();
+  if(!state.futureTestAccuracyV84||typeof state.futureTestAccuracyV84!=='object')state.futureTestAccuracyV84={wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitHandN:null,ledger:[]};
+  return state.futureTestAccuracyV84;
+}
+function renderAcc(){const a=acc(),n=(Number(a.wins)||0)+(Number(a.losses)||0);set('futureAccuracyPct',n?(100*(Number(a.wins)||0)/n).toFixed(1)+'%':'—');set('futureAccuracyWL',`${Number(a.wins)||0}W-${Number(a.losses)||0}L`);set('futureAccuracyN',`N=${n}`);set('futureAccuracyWait',`WAIT=${Number(a.waits)||0}`)}
+function renderEnhanced(){
+  const x=enhancedTest();
+  set('futurePMain',x.p.main);set('futureBMain',x.b.main);html('futurePRoads',x.p.chips);html('futureBRoads',x.b.chips);
+  set('futurePScore',x.p.norm+'%');set('futureBScore',x.b.norm+'%');set('futureTestSpeed',`Automatic test • ${x.elapsed||0} ms • ORIGINAL 75% + RAW 25%`);
+  if(!x.evidence){set('futureFinal','Likely answer: WAIT — not enough Main Road / road evidence yet');set('futureNote','RAW production is ready, but Main Future still needs source evidence.');renderAcc();return x}
+  if(!x.side)set('futureFinal','Likely answer: WAIT — final P/B score is tied');
+  else set('futureFinal',`Likely answer: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.label} • ${x.side==='P'?x.p.norm:x.b.norm}% vs ${x.side==='P'?x.b.norm:x.p.norm}%`);
+  const r=x.rawProduction||{};
+  const baseSide=r.baseSide==='P'?'PLAYER':r.baseSide==='B'?'BANKER':'WAIT';
+  const rawSide=r.side==='P'?'PLAYER':r.side==='B'?'BANKER':'TIE';
+  set('futureNote',`A/B compare — WITHOUT RAW: ${baseSide} ${r.baseP}%/${r.baseB}% • RAW layer: ${rawSide} ${r.p}%/${r.b}% (${r.sources} sources, quality ${r.quality}%) • WITH RAW 25%: ${x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT'} ${x.p.norm}%/${x.b.norm}%. Original Main Future remains 75% of the decision.`);
+  renderAcc();return x;
+}
+function armEnhanced(){
+  const a=acc(),n=pbN(),x=enhancedTest();
+  if(!(x.side==='P'||x.side==='B')){a.pending=null;if(a.lastWaitHandN!==n){a.waits=(Number(a.waits)||0)+1;a.lastWaitHandN=n;}return}
+  a.lastWaitHandN=null;
+  a.pending={side:x.side,handN:n,edge:x.edge,p:x.p.norm,b:x.b.norm,reason:'MAIN FUTURE + 25% RAW PRODUCTION',confirmation:'RAW25',armedAt:Date.now()};
+}
+window.mainRoadFutureTest=enhancedTest;
+try{mainRoadFutureTest=enhancedTest}catch(e){}
+window.renderMainRoadFutureTest=renderEnhanced;
+try{renderMainRoadFutureTest=renderEnhanced}catch(e){}
+const tune=window.__V84_MAIN_FUTURE_TUNE__;
+if(tune){tune.test=enhancedTest;tune.render=renderEnhanced;tune.arm=armEnhanced;tune.version=VERSION;tune.rawProductionWeight=RAW_WEIGHT;tune.originalWeight=BASE_WEIGHT;}
+const title=document.querySelector('#mainRoadFutureTest .future-test-title');if(title)title.textContent='⚡ Main Road Future Test — ORIGINAL + RAW Production V326';
+window.__V326_MAIN_FUTURE_RAW__={enabled:true,weight:RAW_WEIGHT,baseWeight:BASE_WEIGHT,test:enhancedTest,baseTest,rawProduction,render:renderEnhanced,arm:armEnhanced};
+setTimeout(()=>{try{armEnhanced();renderEnhanced()}catch(e){console.warn('V326 Main Future RAW',e)}},0);
+setTimeout(()=>{try{const t=window.__V84_MAIN_FUTURE_TUNE__;if(t){t.test=enhancedTest;t.render=renderEnhanced;t.arm=armEnhanced;}}catch(e){}},2500);
+})();
+</script>
+
 </body>
 </html>
 
@@ -19436,5 +19548,138 @@ function boot(){
 }
 window.__V320_DEEP_SCAN_RUNTIME__={version:VERSION,train,wireButton,repaint,dataset,ml,legacyMlBuildHandlersBlocked:true,sequenceV2Changed:false,mainFutureChanged:false,bestEstimateChanged:false};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,50),{once:true});else setTimeout(boot,50);
+})();
+</script>
+
+<!-- V323: ML prediction-frequency repair + Sequence V2 authoritative count reconciliation.
+     Sequence V2 prediction logic is NOT changed. Main Future Road is NOT changed. -->
+<script id="v323-ml-seq-count-fix">
+(function(){
+'use strict';
+const VERSION=323, MLKEY='mlroad', SEQKEY='seqv2';
+const sideOf=v=>{const s=String(v||'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':null};
+function acc(){
+  try{
+    state.accuracyVerified=state.accuracyVerified||{models:{},pending:{},ties:0};
+    state.accuracyVerified.models=state.accuracyVerified.models||{};
+    state.accuracyVerified.pending=state.accuracyVerified.pending||{};
+    return state.accuracyVerified;
+  }catch(e){return null}
+}
+function save(){try{if(typeof persist==='function')persist()}catch(e){}}
+function reconcileSeq(){
+  const a=acc(); if(!a)return null;
+  const m=a.models[SEQKEY]; if(!m)return null;
+  const w=Math.max(0,Number(m.wins)||0), l=Math.max(0,Number(m.losses)||0), n=w+l;
+  m.wins=w; m.losses=l; m.predictions=n;
+  if(Number(m.__v178LastSettledHand)<0 || !Number.isFinite(Number(m.__v178LastSettledHand))) delete m.__v178LastSettledHand;
+  return m;
+}
+function exactSeqPending(){
+  const a=acc(); if(!a)return;
+  let z={}; try{z=(typeof sequenceAISignal==='function'?sequenceAISignal():window.sequenceAISignal?.())||{}}catch(e){z={}}
+  const side=sideOf(z.side);
+  let hand=0,seq='';
+  try{hand=currentSequence().length+1;seq=currentSequence().join('')}catch(e){hand=(state.hands?.length||0)+1}
+  const p=a.pending[SEQKEY];
+  if(side){
+    if(!p || Number(p.hand)!==hand || sideOf(p.side)!==side){
+      a.pending[SEQKEY]={side,hand,seq,lockedAt:Date.now(),strength:Number(z.strength)||0,v323ExactSequenceLock:true};
+    }
+  } else if(p && Number(p.hand)===hand){
+    // Original Sequence V2 is WAIT: never leave a stale P/B lock behind for this hand.
+    delete a.pending[SEQKEY];
+  }
+}
+function refreshSeq(){
+  const m=reconcileSeq();
+  try{window.__SEQ_V2_ACCURACY_DISPLAY_FIX__?.render?.()}catch(e){}
+  try{window.__V178_ACCURACY_COUNTS__?.refresh?.()}catch(e){}
+  if(m){
+    const w=Number(m.wins)||0,l=Number(m.losses)||0,n=w+l;
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('seqV2AccuracyRate',n?((100*w/n).toFixed(1)+'%'):'—');
+    set('seqV2AccuracyWL',`${w}W-${l}L`);
+    set('seqV2AccuracyN',`N ${n}`);
+  }
+}
+function wrapMlApi(api){
+  if(!api||typeof api.signal!=='function'||api.signal.__v323MoreCalls)return api;
+  const raw=api.signal.bind(api);
+  function signal(){
+    const z=raw()||{};
+    if(z.qualified)return z;
+    const side=sideOf(z.rawSide||z.displaySide||z.side);
+    const conf=Number(z.confidence||z.strength)||0;
+    const fam=Number(z.families||z.sources)||0;
+    const ev=Number(z.evidence)||0;
+    let report=null;try{report=api.report?.()||z.report||null}catch(e){}
+    if(!side||!report)return z;
+    // Production fallback: the trained champion may still make a selective call when the
+    // whole-model held-out flag misses by a small margin. Require multi-family live evidence.
+    const validated=!!report.qualified;
+    const productionRaw = validated
+      ? (fam>=2 && ev>=0.70 && conf>=50.8)
+      : (fam>=2 && ev>=0.90 && conf>=51.0);
+    if(!productionRaw)return z;
+    return {...z,
+      side,displaySide:side,rawSide:side,qualified:true,strongRaw:true,rawPrediction:true,
+      predictionTier:validated?'PRODUCTION RAW':'SELECTIVE RAW',
+      strength:conf,status:side==='P'?'PLAYER':'BANKER',
+      reason:validated
+        ? 'PRODUCTION RAW ML — trained champion has multi-family live support just below the native gate.'
+        : 'SELECTIVE RAW ML — champion model is trained and multiple independent feature families agree; full held-out qualification was not required for this live raw call.'
+    };
+  }
+  signal.__v323MoreCalls=true;signal.__base=raw;api.signal=signal;
+  return api;
+}
+function installMl(){
+  const a=wrapMlApi(window.__mlRoadTrainerV3||window.__mlRoadTrainerV2);
+  if(a){window.__mlRoadTrainerV3=a;window.__mlRoadTrainerV2=a}
+  const c=window.__V308_ML_CHAMPION__;
+  if(c&&typeof c.signal==='function'&&!c.signal.__v323MoreCalls){
+    const shim={signal:c.signal.bind(c),report:typeof c.report==='function'?c.report.bind(c):()=>null};
+    wrapMlApi(shim);c.signal=shim.signal;
+  }
+  // Re-register ML so central accuracy grades the same official call shown by the panel.
+  if(Array.isArray(window.__accuracyModelDefs)){
+    for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===MLKEY)window.__accuracyModelDefs.splice(i,1);
+    window.__accuracyModelDefs.push([MLKEY,'ML Road Trainer V323 — Production Selective',()=>{
+      let z={};try{z=(window.__mlRoadTrainerV3||window.__mlRoadTrainerV2)?.signal?.()||{}}catch(e){}
+      const side=sideOf(z.side||z.displaySide||z.rawSide);
+      return {side:(z.qualified&&side)?side:null,strength:Number(z.confidence||z.strength)||0};
+    }]);
+  }
+}
+function paintMl(){
+  try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(e){}
+  try{window.__V320_DEEP_SCAN_RUNTIME__?.repaint?.()}catch(e){}
+}
+function armRepair(){
+  installMl();
+  reconcileSeq();
+  exactSeqPending();
+  save();refreshSeq();paintMl();
+}
+function wrapArm(){
+  const old=window.__armVerifiedPredictions;if(typeof old!=='function'||old.__v323)return;
+  const w=function(){const r=old.apply(this,arguments);try{reconcileSeq();exactSeqPending();installMl();}catch(e){}return r};
+  w.__v323=true;w.__base=old;window.__armVerifiedPredictions=w;
+}
+function wrapSettle(){
+  const old=window.__settleVerifiedPredictions;if(typeof old!=='function'||old.__v323)return;
+  const w=function(actual){const r=old.apply(this,arguments);try{reconcileSeq();}catch(e){}setTimeout(()=>{try{refreshSeq();installMl();paintMl()}catch(e){}},0);return r};
+  w.__v323=true;w.__base=old;window.__settleVerifiedPredictions=w;
+}
+function boot(){
+  installMl();reconcileSeq();wrapArm();wrapSettle();
+  try{window.__armVerifiedPredictions?.()}catch(e){}
+  refreshSeq();paintMl();
+  [250,900,2200,4200].forEach(ms=>setTimeout(()=>{installMl();wrapArm();wrapSettle();refreshSeq();paintMl()},ms));
+  document.addEventListener('click',()=>setTimeout(()=>{installMl();refreshSeq();paintMl()},40),true);
+}
+window.__V323_ML_SEQ_FIX__={version:VERSION,installMl,reconcileSeq,refreshSeq,sequencePredictionLogicChanged:false,mainFutureChanged:false,mlPredictionFrequencyRepair:true,sequenceCountInvariant:'predictions=wins+losses; ties ungraded'};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,80),{once:true});else setTimeout(boot,80);
 })();
 </script>
