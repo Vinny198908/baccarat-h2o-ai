@@ -16460,15 +16460,28 @@ function buildSignal(){
   if(phase==='EARLY'){needBest+=2;needContext+=.03;}
   const elite=pool.length>=2 && best>=72 && pct>=67 && edge>=.25 && pc.multiAgree>=.42 && pc.context>=.58;
   if(afterTie&&atN>=3&&atRate<.45)return {side:null,rawSide:side,pct,reason:`After-tie safety WAIT: recorded Auto Match after-tie accuracy is ${Math.round(atRate*1000)/10}% (${at.w}W-${at.l}L).`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
-  if(!elite && (pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext))
+  if(!elite && (pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext)){
+    // V318 Strong RAW: surface only high-quality near-matches that narrowly miss
+    // the normal Auto Match gate. After-tie remains stricter and the existing
+    // after-tie performance veto above is never bypassed.
+    const strongRaw = pool.length >= (afterTie?3:2) &&
+      best >= (afterTie?67:60) && pct >= (afterTie?65:60) &&
+      edge >= (afterTie?.22:.18) && pc.multiAgree >= (afterTie?.42:.38) &&
+      pc.context >= (afterTie?.60:.55);
+    if(strongRaw){
+      return {side,rawSide:side,pct,strongRaw:true,rawPrediction:true,predictionTier:'STRONG RAW',
+        reason:`STRONG RAW historical near-match • ${regime}/${phase} • ${pool.length} independent shoes • best ${best}% • continuation ${pct}% • edge ${Math.round(edge*100)}pp • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,
+        seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+    }
     return {side:null,rawSide:side,pct,reason:`Adaptive WAIT (${regime}/${phase}): ${pool.length} independent shoes • best ${best}% • continuation ${pct}% • edge ${Math.round(edge*100)}pp • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%.`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+  }
   return {side,pct,reason:`${elite?'ELITE 2+':'ADAPTIVE'} historical consensus • ${regime}/${phase} • ${pool.length} independent shoes • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
 }
 function renderSignal(sig,changed){
   const r=sig.r;set('autoHistStatus',sig.side?'ACTIVE':'WAIT');set('autoHistNext',sig.side?`${sideName(sig.side)} ${sig.pct}%`:'WAIT');set('autoHistConf',sig.best!=null?`${sig.best}% best`:'—');set('autoHistCount',sig.pool?`${sig.pool.length} matches`:'—');
   set('autoHistPB',sig.pool?`${sig.pn||0}P / ${sig.bn||0}B`:'—');set('autoHistBest',r&&r.best?`Shoe #${r.best.idx+1} • hand ${r.best.pos+1}`:'—');set('autoHistState',changed?'UPDATED':'STABLE');
   const previous=runtime.lastResult?` Last graded: ${runtime.lastResult.side}→${runtime.lastResult.actual} ${runtime.lastResult.ok?'WIN':'LOSS'}.`:'';
-  set('autoHistNote',sig.side?`Current evidence favors ${sideName(sig.side)}. ${sig.pool.length} qualified historical positions produced ${sig.pn} Player and ${sig.bn} Banker next outcomes. Prediction is locked for grading once issued.${runtime.locked?.afterTie?' AFTER-TIE TRACKING ACTIVE for this pick.':''}${previous}`:`${sig.reason}${sig.rawSide?` Raw lean: ${sideName(sig.rawSide)} ${sig.pct}%.`:''}${previous}`);
+  set('autoHistNote',sig.side?`${sig.strongRaw?'STRONG RAW • ':''}Current evidence favors ${sideName(sig.side)}. ${sig.pool.length} ${sig.strongRaw?'strong near-match':'qualified'} historical positions produced ${sig.pn} Player and ${sig.bn} Banker next outcomes. Prediction is locked for grading once issued.${runtime.locked?.afterTie?' AFTER-TIE TRACKING ACTIVE for this pick.':''}${previous}`:`${sig.reason}${sig.rawSide?` Raw lean: ${sideName(sig.rawSide)} ${sig.pct}%.`:''}${previous}`);
   paintStats();
 }
 function update(){
@@ -16903,7 +16916,14 @@ function patternRecognizerSignal(){
     else tier='A+';
   }
 
-  let side=waitReason?null:candidate;
+  // V318 Strong RAW: keep the normal A/A+ gate authoritative, but allow a
+  // history-anchored borderline call when at least two independent sources agree.
+  // Transition still requires live flow to agree with history.
+  const strongRaw = !!waitReason && !!candidate && !!hist.vote.n && histSide===candidate &&
+    ready.length>=2 && support.length>=2 && oppose.length<=1 && histStrength>=.52 &&
+    edge>=10 && quality>=40 && (reg.regime!=='TRANSITION' || liveSide===candidate);
+  let side=waitReason?(strongRaw?candidate:null):candidate;
+  if(strongRaw){tier='STRONG RAW';}
   if(side&&(!decisionRuntime.pending||decisionRuntime.pending.handN!==seq.length)){
     decisionRuntime.pending={handN:seq.length,side};
   }
@@ -16911,7 +16931,7 @@ function patternRecognizerSignal(){
   const strength=side?clamp(Math.round(50+edge*.60+quality*.24+(support.length>=3?3:0)),54,91):0;
 
   return {
-    side,candidate,qualified:!!side,strength,pPct,bPct,edge,quality,
+    side,candidate,qualified:!!side,strongRaw,rawPrediction:strongRaw,predictionTier:strongRaw?'STRONG RAW':(side?(tier||'QUALIFIED'):'WAIT'),strength,pPct,bPct,edge,quality,
     matches:(hist.matches||0)+(bead.matches||0),
     bestLen:Math.max(hist.bestLen||0,bead.bestLen||0),
     bestSimilarity:Math.round((hist.bestSim||0)*100),
@@ -16942,7 +16962,7 @@ function paint(){
     const hp=r.hist||{},bp=r.bead||{},rd=r.roads||{},lv=r.live||{};
     const regime=r.adapt?.reg?.regime||'MIXED';
     note.textContent=r.side
-      ? `QUALIFIED ${r.tier||''}: ${regime} • history ${Math.round(Math.max(hp.vote?.p||0,hp.vote?.b||0)*100)}% • live ${Math.round(Math.max(lv.vote?.p||0,lv.vote?.b||0)*100)}% • bead ${Math.round(Math.max(bp.vote?.p||0,bp.vote?.b||0)*100)}% • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0} • edge ${r.edge} • picks ${r.side==='P'?'PLAYER':'BANKER'}.`
+      ? `${r.strongRaw?'STRONG RAW':'QUALIFIED '+(r.tier||'')}: ${regime} • history ${Math.round(Math.max(hp.vote?.p||0,hp.vote?.b||0)*100)}% • live ${Math.round(Math.max(lv.vote?.p||0,lv.vote?.b||0)*100)}% • bead ${Math.round(Math.max(bp.vote?.p||0,bp.vote?.b||0)*100)}% • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0} • edge ${r.edge} • picks ${r.side==='P'?'PLAYER':'BANKER'}.`
       : `${r.waitReason||'WAIT'} Regime ${regime} • saved matches ${hp.matches||0} unique shoes • live quality ${lv.quality||0}/100 • bead matches ${bp.matches||0} • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0}.`;
   }
   // Keep V73's existing roadpreview accuracy card compatible with the converted slot.
@@ -19911,6 +19931,114 @@ window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:tru
 })();
 </script>
 
+
+
+<!-- V317: Best-Estimate Analyzer STRONG RAW upgrade only. No other AI logic changed by this patch. -->
+<script id="v317-best-estimate-strong-raw-only">
+(function(){
+  'use strict';
+  const PATCH='V317-BEST-ESTIMATE-STRONG-RAW-ONLY';
+  const sideOf=v=>{const s=String(v||'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':null};
+
+  function install(){
+    const current=window.computeCombinedAnalyzer;
+    if(typeof current!=='function') return false;
+    if(current.__v317BestEstimateStrongRaw) return true;
+
+    const base=(current.__v492Original && typeof current.__v492Original==='function')
+      ? current.__v492Original
+      : current;
+
+    function upgradedBestEstimate(){
+      const z=base.apply(this,arguments)||{};
+      const side=sideOf(z.side);
+      if(!side) return z;
+
+      if(z.qualified){
+        return {...z,predictionTier:z.predictionTier||'QUALIFIED',strongRaw:false};
+      }
+
+      const nonTieCount=(window.state?.hands||[]).filter(h=>h&&h.r!=='T').length;
+      const historical=z.historicalFamily||{};
+      const roads=z.roadFamily||{};
+      const histSide=sideOf(historical.side);
+      const roadSide=sideOf(roads.side);
+      const seqSide=sideOf(z.seqAI?.side);
+      const roadPreviewSide=sideOf(z.roadAI?.side);
+
+      const historicalRoadAgree=histSide===side && roadSide===side;
+      const supportSameSide=(seqSide===side || roadPreviewSide===side);
+      const noContradiction=!z.contradiction;
+      const enoughHands=nonTieCount>=10;
+      const enoughCombined=Number(z.top)>=53;
+      const enoughHistory=Number(historical.strength)>=55;
+      const enoughRoad=Number(roads.strength)>=54;
+
+      const strongRaw=enoughHands && historicalRoadAgree && supportSameSide &&
+        noContradiction && enoughCombined && enoughHistory && enoughRoad;
+
+      if(!strongRaw){
+        return {...z,strongRaw:false,predictionTier:'WAIT'};
+      }
+
+      return {
+        ...z,
+        qualified:true,
+        rawPrediction:true,
+        strongRaw:true,
+        predictionTier:'STRONG RAW',
+        confidence:Number(z.top)||Number(historical.strength)||Number(roads.strength)||53,
+        strength:Number(z.top)||Number(historical.strength)||Number(roads.strength)||53,
+        gateReason:'',
+        waitReason:'',
+        reason:`STRONG RAW: Historical Intelligence (${Math.round(Number(historical.strength)||0)}%) and Road Intelligence (${Math.round(Number(roads.strength)||0)}%) agree on ${side==='P'?'PLAYER':'BANKER'}, with Sequence/Road Preview support.`
+      };
+    }
+
+    upgradedBestEstimate.__v317BestEstimateStrongRaw=true;
+    upgradedBestEstimate.__v317Base=base;
+    upgradedBestEstimate.__v492Original=base;
+    window.computeCombinedAnalyzer=upgradedBestEstimate;
+    try{computeCombinedAnalyzer=upgradedBestEstimate}catch(e){}
+
+    const oldRenderAnalyzer=window.renderAnalyzer;
+    if(typeof oldRenderAnalyzer==='function'&&!oldRenderAnalyzer.__v317BestEstimateStrongRaw){
+      const wrapped=function(){
+        const r=oldRenderAnalyzer.apply(this,arguments);
+        try{
+          const z=window.computeCombinedAnalyzer();
+          if(z?.strongRaw){
+            const sideEl=document.getElementById('bestSide');
+            const scoreEl=document.getElementById('bestScore');
+            const driver=document.getElementById('resultDriver');
+            if(sideEl) sideEl.textContent=(z.side==='P'?'Player':'Banker')+' • STRONG RAW';
+            if(scoreEl) scoreEl.textContent=(Math.round(Number(z.top)||0))+'%';
+            if(driver) driver.textContent=z.reason||'Best Estimate STRONG RAW qualified.';
+          }
+        }catch(e){}
+        return r;
+      };
+      wrapped.__v317BestEstimateStrongRaw=true;
+      wrapped.__v317Original=oldRenderAnalyzer;
+      window.renderAnalyzer=wrapped;
+      try{renderAnalyzer=wrapped}catch(e){}
+    }
+
+    window.__V317_BEST_ESTIMATE_STRONG_RAW__={
+      version:'317',
+      target:'Best-Estimate Analyzer only',
+      nativeQualifiedUnchanged:true,
+      criteria:{nonTieHands:10,combinedTop:53,historicalStrength:55,roadStrength:54,historicalRoadAgreement:true,sequenceOrRoadPreviewSupport:true,noContradiction:true}
+    };
+    return true;
+  }
+
+  if(!install()){
+    let tries=0;
+    const timer=setInterval(()=>{tries++;if(install()||tries>80)clearInterval(timer)},50);
+  }
+})();
+</script>
 </body>
 </html>
 
@@ -19940,7 +20068,7 @@ function trainAndValidate(){try{const api=window.__mlTrainingDatasetV160||window
 function liveSeq(){try{const a=state?.results||state?.hands||[];return a.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean).join('')}catch(e){return ''}}
 function transitions(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}function rate(a,v){return a.length?a.filter(x=>x===v).length/a.length:0}
 function liveRow(){const pre=liveSeq(),arr=[...pre],nt=arr.filter(x=>x!=='T'),last8=nt.slice(-8),tr=last8.length>1?transitions(last8)/(last8.length-1):0;let cs=[],rd={eye:[],small:[],roach:[]};try{cs=buildBigRoadColumns(arr.map(r=>({r})))||[]}catch(e){}try{const h=arr.map(r=>({r}));rd={eye:deriveRoad(h,1)||[],small:deriveRoad(h,2)||[],roach:deriveRoad(h,3)||[]}}catch(e){}const lens=cs.map(c=>c.length),i=arr.length;return {shoe_id:'LIVE',shoe_color:state?.currentShoeColor||'',hand_number:i+1,phase:i<20?'EARLY':i<45?'MIDDLE':'LATE',prior_hands:i,last_non_tie:nt.at(-1)||'',current_streak_side:nt.at(-1)||'',current_streak_len:run(nt),recent8_transition_rate:tr,regime:last8.length<4?'WARMUP':tr>=.67?'CHOP':tr<=.33?'STREAK':'MIXED',bead_tail_6:pre.slice(-6),bead_tail_10:pre.slice(-10),pb_tail_6:nt.slice(-6).join(''),pb_tail_10:nt.slice(-10).join(''),main_current_col_depth:lens.at(-1)||0,main_prev_col_depth:lens.at(-2)||0,main_last4_col_depths:lens.slice(-4).join('-'),big_eye_tail_8:rd.eye.slice(-8).join(''),small_road_tail_8:rd.small.slice(-8).join(''),cockroach_tail_8:rd.roach.slice(-8).join(''),support_agreement_red:[rd.eye,rd.small,rd.roach].filter(x=>x.length&&x.at(-1)==='R').length,support_ready_count:[rd.eye,rd.small,rd.roach].filter(x=>x.length).length,big_eye_red_rate_8:rate(rd.eye.slice(-8),'R'),small_red_rate_8:rate(rd.small.slice(-8),'R'),cockroach_red_rate_8:rate(rd.roach.slice(-8),'R')};}
-function signal(){if(!runtime.trained)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.lastError||'Training not complete'};const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};const z=predict(runtime.model,runtime.weights,r),conf=Math.max(z.p,1-z.p),side=z.p>=.5?'P':'B',qualified=runtime.qualified&&z.families>=2&&z.evidence>=1.2&&conf>=runtime.cutoff;return runtime.lastSignal={side,displaySide:side,rawSide:side,qualified,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':'BANKER',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:+z.evidence.toFixed(2),cutoff:+(runtime.cutoff*100).toFixed(1),reason:qualified?'QUALIFIED CHAMPION ML':'RAW ML LEAN — waiting for validated confidence/evidence.',report:runtime.report};}
+function signal(){if(!runtime.trained)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.lastError||'Training not complete'};const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};const z=predict(runtime.model,runtime.weights,r),conf=Math.max(z.p,1-z.p),side=z.p>=.5?'P':'B';const nativeQualified=runtime.qualified&&z.families>=2&&z.evidence>=1.2&&conf>=runtime.cutoff;const strongRaw=!nativeQualified&&runtime.qualified&&z.families>=2&&z.evidence>=1.0&&conf>=Math.max(.515,runtime.cutoff-.025);const qualified=nativeQualified||strongRaw;return runtime.lastSignal={side,displaySide:side,rawSide:side,qualified,nativeQualified,strongRaw,rawPrediction:strongRaw,predictionTier:strongRaw?'STRONG RAW':(nativeQualified?'QUALIFIED':'WAIT'),confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':'BANKER',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:+z.evidence.toFixed(2),cutoff:+(runtime.cutoff*100).toFixed(1),reason:nativeQualified?'QUALIFIED CHAMPION ML':strongRaw?'STRONG RAW ML — validated model with borderline live confidence/evidence.':'RAW ML LEAN — waiting for validated confidence/evidence.',report:runtime.report};}
 function render(){return signal()}
 const api={version:VERSION,signal,render,report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true,independentSpecialists:true,championEnsemble:true};
 window.__mlRoadTrainerV2=window.__mlRoadTrainerV3=api;
@@ -19948,4 +20076,10 @@ function title(){const p=document.getElementById('mlRoadTrainerV155');if(p){cons
 setTimeout(()=>{trainAndValidate();title();try{window.__V307_ML_CONTROLLER__?.paint?.()}catch(e){}},3200);
 window.__V308_ML_CHAMPION__={version:VERSION,trainAndValidate,signal,report:()=>runtime.report};
 })();
+</script>
+
+
+<!-- V318 Strong RAW expansion: Best Estimate + Automatic Historical Match + AI Pattern Recognizer + ML Road Trainer only. Sequence V2 and Main Future Road unchanged. -->
+<script id="v318-strong-raw-audit-marker">
+window.__V318_STRONG_RAW_UPGRADE__={version:'318',targets:['bestestimate','auto-historical-match','pattern-recognizer','ml-road-trainer'],sequenceV2Changed:false,mainFutureChanged:false,bestEstimateV317Preserved:true,autoMatch:{ordinary:{minShoes:2,best:60,pct:60,edge:.18,multi:.38,context:.55},afterTie:{minShoes:3,best:67,pct:65,edge:.22,multi:.42,context:.60}},pattern:{historyAnchored:true,minReady:2,minSupport:2,maxOppose:1,histStrength:.52,edge:10,quality:40},ml:{requiresValidatedModel:true,minFamilies:2,minEvidence:1.0,maxBelowNativeCutoff:.025}};
 </script>
