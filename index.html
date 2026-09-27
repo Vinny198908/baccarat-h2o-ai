@@ -18,7 +18,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V290 • All-In Baccarat — AI Runtime Cleanup</title>
+<title>V330 • All-In Baccarat — Strict Validation + Color Routing</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -296,6 +296,7 @@
 </style>
 </head>
 <body>
+<!-- V330 strict validation repair: library color routing preserved; unqualified ML/raw fallbacks disabled. -->
 <div class="app">
 <div class="topbar">
 <div>
@@ -13747,16 +13748,26 @@ else boot();
  const esc=x=>String(x??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
  const pb=x=>String(x||'').toUpperCase().replace(/[^PB]/g,'');
  function library(){
-   const a=[...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])];
+   // V329 COLOR ROUTING: this fingerprint AI is library-based, so it must honor
+   // the live RED / BLACK / COMBINED selector instead of silently mixing colors.
+   let a=[];
+   try{a=typeof activePatternLibrary==='function'?(activePatternLibrary()||[]):[]}catch(e){a=[]}
+   if(!a.length){
+     const mode=state?.predictionLibraryMode, color=state?.currentShoeColor;
+     if(mode==='combined'||!color)a=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])];
+     else a=color==='red'?(state?.redPatternLibrary||[]):(state?.blackPatternLibrary||[]);
+   }
    const seen=new Set(), out=[];
-   for(const x of a){const q=pb(x?.sequence);if(q.length<8||seen.has(q))continue;seen.add(q);out.push({sequence:q,id:x?.id||'',color:x?.shoeColor||''});}
+   for(const x of a){const q=pb(x?.sequence);if(q.length<8||seen.has(q))continue;seen.add(q);out.push({sequence:q,id:x?.id||'',color:x?.shoeColor||x?.__color||''});}
    return out;
  }
  function current(){return pb((state?.hands||[]).map(h=>h?.r).join(''));}
  const sniper={target:15,shoeKey:'',issued:0,lastQualifiedHand:-1,lastDecision:null,lastDecisionLevel:'WAIT'};
  function resetSniperIfNeeded(cur){
-   const first=(cur||'').slice(0,8), key=`${first}:${Math.max(0,(state?.hands||[]).length)===0?'new':'live'}`;
-   if(!sniper.shoeKey || (cur.length<=2 && sniper.lastQualifiedHand>2)){
+   const first=(cur||'').slice(0,8);
+   const libMode=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':String(state.currentShoeColor);
+   const key=`${libMode}:${first}:${Math.max(0,(state?.hands||[]).length)===0?'new':'live'}`;
+   if(!sniper.shoeKey || sniper.shoeKey.split(':',1)[0]!==libMode || (cur.length<=2 && sniper.lastQualifiedHand>2)){
      sniper.shoeKey=key; sniper.issued=0; sniper.lastQualifiedHand=-1; sniper.lastDecision=null; sniper.lastDecisionLevel='WAIT';
    }
  }
@@ -16958,9 +16969,10 @@ function pbLive(){try{return (typeof currentSequence==='function'?currentSequenc
 function histLibrary(){
   try{
     const a=[];
+    const mode=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':state.currentShoeColor;
     const push=(x,color,idx)=>{const s=String(x?.sequence||'').replace(/[^PB]/g,'');if(s.length>=CFG.startHand+1)a.push({id:String(x?.id||`${color}_${idx+1}`),color,seq:s});};
-    (state?.redPatternLibrary||[]).forEach((x,i)=>push(x,'RED',i));
-    (state?.blackPatternLibrary||[]).forEach((x,i)=>push(x,'BLACK',i));
+    if(mode==='combined'||mode==='red')(state?.redPatternLibrary||[]).forEach((x,i)=>push(x,'RED',i));
+    if(mode==='combined'||mode==='black')(state?.blackPatternLibrary||[]).forEach((x,i)=>push(x,'BLACK',i));
     return a;
   }catch(e){return []}
 }
@@ -17044,6 +17056,8 @@ function renderState(live,n){
 }
 function update(){
   ensureUI();const live=pbLive(),n=live.length;
+  const selector=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':String(state.currentShoeColor);
+  if(rt.selector!==selector){const keepStats=rt.stats;resetSession(n);rt.stats=keepStats;rt.selector=selector;}
   if(n<rt.lastN)resetSession(n);
   settleLocked(live,n);
   // V261: a failed candidate no longer disables Duplicate Trajectory for the rest of the shoe.
@@ -17515,11 +17529,13 @@ function statsLoad(){
 function statsSave(s){try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}}
 function liveRaw(){try{return currentSequence()}catch(e){return []}}
 function allLibrary(){
-  // "By heart" mode: retain all 102 shoe records in memory, but prevent
-  // identical P/B/T histories from receiving duplicate voting power.
-  // Duplicate records remain known; only their effective vote is deduplicated.
+  // V329 COLOR ROUTING: this AI still uses its immutable 102-shoe "by heart" memory,
+  // but the live selector controls which color is eligible for matching.
+  // RED = frozen RED memory only; BLACK = frozen BLACK memory only; COMBINED = all 102.
+  const mode=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':String(state.currentShoeColor);
   const seen=new Set(), unique=[];
   for(const shoe of KNOWN_102_MEMORY){
+    if(mode!=='combined'&&shoe.color!==mode)continue;
     const key=shoe.sequence;
     if(seen.has(key))continue;
     seen.add(key);
@@ -17708,7 +17724,9 @@ function liveConsensus(seq){
   return {p:side==='P'?avg:1-avg,b:side==='B'?avg:1-avg,strength:Math.abs(avg-.5)*2,agreement:agree,side};
 }
 function signal(){
-  const raw=liveRaw(), live=pbOnly(raw), key=raw.join('');
+  const raw=liveRaw(), live=pbOnly(raw);
+  const selector=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':String(state.currentShoeColor);
+  const key=selector+'|'+raw.join('');
   if(cache.seq===key && cache.result)return cache.result;
   const lib=allLibrary(), r=regime(live), st=statsLoad();
   if(live.length<6 || !lib.length){
@@ -17850,7 +17868,9 @@ function render(){
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
   set('libraryIntelSide',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
   set('libraryIntelConfidence',x.side?x.conf+'%':'—');
-  set('libraryIntelShoes',`102 / ${x.unique||0}`);
+  const selector=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':String(state.currentShoeColor);
+  const knownCount=selector==='red'?KNOWN_102_MEMORY.filter(q=>q.color==='red').length:selector==='black'?KNOWN_102_MEMORY.filter(q=>q.color==='black').length:KNOWN_102_MEMORY.length;
+  set('libraryIntelShoes',`${knownCount} / ${x.unique||0}`);
   set('libraryIntelBest',x.bestK?`${x.bestK} / ${Math.round(x.bestSim*100)}%`:'—');
   set('libraryIntelRegime',`${x.reg?.name||'BUILDING'} • ${x.reg?.phase||'EARLY'} • FLOW ${x.flow?.mode||'BUILDING'}`);
   set('libraryIntelTrust',Math.round((x.trust||1)*100)+'%');
@@ -18804,11 +18824,13 @@ function seqOf(shoe){
 function hashText(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16)}
 let libraryCache={stamp:'',shoes:[]};
 function libraryArrays(){
-  const out=[];
-  for(const name of ['redPatternLibrary','blackPatternLibrary','patternLibrary','redShoeLibrary','blackShoeLibrary']){
-    const a=safe(()=>state?.[name],null);if(Array.isArray(a))out.push(...a);
-  }
-  return out;
+  // V329 COLOR ROUTING: this is a historical pattern AI, so honor RED/BLACK/COMBINED.
+  // Do not mix the separate card-shoe libraries into P/B/T historical matching.
+  try{if(typeof activePatternLibrary==='function')return (activePatternLibrary()||[]).slice()}catch(e){}
+  const mode=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':state.currentShoeColor;
+  if(mode==='red')return Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary.slice():[];
+  if(mode==='black')return Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary.slice():[];
+  return [...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])];
 }
 function historicalShoes(){
   const raw=libraryArrays(),parsed=raw.map(seqOf),stamp=raw.length+':'+hashText(parsed.map(q=>q.join('')).join('|'));
@@ -18933,7 +18955,7 @@ const VERSION=305,KEY='mainroadonlyfuturev284',START=10,BASE_EDGE=.12,MIN_SHOES=
 let cache={sig:'',levels:null,pathLevels:null,shoeCount:0,examples:0};
 function sideOf(x){x=String(x||'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':x==='T'||x==='TIE'?'T':''}
 function seqOf(shoe){const s=shoe?.sequence??shoe?.seq??shoe?.history??shoe?.results??shoe?.hands??'';if(typeof s==='string')return [...s].map(sideOf).filter(Boolean);if(Array.isArray(s))return s.map(x=>sideOf(typeof x==='string'?x:(x?.r||x?.side||x?.result||x?.winner))).filter(Boolean);return []}
-function libraryShoes(){const out=[];try{for(const x of (state?.redPatternLibrary||[]))out.push(x);for(const x of (state?.blackPatternLibrary||[]))out.push(x)}catch(e){};if(!out.length){try{const a=typeof activePatternLibrary==='function'?activePatternLibrary():[];for(const x of (a||[]))out.push(x)}catch(e){}}return out}
+function libraryShoes(){const out=[];try{const a=typeof activePatternLibrary==='function'?activePatternLibrary():[];for(const x of (a||[]))out.push(x)}catch(e){};if(!out.length){try{const mode=(state?.predictionLibraryMode==='combined'||!state?.currentShoeColor)?'combined':state.currentShoeColor;if(mode==='combined'||mode==='red')for(const x of (state?.redPatternLibrary||[]))out.push(x);if(mode==='combined'||mode==='black')for(const x of (state?.blackPatternLibrary||[]))out.push(x)}catch(e){}}return out}
 function shoeId(shoe,si){return String(shoe?.id||`shoe_${si}`)}
 function clip(x){return Math.min(4,Math.max(0,Number(x)||0))}
 function transitionBits(pb,n){let s='';for(let i=Math.max(1,pb.length-n);i<pb.length;i++)s+=pb[i]===pb[i-1]?'C':'S';return s}
@@ -18952,7 +18974,7 @@ function historical(arr,excluded){const C=buildCache(),ks=stateKeysFromResults(a
 function pathSupport(arr,side,pth,excluded){const C=buildCache(),ks=stateKeysFromResults(arr),weights=[1,.72,.48,.34],ps=pathSig(pth),independent=new Set();let score=0,weight=0;const detail=[];ks.forEach((k,li)=>{const set=C.pathLevels[li].get(`${k}|${side}|${ps}`);if(!set||!set.size)return;let n=0;for(const sid of set){if(excluded?.has(sid))continue;n++;independent.add(sid)}if(!n)return;const w=weights[li];score+=w*Math.min(1.35,.35+n/5);weight+=w;detail.push({level:li,shoes:n})});return{side,score:weight?score/weight:0,shoes:independent.size,detail,sig:ps}}
 function modelStats(){try{return state?.accuracyVerified?.models?.[KEY]||{}}catch(e){return{}}}
 function dynamicEdge(){const m=modelStats(),w=+m.wins||0,l=+m.losses||0,n=w+l;if(n>=12){const r=w/n;if(r<.48)return .16;if(n>=20&&r>=.58)return .10}return BASE_EDGE}
-function signal(){try{const arr=(state?.hands||[]).map(x=>sideOf(x?.r||x?.side||x?.result||x)).filter(Boolean),pb=arr.filter(x=>x==='P'||x==='B'),n=pb.length;if(n<START)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:`WAIT • starts after ${START} non-tie hands (${n}/${START})`};const last=pb.at(-1),excluded=replayExclusion(arr),hist=historical(arr,excluded),pPath=project(arr,'P'),bPath=project(arr,'B'),pSup=pathSupport(arr,'P',pPath,excluded),bSup=pathSupport(arr,'B',bPath,excluded),cut=dynamicEdge();if(!hist.ready)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:Math.round(hist.edge*100),evidence:hist.shoes,label:'WAIT',pPath,bPath,hist,pSup,bSup,excludedCount:excluded.size,reason:`WAIT • only ${hist.shoes} independent Main-Road historical shoes match this structure; need ${MIN_SHOES}.`};const histP=(last==='P'?hist.pc:1-hist.pc),histB=1-histP;const ps=pSup.score,bs=bSup.score,pathTotal=ps+bs,pathP=pathTotal?ps/pathTotal:.5,pathB=1-pathP;const pathReady=(pSup.shoes+bSup.shoes)>=MIN_PATH_SHOES;const pathWeight=pathReady?.45:.18,histWeight=1-pathWeight;let pRaw=histWeight*histP+pathWeight*pathP,bRaw=histWeight*histB+pathWeight*pathB;const z=pRaw+bRaw||1;pRaw/=z;bRaw/=z;const pPct=Math.round(100*pRaw),bPct=100-pPct,pathPPct=Math.round(pathP*100),pathBPct=100-pathPPct,edge=Math.abs(pRaw-bRaw);let raw=pPct>bPct?'P':bPct>pPct?'B':null;const histSide=histP>histB?'P':histB>histP?'B':null,pathSide=pathP>pathB?'P':pathB>pathP?'B':null,strongConflict=pathReady&&histSide&&pathSide&&histSide!==pathSide&&Math.abs(pathP-pathB)>=.24&&hist.edge>=.20;const nativeQualified=raw&&!strongConflict&&edge>=cut&&hist.shoes>=MIN_SHOES&&(pathReady||hist.edge>=cut+.04);const selectiveRaw=raw&&!strongConflict&&hist.shoes>=MIN_SHOES&&edge>=.03;const qualified=nativeQualified||selectiveRaw;const label=!qualified?'RAW LEAN':nativeQualified?(edge>=.20?'STRONG':edge>=.12?'LIKELY':'SELECTIVE'):'SELECTIVE RAW',side=qualified?raw:null,chosen=raw==='P'?pPath:bPath,confidence=raw==='P'?pPct:bPct;const conflictNote=strongConflict?' • PATH/HISTORY CONFLICT → WAIT':'';const guardNote=excluded.size?' • replay guard excluded 1 exact-prefix shoe':'';return{side,rawSide:raw,strength:side?confidence:0,pPct,bPct,pathP:pathPPct,pathB:pathBPct,edge:Math.round(edge*100),evidence:hist.shoes,label,pPath,bPath,hist,pSup,bSup,pathReady,cutoff:Math.round(cut*100),excludedCount:excluded.size,reason:qualified?`${raw==='P'?'PLAYER':'BANKER'} • ${label} • combined Main-Road future score ${pPct}% P / ${bPct}% B • projected path score ${pathPPct}% P / ${pathBPct}% B • edge ${Math.round(edge*100)}pp${nativeQualified?'':' (raw fallback)'} • lands C${chosen.col+1}/R${chosen.row+1} • ${hist.shoes} independent historical shoes${guardNote}`:`WAIT • raw ${raw==='P'?'PLAYER':raw==='B'?'BANKER':'TIE'} ${confidence||50}% • combined edge ${Math.round(edge*100)}pp vs ${Math.round(cut*100)}pp gate • path ${pathPPct}% P / ${pathBPct}% B • P lands C${pPath.col+1}/R${pPath.row+1}, B lands C${bPath.col+1}/R${bPath.row+1}${conflictNote}${guardNote}.`};}catch(e){return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:'WAIT • Main Road Only V305 initializing: '+String(e?.message||e)}}}
+function signal(){try{const arr=(state?.hands||[]).map(x=>sideOf(x?.r||x?.side||x?.result||x)).filter(Boolean),pb=arr.filter(x=>x==='P'||x==='B'),n=pb.length;if(n<START)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:`WAIT • starts after ${START} non-tie hands (${n}/${START})`};const last=pb.at(-1),excluded=replayExclusion(arr),hist=historical(arr,excluded),pPath=project(arr,'P'),bPath=project(arr,'B'),pSup=pathSupport(arr,'P',pPath,excluded),bSup=pathSupport(arr,'B',bPath,excluded),cut=dynamicEdge();if(!hist.ready)return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:Math.round(hist.edge*100),evidence:hist.shoes,label:'WAIT',pPath,bPath,hist,pSup,bSup,excludedCount:excluded.size,reason:`WAIT • only ${hist.shoes} independent Main-Road historical shoes match this structure; need ${MIN_SHOES}.`};const histP=(last==='P'?hist.pc:1-hist.pc),histB=1-histP;const ps=pSup.score,bs=bSup.score,pathTotal=ps+bs,pathP=pathTotal?ps/pathTotal:.5,pathB=1-pathP;const pathReady=(pSup.shoes+bSup.shoes)>=MIN_PATH_SHOES;const pathWeight=pathReady?.45:.18,histWeight=1-pathWeight;let pRaw=histWeight*histP+pathWeight*pathP,bRaw=histWeight*histB+pathWeight*pathB;const z=pRaw+bRaw||1;pRaw/=z;bRaw/=z;const pPct=Math.round(100*pRaw),bPct=100-pPct,pathPPct=Math.round(pathP*100),pathBPct=100-pathPPct,edge=Math.abs(pRaw-bRaw);let raw=pPct>bPct?'P':bPct>pPct?'B':null;const histSide=histP>histB?'P':histB>histP?'B':null,pathSide=pathP>pathB?'P':pathB>pathP?'B':null,strongConflict=pathReady&&histSide&&pathSide&&histSide!==pathSide&&Math.abs(pathP-pathB)>=.24&&hist.edge>=.20;const nativeQualified=raw&&!strongConflict&&edge>=cut&&hist.shoes>=MIN_SHOES&&(pathReady||hist.edge>=cut+.04);const selectiveRaw=false;const qualified=!!nativeQualified;const label=!qualified?'RAW LEAN':(edge>=.20?'STRONG':edge>=.12?'LIKELY':'SELECTIVE'),side=qualified?raw:null,chosen=raw==='P'?pPath:bPath,confidence=raw==='P'?pPct:bPct;const conflictNote=strongConflict?' • PATH/HISTORY CONFLICT → WAIT':'';const guardNote=excluded.size?' • replay guard excluded 1 exact-prefix shoe':'';return{side,rawSide:raw,strength:side?confidence:0,pPct,bPct,pathP:pathPPct,pathB:pathBPct,edge:Math.round(edge*100),evidence:hist.shoes,label,pPath,bPath,hist,pSup,bSup,pathReady,cutoff:Math.round(cut*100),excludedCount:excluded.size,reason:qualified?`${raw==='P'?'PLAYER':'BANKER'} • ${label} • combined Main-Road future score ${pPct}% P / ${bPct}% B • projected path score ${pathPPct}% P / ${pathBPct}% B • edge ${Math.round(edge*100)}pp • lands C${chosen.col+1}/R${chosen.row+1} • ${hist.shoes} independent historical shoes${guardNote}`:`WAIT • raw ${raw==='P'?'PLAYER':raw==='B'?'BANKER':'TIE'} ${confidence||50}% • combined edge ${Math.round(edge*100)}pp vs ${Math.round(cut*100)}pp gate • path ${pathPPct}% P / ${pathBPct}% B • P lands C${pPath.col+1}/R${pPath.row+1}, B lands C${bPath.col+1}/R${bPath.row+1}${conflictNote}${guardNote}.`};}catch(e){return{side:null,strength:0,pPct:50,bPct:50,pathP:50,pathB:50,edge:0,evidence:0,label:'WAIT',reason:'WAIT • Main Road Only V305 initializing: '+String(e?.message||e)}}}
 function model(){return state?.accuracyVerified?.models?.[KEY]||{}}
 function acc(){const m=model(),w=+m.wins||0,l=+m.losses||0,n=+m.predictions||(w+l),wait=+m.waits||0;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N ${n} • WAIT ${wait}`:`— • 0W-0L • N 0 • WAIT ${wait}`}
 function ensure(){let r=document.getElementById('v284MainOnlyAI');if(r){const t=r.querySelector('.analyzer-title');if(t)t.textContent='🛣️ Main Road Only Future AI V305 — True Path Scoring + Main-Road Memory';const s=r.querySelector('.analyzer-sub');if(s)s.textContent='Independent Main-Road-only engine. PLAYER-next and BANKER-next are both projected on the Big Road and their resulting structures are scored against saved Main-Road outcomes. Historical continuation and projected-path evidence are combined; exact-prefix replay leakage is conservatively guarded. Sequence V2, Bead Plate, derived roads, ML, and Main Future Road are not prediction inputs.';return r}r=document.createElement('div');r.id='v284MainOnlyAI';r.className='analyzer';r.innerHTML=`<div class="analyzer-title">🛣️ Main Road Only Future AI V305 — True Path Scoring + Main-Road Memory</div><div class="analyzer-sub">Independent Main-Road-only engine. PLAYER-next and BANKER-next are both projected on the Big Road and their resulting structures are scored against saved Main-Road outcomes. Historical continuation and projected-path evidence are combined; exact-prefix replay leakage is conservatively guarded. Sequence V2, Bead Plate, derived roads, ML, and Main Future Road are not prediction inputs.</div><div class="analyzer-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v284Pick">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v284Conf">—</strong></div><div class="analyzer-card"><span>PLAYER PATH SCORE</span><strong id="v284P">50%</strong></div><div class="analyzer-card"><span>BANKER PATH SCORE</span><strong id="v284B">50%</strong></div><div class="analyzer-card"><span>COMBINED EDGE</span><strong id="v284Edge">—</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v284Acc">—</strong></div></div><div class="analyzer-sub" id="v284Reason" style="margin-top:8px">Waiting.</div><button class="tiny-btn" id="v284Reset" style="width:100%;margin-top:8px">Reset Main-Road-Only Accuracy</button>`;document.querySelector('.app')?.appendChild(r);r.querySelector('#v284Reset').onclick=()=>{if(!confirm('Reset only Main Road Only Future AI accuracy?'))return;const A=state?.accuracyVerified;if(A){delete A.models?.[KEY];delete A.pending?.[KEY]}try{persist()}catch(e){}render()};return r}
@@ -19573,6 +19595,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setTimeout(cycle,5200);
 })();
 </script>
+
+<!-- V329 LIBRARY COLOR ROUTING FIX — 2026-09-27
+     Historical AIs that are designed to use saved shoe history now honor the live
+     RED / BLACK / COMBINED selector, including mid-shoe changes. Live hands and
+     lifetime accuracy totals are preserved. Non-library AIs and ML full-dataset
+     training behavior are intentionally unchanged. Main Future Test 2 refresh fix preserved. -->
 </body>
 </html>
 
@@ -19778,17 +19806,15 @@ function wrapMlApi(api){
     // Production fallback: the trained champion may still make a selective call when the
     // whole-model held-out flag misses by a small margin. Require multi-family live evidence.
     const validated=!!report.qualified;
-    const productionRaw = validated
-      ? (fam>=2 && ev>=0.70 && conf>=50.8)
-      : (fam>=2 && ev>=0.90 && conf>=51.0);
+    // V330 STRICT VALIDATION: never turn a model that failed held-out qualification into a live P/B call.
+    if(!validated)return z;
+    const productionRaw=(fam>=2 && ev>=0.70 && conf>=50.8);
     if(!productionRaw)return z;
     return {...z,
       side,displaySide:side,rawSide:side,qualified:true,strongRaw:true,rawPrediction:true,
-      predictionTier:validated?'PRODUCTION RAW':'SELECTIVE RAW',
+      predictionTier:'PRODUCTION RAW',
       strength:conf,status:side==='P'?'PLAYER':'BANKER',
-      reason:validated
-        ? 'PRODUCTION RAW ML — trained champion has multi-family live support just below the native gate.'
-        : 'SELECTIVE RAW ML — champion model is trained and multiple independent feature families agree; full held-out qualification was not required for this live raw call.'
+      reason:'PRODUCTION RAW ML — held-out-qualified champion has multi-family live support just below the native gate.'
     };
   }
   signal.__v323MoreCalls=true;signal.__base=raw;api.signal=signal;
@@ -19805,7 +19831,7 @@ function installMl(){
   // Re-register ML so central accuracy grades the same official call shown by the panel.
   if(Array.isArray(window.__accuracyModelDefs)){
     for(let i=window.__accuracyModelDefs.length-1;i>=0;i--)if(String(window.__accuracyModelDefs[i]?.[0]||'').toLowerCase()===MLKEY)window.__accuracyModelDefs.splice(i,1);
-    window.__accuracyModelDefs.push([MLKEY,'ML Road Trainer V323 — Production Selective',()=>{
+    window.__accuracyModelDefs.push([MLKEY,'ML Road Trainer V330 — Held-Out Qualified Only',()=>{
       let z={};try{z=(window.__mlRoadTrainerV3||window.__mlRoadTrainerV2)?.signal?.()||{}}catch(e){}
       const side=sideOf(z.side||z.displaySide||z.rawSide);
       return {side:(z.qualified&&side)?side:null,strength:Number(z.confidence||z.strength)||0};
@@ -19841,5 +19867,97 @@ function boot(){
 }
 window.__V323_ML_SEQ_FIX__={version:VERSION,installMl,reconcileSeq,refreshSeq,sequencePredictionLogicChanged:false,mainFutureChanged:false,mlPredictionFrequencyRepair:true,sequenceCountInvariant:'predictions=wins+losses; ties ungraded'};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,80),{once:true});else setTimeout(boot,80);
+})();
+</script>
+
+<!-- V329 HOTFIX: keep Main Future Road Test 2 live, settle/arm on every hand change, and recover if another late script bypasses the render wrapper. -->
+<script id="v329-main-future-test2-live-hotfix">
+(function(){
+'use strict';
+if(window.__V329_MAIN_FUTURE_TEST2_HOTFIX__)return;
+const VERSION=329;
+let lastSig='', timer=0, busy=false;
+function seq(){
+  try{return (typeof currentSequence==='function'?currentSequence():[]).map(x=>String(x||'').toUpperCase().replace(/[^PBT]/g,'')).filter(Boolean)}catch(e){return []}
+}
+function signature(){return seq().join('');}
+function api(){return window.__V328_MAIN_FUTURE_LIBRARY_RHYTHM__||window.__V327_MAIN_FUTURE_LIBRARY_ROAD__||null;}
+function run(force){
+  if(busy)return;
+  const a=api(); if(!a||typeof a.cycle!=='function')return;
+  const s=signature();
+  if(!force && s===lastSig)return;
+  busy=true;
+  try{a.cycle();lastSig=s;}catch(e){console.warn('V329 Test 2 live hotfix',e)}finally{busy=false;}
+}
+function schedule(force){clearTimeout(timer);timer=setTimeout(()=>run(!!force),35);}
+function hookButton(id){
+  const el=document.getElementById(id); if(!el||el.__v329Test2)return;
+  el.__v329Test2=true;
+  el.addEventListener('click',()=>{schedule(true);setTimeout(()=>schedule(true),120);},true);
+}
+function install(){
+  ['playerBtn','bankerBtn','tieBtn','undoBtn','pBtn','bBtn','tBtn','undo'].forEach(hookButton);
+  // Capture any result/undo control even when IDs differ between builds.
+  document.addEventListener('click',function(e){
+    const b=e.target&&e.target.closest?e.target.closest('button'):null; if(!b)return;
+    const txt=(b.textContent||'').trim().toUpperCase();
+    if(txt==='PLAYER'||txt==='BANKER'||txt==='TIE'||txt==='UNDO') {schedule(true);setTimeout(()=>schedule(true),120);}
+  },true);
+  // Recovery watcher: only recomputes when the live P/B/T sequence actually changes.
+  if(!window.__v329Test2Watch)window.__v329Test2Watch=setInterval(()=>run(false),250);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule(true)});
+  window.addEventListener('pageshow',()=>schedule(true));
+  schedule(true);
+}
+window.__V329_MAIN_FUTURE_TEST2_HOTFIX__={version:VERSION,run:()=>run(true),install,liveWatch:true,logicChanged:false};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setTimeout(install,1500);
+})();
+</script>
+
+
+<!-- V330 STRICT VALIDATION + MID-GAME COLOR ROUTING FINALIZER -->
+<script id="v330-strict-validation-color-router">
+(function(){
+'use strict';
+if(window.__V330_STRICT_VALIDATION_ROUTER__)return;
+const VERSION=330;
+let lastMode='';
+function mode(){
+  try{return state?.predictionLibraryMode==='combined'||!state?.currentShoeColor?'combined':String(state.currentShoeColor)}catch(e){return 'combined'}
+}
+function invalidate(){
+  // Keep the live shoe and all accuracy totals. Only clear transient historical-match caches.
+  try{if(typeof window.__invalidateAISignalCache==='function')window.__invalidateAISignalCache()}catch(e){}
+  try{if(typeof signalCache==='object'&&signalCache){signalCache.key='';signalCache.value=null}}catch(e){}
+  try{if(typeof libraryCache==='object'&&libraryCache){libraryCache.stamp='';libraryCache.shoes=[]}}catch(e){}
+  try{if(typeof cache==='object'&&cache&&Object.prototype.hasOwnProperty.call(cache,'sig')){cache.sig='';cache.levels=null;cache.pathLevels=null}}catch(e){}
+  // Duplicate trajectory is color-library based: force a rescan, but do not erase its accumulated accuracy.
+  try{window.__V237_DUPLICATE_TRAJECTORY__?.resetSession?.((typeof currentSequence==='function'?currentSequence():[]).filter(x=>x==='P'||x==='B').length)}catch(e){}
+}
+function refresh(){
+  invalidate();
+  try{if(typeof render==='function')render()}catch(e){}
+  try{window.__V281_EXACT_HISTORY_AI__?.render?.()}catch(e){}
+  try{window.__V305_MAIN_ROAD_ONLY_AI__?.render?.()}catch(e){}
+  try{window.__V329_MAIN_FUTURE_TEST2_HOTFIX__?.run?.()}catch(e){}
+  try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(e){}
+}
+function check(force){
+  const m=mode();
+  if(!force&&m===lastMode)return;
+  lastMode=m;refresh();
+}
+function onChoice(e){
+  const t=e.target?.closest?.('#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn');
+  if(!t)return;
+  setTimeout(()=>check(true),0);
+  setTimeout(()=>check(true),100);
+}
+document.addEventListener('click',onChoice,true);
+document.addEventListener('touchend',onChoice,true);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>check(true),{once:true});else check(true);
+window.__V330_STRICT_VALIDATION_ROUTER__={version:VERSION,check,refresh,rule:'RED=red history only; BLACK=black history only; COMBINED=both; live hands and accuracy preserved',mlRequiresHeldOutQualification:true,mainRoadOnlyRawFallbackDisabled:true};
 })();
 </script>
