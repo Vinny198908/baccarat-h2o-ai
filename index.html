@@ -16691,24 +16691,9 @@ function ensurePatternAccuracy(){
 }
 
 function moveFinalLayout(){
-  const hist=document.getElementById('autoHistMatchBox');
-  const ml=document.getElementById('mlRoadTrainerV155');
-  const finger=document.getElementById('presetFingerprintGateV145');
-  const mirror=document.getElementById('gptMirrorPanel');
-  const firstAnalyzer=document.querySelector('.analyzer');
-  const host=(ml&&ml.parentNode)||(mirror&&mirror.parentNode)||(firstAnalyzer&&firstAnalyzer.parentNode);
-  if(!host)return false;
-
-  // Keep Automatic Historical Match at the top.
-  if(hist){
-    if(hist.parentNode!==host)host.insertBefore(hist,host.firstChild);
-    else if(host.firstChild!==hist)host.insertBefore(hist,host.firstChild);
-  }
-
-  // V288: legacy bottom-layout movement disabled.
-  // Final panel placement is owned only by the V288 stable layout controller below.
-  // Keep this legacy function for its accuracy-display repair, but do not move ML, Finger, or Mirror.
-  return !!ml;
+  // V340: legacy V221 panel movement disabled. This block now repairs
+  // Pattern Recognizer accuracy display only; layout is owned by V340.
+  return true;
 }
 
 function refresh(){
@@ -19715,7 +19700,87 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
-\n<!-- V335 LAYOUT FIX: ML Road Trainer restored to the first panel under the top bar. Layout only; prediction logic untouched. -->\n\n</body>
+\n<!-- V335 LAYOUT FIX: ML Road Trainer restored to the first panel under the top bar. Layout only; prediction logic untouched. -->\n\n
+<!-- V338: Sequence AI V2 visual consolidation only. No prediction/count/reset logic changed. -->
+<style id="v338-sequence-v2-compact">
+#sequenceAiPanel{padding:7px 8px!important;margin-top:6px!important}
+#sequenceAiPanel>.analyzer-title{margin:0 0 4px!important;font-size:15px!important;line-height:1.15!important}
+/* Hide the long explanatory copy and status prose; all live metrics stay visible. */
+#sequenceAiPanel>.analyzer-sub:not(#seqV2AccuracyLast):not(#seqAiNote){display:none!important}
+#sequenceAiPanel #seqV2AccuracyLast,#sequenceAiPanel #seqAiNote{display:none!important}
+/* V73 and V262 are duplicate accuracy readouts. Keep the dedicated Sequence V2 accuracy row instead. */
+#sequenceAiPanel [data-v73-acc="seqv2"]{display:none!important}
+#sequenceAiPanel .v262-accuracy-grid{display:none!important}
+#sequenceAiPanel .analyzer-grid{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important;margin:4px 0 0!important}
+#sequenceAiPanel .analyzer-card{min-height:0!important;padding:4px 3px!important;border-radius:7px!important}
+#sequenceAiPanel .analyzer-card span{font-size:8.5px!important;line-height:1.05!important;margin:0!important}
+#sequenceAiPanel .analyzer-card strong{font-size:13px!important;line-height:1.08!important;margin-top:2px!important}
+#sequenceAiPanel .match-pcts{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important;margin:4px 0 0!important}
+#sequenceAiPanel .match-pct{min-height:0!important;padding:4px 3px!important}
+#sequenceAiPanel .match-pct strong{font-size:13px!important;line-height:1.05!important}
+#sequenceAiPanel .match-pct span{font-size:8.5px!important;line-height:1.05!important}
+#sequenceAiPanel #seqV2AccuracyDisplayFix{margin-top:4px!important}
+#sequenceAiPanel #v262ResetSeq{margin-top:5px!important;padding:5px 8px!important;font-size:11px!important;line-height:1.1!important}
+@media(max-width:700px){
+  #sequenceAiPanel .analyzer-grid,#sequenceAiPanel .match-pcts{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+</style>
+<script id="v338-sequence-v2-compact-marker">
+window.__V338_SEQUENCE_V2_COMPACT__={layoutOnly:true,sequenceLogicChanged:false,accuracyLogicChanged:false,resetLogicChanged:false};
+</script>
+
+
+<!-- V339 LAYOUT ONLY: AI Pattern Recognizer restored to the very top; ML follows directly underneath. -->
+<script id="v340-single-layout-owner">
+(function(){
+'use strict';
+if(window.__V340_LAYOUT__) return;
+let busy=false, queued=false;
+function panelFromChild(id){const x=document.getElementById(id);return x&&x.closest?x.closest('.analyzer'):null;}
+function sameTail(app,nodes){
+  const live=nodes.filter(Boolean); if(!live.length)return true;
+  const kids=Array.from(app.children); if(kids.length<live.length)return false;
+  return live.every((n,i)=>kids[kids.length-live.length+i]===n);
+}
+function place(){
+  if(busy)return; busy=true;
+  try{
+    const app=document.querySelector('.app'); if(!app)return;
+    const topbar=app.querySelector('.topbar');
+    const pattern=document.getElementById('roadPreviewAiPanel')||panelFromChild('roadAiPick');
+    const ml=document.getElementById('mlRoadTrainerV155');
+    const hist=document.getElementById('autoHistMatchBox');
+    const colorPattern=document.getElementById('colorPatternAiPanel');
+    const libraryIntel=document.getElementById('libraryIntelPanel');
+    const finger=document.getElementById('presetFingerprintGateV145');
+    const duplicate=document.getElementById('autoHistDuplicateMode');
+
+    let anchor=topbar&&topbar.parentNode===app?topbar.nextElementSibling:app.firstElementChild;
+    if(pattern){
+      if(pattern.parentNode!==app||anchor!==pattern) app.insertBefore(pattern,anchor||null);
+    }
+    if(ml){
+      const mlAnchor=pattern&&pattern.parentNode===app?pattern.nextElementSibling:anchor;
+      if(ml.parentNode!==app||ml!==mlAnchor) app.insertBefore(ml,mlAnchor||null);
+    }
+
+    // Preserve the requested bottom group, with Automatic Historical Match last.
+    const bottom=[colorPattern,libraryIntel,finger,duplicate,hist].filter(Boolean);
+    if(!sameTail(app,bottom)) bottom.forEach(n=>app.appendChild(n));
+
+    window.__V340_LAYOUT__={version:340,aiPatternRecognizer:'TOP',mlRoadTrainer:'SECOND',automaticHistoricalMatch:'BOTTOM_LAST',singleLayoutOwner:true,layoutOnly:true,predictionLogicChanged:false};
+  }catch(e){console.warn('V340 single layout owner',e)}finally{busy=false;}
+}
+function request(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;place();});}
+function boot(){
+  place(); [50,180,450,900,1800,3500,7000].forEach(ms=>setTimeout(place,ms));
+  const app=document.querySelector('.app');
+  if(app&&window.MutationObserver){const obs=new MutationObserver(request);obs.observe(app,{childList:true});}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+</script>
+</body>
 </html>
 
 <script id="v308-ml-champion-ensemble">
@@ -20079,58 +20144,7 @@ window.__V330_STRICT_VALIDATION_ROUTER__={version:VERSION,check,refresh,rule:'RE
 
 <!-- V336 FINAL LAYOUT: AI Pattern Recognizer takes Automatic Historical Match's former slot; Automatic Historical Match moves to bottom. Layout only. -->
 <script id="v337-layout-stability-scan-fix">
-(function(){
-'use strict';
-let busy=false,queued=false,slot=null;
-function panelFromChild(id){const x=document.getElementById(id);return x&&x.closest?x.closest('.analyzer'):null}
-function sameTail(app,nodes){
-  const live=nodes.filter(Boolean); if(!live.length)return true;
-  const kids=Array.from(app.children); if(kids.length<live.length)return false;
-  return live.every((n,i)=>kids[kids.length-live.length+i]===n);
-}
-function place(){
-  if(busy)return; busy=true;
-  try{
-    const app=document.querySelector('.app'); if(!app)return;
-    const topbar=app.querySelector('.topbar');
-    const ml=document.getElementById('mlRoadTrainerV155');
-    if(ml&&topbar&&topbar.parentNode===app&&topbar.nextElementSibling!==ml){
-      app.insertBefore(ml,topbar.nextElementSibling);
-    }
-
-    const hist=document.getElementById('autoHistMatchBox');
-    const pattern=document.getElementById('roadPreviewAiPanel')||panelFromChild('roadAiPick');
-    if(hist&&pattern){
-      const host=hist.parentNode||app;
-      if(!slot||!slot.isConnected){
-        slot=document.createComment('V337 AI Pattern Recognizer slot — former Automatic Historical Match position');
-        host.insertBefore(slot,hist);
-      }
-      if(slot.parentNode){
-        if(pattern.parentNode!==slot.parentNode||pattern.nextSibling!==slot){
-          slot.parentNode.insertBefore(pattern,slot);
-        }
-      }
-    }
-
-    if(hist){
-      const colorPattern=document.getElementById('colorPatternAiPanel');
-      const libraryIntel=document.getElementById('libraryIntelPanel');
-      const finger=document.getElementById('presetFingerprintGateV145');
-      const duplicate=document.getElementById('autoHistDuplicateMode');
-      const bottom=[colorPattern,libraryIntel,finger,duplicate,hist].filter(Boolean);
-      if(!sameTail(app,bottom)) bottom.forEach(n=>app.appendChild(n));
-    }
-
-    window.__V337_LAYOUT__={version:337,mlRoadTrainer:'TOP',aiPatternRecognizer:'AUTOMATIC_MATCH_FORMER_SLOT',automaticHistoricalMatch:'BOTTOM_LAST',layoutOnly:true,predictionLogicChanged:false};
-  }catch(e){console.warn('V337 layout stability',e)}finally{busy=false}
-}
-function request(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;place()})}
-function boot(){
-  place(); [50,180,450,900,1800,3500,7000,9000].forEach(ms=>setTimeout(place,ms));
-  const app=document.querySelector('.app');
-  if(app&&window.MutationObserver){const obs=new MutationObserver(request);obs.observe(app,{childList:true});}
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-})();
+window.__V337_LAYOUT__={version:337,legacyDisabledByV340:true,layoutOnly:true,predictionLogicChanged:false};
 </script>
+
+<!-- V340 scan fix: disabled legacy V221/V337 layout moves; V340 is sole current layout owner. -->
