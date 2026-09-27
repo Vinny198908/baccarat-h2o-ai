@@ -1,3 +1,8 @@
+<!-- V344 stability repair:
+     - fixed V343 transition-regime syntax
+     - removed 1.2-second full-library rescanning loop
+     - awareness now refreshes on hand/state changes
+     - Main Future prediction logic remains unchanged -->
 <!-- V254: Adaptive Library Intelligence Precision AI. Adds multi-window per-shoe consensus, live transition risk, context calibration, divergence control, and stricter independent-shoe qualification. Sequence V2 and Main Future Road unchanged. -->
 <!-- V241: deep scan fixed PFG runtime reassignment, rapid-repeat input loss, Mirror new-shoe safety carryover, and stale Mirror pending after Undo; V239: deep runtime audit fix; PFG reassignment bug fixed; V237: adds Duplicate Trajectory Mode; V235: selective triple-confirmation Pattern Recognizer; V234: Pattern Recognizer removes live Main Road logic; V233: Pattern Recognizer TRUE P/B-only inside V217 closure; V232: Pattern Recognizer P/B-only, ties invisible; V231: adds standalone 3-Road Confusion AI A/A+; V221 base: V220 base + scan fixes: single Pattern accuracy reset path + single authoritative layout mover -->
 <!-- 2026-09-23 V290 FULL PORT:
@@ -19780,6 +19785,668 @@ function boot(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
+
+<!-- V341: UI cleanup + Shared 6-Shoe Family accuracy. Prediction logic unchanged. -->
+<style id="v341-derived-compact-no-yellow">
+/* Remove the large yellow/gold treatment from Independent Derived Road AI and compact it. */
+#derivedIndependentFinal{
+  border:1px solid #343a43 !important;
+  background:var(--panel) !important;
+  box-shadow:none !important;
+  padding:8px 10px !important;
+  margin-top:8px !important;
+  border-radius:10px !important;
+}
+#derivedIndependentFinal > div:first-child{
+  margin-bottom:4px !important;
+  font-size:14px !important;
+  line-height:1.15 !important;
+}
+#derivedIndependentPrediction{
+  font-size:20px !important;
+  line-height:1.15 !important;
+}
+#derivedIndependentAgreement,
+#derivedIndependentConfidence,
+#derivedIndependentWeights,
+#derivedIndependentTestScore{
+  margin-top:2px !important;
+  line-height:1.2 !important;
+}
+#derivedIndependentFinal > div:last-child{
+  margin-top:5px !important;
+  font-size:10px !important;
+  line-height:1.25 !important;
+}
+</style>
+
+<style id="v341-sixshoe-accuracy-style">
+#v331FamilyPanel .v341-family-accuracy{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px;
+  margin-top:8px;
+}
+#v331FamilyPanel .v341-family-accuracy .v331-card{min-width:0}
+#v341FamilyReset{
+  width:100%;
+  margin-top:7px;
+  border:1px solid #454d58;
+  background:#242a31;
+  color:#fff;
+  border-radius:10px;
+  padding:8px 7px;
+  font-weight:800;
+  font-size:11px;
+}
+@media(max-width:620px){
+  #v331FamilyPanel .v341-family-accuracy{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+
+<script id="v341-sixshoe-family-accuracy">
+(function(){
+  'use strict';
+  if(window.__V341_FAMILY_ACCURACY__) return;
+
+  const KEY='shoefamilyv334';
+  const NAME='Shared 6-Shoe Family Influence';
+  let registered=false;
+
+  function sideSignal(){
+    try{
+      const api=window.__V334_SHOE_FAMILY_INFLUENCE__ || window.__V333_SHOE_FAMILY_INFLUENCE__;
+      const c=api && typeof api.context==='function' ? api.context() : null;
+      if(!c || !c.qualified || (c.side!=='P' && c.side!=='B')) return {side:null,strength:0};
+      return {side:c.side,strength:Math.round((Number(c.agreement)||0)*100)};
+    }catch(e){
+      return {side:null,strength:0};
+    }
+  }
+
+  function register(){
+    const defs=window.__accuracyModelDefs;
+    if(!Array.isArray(defs)) return false;
+    const existing=defs.find(r=>Array.isArray(r) && String(r[0]||'')===KEY);
+    if(!existing) defs.push([KEY,NAME,sideSignal]);
+    registered=true;
+    return true;
+  }
+
+  function ledger(){
+    try{
+      state.accuracyVerified=state.accuracyVerified||{models:{},pending:{},ties:0};
+      state.accuracyVerified.models=state.accuracyVerified.models||{};
+      state.accuracyVerified.pending=state.accuracyVerified.pending||{};
+      return state.accuracyVerified;
+    }catch(e){ return null; }
+  }
+
+  function ensureUI(){
+    const panel=document.getElementById('v331FamilyPanel');
+    if(!panel || document.getElementById('v341FamilyAccuracy')) return;
+    const wrap=document.createElement('div');
+    wrap.id='v341FamilyAccuracy';
+    wrap.innerHTML=`
+      <div class="v341-family-accuracy">
+        <div class="v331-card"><span>Verified accuracy</span><strong id="v341FamilyRate">—</strong></div>
+        <div class="v331-card"><span>W / L</span><strong id="v341FamilyWL">0W-0L</strong></div>
+        <div class="v331-card"><span>Graded predictions</span><strong id="v341FamilyN">N 0</strong></div>
+        <div class="v331-card"><span>Current lock</span><strong id="v341FamilyLock">WAIT</strong></div>
+      </div>
+      <button id="v341FamilyReset" type="button">Reset Shared 6-Shoe Accuracy</button>`;
+    const note=document.getElementById('v331FamilyNote');
+    if(note && note.parentNode===panel) panel.insertBefore(wrap,note);
+    else panel.appendChild(wrap);
+
+    document.getElementById('v341FamilyReset')?.addEventListener('click',function(){
+      const a=ledger(); if(!a) return;
+      a.models[KEY]={name:NAME,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}};
+      delete a.pending[KEY];
+      try{ if(typeof persist==='function') persist(); }catch(e){}
+      render();
+    });
+  }
+
+  function render(){
+    ensureUI();
+    const a=ledger(); if(!a) return;
+    const m=a.models[KEY]||{wins:0,losses:0,predictions:0,waits:0};
+    const w=Number(m.wins)||0, l=Number(m.losses)||0;
+    const n=w+l;
+    const p=a.pending && a.pending[KEY];
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('v341FamilyRate', n ? (100*w/n).toFixed(1)+'%' : '—');
+    set('v341FamilyWL', `${w}W-${l}L`);
+    set('v341FamilyN', `N ${n}`);
+    set('v341FamilyLock', p && (p.side==='P'||p.side==='B') ? `${p.side==='P'?'PLAYER':'BANKER'} #${p.hand||'—'}` : 'WAIT');
+  }
+
+  function boot(){
+    register();
+    ensureUI();
+    render();
+    [250,700,1500,3000].forEach(ms=>setTimeout(()=>{register();render()},ms));
+    setInterval(()=>{ if(!registered) register(); render(); },1200);
+  }
+
+  window.__V341_FAMILY_ACCURACY__={
+    key:KEY,
+    name:NAME,
+    signal:sideSignal,
+    render,
+    register,
+    policy:'Only qualified P/B family predictions are graded. WAIT and ties are not counted as wins/losses.'
+  };
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();
+</script>
+
+
+<!-- V342: AI Pattern Recognizer Full Road-Memory upgrade.
+     Adds full P/B Bead Plate + Big Eye Boy + Small Road + Cockroach historical memory.
+     Existing Pattern Recognizer remains the base; this is a bounded historical-memory layer. -->
+<style id="v342-full-road-memory-style">
+#roadPreviewAiPanel .v342-memory-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px
+}
+#roadPreviewAiPanel .v342-memory-card{
+  background:var(--panel2);border-radius:10px;padding:7px;text-align:center;min-width:0
+}
+#roadPreviewAiPanel .v342-memory-card span{display:block;font-size:9px;color:var(--muted)}
+#roadPreviewAiPanel .v342-memory-card strong{display:block;font-size:14px;margin-top:2px}
+@media(max-width:520px){#roadPreviewAiPanel .v342-memory-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+
+<script id="v342-full-road-memory-pattern-ai">
+(function(){
+'use strict';
+if(window.__V342_FULL_ROAD_MEMORY__) return;
+
+const VERSION='V342_FULL_ROAD_MEMORY';
+const cache=new Map();
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pb=s=>String(s||'').toUpperCase().replace(/[^PB]/g,'');
+
+function weightedSuffixSim(a,b,maxK,minK){
+  a=Array.isArray(a)?a:String(a||'').split('');
+  b=Array.isArray(b)?b:String(b||'').split('');
+  const k=Math.min(a.length,b.length,maxK);
+  if(k<minK)return null;
+  let hit=0,den=0;
+  for(let j=0;j<k;j++){
+    const w=.65+.70*((j+1)/k);
+    den+=w;
+    if(a[a.length-k+j]===b[b.length-k+j])hit+=w;
+  }
+  return den?hit/den:null;
+}
+
+function roadSetFromPB(seq){
+  const hs=String(seq||'').split('').map(r=>({r}));
+  return {
+    bigEye:deriveRoad(hs,1),
+    small:deriveRoad(hs,2),
+    roach:deriveRoad(hs,3)
+  };
+}
+
+function prefixRoads(shoe,pos,histPB){
+  const id=String(shoe?.id||shoe?.sequence||'shoe');
+  const key=id+'@'+pos;
+  let x=cache.get(key);
+  if(x)return x;
+  x=roadSetFromPB(histPB.slice(0,pos));
+  cache.set(key,x);
+  if(cache.size>16000){
+    const first=cache.keys().next().value;
+    if(first)cache.delete(first);
+  }
+  return x;
+}
+
+function currentRoads(){
+  try{
+    if(typeof currentDerivedRoadSet==='function')return currentDerivedRoadSet();
+  }catch(e){}
+  try{
+    const q=pb(currentSequence().join(''));
+    return roadSetFromPB(q);
+  }catch(e){return {bigEye:[],small:[],roach:[]}}
+}
+
+function activeShoes(){
+  try{return (activePatternLibrary()||[]).filter(x=>x&&typeof x.sequence==='string'&&pb(x.sequence).length>=8)}
+  catch(e){return []}
+}
+
+function bestMatchInShoe(curPB,curRoads,shoe){
+  const hist=pb(shoe.sequence);
+  if(hist.length<9)return null;
+
+  // Stage 1: scan the whole historical Bead Plate and keep only the best few
+  // candidate endpoints. This avoids rebuilding road prefixes for every hand.
+  const beadCandidates=[];
+  for(let pos=6;pos<hist.length;pos++){
+    const bead=weightedSuffixSim(curPB,hist.slice(0,pos),18,5);
+    if(bead==null || bead<.62)continue;
+    beadCandidates.push({pos,bead});
+  }
+  beadCandidates.sort((a,b)=>b.bead-a.bead);
+  if(beadCandidates.length>4)beadCandidates.length=4;
+
+  let best=null;
+  for(const c of beadCandidates){
+    const hr=prefixRoads(shoe,c.pos,hist);
+    const eye=weightedSuffixSim(curRoads.bigEye,hr.bigEye,14,3);
+    const small=weightedSuffixSim(curRoads.small,hr.small,14,3);
+    const roach=weightedSuffixSim(curRoads.roach,hr.roach,14,3);
+    const vals=[c.bead,eye,small,roach];
+    const weights=[.40,.20,.20,.20];
+    let num=0,den=0,ready=0,min=1;
+    for(let i=0;i<vals.length;i++){
+      if(vals[i]==null)continue;
+      num+=vals[i]*weights[i];den+=weights[i];ready++;min=Math.min(min,vals[i]);
+    }
+    if(den<.60)continue; // Bead + meaningful road history required.
+    let score=num/den;
+    // Reward four-way historical shape agreement without letting one road dominate.
+    if(ready===4)score=.84*score+.16*min;
+    const next=hist[c.pos];
+    if(next!=='P'&&next!=='B')continue;
+    const row={score,next,pos:c.pos,bead:c.bead,eye,small,roach,ready};
+    if(!best||row.score>best.score)best=row;
+  }
+  return best;
+}
+
+function fullRoadMemorySignal(){
+  let curPB='';
+  try{curPB=pb(currentSequence().join(''))}catch(e){}
+  if(curPB.length<8)return {side:null,qualified:false,confidence:0,matches:0,avgSimilarity:0,edge:0,reason:'Need 8 P/B hands.'};
+
+  const roads=currentRoads(), shoes=activeShoes(), rows=[];
+  for(const shoe of shoes){
+    const m=bestMatchInShoe(curPB,roads,shoe);
+    if(m && m.score>=.68)rows.push({shoe,m});
+  }
+  rows.sort((a,b)=>b.m.score-a.m.score);
+  const top=rows.slice(0,10);
+  if(top.length<3)return {side:null,qualified:false,confidence:0,matches:top.length,avgSimilarity:top.length?Math.round(100*top.reduce((s,x)=>s+x.m.score,0)/top.length):0,edge:0,reason:'Need at least 3 full-road historical matches.',top};
+
+  let p=0,b=0,total=0;
+  for(const x of top){
+    const w=Math.pow(x.m.score,4);
+    total+=w;
+    if(x.m.next==='P')p+=w; else b+=w;
+  }
+  const pPct=total?p/total:.5,bPct=total?b/total:.5,edge=Math.abs(pPct-bPct);
+  const side=pPct>bPct?'P':bPct>pPct?'B':null;
+  const avg=top.reduce((s,x)=>s+x.m.score,0)/top.length;
+  const qualified=!!side && edge>=.14 && avg>=.70;
+  const component=k=>{
+    const z=top.map(x=>x.m[k]).filter(v=>Number.isFinite(v));
+    return z.length?Math.round(100*z.reduce((a,v)=>a+v,0)/z.length):0;
+  };
+  return {
+    side:qualified?side:null,candidate:side,qualified,
+    confidence:qualified?clamp(Math.round(52+edge*45+(avg-.68)*35),54,88):0,
+    pPct:Math.round(pPct*100),bPct:Math.round(bPct*100),
+    edge:Math.round(edge*100),matches:top.length,avgSimilarity:Math.round(avg*100),
+    beadSimilarity:component('bead'),eyeSimilarity:component('eye'),
+    smallSimilarity:component('small'),roachSimilarity:component('roach'),
+    top,reason:qualified?'Full Bead + 3-road historical memory agrees.':'Full-road memory is mixed or below its edge gate.'
+  };
+}
+
+function ensureUI(){
+  const panel=document.getElementById('roadPreviewAiPanel');
+  if(!panel||document.getElementById('v342MemoryGrid'))return;
+  const grid=document.createElement('div');
+  grid.className='v342-memory-grid';grid.id='v342MemoryGrid';
+  grid.innerHTML=`
+    <div class="v342-memory-card"><span>FULL ROAD MEMORY</span><strong id="v342MemSide">WAIT</strong></div>
+    <div class="v342-memory-card"><span>HISTORICAL MATCHES</span><strong id="v342MemMatches">0</strong></div>
+    <div class="v342-memory-card"><span>AVG 4-WAY SIMILARITY</span><strong id="v342MemSimilarity">—</strong></div>
+    <div class="v342-memory-card"><span>MEMORY EDGE</span><strong id="v342MemEdge">—</strong></div>`;
+  const note=document.getElementById('roadAiNote');
+  if(note&&note.parentNode===panel)panel.insertBefore(grid,note);
+  else panel.appendChild(grid);
+}
+
+function paintMemory(m){
+  ensureUI();
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('v342MemSide',m.side==='P'?'PLAYER':m.side==='B'?'BANKER':'WAIT');
+  set('v342MemMatches',String(m.matches||0));
+  set('v342MemSimilarity',m.matches?(m.avgSimilarity+'%'):'—');
+  set('v342MemEdge',m.matches?(m.edge+' pts'):'—');
+}
+
+const baseSignal=window.roadPreviewAISignal;
+const baseRender=window.renderRoadPreviewAI;
+
+function upgradedSignal(){
+  const base=typeof baseSignal==='function'?baseSignal():{};
+  const mem=fullRoadMemorySignal();
+
+  let out=Object.assign({},base,{fullRoadMemory:mem,fullRoadMemoryActive:true,version:VERSION});
+  const baseSide=base?.side==='P'||base?.side==='B'?base.side:null;
+  const candidate=base?.candidate==='P'||base?.candidate==='B'?base.candidate:baseSide;
+
+  if(mem.qualified){
+    if(baseSide && baseSide===mem.side){
+      out.strength=clamp((Number(base.strength)||54)+Math.min(6,2+Math.floor(mem.edge/7)),54,94);
+      out.memoryAgreement='AGREE';
+    }else if(baseSide && baseSide!==mem.side){
+      out.memoryAgreement='CONFLICT';
+      // Borderline/raw calls are blocked by a strong whole-history conflict.
+      if(base.strongRaw || (Number(base.strength)||0)<66){
+        out.side=null;out.qualified=false;out.strength=0;
+        out.waitReason='WAIT: full Bead + 3-road historical memory strongly conflicts with the base Pattern Recognizer.';
+      }else{
+        out.strength=clamp((Number(base.strength)||60)-5,54,91);
+      }
+    }else if(!baseSide && candidate===mem.side && mem.matches>=4 && mem.avgSimilarity>=74 && mem.edge>=18){
+      // Recovery path: the original recognizer already had this candidate but its
+      // normal gate was borderline. Full four-history memory can confirm it.
+      out.side=mem.side;out.qualified=true;out.strongRaw=false;out.tier='MEMORY A';
+      out.predictionTier='MEMORY A';out.strength=clamp(mem.confidence,56,84);
+      out.waitReason='';
+      out.memoryAgreement='RECOVERED';
+    }else{
+      out.memoryAgreement='ADVISORY';
+    }
+
+    // Blend displayed P/B percentages only when memory has a directional edge.
+    if((out.side==='P'||out.side==='B') && Number.isFinite(base?.pPct) && Number.isFinite(base?.bPct)){
+      out.pPct=Math.round(base.pPct*.74+mem.pPct*.26);
+      out.bPct=100-out.pPct;
+      out.edge=Math.abs(out.pPct-out.bPct);
+    }
+  }else out.memoryAgreement='NEUTRAL';
+
+  return out;
+}
+
+function upgradedRender(){
+  let r;
+  try{
+    r=upgradedSignal();
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+    set('roadAiSide',r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT');
+    set('roadAiStrength',r.side?r.strength+'%':'WAIT');
+    if(Number.isFinite(r.pPct))set('roadAiP',r.pPct+'%');
+    if(Number.isFinite(r.bPct))set('roadAiB',r.bPct+'%');
+    if(Number.isFinite(r.edge))set('roadAiEdge',r.edge+' pts');
+    paintMemory(r.fullRoadMemory||{});
+
+    const panel=document.getElementById('roadPreviewAiPanel');
+    const title=panel?.querySelector('.analyzer-title');
+    if(title)title.textContent='🧠 AI Pattern Recognizer — Full Road-Memory';
+    const sub=panel?.querySelector('.analyzer-sub');
+    if(sub)sub.innerHTML='<b>PATTERN ENGINE V342 — FULL ROAD-MEMORY.</b> Memorizes and compares the complete saved P/B Bead Plate plus Big Eye Boy, Small Road, and Cockroach histories. Each historical shoe gets one effective vote. The original live-adaptive Pattern Recognizer remains the base; the four-history memory confirms, blocks borderline conflicts, or recovers only strongly confirmed borderline candidates. Ties remain excluded from this Pattern Recognizer as before.';
+    const note=document.getElementById('roadAiNote');
+    if(note){
+      const m=r.fullRoadMemory||{};
+      const baseText=r.side?`${r.predictionTier||r.tier||'QUALIFIED'} picks ${r.side==='P'?'PLAYER':'BANKER'}.`:(r.waitReason||'WAIT.');
+      note.textContent=`${baseText} Full memory: ${m.side==='P'?'PLAYER':m.side==='B'?'BANKER':'WAIT'} • ${m.matches||0} historical shoes • avg ${m.avgSimilarity||0}% • bead ${m.beadSimilarity||0}% • Big Eye ${m.eyeSimilarity||0}% • Small ${m.smallSimilarity||0}% • Roach ${m.roachSimilarity||0}% • edge ${m.edge||0}.`;
+    }
+  }catch(e){
+    try{if(typeof baseRender==='function')r=baseRender()}catch(_){}
+  }
+  return r;
+}
+
+window.__V342_FULL_ROAD_MEMORY__={
+  version:VERSION,signal:fullRoadMemorySignal,upgradedSignal,
+  sources:['full-pb-bead-history','full-big-eye-history','full-small-road-history','full-cockroach-history'],
+  weights:{bead:.40,bigEye:.20,small:.20,roach:.20},
+  oneVotePerHistoricalShoe:true,tiesExcluded:true,
+  predictionPolicy:'bounded confirmation / conflict veto / strong borderline recovery'
+};
+
+window.roadPreviewAISignal=upgradedSignal;
+try{roadPreviewAISignal=upgradedSignal}catch(e){}
+window.renderRoadPreviewAI=upgradedRender;
+try{renderRoadPreviewAI=upgradedRender}catch(e){}
+
+function boot(){ensureUI();try{upgradedRender()}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,800),{once:true});else setTimeout(boot,800);
+setTimeout(boot,1800);setTimeout(boot,3200);
+})();
+</script>
+
+
+<!-- V343: Main Future Awareness V2.
+     IMPORTANT: does NOT replace or rewrite mainRoadFutureTest().
+     It adds advisory history/regime/recent-trust context only. -->
+<style id="v343-main-future-awareness-style">
+#v343MainFutureAwareness{
+  margin-top:8px;padding:8px 10px;border:1px solid #303743;border-radius:10px;background:rgba(255,255,255,.018)
+}
+#v343MainFutureAwareness .v343-grid{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px
+}
+#v343MainFutureAwareness .v343-card{
+  background:var(--panel2);border-radius:9px;padding:7px;text-align:center;min-width:0
+}
+#v343MainFutureAwareness .v343-card span{display:block;font-size:9px;color:var(--muted)}
+#v343MainFutureAwareness .v343-card strong{display:block;font-size:13px;margin-top:2px;overflow-wrap:anywhere}
+#v343MainFutureNote{font-size:10px;color:var(--muted);line-height:1.35;margin-top:7px}
+@media(max-width:560px){
+  #v343MainFutureAwareness .v343-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+
+<script id="v343-main-future-awareness-v2">
+(function(){
+'use strict';
+if(window.__V343_MAIN_FUTURE_AWARENESS__) return;
+
+const VERSION='V343_MAIN_FUTURE_AWARENESS_V2';
+const STORE='main-future-awareness-v343';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const seq=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}};
+
+function regime(a){
+  const s=(a||[]).slice(-20);
+  if(s.length<4)return {name:'BUILDING',switchRate:.5,run:1,phase:s.length<12?'EARLY':'MID'};
+  let sw=0;for(let i=1;i<s.length;i++)if(s[i]!==s[i-1])sw++;
+  let run=1;for(let i=s.length-1;i>0&&s[i]===s[i-1];i--)run++;
+  const rate=sw/(s.length-1);
+  let name='MIXED';
+  if(run>=4||rate<=.30)name='RUN/TREND';
+  else if(rate>=.68)name='CHOP';
+  else {
+    const shortArr=(a||[]).slice(-8);
+    let shortSw=0;
+    for(let i=1;i<shortArr.length;i++) if(shortArr[i]!==shortArr[i-1]) shortSw++;
+    const shortRate=shortArr.length>1 ? shortSw/(shortArr.length-1) : .5;
+    if(Math.abs(rate-shortRate)>=.25) name='TRANSITION';
+    else {
+      const p=s.filter(x=>x==='P').length/s.length;
+      if(Math.max(p,1-p)>=.68)name='SIDE-LEAN';
+    }
+  }
+
+  const n=(a||[]).length;
+  return {name,switchRate:rate,run,phase:n<22?'EARLY':n<48?'MID':'LATE'};
+}
+
+function load(){
+  try{
+    const x=JSON.parse(localStorage.getItem(STORE)||'null');
+    if(x&&typeof x==='object')return x;
+  }catch(e){}
+  return {lastN:0,prefix:'',pending:null,results:[],regimes:{},phases:{},lossStreak:0};
+}
+let rt=load();
+function save(){try{localStorage.setItem(STORE,JSON.stringify(rt))}catch(e){}}
+
+function bucket(map,k){
+  if(!map[k])map[k]={w:0,l:0,n:0};
+  return map[k];
+}
+function pct(z){
+  const n=(z?.w||0)+(z?.l||0);
+  return n?Math.round(1000*(z.w||0)/n)/10:null;
+}
+function currentFuture(){
+  try{return typeof window.mainRoadFutureTest==='function'?(window.mainRoadFutureTest()||{}):{}}
+  catch(e){return {}}
+}
+function fullMemory(){
+  try{
+    const api=window.__V342_FULL_ROAD_MEMORY__;
+    if(api&&typeof api.signal==='function')return api.signal()||{};
+  }catch(e){}
+  return {};
+}
+function settleAndArm(){
+  const a=seq(),n=a.length,pref=a.join('');
+  if(n<rt.lastN || (rt.prefix && n>=rt.lastN && !pref.startsWith(rt.prefix.slice(0,Math.min(rt.prefix.length,pref.length))))){
+    rt.lastN=n;rt.prefix=pref;rt.pending=null;rt.lossStreak=0;save();return;
+  }
+  if(rt.pending && rt.pending.handN===n-1 && n>0){
+    const actual=a[n-1],p=rt.pending;
+    if((p.side==='P'||p.side==='B')&&(actual==='P'||actual==='B')){
+      const win=p.side===actual;
+      rt.results.push({win:win?1:0,side:p.side,actual,regime:p.regime,phase:p.phase,hand:p.handN+1,at:Date.now()});
+      if(rt.results.length>120)rt.results.splice(0,rt.results.length-120);
+      const rb=bucket(rt.regimes,p.regime||'MIXED'),pb=bucket(rt.phases,p.phase||'MID');
+      rb.n++;pb.n++;
+      if(win){rb.w++;pb.w++;rt.lossStreak=0}else{rb.l++;pb.l++;rt.lossStreak=(rt.lossStreak||0)+1}
+    }
+    rt.pending=null;
+  }
+  rt.lastN=n;rt.prefix=pref;
+
+  const f=currentFuture(),g=regime(a);
+  if((f.side==='P'||f.side==='B')&&(!rt.pending||rt.pending.handN!==n)){
+    rt.pending={handN:n,side:f.side,regime:g.name,phase:g.phase};
+  }
+  save();
+}
+
+function recentTrust(){
+  const r=(rt.results||[]).slice(-12);
+  if(!r.length)return {n:0,acc:null,label:'BUILDING'};
+  let num=0,den=0;
+  r.forEach((x,i)=>{const w=.65+.35*((i+1)/r.length);num+=(x.win?1:0)*w;den+=w});
+  const raw=den?num/den:.5;
+  const shrunk=(raw*den+2.5)/(den+5);
+  const label=shrunk>=.62?'HIGH':shrunk>=.54?'NORMAL':shrunk>=.47?'LOW':'CAUTION';
+  return {n:r.length,acc:shrunk,label};
+}
+
+function ensureUI(){
+  const panel=document.getElementById('mainRoadFutureTest');
+  if(!panel||document.getElementById('v343MainFutureAwareness'))return;
+  const d=document.createElement('div');
+  d.id='v343MainFutureAwareness';
+  d.innerHTML=`
+    <div class="v343-grid">
+      <div class="v343-card"><span>HISTORY AWARENESS</span><strong id="v343History">BUILDING</strong></div>
+      <div class="v343-card"><span>LIVE REGIME</span><strong id="v343Regime">BUILDING</strong></div>
+      <div class="v343-card"><span>RECENT TRUST</span><strong id="v343Trust">BUILDING</strong></div>
+      <div class="v343-card"><span>CAUTION</span><strong id="v343Caution">NORMAL</strong></div>
+    </div>
+    <div class="v343-grid" style="margin-top:6px">
+      <div class="v343-card"><span>REGIME ACCURACY</span><strong id="v343RegimeAcc">—</strong></div>
+      <div class="v343-card"><span>PHASE ACCURACY</span><strong id="v343PhaseAcc">—</strong></div>
+      <div class="v343-card"><span>MEMORY MATCHES</span><strong id="v343MemN">0</strong></div>
+      <div class="v343-card"><span>4-WAY SIMILARITY</span><strong id="v343MemSim">—</strong></div>
+    </div>
+    <div id="v343MainFutureNote">Awareness only — Main Future's Player/Banker decision logic is unchanged.</div>`;
+  const note=document.getElementById('futureNote');
+  if(note&&note.parentNode===panel)panel.insertBefore(d,note.nextSibling);
+  else panel.appendChild(d);
+}
+
+function paint(){
+  ensureUI();
+  settleAndArm();
+  const f=currentFuture(),m=fullMemory(),g=regime(seq()),t=recentTrust();
+  const side=f.side==='P'||f.side==='B'?f.side:null;
+  const memSide=m.side==='P'||m.side==='B'?m.side:null;
+  let hist='NEUTRAL';
+  if(memSide&&side)hist=memSide===side?'AGREES':'CONFLICTS';
+  else if(memSide)hist='MEMORY '+(memSide==='P'?'PLAYER':'BANKER');
+
+  const regB=rt.regimes[g.name]||{},phB=rt.phases[g.phase]||{};
+  const caution=(rt.lossStreak||0)>=3?'HIGH':(rt.lossStreak||0)>=2?'WATCH':t.label==='CAUTION'?'WATCH':'NORMAL';
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('v343History',hist);
+  set('v343Regime',g.name);
+  set('v343Trust',t.acc==null?'BUILDING':`${t.label} ${Math.round(t.acc*100)}%`);
+  set('v343Caution',caution);
+  set('v343RegimeAcc',pct(regB)==null?'—':`${pct(regB)}% • N${regB.n||0}`);
+  set('v343PhaseAcc',pct(phB)==null?'—':`${pct(phB)}% • N${phB.n||0}`);
+  set('v343MemN',String(m.matches||0));
+  set('v343MemSim',m.matches?`${m.avgSimilarity||0}%`:'—');
+
+  const n=document.getElementById('v343MainFutureNote');
+  if(n){
+    const memtxt=m.matches?`Full-road memory ${hist.toLowerCase()} • ${m.matches} matches • ${m.avgSimilarity||0}% average 4-way similarity`:'Full-road memory still building';
+    n.textContent=`${memtxt}. ${g.name} • ${g.phase}. Recent Main Future trust: ${t.acc==null?'building':Math.round(t.acc*100)+'%'}${(rt.lossStreak||0)>=2?` • ${rt.lossStreak} consecutive misses → CAUTION`:''}. Awareness only — the Main Future P/B pick is not changed or reversed.`;
+  }
+}
+
+function resetAwareness(){
+  rt={lastN:seq().length,prefix:seq().join(''),pending:null,results:[],regimes:{},phases:{},lossStreak:0};
+  save();paint();
+}
+
+window.__V343_MAIN_FUTURE_AWARENESS__={
+  version:VERSION,paint,reset:resetAwareness,
+  predictionLogicChanged:false,
+  reversesPrediction:false,
+  advisoryOnly:true,
+  features:['full-road-memory-agreement','regime-accuracy','phase-accuracy','recent-trust','loss-streak-caution']
+};
+
+function boot(){ensureUI();paint()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1000),{once:true});else setTimeout(boot,1000);
+
+// V344 stability fix: refresh awareness only when the live hand count/state changes.
+// This avoids repeatedly rescanning the 165-shoe road-memory library every 1.2 seconds.
+let __v344LastAwarenessKey='';
+function awarenessKey(){
+  try{
+    const a=seq();
+    return a.length+':'+a.slice(-12).join('');
+  }catch(e){return ''}
+}
+function refreshIfChanged(force){
+  const k=awarenessKey();
+  if(force||k!==__v344LastAwarenessKey){
+    __v344LastAwarenessKey=k;
+    try{paint()}catch(e){}
+  }
+}
+const oldRenderV343=window.render;
+if(typeof oldRenderV343==='function'&&!oldRenderV343.__v344AwarenessHook){
+  const wrapped=function(){
+    const r=oldRenderV343.apply(this,arguments);
+    setTimeout(()=>refreshIfChanged(false),0);
+    return r;
+  };
+  wrapped.__v344AwarenessHook=true;
+  wrapped.__base=oldRenderV343;
+  window.render=wrapped;
+  try{render=wrapped}catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshIfChanged(true)});
+document.getElementById('undoBtn')?.addEventListener('click',()=>setTimeout(()=>refreshIfChanged(true),0),false);
+document.getElementById('clearBtn')?.addEventListener('click',()=>setTimeout(()=>refreshIfChanged(true),0),false);
+setTimeout(()=>refreshIfChanged(true),1600);
+})();
+</script>
+
 </body>
 </html>
 
