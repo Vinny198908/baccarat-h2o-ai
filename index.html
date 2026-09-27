@@ -23,7 +23,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V334 • All-In Baccarat — 6-Shoe Family Influence • Dynamic Library</title>
+<title>V347 • All-In Baccarat — Central Unique Library Memory</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -299,6 +299,23 @@
 #v285AllAiAccuracy .v285-audit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 #v285AllAiAccuracy #v285AuditToggle{flex:0 0 auto;margin:0}
 </style>
+
+<!-- V345: AI Pattern Recognizer compact layout only. Prediction logic, full-road memory, and accuracy tracking remain active. -->
+<style id="v345-pattern-recognizer-compact-layout">
+/* Hide redundant lower Pattern Recognizer display blocks while keeping their engines active. */
+#roadPreviewAiPanel #patternAccuracyV245,
+#roadPreviewAiPanel #v342MemoryGrid,
+#roadPreviewAiPanel #roadAiNote,
+#roadPreviewAiPanel #v262ResetRoad,
+#roadPreviewAiPanel .analyzer-card:has(#v262RoadAcc) {
+  display:none !important;
+}
+/* Tighten the remaining live Pattern Recognizer area. */
+#roadPreviewAiPanel { padding-bottom:10px !important; }
+#roadPreviewAiPanel .analyzer-grid { margin-bottom:4px !important; }
+#roadPreviewAiPanel .match-pcts { margin-top:4px !important; margin-bottom:0 !important; }
+</style>
+
 </head>
 <body>
 <!-- V334 stability repair: V333 165-shoe family layer preserved; fixed global guard/export, WAIT field clearing, per-hand context caching, and dynamic library labeling. -->
@@ -1715,6 +1732,39 @@ function activePatternLibrary(){
   const key=activePatternLibraryKey();
   return key && Array.isArray(state[key]) ? state[key] : [];
 }
+
+// V346 — Dynamic unique library memory. Storage remains untouched; AI memory gets one vote per unique shoe.
+function uniqueLibraryRecords(list, pbOnly=false){
+  const out=[], seen=new Set();
+  for(const x of (Array.isArray(list)?list:[])){
+    if(!x||typeof x.sequence!=='string') continue;
+    const raw=String(x.sequence).toUpperCase().replace(/[^PBT]/g,'');
+    const key=pbOnly?raw.replace(/T/g,''):raw;
+    if(!key||seen.has(key)) continue;
+    seen.add(key); out.push(x);
+  }
+  return out;
+}
+function uniqueActivePatternLibrary(pbOnly=false){
+  return uniqueLibraryRecords(typeof activePatternLibrary==='function'?activePatternLibrary():[],pbOnly);
+}
+function uniqueFullPatternLibrary(pbOnly=false){
+  const out=[],seen=new Set();
+  const add=(arr,color)=>{
+    for(const x of (Array.isArray(arr)?arr:[])){
+      if(!x||typeof x.sequence!=='string') continue;
+      const raw=String(x.sequence).toUpperCase().replace(/[^PBT]/g,'');
+      const seqKey=pbOnly?raw.replace(/T/g,''):raw;
+      const key=color+'|'+seqKey;
+      if(!seqKey||seen.has(key)) continue;
+      seen.add(key); out.push(Object.assign({__v346Color:color,__scanColor:color,shoeColor:x.shoeColor||color},x));
+    }
+  };
+  add(state.redPatternLibrary,'red'); add(state.blackPatternLibrary,'black');
+  return out;
+}
+window.uniqueActivePatternLibrary=uniqueActivePatternLibrary;
+window.uniqueFullPatternLibrary=uniqueFullPatternLibrary;
 function activeColorName(){ return (state.predictionLibraryMode==='combined'||!state.currentShoeColor)?'COMBINED (RED + BLACK)':state.currentShoeColor==='red'?'RED':state.currentShoeColor==='black'?'BLACK':''; }
 function makeShoeRecord(seq, source='manual'){
   return {
@@ -8639,7 +8689,14 @@ renderLibraryBackupStatus();
   function build(S){
     const colors={red:emptyColor(),black:emptyColor()};
     let totalHands=0,totalContexts=0;
+    const unique=[],$seen=new Set();
     (Array.isArray(S)?S:[]).forEach(shoe=>{
+      const seq=clean(shoe?.sequence), color=colorOf(shoe), dedupeKey=color+'|'+seq;
+      // V347: one learned vote per exact sequence PER COLOR. If the same sequence
+      // legitimately exists in both RED and BLACK, each color keeps its own memory.
+      if(!seq||$seen.has(dedupeKey))return; $seen.add(dedupeKey); unique.push(shoe);
+    });
+    unique.forEach(shoe=>{
       const color=colorOf(shoe), seq=clean(shoe?.sequence);
       if(!seq.length)return;
       const c=colors[color]; c.shoes++; c.hands+=seq.filter(x=>x==='P'||x==='B').length;
@@ -19449,7 +19506,7 @@ function baseTest(){
 function libs(){
   const rows=[];
   try{
-    const src=typeof activePatternLibrary==='function'?activePatternLibrary():[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])];
+    const src=typeof uniqueActivePatternLibrary==='function'?uniqueActivePatternLibrary(false):(typeof activePatternLibrary==='function'?activePatternLibrary():[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])]);
     const seen=new Set();
     for(const x of (Array.isArray(src)?src:[])){
       const q=norm(x?.sequence); if(q.length<10||seen.has(q))continue; seen.add(q); rows.push({record:x,seq:q});
@@ -19541,7 +19598,7 @@ function ensure(){
   const anchor=document.getElementById('mainRoadFutureTest'); if(!anchor?.parentNode)return null;
   box=document.createElement('div'); box.id='v327MainFutureLibrary'; box.className='analyzer'; box.style.marginTop='8px';
   box.innerHTML=`<div class="analyzer-title">📚 Main Future Road Test 2 — Road History + Rhythm/Regime V328</div>
-  <div class="analyzer-sub">Independent copy of the current Main Future Road engine. Its original score remains 70% of the decision; 30% comes from saved Big Eye Boy, Small Road, and Cockroach Road history. V328 also requires the historical prefix to fit the live rhythm/regime (chop, streak, mixed, transition rate, and run length). The original Main Future Road above is not modified.</div>
+  <div class="analyzer-sub">Independent copy of the current Main Future Road engine. Its original score remains 70% of the decision; 30% comes from saved Big Eye Boy, Small Road, and Cockroach Road history. New unique saved shoes are available to this memory automatically; exact duplicate shoe histories receive no extra vote. V328 also requires the historical prefix to fit the live rhythm/regime (chop, streak, mixed, transition rate, and run length). The original Main Future Road above is not modified.</div>
   <div class="analyzer-grid">
    <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v327Pick">WAIT</strong></div>
    <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v327Conf">—</strong></div>
@@ -19622,8 +19679,11 @@ function seqOf(x){
 function pb(a){return (a||[]).filter(x=>x==='P'||x==='B')}
 function live(){try{return seqOf(typeof currentSequence==='function'?currentSequence():state?.hands||[])}catch(e){return []}}
 function library(){
-  try{if(typeof activePatternLibrary==='function'){const a=activePatternLibrary();if(Array.isArray(a)&&a.length)return a}}catch(e){}
-  const out=[];try{const mode=state?.predictionLibraryMode==='combined'||!state?.currentShoeColor?'combined':state.currentShoeColor;if(mode==='combined'||mode==='red')out.push(...(state?.redPatternLibrary||[]));if(mode==='combined'||mode==='black')out.push(...(state?.blackPatternLibrary||[]))}catch(e){}return out;
+  // V347: family influence sees every UNIQUE active shoe exactly once.
+  // Storage is untouched, but duplicate records cannot multiply voting power.
+  try{if(typeof uniqueActivePatternLibrary==='function'){const a=uniqueActivePatternLibrary(false);if(Array.isArray(a)&&a.length)return a}}catch(e){}
+  try{if(typeof activePatternLibrary==='function'){const a=activePatternLibrary();if(Array.isArray(a)&&a.length){const out=[],seen=new Set();for(const x of a){const q=seqOf(x).join('');if(!q||seen.has(q))continue;seen.add(q);out.push(x)}return out}}}catch(e){}
+  return [];
 }
 function runLen(a){a=pb(a);if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}
 function switchRate(a,n=10){a=pb(a).slice(-n);if(a.length<2)return .5;let s=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])s++;return s/(a.length-1)}
@@ -19647,11 +19707,10 @@ function bestMatchForShoe(cur,shoe,index){
 function context(){
   const cur=live(),lib=library();
   const mode=String(state?.predictionLibraryMode||'combined')+'|'+String(state?.currentShoeColor||'none');
-  const cacheKey=pb(cur).join('')+'|'+mode+'|'+lib.length+'|'+String(lib[lib.length-1]?.id||lib[lib.length-1]?.savedAt||'');
+  const cacheKey=pb(cur).join('')+'|'+mode+'|'+lib.length+'|'+String(state?.__libraryMemoryVersion||0)+'|'+String(lib[lib.length-1]?.id||lib[lib.length-1]?.savedAt||'');
   if(cacheKey===__familyCacheKey&&__familyCacheValue)return __familyCacheValue;
   const ranked=[];
-  // V334: intentionally keep EVERY saved shoe record eligible.
-  // Identical histories are NOT collapsed; if the library contains them, they can independently rank in the top six.
+  // V347: every UNIQUE saved shoe remains eligible; exact duplicate histories are collapsed to one family vote.
   for(let i=0;i<lib.length;i++){const m=bestMatchForShoe(cur,lib[i],i);if(!m)continue;ranked.push(m)}
   ranked.sort((a,b)=>b.similarity-a.similarity);const top=ranked.slice(0,TOP_N),n=top.length;
   let p=0,b=0,sw=0;for(const x of top){const w=.35+.65*x.similarity;sw+=w;if(x.next==='P')p+=w;else if(x.next==='B')b+=w}
@@ -19691,7 +19750,7 @@ function paint(){
   set('v331FamilyCount',`${c.n}/${TOP_N}`);set('v331FamilySimilarity',c.n?Math.round(c.avgSimilarity*100)+'%':'—');set('v331FamilyConsensus',c.qualified&&c.side?`${c.side==='P'?'PLAYER':'BANKER'} ${Math.round(c.agreement*100)}%`:'WAIT');set('v331FamilyLib',String(c.librarySize));set('v331FamilyPB',`${c.pPct}% P / ${c.bPct}% B`);set('v331FamilyQuality',Math.round(c.quality*100)+'%');
   const note=document.getElementById('v331FamilyNote');if(note)note.textContent=c.currentPB<6?`Building family context (${c.currentPB}/6 P/B hands).`:c.qualified?`ACTIVE influence: closest ${c.n} saved shoe records average ${Math.round(c.avgSimilarity*100)}% similarity; ${Math.round(c.agreement*100)}% weighted next-result agreement. Every registered AI keeps its own core logic; this layer only adjusts confidence or blocks a weak contradiction.`:`No strong family influence right now. Closest ${c.n} shoes average ${Math.round(c.avgSimilarity*100)}% similarity with ${Math.round(c.agreement*100)}% agreement.`;
 }
-function ensureUI(){if(document.getElementById('v331FamilyPanel'))return;const anchor=document.getElementById('libraryIntelPanel')||document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='v331FamilyPanel';d.innerHTML=`<div class="analyzer-title">🧬 Shared 6-Shoe Family Influence — V334 • ALL SAVED SHOES ELIGIBLE</div><div class="analyzer-sub">Ranks the six closest historical shoe records even when they are only approximately similar. The build starts with the 165-shoe seed (84 RED + 81 BLACK), and every subsequently saved record in the active library remains eligible. Identical stored histories are not collapsed by this family layer. The family consensus is shared with every registered AI as a controlled influence; it does not replace an AI's own logic.</div><div class="v331-grid"><div class="v331-card"><span>Closest shoes</span><strong id="v331FamilyCount">0/6</strong></div><div class="v331-card"><span>Avg similarity</span><strong id="v331FamilySimilarity">—</strong></div><div class="v331-card"><span>Family consensus</span><strong id="v331FamilyConsensus">WAIT</strong></div><div class="v331-card"><span>Active library</span><strong id="v331FamilyLib">0</strong></div></div><div class="v331-grid"><div class="v331-card"><span>Weighted continuation</span><strong id="v331FamilyPB">50% P / 50% B</strong></div><div class="v331-card"><span>Influence quality</span><strong id="v331FamilyQuality">0%</strong></div></div><div class="analyzer-sub" id="v331FamilyNote" style="margin-top:8px">Building family context.</div>`;anchor.parentNode.insertBefore(d,anchor.nextSibling)}
+function ensureUI(){if(document.getElementById('v331FamilyPanel'))return;const anchor=document.getElementById('libraryIntelPanel')||document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='v331FamilyPanel';d.innerHTML=`<div class="analyzer-title">🧬 Shared 6-Shoe Family Influence — V334 • ALL SAVED SHOES ELIGIBLE</div><div class="analyzer-sub">Ranks the six closest UNIQUE historical shoe histories even when they are only approximately similar. Every subsequently saved unique shoe in the active library becomes eligible automatically. Exact duplicate stored histories remain stored but receive no extra family vote. The family consensus is shared with every registered AI as a controlled influence; it does not replace an AI's own logic.</div><div class="v331-grid"><div class="v331-card"><span>Closest shoes</span><strong id="v331FamilyCount">0/6</strong></div><div class="v331-card"><span>Avg similarity</span><strong id="v331FamilySimilarity">—</strong></div><div class="v331-card"><span>Family consensus</span><strong id="v331FamilyConsensus">WAIT</strong></div><div class="v331-card"><span>Active library</span><strong id="v331FamilyLib">0</strong></div></div><div class="v331-grid"><div class="v331-card"><span>Weighted continuation</span><strong id="v331FamilyPB">50% P / 50% B</strong></div><div class="v331-card"><span>Influence quality</span><strong id="v331FamilyQuality">0%</strong></div></div><div class="analyzer-sub" id="v331FamilyNote" style="margin-top:8px">Building family context.</div>`;anchor.parentNode.insertBefore(d,anchor.nextSibling)}
 function install(){
   const names=['sequenceAISignal','colorPatternAISignal','roadPreviewAISignal','computeCombinedAnalyzer','derivedRoadSequenceAI','adaptiveDerivedMainSignal','historyPatternSignal','phaseHistoricalSignal','mainFuture','autoHistoricalMatchSignal','chartPatternSignal','trajectorySignal','consensusSignal','masterBotSignal'];names.forEach(wrapName);wrapMl();wrapAccuracyDefs();
   const prev=window.applySharedShoeContextToSignal;if(typeof prev==='function'&&!prev.__v334Family){const w=function(name,sig){let x=sig;try{x=prev(name,sig)}catch(e){}return augment(name,x)};w.__v333Family=true;window.applySharedShoeContextToSignal=w;try{applySharedShoeContextToSignal=w}catch(e){}}
@@ -19699,7 +19758,7 @@ function install(){
   paint();
 }
 function boot(){install();[300,900,1800,3200].forEach(ms=>setTimeout(()=>{install();paint()},ms));document.addEventListener('click',()=>setTimeout(()=>{install();paint()},20),true);}
-window.__V334_SHOE_FAMILY_INFLUENCE__={version:VERSION,context,augment,install,paint,topN:TOP_N,policy:'all saved shoe records eligible including identical histories; influence all registered AIs; no direct side flip; strong 5/6 contradiction may force weak source WAIT'};
+window.__V334_SHOE_FAMILY_INFLUENCE__={version:VERSION,context,augment,install,paint,topN:TOP_N,policy:'all unique active shoe histories eligible; exact duplicates receive one family vote; influence all registered AIs; no direct side flip; strong 5/6 contradiction may force weak source WAIT'};
 window.__V333_SHOE_FAMILY_INFLUENCE__=window.__V334_SHOE_FAMILY_INFLUENCE__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
@@ -20019,8 +20078,10 @@ function currentRoads(){
 }
 
 function activeShoes(){
-  try{return (activePatternLibrary()||[]).filter(x=>x&&typeof x.sequence==='string'&&pb(x.sequence).length>=8)}
-  catch(e){return []}
+  try{
+    const src=typeof uniqueActivePatternLibrary==='function'?uniqueActivePatternLibrary(true):(activePatternLibrary()||[]);
+    return src.filter(x=>x&&typeof x.sequence==='string'&&pb(x.sequence).length>=8);
+  }catch(e){return []}
 }
 
 function bestMatchInShoe(curPB,curRoads,shoe){
@@ -20447,9 +20508,9 @@ setTimeout(()=>refreshIfChanged(true),1600);
 })();
 </script>
 
-</body>
-</html>
 
+
+<!-- V347 structural normalization: late scripts moved inside BODY for Safari/Chrome consistency. -->
 <script id="v308-ml-champion-ensemble">
 (function(){
 'use strict';
@@ -20815,3 +20876,68 @@ window.__V337_LAYOUT__={version:337,legacyDisabledByV340:true,layoutOnly:true,pr
 </script>
 
 <!-- V340 scan fix: disabled legacy V221/V337 layout moves; V340 is sole current layout owner. -->
+
+
+<!-- V347 CENTRAL UNIQUE LIBRARY MEMORY MANAGER — dynamic saves, per-color dedupe, cache refresh -->
+<script id="v347-central-unique-library-memory-manager">
+(function(){
+'use strict';
+if(window.__V347_LIBRARY_MEMORY_MANAGER__)return;
+let lastStamp='',timer=null,version=0;
+const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+function perColorUnique(){
+  const red=[],black=[],seenR=new Set(),seenB=new Set();
+  try{for(const x of (state.redPatternLibrary||[])){const q=clean(x?.sequence);if(!q||seenR.has(q))continue;seenR.add(q);red.push(Object.assign({},x,{shoeColor:'red',__scanColor:'red'}))}}catch(e){}
+  try{for(const x of (state.blackPatternLibrary||[])){const q=clean(x?.sequence);if(!q||seenB.has(q))continue;seenB.add(q);black.push(Object.assign({},x,{shoeColor:'black',__scanColor:'black'}))}}catch(e){}
+  return {red,black,all:[...red,...black]};
+}
+function activeUnique(pbOnly=false){
+  const p=perColorUnique(); let rows=[];
+  try{
+    if(state.predictionLibraryMode==='combined'||!state.currentShoeColor) rows=p.all;
+    else rows=state.currentShoeColor==='black'?p.black:p.red;
+  }catch(e){rows=p.all}
+  // In COMBINED mode the same exact history appearing in both colors gets one effective vote.
+  const out=[],seen=new Set();
+  for(const x of rows){const q0=clean(x.sequence),q=pbOnly?q0.replace(/T/g,''):q0;if(!q||seen.has(q))continue;seen.add(q);out.push(x)}
+  return out;
+}
+function stamp(){
+  const p=perColorUnique(); let h=2166136261;
+  for(const [c,rows] of [['R',p.red],['B',p.black]])for(const x of rows){const q=c+'|'+clean(x.sequence);for(let i=0;i<q.length;i++){h^=q.charCodeAt(i);h=Math.imul(h,16777619)}}
+  let mode='combined';try{mode=state.predictionLibraryMode==='combined'||!state.currentShoeColor?'combined':state.currentShoeColor}catch(e){}
+  return `${p.red.length}:${p.black.length}:${mode}:${h>>>0}`;
+}
+function refresh(reason='library-change'){
+  const st=stamp(); if(st===lastStamp&&reason!=='force')return false; lastStamp=st; version++;
+  const p=perColorUnique();
+  try{state.__libraryMemoryVersion=version}catch(e){}
+  // Correct V25 trained index: preserve RED/BLACK separately while deduping within each color.
+  try{window.__libraryKnowledgeV25?.build?.(p.all)}catch(e){console.warn('V347 V25 rebuild',e)}
+  try{window.__libraryKnowledgeV25?.refreshPanel?.()}catch(e){}
+  // Central transient-cache invalidation / rerender path already used by RED/BLACK/COMBINED routing.
+  try{window.__V330_STRICT_VALIDATION_ROUTER__?.refresh?.()}catch(e){}
+  // Explicitly refresh the most important by-heart AIs.
+  try{window.__V328_MAIN_FUTURE_LIBRARY_RHYTHM__?.paint?.()}catch(e){}
+  try{window.__V329_MAIN_FUTURE_TEST2_HOTFIX__?.run?.()}catch(e){}
+  try{window.renderRoadPreviewAI?.()}catch(e){}
+  try{window.__V334_SHOE_FAMILY_INFLUENCE__?.paint?.()}catch(e){}
+  try{window.__V305_MAIN_ROAD_ONLY_AI__?.render?.()}catch(e){}
+  try{window.__V281_EXACT_HISTORY_AI__?.render?.()}catch(e){}
+  try{window.dispatchEvent(new CustomEvent('baccarat:library-memory-changed',{detail:{version,reason,red:p.red.length,black:p.black.length,active:activeUnique(false).length}}))}catch(e){}
+  return true;
+}
+function schedule(reason){clearTimeout(timer);timer=setTimeout(()=>refresh(reason||'scheduled'),120)}
+// Poll storage content so manual save/import/restore/new unique shoes are learned automatically.
+setInterval(()=>{try{if(stamp()!==lastStamp)schedule('save-import-restore')}catch(e){}},700);
+// Color-mode changes should refresh immediately without touching accuracy/live hands.
+document.addEventListener('click',e=>{if(e.target?.closest?.('#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn'))setTimeout(()=>refresh('color-mode'),0)},true);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(()=>refresh('boot'),900),{once:true});else setTimeout(()=>refresh('boot'),900);
+window.uniqueActivePatternLibrary=activeUnique;
+window.__V347_LIBRARY_MEMORY_MANAGER__={version:347,refresh,stamp,perColorUnique,activeUnique,policy:'Every future unique saved shoe auto-learns. Exact duplicates get one vote. RED and BLACK memories dedupe independently; COMBINED gives an identical cross-color history one effective vote.'};
+window.__V346_DYNAMIC_UNIQUE_LIBRARY_MEMORY__=window.__V347_LIBRARY_MEMORY_MANAGER__;
+})();
+</script>
+
+</body>
+</html>
