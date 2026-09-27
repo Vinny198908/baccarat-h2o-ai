@@ -19094,7 +19094,8 @@ function boot(){
   }
   window.__V289_LAYOUT__={mainRoadOnlyFuture:'TOP',bestEstimate:'SECOND',sequenceV2:'COMPACT',colorPattern:'BOTTOM',libraryIntel:'BOTTOM',fingerprintGate:'BOTTOM',duplicateTrajectory:'BOTTOM_LAST',logicChanged:false};
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+/* V336 supersedes V289 runtime placement to prevent competing layout observers. */
+window.__V289_LAYOUT__={...(window.__V289_LAYOUT__||{}),legacyDisabledByV336:true};
 })();
 </script>
 <script id="v290-runtime-cleanup-marker">
@@ -19714,7 +19715,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
-</body>
+\n<!-- V335 LAYOUT FIX: ML Road Trainer restored to the first panel under the top bar. Layout only; prediction logic untouched. -->\n\n</body>
 </html>
 
 <script id="v308-ml-champion-ensemble">
@@ -20072,5 +20073,64 @@ document.addEventListener('click',onChoice,true);
 document.addEventListener('touchend',onChoice,true);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>check(true),{once:true});else check(true);
 window.__V330_STRICT_VALIDATION_ROUTER__={version:VERSION,check,refresh,rule:'RED=red history only; BLACK=black history only; COMBINED=both; live hands and accuracy preserved',mlRequiresHeldOutQualification:true,mainRoadOnlyRawFallbackDisabled:true};
+})();
+</script>
+
+
+<!-- V336 FINAL LAYOUT: AI Pattern Recognizer takes Automatic Historical Match's former slot; Automatic Historical Match moves to bottom. Layout only. -->
+<script id="v337-layout-stability-scan-fix">
+(function(){
+'use strict';
+let busy=false,queued=false,slot=null;
+function panelFromChild(id){const x=document.getElementById(id);return x&&x.closest?x.closest('.analyzer'):null}
+function sameTail(app,nodes){
+  const live=nodes.filter(Boolean); if(!live.length)return true;
+  const kids=Array.from(app.children); if(kids.length<live.length)return false;
+  return live.every((n,i)=>kids[kids.length-live.length+i]===n);
+}
+function place(){
+  if(busy)return; busy=true;
+  try{
+    const app=document.querySelector('.app'); if(!app)return;
+    const topbar=app.querySelector('.topbar');
+    const ml=document.getElementById('mlRoadTrainerV155');
+    if(ml&&topbar&&topbar.parentNode===app&&topbar.nextElementSibling!==ml){
+      app.insertBefore(ml,topbar.nextElementSibling);
+    }
+
+    const hist=document.getElementById('autoHistMatchBox');
+    const pattern=document.getElementById('roadPreviewAiPanel')||panelFromChild('roadAiPick');
+    if(hist&&pattern){
+      const host=hist.parentNode||app;
+      if(!slot||!slot.isConnected){
+        slot=document.createComment('V337 AI Pattern Recognizer slot — former Automatic Historical Match position');
+        host.insertBefore(slot,hist);
+      }
+      if(slot.parentNode){
+        if(pattern.parentNode!==slot.parentNode||pattern.nextSibling!==slot){
+          slot.parentNode.insertBefore(pattern,slot);
+        }
+      }
+    }
+
+    if(hist){
+      const colorPattern=document.getElementById('colorPatternAiPanel');
+      const libraryIntel=document.getElementById('libraryIntelPanel');
+      const finger=document.getElementById('presetFingerprintGateV145');
+      const duplicate=document.getElementById('autoHistDuplicateMode');
+      const bottom=[colorPattern,libraryIntel,finger,duplicate,hist].filter(Boolean);
+      if(!sameTail(app,bottom)) bottom.forEach(n=>app.appendChild(n));
+    }
+
+    window.__V337_LAYOUT__={version:337,mlRoadTrainer:'TOP',aiPatternRecognizer:'AUTOMATIC_MATCH_FORMER_SLOT',automaticHistoricalMatch:'BOTTOM_LAST',layoutOnly:true,predictionLogicChanged:false};
+  }catch(e){console.warn('V337 layout stability',e)}finally{busy=false}
+}
+function request(){if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;place()})}
+function boot(){
+  place(); [50,180,450,900,1800,3500,7000,9000].forEach(ms=>setTimeout(place,ms));
+  const app=document.querySelector('.app');
+  if(app&&window.MutationObserver){const obs=new MutationObserver(request);obs.observe(app,{childList:true});}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
