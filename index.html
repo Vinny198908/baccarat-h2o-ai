@@ -296,6 +296,40 @@
 #v285AllAiAccuracy .v285-audit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 #v285AllAiAccuracy #v285AuditToggle{flex:0 0 auto;margin:0}
 </style>
+
+<style id="v316-hide-derived-yellow-section">
+.road-predict-panel > .analyzer-sub{display:none !important;}
+</style>
+
+<style id="v317-compact-ai-pattern">
+/* V317 — compact AI Pattern Recognizer UI only; prediction logic unchanged */
+#roadPreviewAiPanel{padding:7px!important;margin-top:6px!important}
+#roadPreviewAiPanel .analyzer-title{font-size:13px!important;line-height:1.1!important;margin:0!important}
+/* Hide the long static engine explanation; live note below remains */
+#roadPreviewAiPanel > .analyzer-sub:not(#roadAiNote){display:none!important}
+#roadPreviewAiPanel .analyzer-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important;margin-top:5px!important}
+#roadPreviewAiPanel .analyzer-card{padding:5px 4px!important;border-radius:8px!important;min-height:0!important}
+#roadPreviewAiPanel .analyzer-card span{font-size:8px!important;line-height:1.05!important}
+#roadPreviewAiPanel .analyzer-card strong{font-size:14px!important;line-height:1.05!important;margin-top:1px!important}
+#roadPreviewAiPanel .analyzer-card small{font-size:8px!important;line-height:1.05!important;margin-top:1px!important}
+#roadPreviewAiPanel .match-pcts{gap:4px!important;margin-top:4px!important}
+#roadPreviewAiPanel .match-pct{padding:4px 3px!important;border-radius:8px!important}
+#roadPreviewAiPanel .match-pct strong{font-size:14px!important;line-height:1!important}
+#roadPreviewAiPanel .match-pct span{font-size:8px!important;line-height:1!important}
+/* After-tie detail is still counted internally but no longer consumes panel space */
+#roadPreviewAiPanel .v204-after-tie{display:none!important}
+/* Hide duplicate V262 accuracy card; retain the primary verified-accuracy card */
+#roadPreviewAiPanel .v262-accuracy-grid{display:none!important}
+#roadPreviewAiPanel #v262ResetRoad{margin-top:5px!important;padding:5px 8px!important;font-size:9px!important;width:auto!important}
+#roadPreviewAiPanel [data-v75-reset="roadpreview"]{margin-top:5px!important;padding:5px 8px!important;font-size:9px!important;width:auto!important}
+#roadAiNote{margin-top:4px!important;font-size:9px!important;line-height:1.15!important;max-height:2.3em!important;overflow:hidden!important;color:var(--muted)!important}
+@media(max-width:560px){
+  #roadPreviewAiPanel .analyzer-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  #roadPreviewAiPanel .analyzer-card{padding:4px 3px!important}
+  #roadPreviewAiPanel .match-pct{padding:4px 2px!important}
+}
+</style>
+
 </head>
 <body>
 <div class="app">
@@ -19179,5 +19213,55 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script id="v315-deep-runtime-cleanup-marker">
 window.__V315_DEEP_RUNTIME_CLEANUP__={version:315,v220AutoTopDisabled:true,removedFingerHooksDisabled:true,removedColorHooksDisabled:true,lateScriptsInsideBody:true,v308RetitleDisabled:true,predictionLogicChanged:false};
 </script>
+
+<script id="v318-authoritative-ai-refresh-repair">
+(function(){
+'use strict';
+if(window.__V318_AI_REFRESH_REPAIR__)return;
+let timer=null,running=false,lastHandN=-1;
+const safe=(fn)=>{try{return fn()}catch(e){console.warn('V318 refresh',e);return null}};
+function handN(){return safe(()=>Array.isArray(state?.hands)?state.hands.length:0)||0}
+function refreshAll(reason='manual'){
+  if(running)return;
+  running=true;
+  try{
+    // Core visible engines.
+    safe(()=>typeof renderSequenceAI==='function'&&renderSequenceAI());
+    safe(()=>typeof renderRoadPreviewAI==='function'&&renderRoadPreviewAI());
+    safe(()=>typeof renderMainRoadFutureTest==='function'&&renderMainRoadFutureTest());
+    safe(()=>typeof renderAnalyzer==='function'&&renderAnalyzer());
+
+    // Independent modules that no longer share the same global render chain.
+    safe(()=>window.__AUTO_HIST_UPDATE__?.());
+    safe(()=>window.__V360_MAIN_FUTURE_TESTS_23__?.cycle?.());
+    safe(()=>window.__V305_MAIN_ROAD_ONLY_AI__?.render?.());
+    safe(()=>window.__mlRoadTrainerV3?.render?.());
+    safe(()=>window.__mlRoadTrainerV2?.render?.());
+
+    // Accuracy UI is display-only and safe to repaint after signals refresh.
+    safe(()=>window.renderVerifiedAccuracy?.());
+    lastHandN=handN();
+  } finally {running=false;}
+}
+function schedule(reason){
+  if(timer)clearTimeout(timer);
+  timer=setTimeout(()=>{timer=null;refreshAll(reason)},220);
+}
+function install(){
+  // One authoritative post-commit refresh. This runs after the core click handler
+  // has pushed the new hand, preventing stale WAIT displays across independent AIs.
+  document.addEventListener('click',e=>{
+    if(e.target?.closest?.('[data-result],#previewP,#previewB,#undoBtn,#clearBtn')) schedule('shoe-change');
+    if(e.target?.closest?.('#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')) schedule('library-mode');
+    if(e.target?.closest?.('#mlBuild')) setTimeout(()=>schedule('ml-build'),500);
+  },false);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedule('visible')});
+  setTimeout(()=>refreshAll('startup'),2600);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+window.__V318_AI_REFRESH_REPAIR__={version:318,refreshAll,schedule,get lastHandN(){return lastHandN},predictionLogicChanged:false};
+})();
+</script>
+
 </body>
 </html>
