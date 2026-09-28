@@ -5652,21 +5652,15 @@ function renderAnalyzer(){
   document.getElementById('bestScore').textContent=a.qualified?a.top+'%':'WAIT';
   document.getElementById('libraryInfluence').textContent=a.libraryWeight+'%';
 
-  // Verified Best-Estimate accuracy: only qualified P/B predictions locked before the result are graded.
-  const bestAcc=verifiedModelRate('bestestimate');
+  // V323: Best-Estimate accuracy has one authoritative ledger.
+  const __v323best=window.__V323_BEST_PATTERN_ACCURACY__?.snapshot?.().best||null;
+  const bestAcc=__v323best&&Number.isFinite(+__v323best.n)
+    ? {rate:__v323best.n?Math.round(100*__v323best.w/__v323best.n):0,wins:__v323best.w||0,losses:__v323best.l||0,n:__v323best.n||0,last10:[]}
+    : verifiedModelRate('bestestimate');
   const bestAccEl=document.getElementById('bestEstimateAccuracy');
   const bestAccDetail=document.getElementById('bestEstimateAccuracyDetail');
-  if(bestAccEl) bestAccEl.textContent=bestAcc?bestAcc.rate+'%':'—';
-  if(bestAccDetail){
-    if(bestAcc){
-      const recent=bestAcc.last10&&bestAcc.last10.length
-        ? Math.round(100*bestAcc.last10.reduce((x,y)=>x+y,0)/bestAcc.last10.length)
-        : null;
-      bestAccDetail.textContent=`${bestAcc.wins}W–${bestAcc.losses}L • N=${bestAcc.n}${recent==null?'':` • last 10 ${recent}%`}`;
-    }else{
-      bestAccDetail.textContent='0 graded predictions';
-    }
-  }
+  if(bestAccEl) bestAccEl.textContent=bestAcc&&bestAcc.n?bestAcc.rate+'%':'—';
+  if(bestAccDetail) bestAccDetail.textContent=bestAcc&&bestAcc.n?`${bestAcc.wins}W–${bestAcc.losses}L • N=${bestAcc.n}`:'0W-0L • N=0';
 
   const roadVal=a.road.strength||0;
   const histVal=a.hist.strength||0;
@@ -12659,6 +12653,10 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     const jobs=[
       ()=>{try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}},
       ()=>{try{settleGPTMirrorPrediction(actual)}catch(e){console.warn('V135 Mirror settle',e)}},
+      // V324: Best Estimate + AI Pattern must settle inside the ONE authoritative
+      // result transaction. V102 blocks all legacy result listeners, so grading them
+      // anywhere else can never be reliable.
+      ()=>{try{window.__V323_BEST_PATTERN_ACCURACY__?.grade?.(actual)}catch(e){console.warn('V324 best/pattern settle',e)}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}},
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
@@ -12836,6 +12834,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   window.__V102_FREEZE_COUNT_FIX__={
     enabled:true,
     singleAuthoritativeResultTransaction:true,
+    bestPatternAccuracyInAuthoritativeQueue:true,
     legacyResultListenersBlocked:true,
     countSettleExactlyOnce:true,
     coalescedHeavyWork:true,
@@ -17077,11 +17076,12 @@ function ensureBox(){
 }
 function renderPatternAccuracy(){
   if(!ensureBox())return;
+  const direct=window.__V323_BEST_PATTERN_ACCURACY__?.snapshot?.().pattern||null;
   const m=getModel();
-  const w=Number(m?.wins)||0,l=Number(m?.losses)||0;
-  const n=Number(m?.predictions)||w+l;
+  const w=direct?Number(direct.w)||0:Number(m?.wins)||0,l=direct?Number(direct.l)||0:Number(m?.losses)||0;
+  const n=direct?Number(direct.n)||0:(Number(m?.predictions)||w+l);
   const rate=n?((100*w/n).toFixed(1)+'%'):'—';
-  const last=m?.last||null;
+  const last=direct?.last||m?.last||null;
   const lastText=last
     ? `${last.win===true?'WIN':last.win===false?'LOSS':'GRADED'} • ${last.predicted==='P'?'P':last.predicted==='B'?'B':'—'}→${last.actual==='P'?'P':last.actual==='B'?'B':last.actual||'—'}`
     : '—';
@@ -19331,94 +19331,85 @@ window.__V319_ACCURACY_TRANSACTION_REPAIR__={version:VERSION,preLock,postArm,pre
 })();
 </script>
 
-<!-- V322: tested Best Estimate + AI Pattern core-path accuracy; consecutive same-side results count correctly -->
-<script id="v322-core-best-pattern-accuracy">
+<!-- V323: single-source Best Estimate + AI Pattern accuracy ledger. -->
+<script id="v323-single-source-best-pattern-accuracy">
 (function(){
 'use strict';
-if(window.__V321_BEST_PATTERN_CORE_ACC__) return;
-const KEY='v321-best-pattern-core-accuracy';
-function blank(){return {best:{w:0,l:0,n:0},pattern:{w:0,l:0,n:0}}}
-function load(){
+const VERSION=324;
+function blankSide(){return {w:0,l:0,n:0,last:null}}
+function ensure(){
   try{
-    const v=JSON.parse(localStorage.getItem(KEY)||'null');
-    if(!v||typeof v!=='object') return blank();
-    v.best=Object.assign({w:0,l:0,n:0},v.best||{});
-    v.pattern=Object.assign({w:0,l:0,n:0},v.pattern||{});
-    return v;
-  }catch(e){return blank()}
+    state.v323BestPatternAccuracy ||= {best:blankSide(),pattern:blankSide(),version:VERSION};
+    state.v323BestPatternAccuracy.best=Object.assign(blankSide(),state.v323BestPatternAccuracy.best||{});
+    state.v323BestPatternAccuracy.pattern=Object.assign(blankSide(),state.v323BestPatternAccuracy.pattern||{});
+    state.v323BestPatternAccuracy.version=VERSION;
+    return state.v323BestPatternAccuracy;
+  }catch(e){return {best:blankSide(),pattern:blankSide(),version:VERSION}}
 }
-function save(s){try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}}
+function snapshot(){const s=ensure();return {best:{...s.best},pattern:{...s.pattern}}}
 function norm(v){
   v=String(v||'').trim().toUpperCase();
   if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';
   if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';
   return null;
 }
+function save(){try{persist()}catch(e){}}
 function ensurePatternUI(){
-  const panel=document.getElementById('roadPreviewAiPanel'); if(!panel)return;
-  let acc=document.getElementById('v321PatternAccuracy');
+  const panel=document.getElementById('roadPreviewAiPanel');if(!panel)return;
+  // Hide all older Pattern accuracy displays so there is only one visible counter.
+  ['patternAccuracyV245','v262RoadAcc','v320PatternAccuracy','v320ResetPattern'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
+  panel.querySelectorAll('[data-v73-acc="roadpreview"]').forEach(e=>e.style.display='none');
+  let acc=document.getElementById('v323PatternAccuracy');
   if(!acc){
     let grid=panel.querySelector('.analyzer-grid');
     if(!grid){grid=document.createElement('div');grid.className='analyzer-grid';panel.appendChild(grid)}
-    const card=document.createElement('div');card.className='analyzer-card v321-pattern-accuracy-card';
-    card.innerHTML='<span>Verified accuracy</span><strong id="v321PatternAccuracy">—</strong><small id="v321PatternAccuracyDetail" style="display:block;color:var(--muted);margin-top:2px">0W-0L • N=0</small>';
+    const card=document.createElement('div');card.className='analyzer-card';
+    card.innerHTML='<span>Verified accuracy</span><strong id="v323PatternAccuracy">—</strong><small id="v323PatternAccuracyDetail" style="display:block;color:var(--muted);margin-top:2px">0W-0L • N=0</small>';
     grid.appendChild(card);
   }
-  if(!document.getElementById('v321ResetPattern')){
-    const b=document.createElement('button');b.type='button';b.id='v321ResetPattern';b.className='tiny-btn';
-    b.style.cssText='margin-top:5px;padding:5px 8px;font-size:9px';b.textContent='Reset AI Pattern Accuracy';
-    b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.pattern={w:0,l:0,n:0};save(s);paintBurst()};
-    panel.appendChild(b);
+  if(!document.getElementById('v323ResetPattern')){
+    const b=document.createElement('button');b.type='button';b.id='v323ResetPattern';b.className='tiny-btn';b.style.cssText='margin-top:5px;padding:5px 8px;font-size:9px';b.textContent='Reset AI Pattern Accuracy';
+    b.onclick=e=>{e.preventDefault();e.stopPropagation();const s=ensure();s.pattern=blankSide();save();paint()};panel.appendChild(b);
   }
-  ['v245PatternAccuracy','v262RoadAcc','v320PatternAccuracy','v320ResetPattern'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
 }
 function ensureBestUI(){
-  const acc=document.getElementById('bestEstimateAccuracy');const panel=acc?.closest('.analyzer');if(!panel)return;
-  if(!document.getElementById('v321ResetBest')){
-    const b=document.createElement('button');b.type='button';b.id='v321ResetBest';b.className='tiny-btn';
-    b.style.cssText='margin-top:6px;padding:6px 9px;font-size:10px';b.textContent='Reset Best-Estimate Accuracy';
-    b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.best={w:0,l:0,n:0};save(s);paintBurst()};
-    panel.appendChild(b);
+  const acc=document.getElementById('bestEstimateAccuracy'),panel=acc?.closest('.analyzer');if(!panel)return;
+  ['v262ResetBest','v320ResetBest','v321ResetBest'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
+  if(!document.getElementById('v323ResetBest')){
+    const b=document.createElement('button');b.type='button';b.id='v323ResetBest';b.className='tiny-btn';b.style.cssText='margin-top:6px;padding:6px 9px;font-size:10px';b.textContent='Reset Best-Estimate Accuracy';
+    b.onclick=e=>{e.preventDefault();e.stopPropagation();const s=ensure();s.best=blankSide();save();paint()};panel.appendChild(b);
   }
-  ['v262ResetBest','v320ResetBest'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
 }
 function paint(){
   ensurePatternUI();ensureBestUI();
-  const s=load();
-  const be=document.getElementById('bestEstimateAccuracy');
-  const bd=document.getElementById('bestEstimateAccuracyDetail');
+  const s=ensure();
+  const be=document.getElementById('bestEstimateAccuracy'),bd=document.getElementById('bestEstimateAccuracyDetail');
   if(be)be.textContent=s.best.n?(100*s.best.w/s.best.n).toFixed(1)+'%':'—';
   if(bd)bd.textContent=`${s.best.w}W-${s.best.l}L • N=${s.best.n}`;
-  const pe=document.getElementById('v321PatternAccuracy');
-  const pd=document.getElementById('v321PatternAccuracyDetail');
+  const pe=document.getElementById('v323PatternAccuracy'),pd=document.getElementById('v323PatternAccuracyDetail');
   if(pe)pe.textContent=s.pattern.n?(100*s.pattern.w/s.pattern.n).toFixed(1)+'%':'—';
   if(pd)pd.textContent=`${s.pattern.w}W-${s.pattern.l}L • N=${s.pattern.n}`;
 }
-function paintBurst(){paint();setTimeout(paint,0);setTimeout(paint,80);setTimeout(paint,300);}
-let lastTxn=null;
+let lastCommitAt=0,lastCommitActual='';
 function grade(actual){
   actual=String(actual||'').toUpperCase();
   if(actual!=='P'&&actual!=='B')return;
-  // Read EXACT visible picks before state.hands.push occurs in the core handler.
+  const now=Date.now();if(actual===lastCommitActual&&now-lastCommitAt<60)return;lastCommitActual=actual;lastCommitAt=now;
   const best=norm(document.getElementById('bestSide')?.textContent);
   const pattern=norm(document.getElementById('roadAiSide')?.textContent);
-  // One physical result commit = one grade. Only suppress a duplicate hook fired in the same instant.
-  // Do NOT key this to window.state: this app keeps state in the global lexical scope, not on window.
-  const now=Date.now();
-  if(lastTxn && lastTxn.actual===actual && (now-lastTxn.at)<80) return;
-  lastTxn={actual,at:now};
-  const s=load();
-  if(best){s.best.n++;best===actual?s.best.w++:s.best.l++;}
-  if(pattern){s.pattern.n++;pattern===actual?s.pattern.w++:s.pattern.l++;}
-  save(s);paintBurst();
+  const s=ensure();
+  if(best){s.best.n++;best===actual?s.best.w++:s.best.l++;s.best.last={predicted:best,actual,win:best===actual,at:now}}
+  if(pattern){s.pattern.n++;pattern===actual?s.pattern.w++:s.pattern.l++;s.pattern.last={predicted:pattern,actual,win:pattern===actual,at:now}}
+  save();paint();setTimeout(paint,0);setTimeout(paint,200);setTimeout(paint,700);
 }
-function install(){ensurePatternUI();ensureBestUI();paintBurst()}
-window.__V321_BEST_PATTERN_CORE_ACC__={version:322,grade,paint:paintBurst,load,
-  resetBest(){const s=load();s.best={w:0,l:0,n:0};save(s);paintBurst()},
-  resetPattern(){const s=load();s.pattern={w:0,l:0,n:0};save(s);paintBurst()},
-  source:'core result commit path',waitsCounted:false,tiesCounted:false};
+window.__V321_BEST_PATTERN_CORE_ACC__={version:VERSION,grade,paint,snapshot,load:snapshot};
+window.__V323_BEST_PATTERN_ACCURACY__={version:VERSION,grade,paint,snapshot,
+  resetBest(){const s=ensure();s.best=blankSide();save();paint()},
+  resetPattern(){const s=ensure();s.pattern=blankSide();save();paint()},
+  waitsCounted:false,tiesCounted:false,singleSource:true,storage:'state.v323BestPatternAccuracy'};
+function install(){ensure();paint()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setTimeout(install,500);setTimeout(paintBurst,1500);
+setTimeout(install,500);setTimeout(paint,1500);
 })();
 </script>
 
