@@ -1145,6 +1145,7 @@ function __v136SchedulePostHandMaintenance(){
 document.querySelectorAll('[data-result]').forEach(btn=>{
   btn.addEventListener('click',()=>{
     const actual=btn.dataset.result;
+    try{ window.__V321_BEST_PATTERN_CORE_ACC__?.grade(actual); }catch(e){}
     // Arm V3 in the real commit path so it cannot miss a live result because of
     // listener ordering, DOM restoration, or browser-specific event timing.
     try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}
@@ -1176,6 +1177,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
   });
 });
 function commitPreviewResult(actual){
+  try{ window.__V321_BEST_PATTERN_CORE_ACC__?.grade(actual); }catch(e){}
   // Same direct V3 arming for the preview P?/B? commit buttons.
   try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}
   try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
@@ -19329,100 +19331,94 @@ window.__V319_ACCURACY_TRANSACTION_REPAIR__={version:VERSION,preLock,postArm,pre
 })();
 </script>
 
-
-
-<!-- V320: direct visible-pick accuracy for Best Estimate + AI Pattern Recognizer -->
-<script id="v320-direct-best-pattern-accuracy">
+<!-- V322: tested Best Estimate + AI Pattern core-path accuracy; consecutive same-side results count correctly -->
+<script id="v322-core-best-pattern-accuracy">
 (function(){
 'use strict';
-if(window.__V320_DIRECT_BEST_PATTERN_ACCURACY__) return;
-const KEY='v320-best-pattern-direct-accuracy';
+if(window.__V321_BEST_PATTERN_CORE_ACC__) return;
+const KEY='v321-best-pattern-core-accuracy';
+function blank(){return {best:{w:0,l:0,n:0},pattern:{w:0,l:0,n:0}}}
 function load(){
-  try{return Object.assign({best:{w:0,l:0,n:0},pattern:{w:0,l:0,n:0}},JSON.parse(localStorage.getItem(KEY)||'{}'))}
-  catch(e){return {best:{w:0,l:0,n:0},pattern:{w:0,l:0,n:0}}}
+  try{
+    const v=JSON.parse(localStorage.getItem(KEY)||'null');
+    if(!v||typeof v!=='object') return blank();
+    v.best=Object.assign({w:0,l:0,n:0},v.best||{});
+    v.pattern=Object.assign({w:0,l:0,n:0},v.pattern||{});
+    return v;
+  }catch(e){return blank()}
 }
 function save(s){try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}}
-function norm(t){
-  t=String(t||'').trim().toUpperCase();
-  if(t==='P'||t==='PLAYER'||t.includes('PLAYER')) return 'P';
-  if(t==='B'||t==='BANKER'||t.includes('BANKER')) return 'B';
+function norm(v){
+  v=String(v||'').trim().toUpperCase();
+  if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';
+  if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';
   return null;
 }
-function fmt(z){
-  z=z||{w:0,l:0,n:0};
-  return z.n?`${(100*z.w/z.n).toFixed(1)}% • ${z.w}W-${z.l}L • N=${z.n}`:'— • 0W-0L • N=0';
-}
 function ensurePatternUI(){
-  const panel=document.getElementById('roadPreviewAiPanel'); if(!panel) return;
-  let strong=document.getElementById('v320PatternAccuracy');
-  if(!strong){
+  const panel=document.getElementById('roadPreviewAiPanel'); if(!panel)return;
+  let acc=document.getElementById('v321PatternAccuracy');
+  if(!acc){
     let grid=panel.querySelector('.analyzer-grid');
     if(!grid){grid=document.createElement('div');grid.className='analyzer-grid';panel.appendChild(grid)}
-    const card=document.createElement('div');card.className='analyzer-card v320-pattern-accuracy-card';
-    card.innerHTML='<span>Verified accuracy</span><strong id="v320PatternAccuracy">—</strong><small id="v320PatternAccuracyDetail" style="display:block;color:var(--muted);margin-top:2px">0W-0L • N=0</small>';
+    const card=document.createElement('div');card.className='analyzer-card v321-pattern-accuracy-card';
+    card.innerHTML='<span>Verified accuracy</span><strong id="v321PatternAccuracy">—</strong><small id="v321PatternAccuracyDetail" style="display:block;color:var(--muted);margin-top:2px">0W-0L • N=0</small>';
     grid.appendChild(card);
   }
-  if(!document.getElementById('v320ResetPattern')){
-    const b=document.createElement('button');b.type='button';b.id='v320ResetPattern';b.className='tiny-btn';b.style.cssText='margin-top:5px;padding:5px 8px;font-size:9px';b.textContent='Reset AI Pattern Accuracy';
-    b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.pattern={w:0,l:0,n:0};save(s);paint();});
+  if(!document.getElementById('v321ResetPattern')){
+    const b=document.createElement('button');b.type='button';b.id='v321ResetPattern';b.className='tiny-btn';
+    b.style.cssText='margin-top:5px;padding:5px 8px;font-size:9px';b.textContent='Reset AI Pattern Accuracy';
+    b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.pattern={w:0,l:0,n:0};save(s);paintBurst()};
     panel.appendChild(b);
   }
+  ['v245PatternAccuracy','v262RoadAcc','v320PatternAccuracy','v320ResetPattern'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
 }
 function ensureBestUI(){
-  const acc=document.getElementById('bestEstimateAccuracy');
-  const panel=acc?.closest('.analyzer'); if(!panel) return;
-  if(!document.getElementById('v320ResetBest')){
-    const b=document.createElement('button');b.type='button';b.id='v320ResetBest';b.className='tiny-btn';b.style.cssText='margin-top:6px;padding:6px 9px;font-size:10px';b.textContent='Reset Best-Estimate Accuracy';
-    b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.best={w:0,l:0,n:0};save(s);paint();});
+  const acc=document.getElementById('bestEstimateAccuracy');const panel=acc?.closest('.analyzer');if(!panel)return;
+  if(!document.getElementById('v321ResetBest')){
+    const b=document.createElement('button');b.type='button';b.id='v321ResetBest';b.className='tiny-btn';
+    b.style.cssText='margin-top:6px;padding:6px 9px;font-size:10px';b.textContent='Reset Best-Estimate Accuracy';
+    b.onclick=function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.best={w:0,l:0,n:0};save(s);paintBurst()};
     panel.appendChild(b);
   }
-  const old=document.getElementById('v262ResetBest'); if(old) old.style.display='none';
+  ['v262ResetBest','v320ResetBest'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
 }
 function paint(){
   ensurePatternUI();ensureBestUI();
   const s=load();
   const be=document.getElementById('bestEstimateAccuracy');
   const bd=document.getElementById('bestEstimateAccuracyDetail');
-  if(be) be.textContent=s.best.n?(100*s.best.w/s.best.n).toFixed(1)+'%':'—';
-  if(bd) bd.textContent=`${s.best.w}W-${s.best.l}L • N=${s.best.n}`;
-  const pe=document.getElementById('v320PatternAccuracy');
-  const pd=document.getElementById('v320PatternAccuracyDetail');
-  if(pe) pe.textContent=s.pattern.n?(100*s.pattern.w/s.pattern.n).toFixed(1)+'%':'—';
-  if(pd) pd.textContent=`${s.pattern.w}W-${s.pattern.l}L • N=${s.pattern.n}`;
+  if(be)be.textContent=s.best.n?(100*s.best.w/s.best.n).toFixed(1)+'%':'—';
+  if(bd)bd.textContent=`${s.best.w}W-${s.best.l}L • N=${s.best.n}`;
+  const pe=document.getElementById('v321PatternAccuracy');
+  const pd=document.getElementById('v321PatternAccuracyDetail');
+  if(pe)pe.textContent=s.pattern.n?(100*s.pattern.w/s.pattern.n).toFixed(1)+'%':'—';
+  if(pd)pd.textContent=`${s.pattern.w}W-${s.pattern.l}L • N=${s.pattern.n}`;
 }
+function paintBurst(){paint();setTimeout(paint,0);setTimeout(paint,80);setTimeout(paint,300);}
+let lastTxn=null;
 function grade(actual){
-  if(actual!=='P'&&actual!=='B') return;
+  actual=String(actual||'').toUpperCase();
+  if(actual!=='P'&&actual!=='B')return;
+  // Read EXACT visible picks before state.hands.push occurs in the core handler.
   const best=norm(document.getElementById('bestSide')?.textContent);
   const pattern=norm(document.getElementById('roadAiSide')?.textContent);
+  // One physical result commit = one grade. Only suppress a duplicate hook fired in the same instant.
+  // Do NOT key this to window.state: this app keeps state in the global lexical scope, not on window.
+  const now=Date.now();
+  if(lastTxn && lastTxn.actual===actual && (now-lastTxn.at)<80) return;
+  lastTxn={actual,at:now};
   const s=load();
-  if(best){s.best.n++; if(best===actual)s.best.w++; else s.best.l++;}
-  if(pattern){s.pattern.n++; if(pattern===actual)s.pattern.w++; else s.pattern.l++;}
-  save(s);paint();
+  if(best){s.best.n++;best===actual?s.best.w++:s.best.l++;}
+  if(pattern){s.pattern.n++;pattern===actual?s.pattern.w++:s.pattern.l++;}
+  save(s);paintBurst();
 }
-function actualFrom(el){
-  const x=String(el?.dataset?.result||'').toUpperCase();
-  return (x==='P'||x==='B'||x==='T')?x:null;
-}
-function install(){
-  ensurePatternUI();ensureBestUI();paint();
-  document.querySelectorAll('.main-buttons [data-result]').forEach(btn=>{
-    if(btn.__v320DirectAccuracy) return;
-    btn.addEventListener('click',function(ev){
-      const actual=actualFrom(this);
-      if(actual==='P'||actual==='B') grade(actual);
-    },true);
-    btn.__v320DirectAccuracy=true;
-  });
-  // Keep these two displays owned by V320 even when legacy renderers repaint.
-  const oldRender=window.renderAnalyzer;
-  if(typeof oldRender==='function'&&!oldRender.__v320DirectAcc){
-    const w=function(){const r=oldRender.apply(this,arguments);try{paint()}catch(e){}return r};
-    w.__v320DirectAcc=true;w.__base=oldRender;window.renderAnalyzer=w;try{renderAnalyzer=w}catch(e){}
-  }
-}
+function install(){ensurePatternUI();ensureBestUI();paintBurst()}
+window.__V321_BEST_PATTERN_CORE_ACC__={version:322,grade,paint:paintBurst,load,
+  resetBest(){const s=load();s.best={w:0,l:0,n:0};save(s);paintBurst()},
+  resetPattern(){const s=load();s.pattern={w:0,l:0,n:0};save(s);paintBurst()},
+  source:'core result commit path',waitsCounted:false,tiesCounted:false};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setTimeout(install,500);setTimeout(paint,1500);
-window.__V320_DIRECT_BEST_PATTERN_ACCURACY__={version:320,load,paint,grade,resetBest(){const s=load();s.best={w:0,l:0,n:0};save(s);paint()},resetPattern(){const s=load();s.pattern={w:0,l:0,n:0};save(s);paint()},waitsCounted:false,tiesCounted:false};
+setTimeout(install,500);setTimeout(paintBurst,1500);
 })();
 </script>
 
