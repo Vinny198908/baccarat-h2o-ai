@@ -19329,5 +19329,102 @@ window.__V319_ACCURACY_TRANSACTION_REPAIR__={version:VERSION,preLock,postArm,pre
 })();
 </script>
 
+
+
+<!-- V320: direct visible-pick accuracy for Best Estimate + AI Pattern Recognizer -->
+<script id="v320-direct-best-pattern-accuracy">
+(function(){
+'use strict';
+if(window.__V320_DIRECT_BEST_PATTERN_ACCURACY__) return;
+const KEY='v320-best-pattern-direct-accuracy';
+function load(){
+  try{return Object.assign({best:{w:0,l:0,n:0},pattern:{w:0,l:0,n:0}},JSON.parse(localStorage.getItem(KEY)||'{}'))}
+  catch(e){return {best:{w:0,l:0,n:0},pattern:{w:0,l:0,n:0}}}
+}
+function save(s){try{localStorage.setItem(KEY,JSON.stringify(s))}catch(e){}}
+function norm(t){
+  t=String(t||'').trim().toUpperCase();
+  if(t==='P'||t==='PLAYER'||t.includes('PLAYER')) return 'P';
+  if(t==='B'||t==='BANKER'||t.includes('BANKER')) return 'B';
+  return null;
+}
+function fmt(z){
+  z=z||{w:0,l:0,n:0};
+  return z.n?`${(100*z.w/z.n).toFixed(1)}% • ${z.w}W-${z.l}L • N=${z.n}`:'— • 0W-0L • N=0';
+}
+function ensurePatternUI(){
+  const panel=document.getElementById('roadPreviewAiPanel'); if(!panel) return;
+  let strong=document.getElementById('v320PatternAccuracy');
+  if(!strong){
+    let grid=panel.querySelector('.analyzer-grid');
+    if(!grid){grid=document.createElement('div');grid.className='analyzer-grid';panel.appendChild(grid)}
+    const card=document.createElement('div');card.className='analyzer-card v320-pattern-accuracy-card';
+    card.innerHTML='<span>Verified accuracy</span><strong id="v320PatternAccuracy">—</strong><small id="v320PatternAccuracyDetail" style="display:block;color:var(--muted);margin-top:2px">0W-0L • N=0</small>';
+    grid.appendChild(card);
+  }
+  if(!document.getElementById('v320ResetPattern')){
+    const b=document.createElement('button');b.type='button';b.id='v320ResetPattern';b.className='tiny-btn';b.style.cssText='margin-top:5px;padding:5px 8px;font-size:9px';b.textContent='Reset AI Pattern Accuracy';
+    b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.pattern={w:0,l:0,n:0};save(s);paint();});
+    panel.appendChild(b);
+  }
+}
+function ensureBestUI(){
+  const acc=document.getElementById('bestEstimateAccuracy');
+  const panel=acc?.closest('.analyzer'); if(!panel) return;
+  if(!document.getElementById('v320ResetBest')){
+    const b=document.createElement('button');b.type='button';b.id='v320ResetBest';b.className='tiny-btn';b.style.cssText='margin-top:6px;padding:6px 9px;font-size:10px';b.textContent='Reset Best-Estimate Accuracy';
+    b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();const s=load();s.best={w:0,l:0,n:0};save(s);paint();});
+    panel.appendChild(b);
+  }
+  const old=document.getElementById('v262ResetBest'); if(old) old.style.display='none';
+}
+function paint(){
+  ensurePatternUI();ensureBestUI();
+  const s=load();
+  const be=document.getElementById('bestEstimateAccuracy');
+  const bd=document.getElementById('bestEstimateAccuracyDetail');
+  if(be) be.textContent=s.best.n?(100*s.best.w/s.best.n).toFixed(1)+'%':'—';
+  if(bd) bd.textContent=`${s.best.w}W-${s.best.l}L • N=${s.best.n}`;
+  const pe=document.getElementById('v320PatternAccuracy');
+  const pd=document.getElementById('v320PatternAccuracyDetail');
+  if(pe) pe.textContent=s.pattern.n?(100*s.pattern.w/s.pattern.n).toFixed(1)+'%':'—';
+  if(pd) pd.textContent=`${s.pattern.w}W-${s.pattern.l}L • N=${s.pattern.n}`;
+}
+function grade(actual){
+  if(actual!=='P'&&actual!=='B') return;
+  const best=norm(document.getElementById('bestSide')?.textContent);
+  const pattern=norm(document.getElementById('roadAiSide')?.textContent);
+  const s=load();
+  if(best){s.best.n++; if(best===actual)s.best.w++; else s.best.l++;}
+  if(pattern){s.pattern.n++; if(pattern===actual)s.pattern.w++; else s.pattern.l++;}
+  save(s);paint();
+}
+function actualFrom(el){
+  const x=String(el?.dataset?.result||'').toUpperCase();
+  return (x==='P'||x==='B'||x==='T')?x:null;
+}
+function install(){
+  ensurePatternUI();ensureBestUI();paint();
+  document.querySelectorAll('.main-buttons [data-result]').forEach(btn=>{
+    if(btn.__v320DirectAccuracy) return;
+    btn.addEventListener('click',function(ev){
+      const actual=actualFrom(this);
+      if(actual==='P'||actual==='B') grade(actual);
+    },true);
+    btn.__v320DirectAccuracy=true;
+  });
+  // Keep these two displays owned by V320 even when legacy renderers repaint.
+  const oldRender=window.renderAnalyzer;
+  if(typeof oldRender==='function'&&!oldRender.__v320DirectAcc){
+    const w=function(){const r=oldRender.apply(this,arguments);try{paint()}catch(e){}return r};
+    w.__v320DirectAcc=true;w.__base=oldRender;window.renderAnalyzer=w;try{renderAnalyzer=w}catch(e){}
+  }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setTimeout(install,500);setTimeout(paint,1500);
+window.__V320_DIRECT_BEST_PATTERN_ACCURACY__={version:320,load,paint,grade,resetBest(){const s=load();s.best={w:0,l:0,n:0};save(s);paint()},resetPattern(){const s=load();s.pattern={w:0,l:0,n:0};save(s);paint()},waitsCounted:false,tiesCounted:false};
+})();
+</script>
+
 </body>
 </html>
