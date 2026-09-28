@@ -12,6 +12,11 @@
      - ML V204 repair preserved: RED/BLACK-stratified held-out split, 6-hand warmup, real validation qualification
      - V290 UI/layout and other AI modules preserved -->
 <!-- V301: Automatic Historical Match AI adaptive-context upgrade. ML V300 preserved; Sequence V2 and Main Future Road unchanged. -->
+<!-- V357 UNIQUE LIBRARY SEARCH FIX:
+     - Library-aware prediction engines now use one effective vote per unique active shoe
+     - RED / BLACK / COMBINED selection remains unchanged
+     - Stored library records are not deleted or altered
+     - Core Sequence V2 / Best Estimate decision gates remain unchanged -->
 <!DOCTYPE html>
 
 <html lang="en">
@@ -23,7 +28,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V349 • All-In Baccarat — Full-Library Inverted Family AI</title>
+<title>V356 • All-In Baccarat — Pattern WAIT Accuracy Fix</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -432,7 +437,7 @@
 <div class="analyzer" id="invertedFamilyAiPanel">
   <div class="future-test-head">
     <div>
-      <div class="analyzer-title">🪞 Inverted / Disguised Pattern AI — V349</div>
+      <div class="analyzer-title">🪞 Inverted / Disguised Pattern AI — V355</div>
       <div class="analyzer-sub" style="color:#d8b4fe;font-weight:800">FULL LIBRARY • NO SHOE HOLDOUT</div>
       <div class="analyzer-sub">Standalone historical-family AI. It compares the live P/B pattern against saved shoes normally and with Player↔Banker inverted. Ties are ignored for the core inversion match. It begins watching after 12 non-tie hands and only qualifies a pick when the inverted family is strong enough.</div>
     </div>
@@ -910,11 +915,56 @@
 
 </div>
 <script>
+// V358: load saved state before seed merge; recover largest local backup; verified save counts.
 // ROAD ENGINE BUILD: 2026-08-17-road-preview-v3 + ultimate-bot-v8-smart-controller
 const KEY='baccarat-roadmap-v290-early-seqv2-102-preinstalled-noautosave-mlfix';
 const LIBRARY_BACKUP_KEY='baccarat-roadmap-library-backup-v290-early-seqv2-102-preinstalled-noautosave-mlfix';
 const LIBRARY_BACKUP_HISTORY_KEY='baccarat-roadmap-library-backup-history-v290-early-seqv2-102-preinstalled-noautosave-mlfix';
-const LIBRARY_BACKUP_HISTORY_LIMIT=2; // V258: cap redundant full-library snapshots to reduce mobile storage pressure
+const LIBRARY_BACKUP_HISTORY_LIMIT=1; // V360: one fallback full-library snapshot; journal carries individual saved shoes
+// V360: permanent cross-version recovery journal. Future builds must keep this exact key.
+const LIBRARY_SAVE_JOURNAL_KEY='baccarat-roadmap-library-save-journal-permanent';
+const LEGACY_LIBRARY_SAVE_JOURNAL_KEYS=['baccarat-roadmap-library-save-journal-v359'];
+function migrateLibrarySaveJournal(){
+  try{
+    let merged=[];
+    const take=(arr)=>{if(!Array.isArray(arr))return;for(const x of arr){if(!x||!x.sequence)continue;const c=x.shoeColor==='red'?'red':x.shoeColor==='black'?'black':null;if(!c)continue;if(!merged.some(y=>y&&y.sequence===x.sequence&&y.shoeColor===c))merged.push({...x,shoeColor:c});}};
+    try{take(JSON.parse(localStorage.getItem(LIBRARY_SAVE_JOURNAL_KEY)||'[]'))}catch(e){}
+    for(const k of LEGACY_LIBRARY_SAVE_JOURNAL_KEYS){try{take(JSON.parse(localStorage.getItem(k)||'[]'))}catch(e){}}
+    localStorage.setItem(LIBRARY_SAVE_JOURNAL_KEY,JSON.stringify(merged));
+    return merged;
+  }catch(e){console.warn('Library journal migration failed',e);return []}
+}
+function readLibrarySaveJournal(){
+  try{return migrateLibrarySaveJournal()}catch(e){return []}
+}
+function journalSavedShoe(record,color){
+  try{
+    let j=readLibrarySaveJournal();
+    const seq=record?.sequence||'';
+    if(!seq)return false;
+    if(!j.some(x=>x&&x.sequence===seq&&x.shoeColor===color)){
+      j.push({...record,shoeColor:color,journaledAt:new Date().toISOString()});
+      localStorage.setItem(LIBRARY_SAVE_JOURNAL_KEY,JSON.stringify(j));
+    }
+    return readLibrarySaveJournal().some(x=>x&&x.sequence===seq&&x.shoeColor===color);
+  }catch(e){console.warn('Library save journal failed',e);return false;}
+}
+function recoverJournaledShoes(){
+  let added=0;
+  try{
+    const j=readLibrarySaveJournal();
+    for(const x of j){
+      const color=x?.shoeColor==='red'?'red':x?.shoeColor==='black'?'black':null;
+      if(!color||!x?.sequence)continue;
+      const key=color==='red'?'redPatternLibrary':'blackPatternLibrary';
+      if(!Array.isArray(state[key]))state[key]=[];
+      if(!state[key].some(z=>z&&z.sequence===x.sequence)){
+        const n=normalizeBackupShoe(x,color); if(n){state[key].push(n);added++;}
+      }
+    }
+  }catch(e){console.warn('Journal recovery failed',e)}
+  return added;
+}
 function libraryBackupPayload(reason='manual'){
   return {
     backupVersion:2,
@@ -1100,7 +1150,7 @@ function load(){
     }
   }catch(e){}
 }
-applyChromeLibrarySeed();
+// V358: seed/recovery is applied only AFTER load(), so a newer saved library can never be overwritten before it is read.
 // Permanent saved-shoe protection. Routine live/adaptive writes may add shoes,
 // but they are not allowed to silently replace a larger saved library with a
 // smaller in-memory copy. Only explicit user-confirmed library cleanup/clear
@@ -1116,6 +1166,42 @@ function _protectedLibrary(current,stored){
   // new shoes or newer metadata for an existing sequence.
   b.forEach((v,k)=>{if(!a.has(k))a.set(k,v)});
   return [...a.values()];
+}
+
+// V358 LIBRARY RECOVERY: merge all trustworthy on-device sources by sequence.
+// Priority is the already-loaded saved state, then the largest safety backup,
+// then the embedded seed only for shoes that are genuinely missing.
+function reconcileSavedLibrariesOnStartup(){
+  try{
+    const beforeR=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary.length:0;
+    const beforeB=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary.length:0;
+    const journalRestored=recoverJournaledShoes();
+    const backup=readBestLocalLibraryBackup();
+    const backupR=Array.isArray(backup?.redPatternLibrary)?backup.redPatternLibrary:[];
+    const backupB=Array.isArray(backup?.blackPatternLibrary)?backup.blackPatternLibrary:[];
+    const seedR=Array.isArray(CHROME_LIBRARY_SEED?.redPatternLibrary)?CHROME_LIBRARY_SEED.redPatternLibrary:[];
+    const seedB=Array.isArray(CHROME_LIBRARY_SEED?.blackPatternLibrary)?CHROME_LIBRARY_SEED.blackPatternLibrary:[];
+
+    state.redPatternLibrary=_protectedLibrary(_protectedLibrary(state.redPatternLibrary,backupR),seedR);
+    state.blackPatternLibrary=_protectedLibrary(_protectedLibrary(state.blackPatternLibrary,backupB),seedB);
+
+    const afterR=state.redPatternLibrary.length, afterB=state.blackPatternLibrary.length;
+    localStorage.setItem(KEY,JSON.stringify(state));
+    __persistGuardCache={
+      redPatternLibrary:state.redPatternLibrary.slice(),
+      blackPatternLibrary:state.blackPatternLibrary.slice()
+    };
+    // Refresh safety backup only after the merged state is safely restored.
+    saveLocalLibraryBackup('v359_startup_reconcile');
+    window.__LIBRARY_STARTUP_RECOVERY__={before:{red:beforeR,black:beforeB,total:beforeR+beforeB},after:{red:afterR,black:afterB,total:afterR+afterB},backupTotal:backupR.length+backupB.length,seedTotal:seedR.length+seedB.length,journalRestored};
+    if(afterR+afterB>beforeR+beforeB){
+      console.info('V359 LIBRARY RECOVERY restored saved shoes',window.__LIBRARY_STARTUP_RECOVERY__);
+    }
+    return window.__LIBRARY_STARTUP_RECOVERY__;
+  }catch(e){
+    console.warn('V359 startup library recovery failed',e);
+    return null;
+  }
 }
 let __persistGuardCache=null;
 try{
@@ -1844,11 +1930,57 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
     alert(`SHOE ALREADY IN LIBRARY\n\nThis exact ${saveColorName} shoe is already stored.\nExisting copy: #${duplicateIndex+1} • ${savedWhen} • ${savedSource}\n\nNo duplicate copy was added. If this shoe came from a screenshot, V171 no longer pre-saves screenshots, so new screenshot shoes can now be saved normally.`);
     return false;
   }
-  state[key].push(makeShoeRecord(seq,source));
+  const beforeRed=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary.length:0;
+  const beforeBlack=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary.length:0;
+  const beforeTotal=beforeRed+beforeBlack;
+  const savedRecord=makeShoeRecord(seq,source);
+  state[key].push(savedRecord);
+  // V359: write the individual shoe journal first, then the main state, then full backup.
+  // The three independent copies make one failed snapshot recoverable.
+  const journalVerified=journalSavedShoe(savedRecord,saveColor);
   persist();
-  saveLocalLibraryBackup('shoe_saved');
-  if(!quiet) alert(`Saved ${seq.length} hands to the ${saveColorName} pattern library. A safety backup was also updated.`);
-  return true;
+  let backup=saveLocalLibraryBackup('shoe_saved');
+  let mainVerified=false, backupVerified=false, historyVerified=false;
+  try{
+    const disk=JSON.parse(localStorage.getItem(KEY)||'null');
+    const diskLib=Array.isArray(disk?.[key])?disk[key]:[];
+    mainVerified=diskLib.some(x=>x&&x.sequence===s);
+  }catch(e){}
+  try{
+    const b=JSON.parse(localStorage.getItem(LIBRARY_BACKUP_KEY)||'null');
+    const bLib=Array.isArray(b?.[key])?b[key]:[];
+    backupVerified=bLib.some(x=>x&&x.sequence===s);
+  }catch(e){}
+  try{
+    const h=JSON.parse(localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY)||'[]');
+    historyVerified=Array.isArray(h)&&h.some(snap=>Array.isArray(snap?.[key])&&snap[key].some(x=>x&&x.sequence===s));
+  }catch(e){}
+  // One retry if either main snapshot or backup verification missed the new shoe.
+  if(!mainVerified||!backupVerified){
+    try{persist();backup=saveLocalLibraryBackup('shoe_saved_retry');}catch(e){}
+    try{
+      const disk=JSON.parse(localStorage.getItem(KEY)||'null');
+      mainVerified=Array.isArray(disk?.[key])&&disk[key].some(x=>x&&x.sequence===s);
+      const b=JSON.parse(localStorage.getItem(LIBRARY_BACKUP_KEY)||'null');
+      backupVerified=Array.isArray(b?.[key])&&b[key].some(x=>x&&x.sequence===s);
+      const h=JSON.parse(localStorage.getItem(LIBRARY_BACKUP_HISTORY_KEY)||'[]');
+      historyVerified=Array.isArray(h)&&h.some(snap=>Array.isArray(snap?.[key])&&snap[key].some(x=>x&&x.sequence===s));
+    }catch(e){}
+  }
+  const verified=mainVerified&&backupVerified&&journalVerified;
+  const afterRed=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary.length:0;
+  const afterBlack=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary.length:0;
+  const afterTotal=afterRed+afterBlack;
+  renderLibraryBackupStatus();
+  if(!quiet){
+    if(verified){
+      alert(`SHOE SAVED + BACKED UP ✓\n\n${saveColorName}: ${saveColor==='red'?beforeRed:beforeBlack} → ${saveColor==='red'?afterRed:afterBlack}\nFULL LIBRARY: ${beforeTotal} → ${afterTotal}\n\n${seq.length} hands verified in LIVE LIBRARY + SAFETY BACKUP + RECOVERY JOURNAL${historyVerified?' + BACKUP HISTORY':''}.`);
+    }else{
+      const parts=[];if(!mainVerified)parts.push('live library');if(!backupVerified)parts.push('safety backup');if(!journalVerified)parts.push('recovery journal');
+      alert(`SAVE WARNING\n\nThe shoe was not verified in: ${parts.join(', ')}.\n\nDo not close this index until you download a Full Backup.`);
+    }
+  }
+  return verified;
 }
 
 function duplicateNormalizeSequence(seq,ignoreTies=false){
@@ -1985,7 +2117,7 @@ function deleteOnDeviceLibraryBackups(){
 
 function patternWindowsCount(){
   let n=0;
-  activePatternLibrary().forEach(shoe=>{
+  uniqueActivePatternLibrary().forEach(shoe=>{
     const len=(shoe.sequence||'').length;
     for(let k=3;k<=Math.min(12,len-1);k++) n+=Math.max(0,len-k);
   });
@@ -1993,13 +2125,13 @@ function patternWindowsCount(){
 }
 function findHistoricalMatches(){
   const cur=currentSequence();
-  if(cur.length<3 || !activePatternLibrary().length) return {matches:0,len:0,p:0,b:0,t:0};
+  if(cur.length<3 || !uniqueActivePatternLibrary().length) return {matches:0,len:0,p:0,b:0,t:0};
 
   // Try longest suffix first, then back off until enough examples exist.
   for(let k=Math.min(12,cur.length);k>=3;k--){
     const pattern=cur.slice(-k).join('');
     let p=0,b=0,t=0,total=0;
-    activePatternLibrary().forEach(shoe=>{
+    uniqueActivePatternLibrary().forEach(shoe=>{
       const s=shoe.sequence||'';
       for(let i=0;i+k<s.length;i++){
         if(s.slice(i,i+k)===pattern){
@@ -2081,7 +2213,7 @@ function librarySignal(){
 // This is a pattern-comparison tool, not proof that a physical deck was reused.
 function sameColorReuseCandidates(){
   const cur=currentSequence().join('');
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=4);
+  const lib=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=4);
   // Newest saved same-color shoe first. If an identical copy of the live shoe was
   // accidentally saved mid-shoe, ignore that exact current snapshot.
   const usable=lib.filter(x=>x.sequence!==cur);
@@ -2370,7 +2502,7 @@ function shoeMatcherCandidateScore(bead,main,hist,pos){
 function shoeMatcherScanCore(beadInput,mainInput){
   const bead=shoeMatcherNormalize(beadInput,true);
   const main=shoeMatcherNormalize(mainInput,false)||shoeMatcherMainFromBead(bead);
-  const lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=Math.max(8,bead.length+1));
+  const lib=uniqueActivePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=Math.max(8,bead.length+1));
   if(bead.length<6)return {error:`NEED ${6-bead.length} MORE RESULT${6-bead.length===1?'':'S'}`,bead,main,libCount:lib.length};
   if(!lib.length)return {error:'NO ELIGIBLE SAVED SHOES',bead,main,libCount:0};
   const all=[];
@@ -2572,7 +2704,7 @@ document.getElementById('exportLibraryBtn').onclick=()=>{
     version:1,
     exportedAt:new Date().toISOString(),
     color:state.currentShoeColor,
-    shoes:activePatternLibrary()
+    shoes:uniqueActivePatternLibrary()
   };
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2944,7 +3076,7 @@ function h2oFeatures(){
     history_side:hist.side||'', history_strength:hist.strength||0,
     library_side:lib.side||'', library_strength:lib.strength||0,
     library_matches:match.matches||0, library_match_length:match.len||0,
-    saved_shoes:activePatternLibrary().length,
+    saved_shoes:uniqueActivePatternLibrary().length,
     current_shoe_color:state.currentShoeColor||'',
     active_card_shoe:state.activeCardShoe||'red',
     active_card_used:((state[(state.activeCardShoe==='black'?'blackShoeCards':'redShoeCards')]||[]).length),
@@ -3061,7 +3193,7 @@ function h2oTrainUrl(){
 }
 async function trainH2O(showAlert=true){
   if(!state.h2o?.url){if(showAlert)alert('Enter your deployed H2O scoring URL first.');return null;}
-  const shoes=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  const shoes=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(shoes.length<5){
     const msg=`H2O training for the ${activeColorName()||'selected'} color needs at least 5 saved shoes. You currently have ${shoes.length}. Save or import ${5-shoes.length} more complete shoe${5-shoes.length===1?'':'s'}, then tap Train / Retrain H2O again.`;
     state.h2o.connected=false; state.h2o.error=msg; persist(); renderH2O(); if(showAlert)alert(msg); return null;
@@ -3149,7 +3281,7 @@ async function scoreWithDeepSeek(showAlert=false){
   try{
     const headers={'Content-Type':'application/json'};
     if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
-    const payload={features:h2oFeatures(),shoes:activePatternLibrary().slice(-120)};
+    const payload={features:h2oFeatures(),shoes:uniqueActivePatternLibrary().slice(-120)};
     const data=await h2oRequestJson(state.deepseek.url,{method:'POST',headers,body:JSON.stringify(payload)});
     const out=normalizeDeepSeekResponse(data);
     state.deepseek.last=out;state.deepseek.connected=true;state.deepseek.error='';persist();renderAnalyzer();renderDeepSeek();
@@ -3218,7 +3350,7 @@ function roadPreviewAISignal(){
   // EXCLUDED: saved derived-road histories, Kaggle, H2O, Sequence AI, Bot AI,
   // DeepSeek/external models, card composition and consensus outputs.
   const cur=currentSequence();
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=6);
+  const lib=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=6);
   const currentRoad=roadStructureSignal();
   if(!lib.length){
     return {side:null,strength:0,pPct:50,bPct:50,agree:0,total:0,edge:0,quality:0,matches:0,bestLen:0,roadsAgree:0,roadVotes:0,
@@ -3374,7 +3506,7 @@ function renderRoadPreviewAI(){
 
 function sequenceAISignal(){
   const cur=currentSequence();
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  const lib=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(cur.length<4 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus saved historical shoe evidence.'};
 
   // V2 HIGH-SELECTIVITY CALIBRATION: favor persistent long matches and demand substantially more proof
@@ -3495,7 +3627,7 @@ function sequenceAIDuplicateBaseSignal(){
   const cur=currentSequence();
   const base=sequenceAISignal(); // reference only; original Sequence AI V2 is never modified.
   const color=(typeof window.colorPatternAISignal==='function') ? window.colorPatternAISignal() : null;
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  const lib=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
 
   const empty={side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,duplicate:true,colorConfirmation:'WAITING',colorMatch:color?.bestSimilarity||0,colorSide:color?.side||null,waitReason:'WAIT: Need at least 5 live hands plus saved shoe history.'};
   if(cur.length<5 || !lib.length) return empty;
@@ -3782,7 +3914,7 @@ async function scoreSequenceDuplicateWithH2O(showAlert=false){
 async function trainSequenceDuplicateH2O(showAlert=false){
   const url=sequenceH2OTrainUrl();
   if(!url){if(showAlert)alert('Save your H2O server URL first.');return null;}
-  const shoes=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  const shoes=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(shoes.length<5){if(showAlert)alert('Need at least 5 saved shoes to train the Sequence V2 Duplicate H2O model.');return null;}
   const headers={'Content-Type':'application/json'};
   if(state.h2o?.key)headers['Authorization']='Bearer '+state.h2o.key;
@@ -3991,7 +4123,7 @@ function roadMarkLabel(mark){
 function derivedRoadSequencePatternSignal(offset){
   const key=offset===1?'bigEye':offset===2?'small':'roach';
   const cur=deriveRoad(state.hands,offset);
-  const lib=activePatternLibrary().filter(x=>x && x.derivedRoadHistory && Array.isArray(x.derivedRoadHistory[key]));
+  const lib=uniqueActivePatternLibrary().filter(x=>x && x.derivedRoadHistory && Array.isArray(x.derivedRoadHistory[key]));
   const pMark=previewDerivedMark(state.hands,'P',offset);
   const bMark=previewDerivedMark(state.hands,'B',offset);
 
@@ -4333,7 +4465,7 @@ function adaptiveMainWindowSet(key,n){
 }
 function mainRoadHistorySignal(key){
   const cur=mainRoadPBSequence(currentSequence());
-  const lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&mainRoadPBSequence(x.sequence).length>=5);
+  const lib=uniqueActivePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&mainRoadPBSequence(x.sequence).length>=5);
   const lens=adaptiveMainWindowSet(key,cur.length);
 
   if(!adaptiveRoadEnabled(key))
@@ -5304,7 +5436,7 @@ function nonTieCharAt(s,i){
 function phaseHistoricalSignal(){
   const cur=currentSequence().join('');
   const pos=cur.length;
-  const lib=activePatternLibrary();
+  const lib=uniqueActivePatternLibrary();
   if(!state.currentShoeColor || cur.length<4 || !lib.length) return {side:null,strength:0,samples:0,p:0,b:0};
   let p=0,b=0,samples=0,weighted=0;
   const maxK=Math.min(8,cur.length);
@@ -5340,7 +5472,7 @@ function roadTailAt(seq, handIndex, offset, tail=8){
 function roadMemorySignal(){
   const cur=currentSequence().join('');
   const pos=cur.length;
-  const lib=activePatternLibrary();
+  const lib=uniqueActivePatternLibrary();
   if(!state.currentShoeColor || pos<10 || !lib.length) return {side:null,strength:0,samples:0,p:0,b:0,agreement:0};
   const tails=[1,2,3].map(o=>roadTailAt(cur,pos,o,8));
   let p=0,b=0,samples=0,totalRoadMatches=0;
@@ -5408,7 +5540,7 @@ function botLibraryMatchSignal(){
 }
 function botHistoricalColorAdaptiveSignal(){
   const cur=currentSequence();
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  const lib=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   const phase=botPhaseInfo(cur.length);
   if(cur.length<6 || !lib.length){
     return {side:null,strength:0,samples:0,windows:0,bestSimilarity:0,bestLen:0,pPct:0,bPct:0,tPct:0,agreement:0,phase,reason:'Need at least 6 live hands plus saved historical shoe color patterns.'};
@@ -6199,7 +6331,7 @@ document.getElementById('clearScanBtn').onclick=()=>{
 
 
 bindSeparateShoeControls();
-load();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
+load();reconcileSavedLibrariesOnStartup();if(!state.backtest?.pending && state.hands.filter(h=>h.r!=='T').length>=6) armNextPrediction();render();
 renderLibraryBackupStatus();
 </script>
 <script data-v127-order="1" type="application/x-v127-deferred">
@@ -6253,7 +6385,7 @@ renderLibraryBackupStatus();
 
   function colorPatternAISignal(){
     const cur=currentSequence();
-    const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+    const lib=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
     if(cur.length<10 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,bestSimilarity:0,grade:'LOW',agreeWindows:0,totalWindows:0,bestLen:0,reason:'WAIT: Need at least 10 live hands plus saved historical shoes.'};
     const maxK=Math.min(22,cur.length), lengths=[];
     for(let k=maxK;k>=5;k--){ if(k<=9 || k%2===0 || k===maxK) lengths.push(k); }
@@ -11106,7 +11238,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   function similarSequenceMatcherV57(){
     let cur=[], lib=[];
     try{ cur=currentSequence().filter(x=>x==='P'||x==='B'||x==='T'); }catch(e){}
-    try{ lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&/^[PBT]+$/.test(x.sequence)); }catch(e){}
+    try{ lib=uniqueActivePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&/^[PBT]+$/.test(x.sequence)); }catch(e){}
     if(cur.length<6 || !lib.length){
       return {ready:false,side:null,pPct:0,bPct:0,tPct:0,quality:0,matches:0,shoes:0,bestLen:0,bestSimilarity:0,positionMatches:0};
     }
@@ -11261,7 +11393,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
 (function(){
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return[]}}
-  function lib(){try{return activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}}
+  function lib(){try{return uniqueActivePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}}
 
   function tieTransitionEvidence(){
     const cur=seq(), L=lib(), n=cur.length;
@@ -14442,7 +14574,7 @@ window.shoeMatcherCandidateScore=shoeMatcherCandidateScore=function(bead,main,hi
 window.shoeMatcherScanCore=shoeMatcherScanCore=function(beadInput,mainInput){
   const bead=shoeMatcherNormalize(beadInput,true);
   const main=shoeMatcherNormalize(mainInput,false)||shoeMatcherMainFromBead(bead);
-  const lib=activePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=Math.max(8,bead.length+1));
+  const lib=uniqueActivePatternLibrary().filter(x=>x&&typeof x.sequence==='string'&&x.sequence.length>=Math.max(8,bead.length+1));
   if(bead.length<6)return {error:`NEED ${6-bead.length} MORE RESULT${6-bead.length===1?'':'S'}`,bead,main,libCount:lib.length};
   if(!lib.length)return {error:'NO ELIGIBLE SAVED SHOES',bead,main,libCount:0};
   const all=[];
@@ -17175,7 +17307,7 @@ function sequenceAISignalOriginalV228(){
   const cur=currentSequence();
   // Sequence AI V2 stays isolated: selected/combined saved P/B/T shoe history only.
   // No Kaggle, H2O, derived roads, Bot AI, or card composition.
-  const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
+  const lib=uniqueActivePatternLibrary().filter(x=>x && typeof x.sequence==='string' && /^[PBT]+$/.test(x.sequence));
   if(cur.length<4 || !lib.length) return {side:null,strength:0,pPct:0,bPct:0,tPct:0,matches:0,weightedMatches:0,bestLen:0,similarityScore:0,grade:'LOW',agreeWindows:0,totalWindows:0,waitReason:'WAIT: Need at least 4 current hands plus saved historical shoe evidence.'};
 
   // Adaptive windows: short, medium and long endings become available as the shoe grows.
@@ -20781,7 +20913,7 @@ window.__V346_DYNAMIC_UNIQUE_LIBRARY_MEMORY__=window.__V347_LIBRARY_MEMORY_MANAG
 (function(){
 'use strict';
 if(window.__V349_INVERTED_FAMILY_AI__)return;
-const VERSION=349, STORE='baccarat-v349-inverted-family-accuracy';
+const VERSION=355, STORE='baccarat-v349-inverted-family-accuracy';
 const MIN_WATCH=12, MIN_QUALIFY=15, MIN_AGREEMENT=67;
 let stats={wins:0,losses:0,pending:null,lastPB:'',lastHandsLen:0};
 try{stats=Object.assign(stats,JSON.parse(localStorage.getItem(STORE)||'{}')||{})}catch(e){}
@@ -20826,8 +20958,13 @@ function analyze(){
   const agree=n?Math.round(Math.max(votes.P,votes.B)*100/n):0;
   const clearlyStronger=inv.bestLen>=MIN_QUALIFY && inv.bestLen>=normal.bestLen+2;
   const exceptional=inv.bestLen>=18 && inv.bestLen>normal.bestLen;
-  const enoughVotes=n>=2 || (n===1 && inv.bestLen>=18);
-  const qualified=!!leader && agree>=MIN_AGREEMENT && enoughVotes && (clearlyStronger||exceptional);
+  // V355: a single saved-shoe family may qualify at the documented 15-hand threshold
+  // only when it is a perfect 100% continuation vote and the inverted match is
+  // at least 2 hands stronger than the best normal match. Multiple-shoe families
+  // still use the normal agreement gate.
+  const singleStrong=(n===1 && inv.bestLen>=MIN_QUALIFY && agree===100 && clearlyStronger);
+  const multiStrong=(n>=2 && agree>=MIN_AGREEMENT && (clearlyStronger||exceptional));
+  const qualified=!!leader && (singleStrong||multiStrong);
   let confidence=0;
   if(qualified){
     confidence=Math.min(92,Math.round(50+(inv.bestLen-MIN_QUALIFY)*2.2+(agree-50)*0.35+Math.min(8,n*2)));
@@ -20873,7 +21010,7 @@ function boot(){
   let sig='';setInterval(()=>{const s=livePB()+'|'+(()=>{try{return state?.predictionLibraryMode+'|'+state?.currentShoeColor+'|'+(state?.__libraryMemoryVersion||0)}catch(e){return ''}})();if(s!==sig){sig=s;paint()}},180);
   paint();
 }
-window.__V349_INVERTED_FAMILY_AI__={version:VERSION,analyze,paint,reset,config:{MIN_WATCH,MIN_QUALIFY,MIN_AGREEMENT,FULL_LIBRARY_SELF_INCLUDED:true},logic:'standalone normal-vs-inverted exact rolling family matcher; all saved shoes remain eligible during replay/testing; no leave-one-shoe-out exclusion; ties ignored in core P/B inversion; one vote per unique shoe'};
+window.__V349_INVERTED_FAMILY_AI__={version:VERSION,analyze,paint,reset,config:{MIN_WATCH,MIN_QUALIFY,MIN_AGREEMENT,FULL_LIBRARY_SELF_INCLUDED:true,SINGLE_SHOE_15_HAND_100:true},logic:'standalone normal-vs-inverted exact rolling family matcher; all saved shoes remain eligible during replay/testing; no leave-one-shoe-out exclusion; ties ignored in core P/B inversion; one vote per unique shoe; V355 allows a single 15+ hand inverted family to qualify only with 100% mapped continuation agreement and a 2+ hand edge over normal'};
 window.__V348_INVERTED_FAMILY_AI__=window.__V349_INVERTED_FAMILY_AI__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
@@ -21004,5 +21141,114 @@ setTimeout(wire,2200);
 })();
 </script>
 
+
+
+<!-- V356 — AI Pattern Recognizer WAIT accuracy lock repair.
+     A visible/actual WAIT can never remain armed as a graded P/B prediction. -->
+<script id="v356-pattern-wait-accuracy-fix">
+(function(){
+'use strict';
+if(window.__V356_PATTERN_WAIT_ACCURACY_FIX__) return;
+const KEY='roadpreview';
+
+function acc(){
+  try{return state?.accuracyVerified||null}catch(e){return null}
+}
+function normalizeSide(v){
+  v=String(v||'').trim().toUpperCase();
+  if(v==='P'||v==='PLAYER')return 'P';
+  if(v==='B'||v==='BANKER')return 'B';
+  return null;
+}
+function livePatternSide(){
+  let signalSide=null;
+  try{
+    const x=typeof window.roadPreviewAISignal==='function' ? window.roadPreviewAISignal() :
+            (typeof roadPreviewAISignal==='function' ? roadPreviewAISignal() : null);
+    signalSide=normalizeSide(x?.side);
+  }catch(e){ signalSide=null; }
+
+  // The visible Pattern card is authoritative for whether the user was shown a bet or WAIT.
+  try{
+    const el=document.getElementById('roadAiSide');
+    if(el){
+      const shown=normalizeSide(el.textContent);
+      if(!shown) return null;
+      // If signal and display disagree, do not grade an ambiguous call.
+      if(signalSide && shown!==signalSide) return null;
+      return shown;
+    }
+  }catch(e){}
+  return signalSide;
+}
+function dropWaitLock(){
+  const a=acc();
+  if(!a?.pending) return false;
+  if(livePatternSide()) return false;
+  if(a.pending[KEY]){
+    delete a.pending[KEY];
+    try{persist()}catch(e){}
+    return true;
+  }
+  return false;
+}
+function refreshAccuracy(){
+  try{window.__V178_ACCURACY_COUNTS__?.refresh?.()}catch(e){}
+  try{window.__V245_PATTERN_ACCURACY_DISPLAY__?.render?.()}catch(e){}
+  try{window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.()}catch(e){}
+}
+
+const baseArm=window.__armVerifiedPredictions;
+const baseSettle=window.__settleVerifiedPredictions;
+
+function armFixed(){
+  let r;
+  try{ if(typeof baseArm==='function') r=baseArm.apply(this,arguments); }catch(e){ console.warn('V356 base arm',e); }
+  // Some older accuracy layers intentionally preserve a same-hand P/B lock.
+  // V356 removes that lock when Pattern has since returned to WAIT.
+  dropWaitLock();
+  refreshAccuracy();
+  return r;
+}
+function settleFixed(actual){
+  // Settlement runs before the clicked result is appended to state, so this check
+  // uses only pre-result information and cannot peek at the outcome.
+  dropWaitLock();
+  let r;
+  try{ if(typeof baseSettle==='function') r=baseSettle.apply(this,arguments); }catch(e){ console.warn('V356 base settle',e); }
+  refreshAccuracy();
+  return r;
+}
+
+window.__armVerifiedPredictions=armFixed;
+window.__settleVerifiedPredictions=settleFixed;
+
+// Keep callers that use the V178 status API on the same corrected path.
+try{
+  const api=window.__V178_ACCURACY_COUNTS__;
+  if(api){api.arm=armFixed;api.settle=settleFixed;}
+}catch(e){}
+
+function boot(){
+  dropWaitLock();
+  refreshAccuracy();
+  try{window.__armVerifiedPredictions?.()}catch(e){}
+  dropWaitLock();
+  refreshAccuracy();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,350),{once:true});
+else setTimeout(boot,350);
+setTimeout(boot,1400);
+
+window.__V356_PATTERN_WAIT_ACCURACY_FIX__={
+  version:356,
+  key:KEY,
+  waitNeverGrades:true,
+  clearsStaleSameHandPatternLock:true,
+  preResultOnly:true,
+  predictionLogicChanged:false
+};
+})();
+</script>
 </body>
 </html>
