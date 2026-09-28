@@ -1,3 +1,4 @@
+<!-- V358: Main Future Awareness V277 now shows P/B during CAUTION; WAIT reserved for hard blockers. Added independent V277 W/L, verified accuracy, graded count, and reset. Main Future Road core remains unchanged. -->
 <!-- V344 stability repair:
      - fixed V343 transition-regime syntax
      - removed 1.2-second full-library rescanning loop
@@ -28,7 +29,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V356 • All-In Baccarat — Pattern WAIT Accuracy Fix</title>
+<title>V358 • All-In Baccarat — V277 Result + Accuracy Fix</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -18957,9 +18958,11 @@ function evaluate(){
   if(runNow>=6&&oppose){penalty+=8;reasons.push(`mature ${runNow}-hand run has break conflict`)}
   const adjusted=side?Math.round(clamp(baseConfidence+bonus-penalty,0,88)):0;
   let grade='QUALIFIED';
+  // V277 usability fix: reserve WAIT for genuinely unsafe / missing-direction states.
+  // CAUTION now still exposes Main Future Road's existing P/B direction, but clearly labels it CAUTION.
   if(!side||n<10||oppose>=2||losses>=2||shift>=.32||adjusted<55)grade='WAIT';
   else if(ready<2||oppose===1||afterTie||edge<7||shift>=.22||adjusted<60)grade='CAUTION';
-  const action=grade==='QUALIFIED'?(side==='P'?'PLAYER':'BANKER'):'WAIT';
+  const action=grade==='WAIT'?'WAIT':(side==='P'?'PLAYER':'BANKER');
   if(!reasons.length)reasons.push('clean road agreement and stable live structure');
   return {version:VERSION,grade,action,side,adjusted,baseConfidence,n,ready,support,oppose,edge,shift,run:runNow,afterTie,lossStreak:losses,reasons,votes,predictionChanged:false};
 }
@@ -18979,25 +18982,63 @@ function ensure(){
       <div class="analyzer-card"><span>LOSS STREAK</span><strong id="v277Losses">0</strong></div>
       <div class="analyzer-card"><span>ROADS READY</span><strong id="v277Ready">0 / 3</strong></div>
     </div>
+    <div class="analyzer-grid" style="margin-top:8px">
+      <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v277Accuracy">—</strong></div>
+      <div class="analyzer-card"><span>W / L</span><strong id="v277WL">0W-0L</strong></div>
+      <div class="analyzer-card"><span>GRADED PICKS</span><strong id="v277N">N 0</strong></div>
+    </div>
+    <button id="v277ResetAccuracy" type="button" class="tiny-btn" style="width:100%;margin-top:8px">Reset V277 Accuracy</button>
+    <div class="analyzer-sub" id="v277AccuracyNote" style="margin-top:6px">Accuracy counts only V277 PLAYER/BANKER results; WAIT and ties are not graded.</div>
     <div class="analyzer-sub" id="v277Reason" style="margin-top:8px">Waiting for live evidence.</div>`;
   const anchor=document.getElementById('mainRoadFutureTest');
   if(anchor?.parentNode)anchor.insertAdjacentElement('afterend',root);else document.querySelector('.app')?.appendChild(root);
   return root;
 }
+const ACC_KEY='v277AwarenessAccuracyV2';
+function loadAcc(){
+  try{const z=JSON.parse(localStorage.getItem(ACC_KEY)||'{}');return {wins:Number(z.wins)||0,losses:Number(z.losses)||0,pending:z.pending||null,lastPbN:Number(z.lastPbN)||0,lastPrefix:String(z.lastPrefix||'')}}catch(e){return {wins:0,losses:0,pending:null,lastPbN:0,lastPrefix:''}}
+}
+function saveAcc(a){try{localStorage.setItem(ACC_KEY,JSON.stringify(a))}catch(e){}}
+function resetAcc(){const a={wins:0,losses:0,pending:null,lastPbN:pb().length,lastPrefix:pb().join('')};saveAcc(a);renderAwareness()}
+function settleAndArm(x){
+  const a=loadAcc(),live=pb(),n=live.length,prefix=live.join('');
+  // Undo/new-shoe protection: never grade stale picks against a different history.
+  if(n<a.lastPbN||(!prefix.startsWith(a.lastPrefix)&&a.lastPrefix))a.pending=null;
+  if(a.pending&&n>a.pending.handN){
+    const actual=live[a.pending.handN];
+    if(actual==='P'||actual==='B'){
+      if(actual===a.pending.side)a.wins++;else a.losses++;
+      a.pending=null;
+    }
+  }
+  if((x.action==='PLAYER'||x.action==='BANKER')&&x.side&&( !a.pending || a.pending.handN!==n)){
+    a.pending={side:x.side,handN:n,grade:x.grade,confidence:x.adjusted,armedAt:Date.now()};
+  }else if(x.action==='WAIT'){
+    a.pending=null;
+  }
+  a.lastPbN=n;a.lastPrefix=prefix;saveAcc(a);return a;
+}
+function renderAcc(a,set){
+  const n=a.wins+a.losses,pct=n?(100*a.wins/n).toFixed(1)+'%':'—';
+  set('v277Accuracy',pct);set('v277WL',`${a.wins}W-${a.losses}L`);set('v277N',`N ${n}`);
+  set('v277AccuracyNote',a.pending?`Next V277 result armed: ${a.pending.side==='P'?'PLAYER':'BANKER'} • ${a.pending.grade} • ${a.pending.confidence}%`:'Accuracy counts only V277 PLAYER/BANKER results; WAIT and ties are not graded.');
+}
 function renderAwareness(){
   const root=ensure(),x=evaluate(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
   if(!root)return x;root.dataset.grade=x.grade;
+  const a=settleAndArm(x);
   set('v277Grade',x.grade);set('v277Action',x.action);set('v277Confidence',x.side?x.adjusted+'%':'—');
   set('v277Votes',`${x.support} support / ${x.oppose} oppose`);set('v277Shift',Math.round(x.shift*100)+'%');
-  set('v277Losses',String(x.lossStreak));set('v277Ready',`${x.ready} / 3`);set('v277Reason',x.reasons.join(' • '));return x;
+  set('v277Losses',String(x.lossStreak));set('v277Ready',`${x.ready} / 3`);set('v277Reason',x.reasons.join(' • '));renderAcc(a,set);return x;
 }
 function install(){
   ensure();renderAwareness();
+  document.getElementById('v277ResetAccuracy')?.addEventListener('click',resetAcc,false);
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(renderAwareness,300)},false);
   window.__v277AwarenessTimer=setInterval(()=>{if(document.visibilityState!=='hidden')renderAwareness()},15000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.__V277_MAIN_FUTURE_AWARENESS__={version:VERSION,evaluate,render:renderAwareness,predictionLogicChanged:false,mainFutureCoreChanged:false,sequenceV2Changed:false,advisoryOnly:true};
+window.__V277_MAIN_FUTURE_AWARENESS__={version:VERSION,evaluate,render:renderAwareness,resetAccuracy:resetAcc,predictionLogicChanged:false,mainFutureCoreChanged:false,sequenceV2Changed:false,advisoryOnly:true,cautionShowsResult:true,ownAccuracy:true};
 })();
 </script>
 <style id="v278-exact-history-style">
