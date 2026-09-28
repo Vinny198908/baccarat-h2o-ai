@@ -7,6 +7,7 @@
      - ML V204 repair preserved: RED/BLACK-stratified held-out split, 6-hand warmup, real validation qualification
      - V290 UI/layout and other AI modules preserved -->
 <!-- V301: Automatic Historical Match AI adaptive-context upgrade. ML V300 preserved; Sequence V2 and Main Future Road unchanged. -->
+<!-- V310 FULL LOAD STABILITY FIX: disables duplicate V308/V309 startup training; V309 trains explicitly from ML build control. -->
 <!DOCTYPE html>
 
 <html lang="en">
@@ -19727,7 +19728,7 @@ function boot(){
   }
   window.__V289_LAYOUT__={mainRoadOnlyFuture:'TOP',bestEstimate:'SECOND',sequenceV2:'COMPACT',colorPattern:'BOTTOM',libraryIntel:'BOTTOM',fingerprintGate:'BOTTOM',duplicateTrajectory:'BOTTOM_LAST',logicChanged:false};
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+/* V311: V289 layout boot disabled; V361 is the only active user layout owner. */
 })();
 </script>
 <script id="v290-runtime-cleanup-marker">
@@ -19780,7 +19781,7 @@ function liveRow(){const pre=liveSeq(),arr=[...pre],nt=arr.filter(x=>x!=='T'),la
 function signal(){if(!runtime.trained)return {side:null,displaySide:null,rawSide:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.lastError||'Training not complete'};const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,displaySide:null,rawSide:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};const z=predict(runtime.model,r),conf=Math.max(z.p,1-z.p),side=z.p>=.5?'P':'B',qualified=runtime.qualified&&z.families>=2&&conf>=runtime.cutoff;return runtime.lastSignal={side,displaySide:side,rawSide:side,qualified,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':'BANKER',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:z.evidence,cutoff:+(runtime.cutoff*100).toFixed(1),reason:qualified?'QUALIFIED SPECIALIST ML':'RAW SPECIALIST ML LEAN — held-out gate not cleared or live evidence below cutoff.',report:runtime.report};}
 function renderReport(){const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;const r=runtime.report;const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 ML Road Trainer V300 — Independent Specialist Learning';const sub=panel.querySelector('.analyzer-sub');if(sub)sub.textContent='Independent ML only. Four specialist families learn sequence, live regime, Big Road structure, and derived-road structure. Historical evidence is discounted unless it repeats across independent shoes. Sequence V2 and Main Future Road are not inputs.';const grid=panel.querySelector('.analyzer-grid');let live=null;try{live=runtime.trained?signal():null}catch(e){};if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong>${live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT'}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong>${live?.confidence?live.confidence.toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>AUTHORITY</span><strong>${runtime.trained?(runtime.qualified?'VALIDATED / SELECTIVE':'RAW LEAN ONLY'):'TRAINING'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>CUTOFF</span><strong>${r?(r.cutoff*100).toFixed(1)+'%':'—'}</strong></div>`;let note=document.getElementById('mlv170Note')||document.getElementById('mlv155Note');if(note)note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${r.reason} Held-out selective ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} calls across ${r.unseenTestShoes} unseen shoes.`:'Training specialist model…';}
 window.__mlRoadTrainerV2=window.__mlRoadTrainerV3={version:VERSION,signal,render:()=>{renderReport();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true,independentSpecialists:true};
-setTimeout(()=>{try{trainAndValidate()}catch(e){}},1800);
+/* V311: legacy V300 startup training disabled; V309 trains only by user action. */
 })();
 </script>\n
 <script id="v302-layout-marker">
@@ -19835,8 +19836,8 @@ function paint(){
   if(panel&&acc&&box.parentNode===panel&&box.nextSibling!==acc){panel.insertBefore(box,acc);if(note)panel.insertBefore(note,acc);}
 }
 function boot(){paint();setInterval(paint,1000);document.addEventListener('click',()=>setTimeout(paint,40),true);}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2600),{once:true});else setTimeout(boot,2600);
-window.__V306_ML_DISPLAY_REPAIR__={version:VERSION,paint};
+/* V311: V306 duplicate 1-second paint loop disabled; V307/V309 own ML display. */
+window.__V306_ML_DISPLAY_REPAIR__={version:VERSION,paint,legacyBootDisabled:true};
 })();
 </script>
 
@@ -19901,10 +19902,10 @@ function paint(){
 }
 function boot(){
   installQualifiedAccuracy();paint();
-  const panel=document.getElementById('mlRoadTrainerV155');if(panel&&window.MutationObserver){observer=new MutationObserver(()=>{if(!painting)requestAnimationFrame(paint)});observer.observe(panel,{childList:true,subtree:true});}
-  const old=window.render;if(typeof old==='function'&&!old.__v307ML){const w=function(){const r=old.apply(this,arguments);queueMicrotask(paint);return r};w.__v307ML=true;w.__base=old;window.render=w;try{render=w}catch(e){}}
-  document.addEventListener('click',()=>setTimeout(paint,25),true);
-  [100,500,1500,3000].forEach(ms=>setTimeout(paint,ms));
+  // V311 stability: no subtree MutationObserver and no global render wrapper.
+  // Repaint ML only after meaningful controls are used.
+  document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#mlBuild,#mlv203Reset'))setTimeout(paint,120)},true);
+  [400,1800].forEach(ms=>setTimeout(paint,ms));
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2800),{once:true});else setTimeout(boot,2800);
 window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:true,rawLeanVisible:true,legacyRendererUiSuppressed:true};
@@ -20012,9 +20013,16 @@ function paint(){ensure();const x2=test2(),x3=test3(),a2=st('v360Test2Accuracy')
   set('v360T3Pick',x3.side==='P'?'PLAYER':x3.side==='B'?'BANKER':'WAIT');set('v360T3Conf',x3.side?Math.max(x3.p,x3.b).toFixed(1)+'%':'—');set('v360T3Aware',(x3.mem.awareness||0).toFixed(1)+'%');set('v360T3Rhythm',`${x3.mem.regime||'BUILDING'} • ${(x3.mem.rhythm||0).toFixed(1)}%`);set('v360T3Matches',`${x3.mem.matches} • best ${x3.mem.best||0}%`);set('v360T3Vote',`${x3.p.toFixed(1)} P / ${x3.b.toFixed(1)} B`);set('v360T3Acc',fmtAcc(a3));set('v360T3Wait',String(a3.waits||0));set('v360T3Note',x3.mem.qualified?`100% LIBRARY CALL • ${x3.mem.matches} unique saved shoes matched at this live position • ${x3.mem.awareness}% awareness • ${x3.mem.rhythm}% rhythm fit • edge ${x3.mem.edge}pp.`:`100% library-only WAIT. ${x3.mem.reason}`);
 }
 function cycle(){try{settle('v360Test2Accuracy',test2);settle('v360Test3Accuracy',test3);paint()}catch(e){console.warn('V360 Main Future Tests 2/3',e)}}
-const oldRender=window.render;if(typeof oldRender==='function'&&!oldRender.__v360t23){const w=function(){const r=oldRender.apply(this,arguments);setTimeout(cycle,0);return r};w.__v360t23=true;w.__base=oldRender;window.render=w;try{render=w}catch(e){}}
-window.__V360_MAIN_FUTURE_TESTS_23__={version:VERSION,test2,test3,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,libraryOnlyTest3:true,test2Weights:{base:.70,library:.30}};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(cycle,1200),{once:true});else setTimeout(cycle,1200);setTimeout(cycle,3200);
+// V311 stability: do not wrap global render or repeatedly scan the full library during startup.
+function lightBoot(){
+  ensure();
+  // Run the expensive library scan only after a real shoe-changing action.
+  document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(cycle,160)},false);
+  const n=live().length;
+  if(n>=7)setTimeout(cycle,1800); // restored in-progress shoe: one delayed sync only.
+}
+window.__V360_MAIN_FUTURE_TESTS_23__={version:VERSION,test2,test3,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,libraryOnlyTest3:true,test2Weights:{base:.70,library:.30},startupScanReduced:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',lightBoot,{once:true});else lightBoot();
 })();
 </script>
 
@@ -20061,18 +20069,9 @@ function move(){
 function install(){
   move();
   [100,300,700,1300,2200,4000,7000].forEach(ms=>setTimeout(move,ms));
-  const app=document.querySelector('.app');
-  if(app && !app.__v361LayoutObserver){
-    const mo=new MutationObserver(()=>queueMicrotask(move));
-    mo.observe(app,{childList:true,subtree:true});
-    app.__v361LayoutObserver=mo;
-  }
-  const old=window.render;
-  if(typeof old==='function'&&!old.__v361LayoutLock){
-    const wrapped=function(){const out=old.apply(this,arguments);queueMicrotask(move);return out};
-    wrapped.__v361LayoutLock=true; wrapped.__base=old;
-    window.render=wrapped; try{render=wrapped}catch(e){}
-  }
+  // V311 stability: no subtree observer and no global render wrapper.
+  // A few scheduled placements are enough because these panels are persistent.
+  document.addEventListener('click',e=>{if(e.target?.closest?.('#clearBtn,#mlBuild'))setTimeout(move,180)},false);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
@@ -20111,7 +20110,8 @@ function render(){return signal()}
 const api={version:VERSION,signal,render,report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true,independentSpecialists:true,championEnsemble:true};
 window.__mlRoadTrainerV2=window.__mlRoadTrainerV3=api;
 function title(){const p=document.getElementById('mlRoadTrainerV155');if(p){const t=p.querySelector('.analyzer-title');if(t)t.textContent='🧠 ML Road Trainer V308 — Champion Ensemble';}}
-setTimeout(()=>{trainAndValidate();title();try{window.__V307_ML_CONTROLLER__?.paint?.()}catch(e){}},3200);
+/* V310 load stability: V308 remains defined for compatibility but does NOT auto-train or take ownership. */
+setTimeout(()=>{try{title();window.__V307_ML_CONTROLLER__?.paint?.()}catch(e){}},3200);
 window.__V308_ML_CHAMPION__={version:VERSION,trainAndValidate,signal,report:()=>runtime.report};
 })();
 </script>
@@ -20278,8 +20278,31 @@ function paint(){
 }
 const api={version:VERSION,signal,render:()=>{paint();return signal()},report:()=>runtime.report,trainAndValidate,get validationLocked(){return runtime.trained&&!runtime.qualified},controlsExistingAI:false,usesDatasetV160:true,independentSpecialists:true,independentShoeNormalization:true,adaptiveFamilyWeights:true};
 window.__mlRoadTrainerV2=window.__mlRoadTrainerV3=api;
-function boot(){trainAndValidate();paint();const btn=document.getElementById('mlBuild');if(btn&&!btn.__v309){const old=btn.onclick;btn.onclick=function(){try{old&&old.call(this)}catch(e){};setTimeout(trainAndValidate,50)};btn.__v309=true;}let timer=setInterval(paint,1200);setTimeout(()=>{try{clearInterval(timer)}catch(e){}},60000);}
+function boot(){
+  // V310 load stability: never run a full-library ML rebuild during initial page construction.
+  // This keeps the 1.3 MB single-file app responsive and lets all panels finish mounting first.
+  paint();
+  const btn=document.getElementById('mlBuild');
+  if(btn&&!btn.__v309){
+    const old=btn.onclick;
+    btn.onclick=function(){
+      try{old&&old.call(this)}catch(e){}
+      const n=document.getElementById('mlv307Reason');
+      if(n)n.textContent='Training V309 on your library…';
+      setTimeout(()=>{trainAndValidate();paint();},80);
+    };
+    btn.__v309=true;
+  }
+  const n=document.getElementById('mlv307Reason');
+  if(n&&!runtime.trained)n.textContent='V309 ready — tap the ML train/build button to train. Startup training is disabled so the full index can load cleanly.';
+  // V311: one delayed repaint only; no startup interval.
+  setTimeout(paint,1200);
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3900),{once:true});else setTimeout(boot,3900);
 window.__V309_ML_INDEPENDENT_SHOE__={version:VERSION,trainAndValidate,signal,report:()=>runtime.report};
 })();
+</script>
+
+<script id="v311-deep-load-stability-marker">
+window.__V311_DEEP_LOAD_STABILITY__={version:311,legacyV300AutoTrainDisabled:true,v289ObserverDisabled:true,v306PaintLoopDisabled:true,v307ObserverDisabled:true,test23GlobalRenderScanDisabled:true,v361ObserverDisabled:true,v309StartupIntervalDisabled:true};
 </script>
