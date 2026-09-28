@@ -12657,6 +12657,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // result transaction. V102 blocks all legacy result listeners, so grading them
       // anywhere else can never be reliable.
       ()=>{try{window.__V323_BEST_PATTERN_ACCURACY__?.grade?.(actual)}catch(e){console.warn('V324 best/pattern settle',e)}},
+       ()=>{try{window.__V325_ACCURACY_REPAIR__?.gradeSequence?.(actual)}catch(e){console.warn('V325 sequence settle',e)}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}},
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
@@ -17294,7 +17295,7 @@ window.__V246_PATTERN_LIVE_RESULT_FIX__={version:246,removedExcessiveUnanimousGa
 'use strict';
 function renderSeqV2AccuracyFix(){
   try{
-    const m=window.state?.accuracyVerified?.models?.seqv2 || (typeof state!=='undefined'?state?.accuracyVerified?.models?.seqv2:null) || null;
+    const d=(typeof state!=='undefined'?state?.v325SequenceAccuracy:null); const m=d?{wins:+d.w||0,losses:+d.l||0,predictions:+d.n||0,ledger:d.last?[{predicted:d.last.predicted,actual:d.last.actual,win:d.last.win}]:[]}: (window.state?.accuracyVerified?.models?.seqv2 || (typeof state!=='undefined'?state?.accuracyVerified?.models?.seqv2:null) || null);
     const w=Number(m?.wins)||0,l=Number(m?.losses)||0;
     const storedN=Number(m?.predictions)||0;
     const n=storedN || (w+l);
@@ -19410,6 +19411,89 @@ window.__V323_BEST_PATTERN_ACCURACY__={version:VERSION,grade,paint,snapshot,
 function install(){ensure();paint()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 setTimeout(install,500);setTimeout(paint,1500);
+})();
+</script>
+
+
+<script id="v325-sequence-and-reset-repair">
+(function(){
+'use strict';
+const VERSION=325;
+function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
+function blank(){return {w:0,l:0,n:0,last:null}}
+function seqState(){
+  try{state.v325SequenceAccuracy=Object.assign(blank(),state.v325SequenceAccuracy||{});return state.v325SequenceAccuracy}
+  catch(e){return blank()}
+}
+function appAcc(){
+  try{state.accuracyVerified ||= {models:{},pending:{},ties:0,version:2};state.accuracyVerified.models ||= {};state.accuracyVerified.pending ||= {};return state.accuracyVerified}
+  catch(e){return {models:{},pending:{}}}
+}
+function save(){try{persist()}catch(e){}}
+function paintSequence(){
+  const s=seqState(), rate=s.n?(100*s.w/s.n).toFixed(1)+'%':'—';
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('seqV2AccuracyRate',rate);set('seqV2AccuracyWL',`${s.w}W-${s.l}L`);set('seqV2AccuracyN',`N ${s.n}`);
+  set('seqV2AccuracyLast',s.last?`Last: ${s.last.win?'WIN':'LOSS'} • ${s.last.predicted} → ${s.last.actual}`:'Accuracy results ready.');
+  const legacy=document.querySelector('#sequenceAiPanel [data-v73-acc="seqv2"]');
+  if(legacy){const r=legacy.querySelector('.v73-rate'),d=legacy.querySelector('.v73-detail');if(r)r.textContent=rate;if(d)d.textContent=`${s.w}W-${s.l}L • N ${s.n}`}
+}
+function gradeSequence(actual){
+  actual=String(actual||'').toUpperCase();if(actual!=='P'&&actual!=='B')return;
+  const side=norm(document.getElementById('seqAiSide')?.textContent);if(!side)return;
+  const s=seqState();s.n++;if(side===actual)s.w++;else s.l++;s.last={predicted:side,actual,win:side===actual,at:Date.now()};
+  save();paintSequence();setTimeout(paintSequence,0);setTimeout(paintSequence,250);setTimeout(paintSequence,800);
+}
+function resetSequence(){
+  try{state.v325SequenceAccuracy=blank();const a=appAcc();delete a.models.seqv2;delete a.pending.seqv2;save()}catch(e){}
+  paintSequence();
+}
+function resetBest(){
+  try{
+    state.v323BestPatternAccuracy ||= {best:blank(),pattern:blank(),version:325};
+    state.v323BestPatternAccuracy.best=blank();
+    const a=appAcc();delete a.models.bestestimate;delete a.pending.bestestimate;
+    save();window.__V323_BEST_PATTERN_ACCURACY__?.paint?.();
+  }catch(e){}
+}
+function resetPattern(){
+  try{
+    state.v323BestPatternAccuracy ||= {best:blank(),pattern:blank(),version:325};
+    state.v323BestPatternAccuracy.pattern=blank();
+    const a=appAcc();delete a.models.roadpreview;delete a.pending.roadpreview;
+    if(state.patternAccuracyV245) state.patternAccuracyV245={wins:0,losses:0,graded:0,pending:null,lastSettledHand:0};
+    save();window.__V323_BEST_PATTERN_ACCURACY__?.paint?.();
+  }catch(e){}
+}
+function replaceButton(id,label,handler,parent){
+  let old=document.getElementById(id);if(old)old.remove();
+  const b=document.createElement('button');b.type='button';b.id=id;b.className='tiny-btn';b.textContent=label;b.style.cssText='margin-top:6px;padding:6px 9px;font-size:10px;width:100%';
+  b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();handler();},true);parent?.appendChild(b);return b;
+}
+function installDedicated(){
+  const seq=document.getElementById('sequenceAiPanel');if(seq&&!document.getElementById('v325ResetSequence'))replaceButton('v325ResetSequence','Reset Sequence V2 Accuracy',resetSequence,seq);
+  const best=document.getElementById('bestEstimateAccuracy')?.closest('.analyzer');if(best){['v262ResetBest','v320ResetBest','v321ResetBest','v323ResetBest'].forEach(id=>document.getElementById(id)?.remove());if(!document.getElementById('v325ResetBest'))replaceButton('v325ResetBest','Reset Best-Estimate Accuracy',resetBest,best)}
+  const pat=document.getElementById('roadPreviewAiPanel');if(pat){['v320ResetPattern','v323ResetPattern'].forEach(id=>document.getElementById(id)?.remove());if(!document.getElementById('v325ResetPattern'))replaceButton('v325ResetPattern','Reset AI Pattern Accuracy',resetPattern,pat)}
+}
+function resetExistingKnown(id){
+  try{
+    if(id==='v360T2Reset'){state.v360Test2Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};save();window.__V360_MAIN_FUTURE_TESTS_23__?.cycle?.();return true}
+    if(id==='v360T3Reset'){state.v360Test3Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};save();window.__V360_MAIN_FUTURE_TESTS_23__?.cycle?.();return true}
+    if(id==='v284Reset'){const a=appAcc();delete a.models.mainroadonlyfuturev284;delete a.pending.mainroadonlyfuturev284;save();window.__V305_MAIN_ROAD_ONLY_AI__?.render?.();return true}
+    if(id==='mlv203Reset'){const a=appAcc();delete a.models.mlroad;delete a.pending.mlroad;save();try{window.__ML_V309_INDEPENDENT_SHOE_LEARNING__?.paint?.()}catch(e){};try{render()}catch(e){};return true}
+    if(id==='resetShoeMatcherAccuracy'){if(window.__V86_MATCHER_ACCURACY__){const a=window.__V86_MATCHER_ACCURACY__.acc?.();if(a){a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.lastWaitHandN=null;a.lastSettledKey=null;a.ledger=[]}window.__V86_MATCHER_ACCURACY__.render?.();window.__V86_MATCHER_ACCURACY__.arm?.();return true}}
+    if(id==='resetConfusionAiAccuracy'){state.threeRoadConfusionAI={wins:0,losses:0,graded:0,lastSettledHand:0};save();window.renderThreeRoadConfusionAI?.();return true}
+    if(id==='resetFutureAccuracy'){const api=window.__V84_MAIN_FUTURE_TUNE__||window.__V72_MAIN_FUTURE__;const a=api?.accuracy?.();if(a){a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.lastWaitHandN=null;a.ledger=[];save();api.render?.();return true}}
+  }catch(e){console.warn('V325 direct reset',id,e)}
+  return false;
+}
+// Capture known reset buttons before older broken reset handlers can interfere.
+document.addEventListener('click',e=>{const b=e.target?.closest?.('button');if(!b)return;const ids=['resetFutureAccuracy','resetConfusionAiAccuracy','resetShoeMatcherAccuracy','v360T2Reset','v360T3Reset','mlv203Reset','v284Reset'];if(ids.includes(b.id)){const handled=resetExistingKnown(b.id);if(handled){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();setTimeout(()=>{try{render()}catch(x){};installDedicated();paintSequence();window.__V323_BEST_PATTERN_ACCURACY__?.paint?.()},0)}}},true);
+function install(){installDedicated();paintSequence();window.__V323_BEST_PATTERN_ACCURACY__?.paint?.()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+[300,900,1800,3500].forEach(ms=>setTimeout(install,ms));
+window.__V325_ACCURACY_REPAIR__={version:326,gradeSequence,paintSequence,resetSequence,resetBest,resetPattern,installDedicated,resetExistingKnown};
+window.__V326_RESET_AUDIT__={sequence:'dedicated',bestEstimate:'dedicated',aiPattern:'dedicated',mainFuture:'direct',test2:'direct',test3:'direct',ml:'direct',matcher:'direct',confusion:'direct',mainRoadOnly:'direct'};
 })();
 </script>
 
