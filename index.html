@@ -19263,5 +19263,71 @@ window.__V318_AI_REFRESH_REPAIR__={version:318,refreshAll,schedule,get lastHandN
 })();
 </script>
 
+
+<script id="v319-authoritative-accuracy-transaction-repair">
+(function(){
+'use strict';
+if(window.__V319_ACCURACY_TRANSACTION_REPAIR__)return;
+const VERSION=319;
+let postTimer=0;
+const safe=(fn)=>{try{return fn()}catch(e){console.warn('V319 accuracy',e);return null}};
+function isResultTarget(t){return !!t?.closest?.('[data-result],#previewP,#previewB');}
+function preLock(){
+  // Freeze what is visible/qualified BEFORE the actual result is committed.
+  safe(()=>window.__armVerifiedPredictions?.());
+  safe(()=>window.__V84_MAIN_FUTURE_TUNE__?.arm?.());
+  safe(()=>window.__V86_MATCHER_ACCURACY__?.arm?.());
+  // Test 2/3 own their independent ledgers. Running cycle pre-result creates a lock
+  // without changing the shoe; the normal post-result cycle then grades that lock.
+  safe(()=>window.__V360_MAIN_FUTURE_TESTS_23__?.cycle?.());
+}
+function postArm(){
+  clearTimeout(postTimer);
+  postTimer=setTimeout(()=>{
+    // First refresh the actual signals from the newly committed hand.
+    safe(()=>window.__V318_AI_REFRESH_REPAIR__?.refreshAll?.('v319-post-grade'));
+    // Then lock ONLY the next hand. Existing same-hand locks are never overwritten.
+    safe(()=>window.__armVerifiedPredictions?.());
+    safe(()=>window.__V84_MAIN_FUTURE_TUNE__?.arm?.());
+    safe(()=>window.__V86_MATCHER_ACCURACY__?.arm?.());
+    safe(()=>window.__V360_MAIN_FUTURE_TESTS_23__?.cycle?.());
+    // Repaint every known accuracy surface after settlement/arming.
+    safe(()=>window.renderVerifiedAccuracy?.());
+    safe(()=>window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.());
+    safe(()=>window.__SEQ_V2_ACCURACY_DISPLAY_FIX__?.render?.());
+    safe(()=>window.__V86_MATCHER_ACCURACY__?.render?.());
+    safe(()=>window.__V84_MAIN_FUTURE_TUNE__?.render?.());
+    safe(()=>window.__mlRoadTrainerV3?.render?.());
+    safe(()=>window.__V305_MAIN_ROAD_ONLY_AI__?.render?.());
+    safe(()=>window.__AUTO_HIST_UPDATE__?.());
+    safe(()=>typeof persist==='function'&&persist());
+  },360);
+}
+function install(){
+  // Capture phase is intentional: this runs BEFORE the original button handler settles
+  // the result, guaranteeing a pre-result lock even if a prior refresh missed arming.
+  document.addEventListener('click',e=>{
+    if(!isResultTarget(e.target))return;
+    preLock();
+    postArm();
+  },true);
+  // History edits must discard/rebuild locks but never grade them.
+  document.addEventListener('click',e=>{
+    if(!e.target?.closest?.('#undoBtn,#clearBtn'))return;
+    setTimeout(()=>{
+      safe(()=>{const a=state?.accuracyVerified;if(a){a.pending={};a.__v178LastEvent=null;}});
+      safe(()=>{const a=window.__V84_MAIN_FUTURE_TUNE__?.accuracy?.();if(a)a.pending=null;});
+      safe(()=>{const a=window.__V86_MATCHER_ACCURACY__?.acc?.();if(a)a.pending=null;});
+      postArm();
+    },40);
+  },true);
+  // Repair the currently displayed hand immediately on startup/open.
+  setTimeout(()=>{preLock();safe(()=>window.renderVerifiedAccuracy?.());},900);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+window.__V319_ACCURACY_TRANSACTION_REPAIR__={version:VERSION,preLock,postArm,preResultLock:true,postResultRearm:true,doubleCountGuard:'existing ledgers',predictionLogicChanged:false};
+})();
+</script>
+
 </body>
 </html>
