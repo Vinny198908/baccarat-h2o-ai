@@ -15,10 +15,27 @@
      - keeps Best Estimate 2 V339 authoritative settlement unchanged
      - fixes layout lock so Test 5 is actually placed after Test 4
      - prediction logic/thresholds unchanged -->
+<!-- V348 SURGICAL TWO-AI FIX (2026-09-29):
+     - Best-Estimate Analyzer 2: qualified original Best Estimate is no longer vetoed to WAIT by a conflicting Test 5 road signal; no-reversal lock remains.
+     - Best-Estimate Analyzer 2 road-assist raw-lean floor eased 53 -> 52 only when road and raw Best Estimate lean agree.
+     - Pattern Resume + Sequence V2 AI: uses activePatternLibrary() as its library source, keeps duplicate suppression, and eases minimum distinct-shoe support 7 -> 5 while preserving the 75% historical rate, 5-transition motif, 1-3 break, and Sequence V2 conflict-to-WAIT rule.
+     - Sequence AI V2 itself, V308 ML, Main Future Road, and AI Pattern Recognizer unchanged.
+-->
+<!-- V352: AI Pattern Recognizer restored exactly to 09/26 V235 Selective Pattern Confirmation core runtime. Other AI modules unchanged. -->
+<!-- V354: Main ML restored to the exact V309 Independent-Shoe Adaptive Learning runtime from index(20260929-145243).html. Other AI logic unchanged. -->
+<!-- V355 SURGICAL REPAIR:
+     - Pattern Resume library routing hardened: active/unique library -> state libraries -> embedded baseline fallback; broader sequence parsing; duplicate suppression preserved.
+     - Best-Estimate Analyzer 2 detached from removed Main Future Road Test 5 and now owns an internal live-road assist calculation.
+     - Sequence V2, V309 ML, Pattern Recognizer, Main Future Road Test 2, Derived Road AI unchanged.
+-->
+<!-- V356 SURGICAL CLEANUP (2026-09-29):
+     - Removes dead Main Future Road Test 3/4/5 code, markers, layout lookups, and reset hooks; Test 2 remains unchanged.
+     - Pattern Resume now requires the 1-3 transition middle segment to be a genuine disturbance, not a seamless motif continuation.
+     - Sequence V2, V309 ML, Pattern Recognizer, Derived Road AI, Main Future Road Test 2, and Best-Estimate Analyzer 2 decision logic unchanged.
+-->
+<!-- V359: Derived Road AI ownership fix — V53/V54 runtime overrides removed; Restored Strong-Gate Profile + late-shoe guard remain authoritative. V56 may still power its own future-test panel but cannot relabel/replace Derived Road AI. -->
 <!DOCTYPE html>
-<!-- V341: Test 2 / Test 3 selective qualification loosening.
-     Test 2 library assist can activate from 3 solid matches, or 2 exceptionally strong unanimous matches.
-     Test 3 can qualify from 3 high-quality saved-shoe matches; core library-only design preserved. -->
+<!-- V341: Test 2 selective qualification loosening retained. Test 3 was later removed. -->
 
 
 <html lang="en">
@@ -527,6 +544,16 @@
 <div class="road-predict-card"><span>Big Eye Boy</span><strong id="eyeNext">—</strong><small id="eyeNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Small Road</span><strong id="smallNext">—</strong><small id="smallNextPct">P 50% • B 50%</small></div>
 <div class="road-predict-card"><span>Roach Road</span><strong id="roachNext">—</strong><small id="roachNextPct">P 50% • B 50%</small></div>
+</div>
+<div id="v358DerivedResultPanel" style="margin-top:9px;padding:10px;border:1px solid #4c677e;border-radius:11px;background:#101820">
+  <div style="font-size:13px;font-weight:900;margin-bottom:7px">Derived Road AI — Final Result</div>
+  <div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:0">
+    <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v358DerivedResult">WAIT</strong></div>
+    <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v358DerivedConfidence">—</strong></div>
+    <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v358DerivedAccuracy">—</strong><small id="v358DerivedWL" style="display:block;color:var(--muted);margin-top:3px">0W-0L • N=0</small></div>
+  </div>
+  <div id="v358DerivedReason" class="analyzer-sub" style="margin-top:7px">Waiting for qualified derived-road evidence.</div>
+  <button id="v358ResetDerived" class="tiny-btn" type="button" style="margin-top:7px;width:100%">Reset Derived Road AI Accuracy</button>
 </div>
 <div class="analyzer-sub" style="margin-top:8px">
 <div id="derivedIndependentFinal" style="margin-top:14px;padding:16px;border:2px solid #f0b90b;border-radius:14px;background:rgba(240,185,11,.08)">
@@ -10582,214 +10609,6 @@ window.__V24_DIAGNOSTIC_REPAIR__={
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(panel,180));else setTimeout(panel,180);setTimeout(()=>{try{window.__armVerifiedPredictions?.();panel()}catch(e){}},450);
 })();
 </script>
-<script data-v127-order="49" id="derived-ai-future-path-v53" type="application/x-v127-deferred">
-/* V53 — DERIVED ROAD AI FUTURE-PATH FOCUS
-   Primary job: compare the hypothetical PLAYER and BANKER next-hand futures.
-   Uses projected Main Road position + Big Eye + Small + Cockroach outcomes.
-   Does not commit either hypothetical hand. */
-(function(){
-  const oldDerived = window.derivedRoadSequenceAI || (typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI:null);
-
-  function futureFocusedDerivedRoadAI(){
-    let x=null;
-    try{x=mainRoadFutureTest();}catch(e){}
-    if(!x){
-      return oldDerived?oldDerived():{side:null,confidence:0,reason:'WAIT — future-path test unavailable.',roads:[],ready:0,qualifiedRoads:0,version:53};
-    }
-
-    const readyRoads=(x.roadSigs||[]).filter(r=>{
-      const s=r.sig||{};
-      return s.pMark&&s.bMark&&s.pMark!==s.bMark;
-    }).length;
-    const mainReady=!!(x.main&&((Number(x.main.pPct)||0)+(Number(x.main.bPct)||0)>0));
-    const winner=x.side;
-    const winnerPct=winner==='P'?x.p.norm:winner==='B'?x.b.norm:50;
-    const loserPct=winner==='P'?x.b.norm:winner==='B'?x.p.norm:50;
-    const edge=Math.abs((Number(x.p.norm)||50)-(Number(x.b.norm)||50));
-
-    // Require useful road projection. Main Road is supporting context, not a forced selector.
-    let qualified=!!winner && readyRoads>=2 && edge>=4 && winnerPct>=52;
-    if(readyRoads===1) qualified=!!winner && mainReady && edge>=8 && winnerPct>=54;
-    if(readyRoads===0) qualified=false;
-
-    // Confidence describes evidence separation, not a guaranteed win probability.
-    let confidence=0;
-    if(qualified){
-      confidence=Math.min(88,Math.round(50 + edge*1.35 + readyRoads*2 + (mainReady?2:0)));
-    }
-
-    const roadDetails=(x.roadSigs||[]).map(r=>{
-      const s=r.sig||{};
-      const chosenMark=winner==='P'?s.pMark:winner==='B'?s.bMark:null;
-      return {
-        key:r.label==='Eye'?'eye':r.label==='Small'?'small':'roach',
-        name:r.label,
-        offset:r.offset,
-        pMark:s.pMark||null,bMark:s.bMark||null,
-        chosenMark,
-        pPct:Number(s.pPct)||50,bPct:Number(s.bPct)||50,
-        similarityScore:Number(s.similarityScore)||0,
-        strength:Number(s.strength)||0,
-        matches:Number(s.matches)||0,
-        side:winner||null
-      };
-    });
-
-    const reason=qualified
-      ? `FUTURE-PATH PICK — ${winner==='P'?'PLAYER':'BANKER'} produces the better projected Main Road + 3-road structure (${winnerPct}% vs ${loserPct}%, ${readyRoads}/3 roads ready, ${edge}% separation).`
-      : `WAIT — future-path comparison is not separated enough (${x.p.norm}% P vs ${x.b.norm}% B, ${readyRoads}/3 roads ready).`;
-
-    return {
-      side:qualified?winner:null,
-      confidence,
-      pVotes:(x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='P').length,
-      bVotes:(x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='B').length,
-      winner:Math.max((x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='P').length,(x.roadSigs||[]).filter(r=>r.sig&&r.sig.side==='B').length),
-      edge:edge/100,
-      roads:roadDetails,
-      ready:readyRoads,
-      qualifiedRoads:readyRoads,
-      phase:(currentSequence().filter(v=>v==='P'||v==='B').length<18?'early':currentSequence().filter(v=>v==='P'||v==='B').length<36?'middle':'late'),
-      rhythm:'future-path',
-      reason,
-      adaptive:true,
-      version:53,
-      futurePath:{
-        playerScore:x.p.norm,bankerScore:x.b.norm,
-        likely:winner,qualified,edge,readyRoads,mainReady,
-        playerMain:x.p.main,bankerMain:x.b.main,
-        elapsed:x.elapsed
-      }
-    };
-  }
-
-  try{window.derivedRoadSequenceAI=futureFocusedDerivedRoadAI;}catch(e){}
-  try{globalThis.derivedRoadSequenceAI=futureFocusedDerivedRoadAI;}catch(e){}
-
-  function relabel(){
-    const title=document.querySelector('.road-predict-title');
-    if(title) title.textContent='Derived Road AI V53 — Two-Path Future Outcome Engine';
-    const card=document.getElementById('derivedRoadPick');
-    const panel=card&&card.closest('.road-predict');
-    if(panel){
-      const sub=panel.querySelector('div[style*="margin-top:7px"]');
-      if(sub) sub.innerHTML='Primary focus: before the real next hand, the AI tests <b>PLAYER next</b> versus <b>BANKER next</b>, projects the Main Road position plus Big Eye Boy, Small Road, and Cockroach Road for both futures, then chooses the better-supported path. Neither hypothetical hand is saved. WAIT is used when the two futures are too close or too few roads are ready.';
-    }
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,50));else setTimeout(relabel,50);
-})();
-</script>
-<script data-v127-order="50" id="derived-ai-history-confirm-v54" type="application/x-v127-deferred">
-/* V54 — DERIVED ROAD AI + VERIFIED PAST-SHOE CONFIRMATION
-   Primary: V53 two-path future projection (Main Road + 3 derived roads).
-   Secondary only: saved-shoe MAIN ROAD P/B continuation history.
-   Historical evidence may strengthen, weaken, or veto into WAIT; it never creates
-   a pick when the live two-path engine itself is unqualified. Saved derived-road
-   histories are intentionally not read by this layer. */
-(function(){
-  const primaryDerived = window.derivedRoadSequenceAI || (typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI:null);
-
-  function historyConfirmation(){
-    let sigs=[];
-    try{
-      ['eye','small','roach'].forEach(k=>{
-        const z=mainRoadHistorySignal(k)||{};
-        if(z.side==='P'||z.side==='B') sigs.push({key:k,...z});
-      });
-    }catch(e){}
-    if(!sigs.length){
-      return {side:null,qualified:false,strength:0,pPct:50,bPct:50,matches:0,bestLen:0,quality:0,agreement:0,channels:0,source:'SAVED_MAIN_ROAD_ONLY'};
-    }
-    let p=0,b=0,w=0,matches=0,bestLen=0,qsum=0;
-    for(const z of sigs){
-      const q=Math.max(0,Math.min(100,Number(z.quality)||0));
-      const st=Math.max(0,Math.min(100,Number(z.strength)||0));
-      const wt=.55 + q/100 + st/180;
-      w+=wt; qsum+=q; matches+=Number(z.matches)||0; bestLen=Math.max(bestLen,Number(z.bestLen)||0);
-      if(z.side==='P') p+=wt; else b+=wt;
-    }
-    const side=p===b?null:(p>b?'P':'B');
-    const leader=Math.max(p,b), loser=Math.min(p,b);
-    const agreement=w?leader/w:0;
-    const avgQ=sigs.length?qsum/sigs.length:0;
-    const edge=w?(leader-loser)/w:0;
-    const qualified=!!side && sigs.length>=2 && matches>=3 && agreement>=.60 && (avgQ>=48 || bestLen>=7);
-    const strength=qualified?Math.min(88,Math.round(48 + edge*24 + Math.max(0,avgQ-45)*.35 + Math.min(7,matches)*.6)):0;
-    const leaderPct=Math.round(50+Math.min(.36,edge)*50);
-    return {
-      side:qualified?side:null,rawSide:side,qualified,strength,
-      pPct:side==='P'?leaderPct:side==='B'?100-leaderPct:50,
-      bPct:side==='B'?leaderPct:side==='P'?100-leaderPct:50,
-      matches,bestLen,quality:Math.round(avgQ),agreement:Math.round(agreement*100),channels:sigs.length,
-      source:'SAVED_MAIN_ROAD_ONLY',details:sigs
-    };
-  }
-
-  function v54DerivedRoadAI(){
-    const live=primaryDerived?primaryDerived():null;
-    if(!live) return {side:null,confidence:0,reason:'WAIT — live future-path engine unavailable.',version:54};
-    const hist=historyConfirmation();
-
-    // History is secondary. It cannot manufacture a pick if V53 did not qualify one.
-    if(!(live.side==='P'||live.side==='B')){
-      return {...live,version:54,historyConfirmation:hist,
-        reason:(live.reason||'WAIT — live two-path future is not qualified.') + (hist.qualified?` Historical Main Road leans ${hist.side==='P'?'PLAYER':'BANKER'}, but history cannot create the pick by itself.`:' Historical confirmation is not qualified yet.')};
-    }
-
-    let side=live.side;
-    let confidence=Number(live.confidence)||0;
-    let qualified=true;
-    let historyEffect='NEUTRAL';
-
-    if(hist.qualified && hist.side===side){
-      // Agreement adds only a modest confirmation bonus; live projection remains dominant.
-      confidence=Math.min(92,Math.round(confidence + 3 + Math.max(0,hist.strength-50)*.10));
-      historyEffect='CONFIRMED';
-    }else if(hist.qualified && hist.side!==side){
-      // Strong independent contradiction is a reason to become selective, not to flip sides.
-      const liveEdge=Math.abs(Number(live.futurePath?.edge)||0);
-      const strongConflict=hist.strength>=62 && hist.agreement>=67;
-      if(strongConflict && liveEdge<12){
-        qualified=false; side=null; confidence=0; historyEffect='CONFLICT_WAIT';
-      }else{
-        confidence=Math.max(0,Math.round(confidence-7));
-        historyEffect='CONFLICT_REDUCED';
-      }
-    }
-
-    const liveName=live.side==='P'?'PLAYER':'BANKER';
-    let reason;
-    if(!hist.qualified){
-      reason=`FUTURE-PATH PICK — ${liveName}. Past-shoe Main Road confirmation is still too weak, so it adds no influence.`;
-    }else if(historyEffect==='CONFIRMED'){
-      reason=`FUTURE + HISTORY CONFIRMED — ${liveName}. The live Main Road + 3-road future path leads, and saved Main Road continuations independently agree (${hist.agreement}% agreement, ${hist.matches} matches).`;
-    }else if(historyEffect==='CONFLICT_WAIT'){
-      reason=`WAIT — live future path favored ${liveName}, but strong saved-shoe Main Road history points the other way (${hist.agreement}% agreement, ${hist.matches} matches). History does not flip the pick; the conflict cancels it.`;
-    }else{
-      reason=`FUTURE-PATH PICK — ${liveName}, but confidence is reduced because saved-shoe Main Road history disagrees (${hist.agreement}% agreement, ${hist.matches} matches).`;
-    }
-
-    return {...live,side:qualified?side:null,confidence,reason,version:54,historyConfirmation:hist,historyEffect,
-      sourceContract:{primary:'LIVE_TWO_PATH_MAIN_PLUS_3_ROADS',secondary:'SAVED_MAIN_ROAD_PB_ONLY',savedDerivedRoadHistory:false,historyCanCreatePick:false}};
-  }
-
-  try{window.derivedRoadSequenceAI=v54DerivedRoadAI;}catch(e){}
-  try{globalThis.derivedRoadSequenceAI=v54DerivedRoadAI;}catch(e){}
-  try{window.__derivedHistoryConfirmV54={version:54,historyConfirmation,source:'SAVED_MAIN_ROAD_ONLY'};}catch(e){}
-
-  function relabel(){
-    const title=document.querySelector('.road-predict-title');
-    if(title) title.textContent='Derived Road AI V54 — Future Path + Past-Shoe Confirmation';
-    const card=document.getElementById('derivedRoadPick');
-    const panel=card&&card.closest('.road-predict');
-    if(panel){
-      const sub=panel.querySelector('div[style*="margin-top:7px"]');
-      if(sub) sub.innerHTML='Primary: live <b>PLAYER-next vs BANKER-next</b> projection across the Main Road + Big Eye Boy + Small Road + Cockroach Road. Secondary: saved-shoe <b>Main Road P/B continuation history only</b>. History can raise confidence, lower confidence, or force WAIT on a strong conflict, but it cannot create or flip a pick by itself. Saved derived-road history is excluded from this confirmation layer.';
-    }
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,60));else setTimeout(relabel,60);
-})();
-</script>
 <script data-v127-order="51" id="main-road-future-v55-optimized-accuracy" type="application/x-v127-deferred">
 /* V55 — MAIN ROAD FUTURE TEST OPTIMIZATION + VERIFIED ACCURACY
    Primary test is current-shoe only: Main Road regime + current Big Eye/Small/Roach regimes.
@@ -11093,7 +10912,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     const b=document.querySelector('#futureBPath strong');if(b)b.textContent='BANKER FUTURE';
     let rb=document.getElementById('resetFutureAccuracy');if(rb&&!rb.__v56){const clean=rb.cloneNode(true);rb.parentNode.replaceChild(clean,rb);rb=clean;rb.__v56=true;rb.addEventListener('click',()=>{if(!confirm('Reset only the V56 All-3-Road Future Test verified accuracy score?'))return;const a=acc56();a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.lastWaitHandN=null;a.ledger=[];try{if(typeof persist==='function')persist()}catch(e){};renderV56()})}
     try{renderV56()}catch(e){console.warn('V56 future render',e)}
-    const rt=document.querySelector('.road-predict-title');if(rt)rt.textContent='Derived Road AI V56 — All-3-Road Future Outcome Engine';
+    const rt=document.querySelector('.road-predict-title');if(rt)rt.textContent='Derived Road AI — Restored Strong-Gate Profile';
   }
   window.__derivedRoadFutureV56={version:56,test:v56FutureTest,accuracy:acc56,arm:arm56,settle:settle56,equalChannels:true,mainWeight:1,roads:['Big Eye Boy','Small Road','Cockroach Road'],deadZone:true,minReadyRoads:2,currentShoeOnly:true};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(relabel,140));else setTimeout(relabel,140);
@@ -16335,12 +16154,8 @@ function patternRecognizerSignal(){
   const liveSide=sideOfVote(live);
   const histStrength=histSide==='P'?hist.vote.p:histSide==='B'?hist.vote.b:0;
 
-  // V340 slight loosen: keep the same evidence engine, but stop defensive mode
-  // from choking off otherwise strong 3-of-4 confirmations.
-  let minEdge=10,minQuality=40;
-  if(decision.defensive){minEdge=12;minQuality=42;}
-  const strongRoadConfirmation = roads.ready>=3 && roads.agree>=3 &&
-    sideOfVote(roads)===candidate && support.length>=3 && edge>=18 && histStrength>=.54;
+  let minEdge=12,minQuality=42;
+  if(decision.defensive){minEdge=16;minQuality=48;}
 
   let waitReason='',tier='';
   if(!candidate)waitReason='WAIT: Player and Banker adaptive pattern scores are tied.';
@@ -16354,9 +16169,8 @@ function patternRecognizerSignal(){
     // Strong 3-of-4 confirmation is the preferred gate.
     if(support.length>=3){
       tier='A+';
-      const effectiveMinQuality = strongRoadConfirmation ? Math.min(minQuality,38) : minQuality;
       if(edge<minEdge)waitReason=`WAIT: 3-of-4 confirmation edge is ${edge} points; need ${minEdge}+.`;
-      else if(quality<effectiveMinQuality)waitReason=`WAIT: 3-of-4 pattern quality is ${quality}/100; need ${effectiveMinQuality}+.`;
+      else if(quality<minQuality)waitReason=`WAIT: 3-of-4 pattern quality is ${quality}/100; need ${minQuality}+.`;
     } else {
       // Selective 2-of-3/4 path: history must agree, and the second source must
       // be either live flow, Bead Plate, or a real derived-road majority.
@@ -16376,8 +16190,8 @@ function patternRecognizerSignal(){
   if(!waitReason && reg.regime==='TRANSITION'){
     if(liveSide!==candidate)waitReason='WAIT: live shoe transition conflicts with historical direction.';
     else if(support.length<3)waitReason='WAIT: transition requires at least 3 agreeing pattern sources.';
-    else if(edge<12)waitReason=`WAIT: transition edge is ${edge} points; need 12+.`;
-    else if(quality<(strongRoadConfirmation?40:44))waitReason=`WAIT: transition quality is ${quality}/100; need ${strongRoadConfirmation?40:44}+.`;
+    else if(edge<16)waitReason=`WAIT: transition edge is ${edge} points; need 16+.`;
+    else if(quality<50)waitReason=`WAIT: transition quality is ${quality}/100; need 50+.`;
     else tier='A+';
   }
 
@@ -16447,7 +16261,6 @@ onlineFamilyTrust:true,boundedAdaptation:true,otherAiInputs:false,selectiveWait:
 oneVotePerHistoricalShoe:true,livePatternEngineActive:true,preferredAgreement:'3-of-4',
 selectiveAgreement:'history-anchored-2-source',transitionCanQualify:true};
 window.__V217_PATTERN_RECOGNIZER__=api;window.__V216_PATTERN_RECOGNIZER__=api;
-window.__V340_PATTERN_RECOGNIZER_TUNE__={version:340,logicChanged:false,qualificationOnly:true,normal:{minEdge:10,minQuality:40},defensive:{minEdge:12,minQuality:42},strong3Road:{roads:'3/3',support:'3+',edge:18,minQuality:38},transition:{minEdge:12,minQuality:44,strong3RoadMinQuality:40}};
 })();
 </script>
 
@@ -18014,184 +17827,6 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 window.__V271_LIVE_DECISION_GUARD__={version:VERSION,signal,render,refreshLearning,trap,sequenceV2CoreChanged:false,mainFutureCoreChanged:false,canReverse:false,decisionPolicy:'QUALIFY_OR_WAIT'};
 })();
 </script>
-<!-- V272: locked prospective validation. Prediction logic is read-only. -->
-<style id="v272-forward-validation-style">
-#v272ForwardValidation{border:2px solid #63d3ff!important;background:linear-gradient(180deg,rgba(21,48,63,.97),rgba(14,24,34,.98))!important}
-#v272ForwardValidation .v272-lock{color:#7ee6a8;font-weight:900}
-#v272ForwardValidation[data-status="paused"] .v272-lock{color:#ffcc66}
-</style>
-<script id="v272-locked-forward-validation">
-(function(){
-'use strict';
-const VERSION=272;
-const SCHEMA=2;
-const BUILD_LOCK='V272-FIX-20260920-1';
-const KEY='baccarat-v272-locked-derived-forward-test-v2';
-const TARGET=200;
-const defaults=()=>({
-  version:VERSION,schema:SCHEMA,buildLock:BUILD_LOCK,protocol:'LOCKED-DERIVED-PRE-RESULT-V2',startedAt:new Date().toISOString(),
-  initialized:false,ready:false,shoeSerial:1,lastSeq:'',libraryFingerprint:'',
-  modelFingerprint:'',lockFingerprint:'',librarySnapshot:null,adaptiveSnapshot:null,
-  wins:0,losses:0,waits:0,ties:0,pending:null,lastWaitKey:'',lastEvent:'',
-  ledger:[],seenShoes:[],red:{w:0,l:0,n:0},black:{w:0,l:0,n:0},
-  early:{w:0,l:0,n:0},middle:{w:0,l:0,n:0}
-});
-function load(){try{const x=JSON.parse(localStorage.getItem(KEY)||'{}');return x?.schema===SCHEMA?Object.assign(defaults(),x):defaults()}catch(e){return defaults()}}
-let S=load();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-function clone(x){try{return JSON.parse(JSON.stringify(x))}catch(e){return null}}
-function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
-function pb(){return seq().filter(x=>x==='P'||x==='B')}
-function color(){try{return state.currentShoeColor==='red'||state.currentShoeColor==='black'?state.currentShoeColor:'combined'}catch(e){return 'combined'}}
-function hashText(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16)}
-function libraryFingerprint(red=state.redPatternLibrary||[],black=state.blackPatternLibrary||[]){try{const a=[...red,...black];return `${a.length}:${hashText(a.map(x=>`${x.id||''}|${x.sequence||''}`).join('\n'))}`}catch(e){return 'unavailable'}}
-function modelFingerprint(){try{return hashText([BUILD_LOCK,derivedRoadSequenceAI,derivedRoadSequencePatternSignal,originalDerivedRoadReliability].map(String).join('\n---\n'))}catch(e){return 'unavailable'}}
-function captureLock(){
-  try{if(typeof ensureAdaptiveOriginalDerivedState==='function')ensureAdaptiveOriginalDerivedState()}catch(e){}
-  S.librarySnapshot={red:clone(state.redPatternLibrary||[])||[],black:clone(state.blackPatternLibrary||[])||[]};
-  S.adaptiveSnapshot=clone(state.adaptiveDerivedOriginal||null);
-  S.libraryFingerprint=libraryFingerprint(S.librarySnapshot.red,S.librarySnapshot.black);
-  S.modelFingerprint=modelFingerprint();
-  S.lockFingerprint=hashText([S.protocol,S.libraryFingerprint,S.modelFingerprint,JSON.stringify(S.adaptiveSnapshot)].join('|'));
-}
-function syncShoe(){
-  const q=seq().join('');
-  if(!S.initialized){captureLock();S.initialized=true;S.ready=q.length===0;S.lastSeq=q;save();return}
-  if(S.lastSeq.length&&q.length===0){S.shoeSerial++;S.ready=true;S.pending=null;S.lastWaitKey='';}
-  S.lastSeq=q;save();
-}
-function phaseFor(nextPB){return nextPB<18?'early':nextPB<36?'middle':'late'}
-function validModel(){return S.buildLock===BUILD_LOCK&&S.modelFingerprint===modelFingerprint()}
-function liveLibraryChanged(){return !!S.libraryFingerprint&&S.libraryFingerprint!==libraryFingerprint()}
-function signal(){
-  if(typeof derivedRoadSequenceAI!=='function'||!S.librarySnapshot)return null;
-  const liveRed=state.redPatternLibrary,liveBlack=state.blackPatternLibrary;
-  const hadAdaptive=Object.prototype.hasOwnProperty.call(state,'adaptiveDerivedOriginal'),liveAdaptive=state.adaptiveDerivedOriginal;
-  try{
-    state.redPatternLibrary=S.librarySnapshot.red;state.blackPatternLibrary=S.librarySnapshot.black;
-    state.adaptiveDerivedOriginal=clone(S.adaptiveSnapshot);
-    return derivedRoadSequenceAI();
-  }catch(e){return null}
-  finally{
-    state.redPatternLibrary=liveRed;state.blackPatternLibrary=liveBlack;
-    if(hadAdaptive)state.adaptiveDerivedOriginal=liveAdaptive;else delete state.adaptiveDerivedOriginal;
-  }
-}
-function markSeen(){if(!S.seenShoes.includes(S.shoeSerial))S.seenShoes.push(S.shoeSerial)}
-function armLocked(){
-  syncShoe();
-  if(!S.ready||!validModel()){S.pending=null;save();paint();return}
-  const n=pb().length,nextPB=n+1,phase=phaseFor(nextPB),eligible=nextPB>=7&&nextPB<=35;
-  if(!eligible){S.pending=null;paint();return}
-  const x=signal()||{},side=x.side==='P'||x.side==='B'?x.side:null,lockKey=`${S.shoeSerial}|${nextPB}`;
-  if(side){
-    S.pending={side,shoe:S.shoeSerial,nextPB,phase,color:color(),confidence:Number(x.confidence||x.strength)||0,
-      modelVersion:x.version||'current',modelFingerprint:S.modelFingerprint,lockFingerprint:S.lockFingerprint,
-      sequence:seq().join(''),lockedAt:Date.now(),lockKey};
-  }else{
-    S.pending=null;
-    if(S.lastWaitKey!==lockKey){S.waits++;S.lastWaitKey=lockKey;markSeen()}
-  }
-  save();paint();
-}
-function bumpSplit(bucket,win){if(!bucket)return;bucket.n++;if(win)bucket.w++;else bucket.l++}
-function unbumpSplit(bucket,win){if(!bucket)return;bucket.n=Math.max(0,bucket.n-1);if(win)bucket.w=Math.max(0,bucket.w-1);else bucket.l=Math.max(0,bucket.l-1)}
-function settleLocked(actual){
-  actual=String(actual||'').toUpperCase();if(!['P','B','T'].includes(actual))return;
-  syncShoe();
-  const p=S.pending;S.pending=null;if(!p){save();paint();return}
-  const event=`${p.lockKey}|${actual}|${p.lockedAt}`;if(S.lastEvent===event)return;S.lastEvent=event;
-  if(actual==='T'){
-    S.ties++;markSeen();S.ledger.push({...p,actual,correct:null,excluded:true,eventId:event,settledAt:Date.now()});
-    save();paint();return;
-  }
-  const win=p.side===actual;if(win)S.wins++;else S.losses++;
-  if(p.color==='red'||p.color==='black')bumpSplit(S[p.color],win);
-  if(p.phase==='early'||p.phase==='middle')bumpSplit(S[p.phase],win);
-  markSeen();
-  S.ledger.push({...p,actual,correct:win,eventId:event,settledAt:Date.now()});
-  if(S.ledger.length>1000)S.ledger=S.ledger.slice(-1000);
-  save();paint();
-}
-function rollbackUndo(){
-  const last=S.ledger[S.ledger.length-1];if(!last||seq().join('')!==last.sequence)return false;
-  S.ledger.pop();
-  if(last.actual==='T')S.ties=Math.max(0,S.ties-1);
-  else{
-    if(last.correct)S.wins=Math.max(0,S.wins-1);else S.losses=Math.max(0,S.losses-1);
-    if(last.color==='red'||last.color==='black')unbumpSplit(S[last.color],!!last.correct);
-    if(last.phase==='early'||last.phase==='middle')unbumpSplit(S[last.phase],!!last.correct);
-  }
-  S.pending=null;S.lastEvent=S.ledger[S.ledger.length-1]?.eventId||'';S.lastSeq=seq().join('');
-  save();paint();return true;
-}
-function fmt(z){const n=(z?.n||0);return n?`${(100*(z.w||0)/n).toFixed(1)}% • ${z.w||0}W-${z.l||0}L`:'—'}
-function ensurePanel(){
-  let root=document.getElementById('v272ForwardValidation');if(root)return root;
-  root=document.createElement('div');root.id='v272ForwardValidation';root.className='analyzer';root.innerHTML=`
-    <div class="analyzer-title">🔒 Independent Derived — Locked Forward Validation V272 FIXED</div>
-    <div class="analyzer-sub">Prospective test only: predictions lock before each result against a frozen library + adaptive-state snapshot. Hands 7–35 only. Eligible ties are excluded from W/L. Undo safely reverses the last audit entry. Existing AI logic, Sequence AI V2, and Main Future Road are unchanged.</div>
-    <div class="analyzer-grid">
-      <div class="analyzer-card"><span>TEST STATUS</span><strong class="v272-lock" id="v272Status">LOCKED</strong></div>
-      <div class="analyzer-card"><span>FORWARD ACCURACY</span><strong id="v272Accuracy">—</strong></div>
-      <div class="analyzer-card"><span>RESULTS</span><strong id="v272WL">0W-0L</strong></div>
-      <div class="analyzer-card"><span>PROGRESS</span><strong id="v272Progress">0 / ${TARGET}</strong></div>
-    </div>
-    <div class="analyzer-grid">
-      <div class="analyzer-card"><span>RED SHOES</span><strong id="v272Red">—</strong></div>
-      <div class="analyzer-card"><span>BLACK SHOES</span><strong id="v272Black">—</strong></div>
-      <div class="analyzer-card"><span>EARLY</span><strong id="v272Early">—</strong></div>
-      <div class="analyzer-card"><span>MIDDLE</span><strong id="v272Middle">—</strong></div>
-    </div>
-    <div class="analyzer-sub" id="v272Note" style="margin-top:8px">Start with a new empty shoe.</div>
-    <button class="tiny-btn" id="v272Export" style="width:100%;margin-top:8px">Export Locked Forward Ledger</button>`;
-  const card=document.getElementById('derivedIndependentFinal');const anchor=card?.closest?.('.road-predict,.analyzer')||card;
-  if(anchor?.parentNode)anchor.insertAdjacentElement('afterend',root);else document.body.appendChild(root);
-  root.querySelector('#v272Export').onclick=()=>{
-    const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'}),a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);a.download=`derived-forward-v272-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-  };
-  return root;
-}
-function paint(){
-  const root=ensurePanel(),n=S.wins+S.losses,rate=n?(100*S.wins/n).toFixed(1)+'%':'—',set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
-  let status='LOCKED • SNAPSHOT',note=`${S.seenShoes.length} new shoe${S.seenShoes.length===1?'':'s'} observed • ${S.waits} WAIT • ${S.ties} eligible ties skipped.`;
-  if(!S.ready){status='WAITING FOR NEW SHOE';note='This build was opened during an existing shoe. Clear/start a new shoe so the prospective test begins cleanly.'}
-  else if(!validModel()){status='PAUSED • MODEL CHANGED';note='The tested model code changed after this validation was locked. Start a fresh fixed-protocol validation.'}
-  else if(n>=TARGET){status='LOCKED • REVIEW READY';note=`Target reached: ${n} untouched pre-result calls across ${S.seenShoes.length} shoes. Export the ledger for audit.`}
-  else if(n>=50){status='LOCKED • PRELIMINARY';note=`${n}/${TARGET} untouched calls • ${S.seenShoes.length} shoes • ${S.waits} WAIT. Do not retune until the target is reached.`}
-  if(S.ready&&validModel()&&liveLibraryChanged()&&n<TARGET)note+=` Live library updates are isolated; predictions still use the original locked snapshot.`;
-  root.dataset.status=status.startsWith('PAUSED')||status.startsWith('WAITING')?'paused':'active';
-  set('v272Status',status);set('v272Accuracy',rate);set('v272WL',`${S.wins}W-${S.losses}L`);set('v272Progress',`${n} / ${TARGET}`);
-  set('v272Red',fmt(S.red));set('v272Black',fmt(S.black));set('v272Early',fmt(S.early));set('v272Middle',fmt(S.middle));set('v272Note',note);
-}
-function installHooks(){
-  const arm=window.__armVerifiedPredictions;
-  if(typeof arm==='function'&&!arm.__v272Forward){const w=function(){const r=arm.apply(this,arguments);try{armLocked()}catch(e){console.warn('V272 arm',e)}return r};w.__v272Forward=true;w.__base=arm;window.__armVerifiedPredictions=w}
-  const settle=window.__settleVerifiedPredictions;
-  if(typeof settle==='function'&&!settle.__v272Forward){const w=function(actual){let r;try{r=settle.apply(this,arguments)}finally{try{settleLocked(actual)}catch(e){console.warn('V272 settle',e)}}return r};w.__v272Forward=true;w.__base=settle;window.__settleVerifiedPredictions=w}
-}
-function installHistoryHooks(){
-  const undo=document.getElementById('undoBtn');
-  if(undo&&!undo.__v272Undo){undo.__v272Undo=true;undo.addEventListener('click',()=>queueMicrotask(()=>{if(rollbackUndo())armLocked()}),false)}
-  const clear=document.getElementById('clearBtn');
-  if(clear&&!clear.__v272Clear){clear.__v272Clear=true;clear.addEventListener('click',()=>queueMicrotask(()=>armLocked()),false)}
-}
-function coreReady(){try{return typeof state==='object'&&typeof currentSequence==='function'&&typeof derivedRoadSequenceAI==='function'&&typeof window.__armVerifiedPredictions==='function'&&typeof window.__settleVerifiedPredictions==='function'&&Array.isArray(state.redPatternLibrary)&&Array.isArray(state.blackPatternLibrary)&&(state.redPatternLibrary.length+state.blackPatternLibrary.length)>0}catch(e){return false}}
-let started=false,attempts=0;
-function startWhenReady(){
-  ensurePanel();installHooks();installHistoryHooks();
-  if(coreReady()){
-    if(!started){started=true;syncShoe();armLocked();paint();[250,1000,3000,6000].forEach(ms=>setTimeout(()=>{installHooks();installHistoryHooks()},ms))}
-    return;
-  }
-  const e=document.getElementById('v272Status');if(e)e.textContent='INITIALIZING • LOCK ENGINE';
-  if(attempts++<300)setTimeout(startWhenReady,50);
-}
-startWhenReady();
-window.__V272_LOCKED_FORWARD_VALIDATION__={version:VERSION,schema:SCHEMA,fixed:true,state:()=>S,arm:armLocked,settle:settleLocked,rollbackUndo,render:paint,protocol:'PRE_RESULT_ONLY_7_TO_35_FROZEN_SNAPSHOT',target:TARGET,predictionLogicChanged:false,sequenceV2Changed:false,mainFutureChanged:false,autoSaveIsolated:true,undoSafe:true,eligibleTiesOnly:true};
-})();
-</script>
 <style id="v277-main-future-awareness-style">
 #v277MainFutureAwareness{border:2px solid #a78bfa!important;background:linear-gradient(180deg,rgba(42,32,70,.97),rgba(19,18,34,.98))!important}
 #v277MainFutureAwareness[data-grade="QUALIFIED"]{border-color:#22c55e!important}
@@ -18753,15 +18388,14 @@ window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:tru
 
 <!-- V360: Main Future Road Test 2 current-version port + High Awareness/Rhythm upgrade; Test 3 = 100% library-only. -->
 <style id="v360-main-future-23-style">
-#v360MainFutureTest2,#v360MainFutureTest3,#v360MainFutureTest4{margin-top:8px;border:1px solid #42536a;box-shadow:0 0 0 1px rgba(82,132,196,.10) inset}
-#v360MainFutureTest3{border-color:#22c55e;box-shadow:0 0 0 1px rgba(34,197,94,.12) inset}
-#v360MainFutureTest4{border-color:#a855f7;box-shadow:0 0 0 1px rgba(168,85,247,.14) inset}
-#v360MainFutureTest2 .v360-grid,#v360MainFutureTest3 .v360-grid,#v360MainFutureTest4 .v360-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px}
-#v360MainFutureTest2 .v360-card,#v360MainFutureTest3 .v360-card,#v360MainFutureTest4 .v360-card{background:var(--panel2);border-radius:10px;padding:8px;text-align:center;min-width:0}
-#v360MainFutureTest2 .v360-card span,#v360MainFutureTest3 .v360-card span,#v360MainFutureTest4 .v360-card span{display:block;font-size:9px;color:var(--muted)}
-#v360MainFutureTest2 .v360-card strong,#v360MainFutureTest3 .v360-card strong,#v360MainFutureTest4 .v360-card strong{display:block;font-size:16px;margin-top:2px;overflow-wrap:anywhere}
-@media(max-width:620px){#v360MainFutureTest2 .v360-grid,#v360MainFutureTest3 .v360-grid,#v360MainFutureTest4 .v360-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+#v360MainFutureTest2{margin-top:8px;border:1px solid #42536a;box-shadow:0 0 0 1px rgba(82,132,196,.10) inset}
+#v360MainFutureTest2 .v360-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px}
+#v360MainFutureTest2 .v360-card{background:var(--panel2);border-radius:10px;padding:8px;text-align:center;min-width:0}
+#v360MainFutureTest2 .v360-card span{display:block;font-size:9px;color:var(--muted)}
+#v360MainFutureTest2 .v360-card strong{display:block;font-size:16px;margin-top:2px;overflow-wrap:anywhere}
+@media(max-width:620px){#v360MainFutureTest2 .v360-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
+<!-- V356: Main Future Road Tests 3, 4, and 5 fully removed; Test 2 retained. -->
 <script id="v360-main-future-tests-2-3">
 (function(){
 'use strict';
@@ -18845,119 +18479,11 @@ function memoryScan(mode){
   return {qualified,side,matches:use.length,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(best*100).toFixed(1),awareness:+(aw*100).toFixed(1),rhythm:+(ry*100).toFixed(1),rawAgreement:+(rawAgree*100).toFixed(1),effectiveN:+effN.toFixed(1),regime:rp.regime,rows:use,reason:qualified?'High-awareness library match qualified.':`WAIT gate • ${use.length} matches • best ${(best*100).toFixed(0)}% • awareness ${(aw*100).toFixed(0)}% • rhythm ${(ry*100).toFixed(0)}% • edge ${edge.toFixed(1)}pp${extra}`};
 }
 function test2(){const base=baseTest(),bp=basePB(base),mem=memoryScan(2);let p=bp.p,b=bp.b,used=false;if(mem.qualified){p=.70*bp.p+.30*mem.pPct;b=.70*bp.b+.30*mem.bPct;used=true}const t=p+b||100;p=100*p/t;b=100*b/t;const side=p>b?'P':b>p?'B':null;return {side,p:+p.toFixed(1),b:+b.toFixed(1),base,baseP:+bp.p.toFixed(1),baseB:+bp.b.toFixed(1),mem,used,edge:+Math.abs(p-b).toFixed(1)}}
-function test3(){const mem=memoryScan(3);return {side:mem.qualified?mem.side:null,p:mem.pPct,b:mem.bPct,edge:mem.edge,mem}}
-function recentRoadTrack(cur,hist){
-  // Stage 2 for Test 4: compare ONLY the most recent live road endings.
-  // Main/Bead tail plus all 3 derived-road tails. Newest positions receive the most weight.
-  const main=weightedTail(pb(cur),pb(hist),12)?.score??0;
-  const vals=[];
-  for(const off of [1,2,3]){
-    const a=derived(cur,off),b=derived(hist,off),x=weightedTail(a,b,12);
-    vals.push(x?.score??0);
-  }
-  const available=(main>0?1:0)+vals.filter(x=>x>0).length;
-  if(available<2)return {score:0,main,eye:vals[0],small:vals[1],roach:vals[2],parts:available};
-  // Slightly favor the live P/B/Main-road ending, while still requiring derived-road structure.
-  const score=.34*main+.26*vals[0]+.21*vals[1]+.19*vals[2];
-  return {score,main,eye:vals[0],small:vals[1],roach:vals[2],parts:available};
-}
-function test4Scan(){
-  const cur=live(),n=cur.length,curPB=pb(cur),rp=rhythmProfile(cur);
-  if(curPB.length<7)return {qualified:false,side:null,matches:0,pPct:50,bPct:50,edge:0,best:0,awareness:0,rhythm:0,top3:[],leaderTrack:0,agreement:0,reason:'Live awareness is still building.'};
-  const candidates=[];
-  for(const row of uniqueLibrary()){
-    const q=row.seq.split('');
-    if(q.length<=n)continue;
-    const next=q[n];if(next!=='P'&&next!=='B')continue;
-    const hist=q.slice(0,n),sa=seqAwareness(cur,hist),ra=roadAwareness(cur,hist),hr=rhythmProfile(hist),rs=rhythmSimilarity(rp,hr);
-    if(ra.parts<1)continue;
-    const awareness=.58*sa.score+.42*ra.score;
-    const overall=.40*sa.score+.30*ra.score+.30*rs;
-    // Same broad library-awareness screening as Test 3 before the special top-3 re-ranking.
-    if(awareness<.64||rs<.58||overall<.64)continue;
-    const track=recentRoadTrack(cur,hist);
-    candidates.push({next,overall,awareness,seq:sa.score,road:ra.score,rhythm:rs,track:track.score,trackParts:track.parts,mainTrack:track.main,eyeTrack:track.eye,smallTrack:track.small,roachTrack:track.roach,id:row.record?.id||''});
-  }
-  candidates.sort((a,b)=>b.overall-a.overall);
-  const top3=candidates.slice(0,3);
-  if(top3.length<3)return {qualified:false,side:null,matches:top3.length,pPct:50,bPct:50,edge:0,best:+((top3[0]?.overall||0)*100).toFixed(1),awareness:0,rhythm:0,top3,leaderTrack:0,agreement:0,reason:`WAIT • only ${top3.length} strong overall library matches; Test 4 requires 3.`};
-  // Re-rank ONLY those 3 by which saved road ending is still tracking the live road best right now.
-  const ranked=[...top3].sort((a,b)=>b.track-a.track);
-  const leader=ranked[0],second=ranked[1],third=ranked[2];
-  const leaderSide=leader.next;
-  const same=ranked.filter(x=>x.next===leaderSide).length;
-  const agreement=same/3;
-  const gap=leader.track-second.track;
-  const avgAware=top3.reduce((z,x)=>z+x.awareness,0)/3;
-  const avgRhythm=top3.reduce((z,x)=>z+x.rhythm,0)/3;
-  // Qualification: strong live-road tracking plus either 2-of-3 continuation agreement,
-  // or one exceptional leader that clearly separates from the other two.
-  const majorityStrong=same>=2&&leader.track>=.79&&second.track>=.70;
-  const exceptionalLeader=leader.track>=.91&&gap>=.08&&leader.trackParts>=3;
-  const qualified=(majorityStrong||exceptionalLeader)&&avgAware>=.68&&avgRhythm>=.60;
-  // Confidence is intentionally capped; this is match strength, not a guaranteed probability.
-  let conf=50;
-  if(qualified){conf=Math.min(88,50+24*leader.track+8*agreement+8*Math.max(0,gap));}
-  const pPct=leaderSide==='P'?conf:100-conf,bPct=100-pPct,edge=Math.abs(pPct-bPct);
-  return {qualified,side:qualified?leaderSide:null,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(top3[0].overall*100).toFixed(1),awareness:+(avgAware*100).toFixed(1),rhythm:+(avgRhythm*100).toFixed(1),top3:ranked,leaderTrack:+(leader.track*100).toFixed(1),secondTrack:+(second.track*100).toFixed(1),agreement:+(agreement*100).toFixed(1),gap:+(gap*100).toFixed(1),regime:rp.regime,reason:qualified?`TOP-3 LIVE-ROAD TRACK qualified • leader ${(leader.track*100).toFixed(0)}% • ${same}/3 continuation agreement.`:`WAIT • top-3 leader ${(leader.track*100).toFixed(0)}% • second ${(second.track*100).toFixed(0)}% • ${same}/3 same next side • gap ${(gap*100).toFixed(0)}pp.`};
-}
-function test4(){const mem=test4Scan();return {side:mem.qualified?mem.side:null,p:mem.pPct,b:mem.bPct,edge:mem.edge,mem}}
-function test5RoadEvidence(cur){
-  const mainN=pb(cur).length;
-  const lens=[1,2,3].map(off=>derived(cur,off).length);
-  const readyParts=lens.filter(n=>n>=4).length;
-  return {ready:mainN>=8&&readyParts>=2,mainN,lens,readyParts};
-}
-function test5Scan(){
-  const cur=live(),n=cur.length,curPB=pb(cur),rp=rhythmProfile(cur),ev=test5RoadEvidence(cur);
-  if(!ev.ready)return {qualified:false,side:null,matches:0,pPct:50,bPct:50,edge:0,best:0,awareness:0,rhythm:0,top3:[],leaderTrack:0,agreement:0,evidence:ev,reason:`WAIT • building live roads (${ev.readyParts}/3 derived roads ready).`};
-  const candidates=[];
-  for(const row of uniqueLibrary()){
-    const q=row.seq.split('');
-    if(q.length<=n)continue;
-    const next=q[n];if(next!=='P'&&next!=='B')continue;
-    const hist=q.slice(0,n),sa=seqAwareness(cur,hist),ra=roadAwareness(cur,hist),hr=rhythmProfile(hist),rs=rhythmSimilarity(rp,hr),track=recentRoadTrack(cur,hist);
-    if(ra.parts<1||track.parts<2)continue;
-    const awareness=.54*sa.score+.46*ra.score;
-    const overall=.34*sa.score+.30*ra.score+.18*rs+.18*track.score;
-    // Test 5 deliberately keeps a broad candidate pool throughout the shoe.
-    // The final decision is controlled by CURRENT live-road evidence rather than requiring 3 already-strong whole-shoe matches.
-    if(overall<.50||track.score<.52)continue;
-    candidates.push({next,overall,awareness,seq:sa.score,road:ra.score,rhythm:rs,track:track.score,trackParts:track.parts,mainTrack:track.main,eyeTrack:track.eye,smallTrack:track.small,roachTrack:track.roach,id:row.record?.id||''});
-  }
-  candidates.sort((a,b)=>(b.overall+.22*b.track)-(a.overall+.22*a.track));
-  const top3=candidates.slice(0,3);
-  if(!top3.length)return {qualified:false,side:null,matches:0,pPct:50,bPct:50,edge:0,best:0,awareness:0,rhythm:0,top3:[],leaderTrack:0,agreement:0,evidence:ev,reason:'WAIT • roads are ready, but no saved continuation is tracking the live shoe strongly enough.'};
-  const ranked=[...top3].sort((a,b)=>b.track-a.track);
-  const leader=ranked[0],second=ranked[1]||null;
-  const same=ranked.filter(x=>x.next===leader.next).length;
-  const agreement=same/ranked.length;
-  const gap=second?leader.track-second.track:leader.track;
-  const avgAware=top3.reduce((z,x)=>z+x.awareness,0)/top3.length;
-  const avgRhythm=top3.reduce((z,x)=>z+x.rhythm,0)/top3.length;
-  // CONTINUOUS mode: once road evidence exists, re-evaluate after every live hand.
-  // Two agreeing live-road trackers can qualify; a single tracker must be exceptional and clearly separated.
-  const multiAgree=ranked.length>=2&&same>=2&&leader.track>=.80&&(second?.track||0)>=.72&&avgAware>=.62;
-  const exceptional=leader.track>=.92&&gap>=.09&&leader.trackParts>=3&&avgAware>=.64;
-  const qualified=multiAgree||exceptional;
-  let conf=50;
-  if(qualified)conf=Math.min(88,50+25*leader.track+7*agreement+6*Math.max(0,gap));
-  const side=qualified?leader.next:null;
-  const pPct=leader.next==='P'?conf:100-conf,bPct=100-pPct,edge=Math.abs(pPct-bPct);
-  return {qualified,side,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(top3[0].overall*100).toFixed(1),awareness:+(avgAware*100).toFixed(1),rhythm:+(avgRhythm*100).toFixed(1),top3:ranked,leaderTrack:+(leader.track*100).toFixed(1),secondTrack:+((second?.track||0)*100).toFixed(1),agreement:+(agreement*100).toFixed(1),gap:+(gap*100).toFixed(1),regime:rp.regime,evidence:ev,reason:qualified?`CONTINUOUS LIVE-ROAD qualified • leader ${(leader.track*100).toFixed(0)}% • ${same}/${ranked.length} continuation agreement.`:`WAIT • continuous road scan active • leader ${(leader.track*100).toFixed(0)}% • ${same}/${ranked.length} same next side • gap ${(gap*100).toFixed(0)}pp.`};
-}
-function test5(){const mem=test5Scan();return {side:mem.qualified?mem.side:null,p:mem.pPct,b:mem.bPct,edge:mem.edge,mem}}
-
 function st(key){state[key] ||= {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};return state[key]}
 function ensure(){
   const anchor=document.getElementById('mainRoadFutureTest');if(!anchor?.parentNode)return;
   if(!document.getElementById('v360MainFutureTest2')){const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest2';d.innerHTML=`<div class="analyzer-title">📚 Main Future Road Test 2 — Road History + High Rhythm/Regime Awareness</div><div class="analyzer-sub">Current-version Test 2 design: 70% current Main Future engine + 30% unique saved-library road memory. High-awareness matching now requires the live shoe to fit saved road shape and live rhythm/regime before library memory can influence the call. Exact duplicate shoes get no extra vote.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T2Pick">WAIT</strong></div><div class="v360-card"><span>CONFIDENCE</span><strong id="v360T2Conf">—</strong></div><div class="v360-card"><span>LIVE MATCH AWARENESS</span><strong id="v360T2Aware">BUILDING</strong></div><div class="v360-card"><span>RHYTHM / REGIME FIT</span><strong id="v360T2Rhythm">BUILDING</strong></div><div class="v360-card"><span>LIBRARY MATCHES</span><strong id="v360T2Matches">0</strong></div><div class="v360-card"><span>BASE / LIBRARY MIX</span><strong id="v360T2Mix">70 / 30</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T2Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T2Wait">0</strong></div></div><div class="analyzer-sub" id="v360T2Note" style="margin-top:8px">Building live awareness.</div><button class="tiny-btn" id="v360T2Reset" style="width:100%;margin-top:8px">Reset Test 2 Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#v360T2Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 2 accuracy?')){state.v360Test2Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}}}
-  const a=document.getElementById('v360MainFutureTest2');
-  if(!document.getElementById('v360MainFutureTest3')){const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest3';d.innerHTML=`<div class="analyzer-title">🧠 Main Future Road Test 3 — 100% Library Match Engine</div><div class="analyzer-sub"><b>100% YOUR SAVED LIBRARY.</b> No Main Future score, Sequence V2, Best Estimate, ML, or other AI can influence this prediction. It matches the live shoe against unique saved shoes at the same hand position using P/B sequence shape, Big Eye/Small/Roach structure, and high rhythm/regime awareness, then predicts from the saved continuation only when the match is strong enough.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T3Pick">WAIT</strong></div><div class="v360-card"><span>LIBRARY CONFIDENCE</span><strong id="v360T3Conf">—</strong></div><div class="v360-card"><span>LIVE MATCH AWARENESS</span><strong id="v360T3Aware">BUILDING</strong></div><div class="v360-card"><span>RHYTHM / REGIME FIT</span><strong id="v360T3Rhythm">BUILDING</strong></div><div class="v360-card"><span>UNIQUE LIBRARY MATCHES</span><strong id="v360T3Matches">0</strong></div><div class="v360-card"><span>LIBRARY VOTE</span><strong id="v360T3Vote">50 / 50</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T3Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T3Wait">0</strong></div></div><div class="analyzer-sub" id="v360T3Note" style="margin-top:8px">Waiting for a strong saved-shoe match.</div><button class="tiny-btn" id="v360T3Reset" style="width:100%;margin-top:8px">Reset Test 3 Accuracy</button>`;a?.parentNode?.insertBefore(d,a.nextSibling);d.querySelector('#v360T3Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 3 accuracy?')){state.v360Test3Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}}}
-  const a3=document.getElementById('v360MainFutureTest3');
-  if(!document.getElementById('v360MainFutureTest4')){const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest4';d.innerHTML=`<div class="analyzer-title">🧭 Main Future Road Test 4 — Top-3 Live-Road Tracking</div><div class="analyzer-sub"><b>TEST 3 CLONE + NEW TOP-3 ROAD FOLLOWING.</b> Uses the same unique saved library and same-position continuation idea, then takes the 3 strongest overall matches and re-ranks only those 3 by which saved road ending is tracking the live shoe best right now across recent P/B/Main-road behavior, Big Eye, Small Road, and Cockroach. It follows the strongest current continuation only when the live-road tracking is strong enough.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T4Pick">WAIT</strong></div><div class="v360-card"><span>TRACK CONFIDENCE</span><strong id="v360T4Conf">—</strong></div><div class="v360-card"><span>TOP-3 MATCHES</span><strong id="v360T4Matches">0</strong></div><div class="v360-card"><span>BEST LIVE-ROAD TRACK</span><strong id="v360T4Track">BUILDING</strong></div><div class="v360-card"><span>TOP-3 AGREEMENT</span><strong id="v360T4Agree">—</strong></div><div class="v360-card"><span>AVG AWARENESS</span><strong id="v360T4Aware">—</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T4Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T4Wait">0</strong></div></div><div class="analyzer-sub" id="v360T4Note" style="margin-top:8px">Waiting for 3 strong library matches and a live-road leader.</div><button class="tiny-btn" id="v360T4Reset" style="width:100%;margin-top:8px">Reset Test 4 Accuracy</button>`;a3?.parentNode?.insertBefore(d,a3.nextSibling);d.querySelector('#v360T4Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 4 accuracy?')){state.v360Test4Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}}}
-  const a4=document.getElementById('v360MainFutureTest4');
-  if(!document.getElementById('v360MainFutureTest5')){const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest5';d.innerHTML=`<div class="analyzer-title">🧭 Main Future Road Test 5 — Continuous Live-Road Tracking</div><div class="analyzer-sub"><b>TEST 3 LIBRARY CLONE + CONTINUOUS ROAD EVIDENCE.</b> Once enough live road structure exists, this engine re-checks the full unique library after every hand. It keeps the strongest current candidates, compares their recent P/B/Main-road ending plus Big Eye, Small Road, and Cockroach against the live shoe, and follows the historical continuation only when the CURRENT road evidence is strong enough. It is not limited to a tie-break situation.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T5Pick">WAIT</strong></div><div class="v360-card"><span>TRACK CONFIDENCE</span><strong id="v360T5Conf">—</strong></div><div class="v360-card"><span>ACTIVE MATCHES</span><strong id="v360T5Matches">0</strong></div><div class="v360-card"><span>BEST LIVE-ROAD TRACK</span><strong id="v360T5Track">BUILDING</strong></div><div class="v360-card"><span>CONTINUATION AGREEMENT</span><strong id="v360T5Agree">—</strong></div><div class="v360-card"><span>ROAD EVIDENCE</span><strong id="v360T5Evidence">BUILDING</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T5Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T5Wait">0</strong></div></div><div class="analyzer-sub" id="v360T5Note" style="margin-top:8px">Building enough live road evidence.</div><button class="tiny-btn" id="v360T5Reset" style="width:100%;margin-top:8px">Reset Test 5 Accuracy</button>`;a4?.parentNode?.insertBefore(d,a4.nextSibling);d.querySelector('#v360T5Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 5 accuracy?')){state.v360Test5Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}}}
+  // Main Future Road Tests 3, 4, and 5 are fully removed.
 
 
 }
@@ -18967,13 +18493,11 @@ function settle(key,testFn){const A=st(key),seq=live(),hn=seq.length,actual=seq.
   if(A.pending&&hn>A.pending.handN){if(actual==='T'){A.ties++;A.pending.handN=hn}else if(actual==='P'||actual==='B'){if(actual===A.pending.side)A.wins++;else A.losses++;A.pending=null}}
   const x=testFn();if(!A.pending&&x.side){A.pending={side:x.side,handN:hn,at:Date.now()}}else if(!A.pending&&!x.side&&A.lastWaitHand!==hn){A.waits++;A.lastWaitHand=hn}A.lastSeenHand=hn;try{persist()}catch(e){}return x}
 function fmtAcc(A){const n=A.wins+A.losses;return n?`${(100*A.wins/n).toFixed(1)}% • ${A.wins}W-${A.losses}L • N=${n}`:`— • 0W-0L • N=0`}
-function paint(){ensure();const x2=test2(),x3=test3(),x4=test4(),x5=test5(),a2=st('v360Test2Accuracy'),a3=st('v360Test3Accuracy'),a4=st('v360Test4Accuracy'),a5=st('v360Test5Accuracy');
+function paint(){ensure();const x2=test2(),a2=st('v360Test2Accuracy');
   set('v360T2Pick',x2.side==='P'?'PLAYER':x2.side==='B'?'BANKER':'WAIT');set('v360T2Conf',x2.side?Math.max(x2.p,x2.b).toFixed(1)+'%':'—');set('v360T2Aware',(x2.mem.awareness||0).toFixed(1)+'%');set('v360T2Rhythm',`${x2.mem.regime||'BUILDING'} • ${(x2.mem.rhythm||0).toFixed(1)}%`);set('v360T2Matches',`${x2.mem.matches} • best ${x2.mem.best||0}%`);set('v360T2Acc',fmtAcc(a2));set('v360T2Wait',String(a2.waits||0));set('v360T2Note',x2.mem.qualified?`HIGH AWARENESS ACTIVE • live ${x2.mem.regime} • ${x2.mem.awareness}% match awareness • ${x2.mem.rhythm}% rhythm fit. Base ${x2.baseP}/${x2.baseB} + library ${x2.mem.pPct}/${x2.mem.bPct} → final ${x2.p}/${x2.b}.`:`Library memory has not passed the high-awareness gate yet. ${x2.mem.reason}`);
-  set('v360T3Pick',x3.side==='P'?'PLAYER':x3.side==='B'?'BANKER':'WAIT');set('v360T3Conf',x3.side?Math.max(x3.p,x3.b).toFixed(1)+'%':'—');set('v360T3Aware',(x3.mem.awareness||0).toFixed(1)+'%');set('v360T3Rhythm',`${x3.mem.regime||'BUILDING'} • ${(x3.mem.rhythm||0).toFixed(1)}%`);set('v360T3Matches',`${x3.mem.matches} • best ${x3.mem.best||0}%`);set('v360T3Vote',`${x3.p.toFixed(1)} P / ${x3.b.toFixed(1)} B`);set('v360T3Acc',fmtAcc(a3));set('v360T3Wait',String(a3.waits||0));set('v360T3Note',x3.mem.qualified?`100% LIBRARY CALL • ${x3.mem.matches} unique saved shoes matched • ${x3.mem.awareness}% awareness • ${x3.mem.rhythm}% rhythm fit • ${x3.mem.rawAgreement||0}% raw agreement • effective N ${x3.mem.effectiveN||0} • edge ${x3.mem.edge}pp.`:`100% library-only WAIT. ${x3.mem.reason}`);
-  set('v360T4Pick',x4.side==='P'?'PLAYER':x4.side==='B'?'BANKER':'WAIT');set('v360T4Conf',x4.side?Math.max(x4.p,x4.b).toFixed(1)+'%':'—');set('v360T4Matches',String(x4.mem.top3?.length||x4.mem.matches||0));set('v360T4Track',x4.mem.leaderTrack?`${x4.mem.leaderTrack.toFixed(1)}%`:'BUILDING');set('v360T4Agree',x4.mem.agreement?`${x4.mem.agreement.toFixed(1)}%`:'—');set('v360T4Aware',`${(x4.mem.awareness||0).toFixed(1)}%`);set('v360T4Acc',fmtAcc(a4));set('v360T4Wait',String(a4.waits||0));set('v360T4Note',x4.mem.qualified?`TOP-3 LIVE-ROAD CALL • leader ${x4.mem.leaderTrack}% • second ${x4.mem.secondTrack}% • agreement ${x4.mem.agreement}% • average awareness ${x4.mem.awareness}% • ${x4.mem.reason}`:`TOP-3 LIVE-ROAD WAIT. ${x4.mem.reason}`);
-  set('v360T5Pick',x5.side==='P'?'PLAYER':x5.side==='B'?'BANKER':'WAIT');set('v360T5Conf',x5.side?Math.max(x5.p,x5.b).toFixed(1)+'%':'—');set('v360T5Matches',String(x5.mem.top3?.length||x5.mem.matches||0));set('v360T5Track',x5.mem.leaderTrack?`${x5.mem.leaderTrack.toFixed(1)}%`:'BUILDING');set('v360T5Agree',x5.mem.agreement?`${x5.mem.agreement.toFixed(1)}%`:'—');set('v360T5Evidence',x5.mem.evidence?.ready?`${x5.mem.evidence.readyParts}/3 ROADS READY`:`BUILDING ${x5.mem.evidence?.readyParts||0}/3`);set('v360T5Acc',fmtAcc(a5));set('v360T5Wait',String(a5.waits||0));set('v360T5Note',x5.mem.qualified?`CONTINUOUS LIVE-ROAD CALL • leader ${x5.mem.leaderTrack}% • second ${x5.mem.secondTrack}% • agreement ${x5.mem.agreement}% • ${x5.mem.reason}`:`CONTINUOUS LIVE-ROAD WAIT. ${x5.mem.reason}`);
+
 }
-function cycle(){try{settle('v360Test2Accuracy',test2);settle('v360Test3Accuracy',test3);settle('v360Test4Accuracy',test4);settle('v360Test5Accuracy',test5);paint()}catch(e){console.warn('V360 Main Future Tests 2/3/4/5',e)}}
+function cycle(){try{settle('v360Test2Accuracy',test2);paint()}catch(e){console.warn('V360 Main Future Test 2',e)}}
 // V311 stability: do not wrap global render or repeatedly scan the full library during startup.
 function lightBoot(){
   ensure();
@@ -18982,7 +18506,7 @@ function lightBoot(){
   const n=live().length;
   if(n>=7)setTimeout(cycle,1800); // restored in-progress shoe: one delayed sync only.
 }
-window.__V360_MAIN_FUTURE_TESTS_23__={version:VERSION,test2,test3,test4,test4Scan,test5,test5Scan,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,libraryOnlyTest3:true,top3LiveRoadTest4:true,continuousLiveRoadTest5:true,test2Weights:{base:.70,library:.30},startupScanReduced:true};
+window.__V360_MAIN_FUTURE_TESTS_23__={version:VERSION,test2,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,tests345Removed:true,test2Weights:{base:.70,library:.30},startupScanReduced:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',lightBoot,{once:true});else lightBoot();
 })();
 </script>
@@ -19000,20 +18524,14 @@ function move(){
     const app=document.querySelector('.app');
     const topbar=app?.querySelector('.topbar');
     const t2=document.getElementById('v360MainFutureTest2');
-    const t3=document.getElementById('v360MainFutureTest3');
-    const t4=document.getElementById('v360MainFutureTest4');
-    const t5=document.getElementById('v360MainFutureTest5');
     const auto=document.getElementById('autoHistMatchBox');
     const mainOnly=null; // V334: removed Main Road Only panel
     if(!app)return false;
 
-    // User-requested top order: Test 2, then Test 3, immediately under the top bar.
+    // User-requested top order: Test 2 immediately under the top bar.
     if(topbar && t2){
       const first=topbar.nextSibling;
       if(first!==t2) app.insertBefore(t2, first);
-      if(t3 && t2.nextSibling!==t3) app.insertBefore(t3, t2.nextSibling);
-      if(t4 && t3 && t3.nextSibling!==t4) app.insertBefore(t4, t3.nextSibling);
-      if(t5 && t4 && t4.nextSibling!==t5) app.insertBefore(t5, t4.nextSibling);
     }
 
     // V334: Automatic Historical Match remains at bottom; Main Road Only Future was removed.
@@ -19024,7 +18542,7 @@ function move(){
 
     window.__V361_USER_LAYOUT_LOCK__={
       version:VERSION,
-      top:['Main Future Road Test 2','Main Future Road Test 3','Main Future Road Test 4','Main Future Road Test 5'],
+      top:['Main Future Road Test 2'],
       bottom:['Automatic Historical Match AI'],
       logicChanged:false
     };
@@ -19056,6 +18574,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 <!-- V315: closing tags moved to true end; late runtime scripts remain inside body. -->
 
+<!-- V345: Restored ML Road Trainer V308 Champion Ensemble as active ML owner; V309 runtime disabled. Other AI logic unchanged. -->
 <script id="v308-ml-champion-ensemble">
 (function(){
 'use strict';
@@ -19304,14 +18823,12 @@ function move(){
     const best=bestPanel();
     const pattern=document.getElementById('roadPreviewAiPanel');
     const t2=document.getElementById('v360MainFutureTest2');
-    const t3=document.getElementById('v360MainFutureTest3');
-    const t4=document.getElementById('v360MainFutureTest4');
     const auto=document.getElementById('autoHistMatchBox');
     const mainOnly=null; // V334: removed Main Road Only panel
 
     // Requested top priority: Best Estimate first, AI Pattern second.
     let anchor=topbar;
-    for(const panel of [best,pattern,t2,t3,t4]){
+    for(const panel of [best,pattern,t2]){
       if(!panel)continue;
       if(anchor.nextSibling!==panel) app.insertBefore(panel,anchor.nextSibling);
       anchor=panel;
@@ -19323,7 +18840,7 @@ function move(){
 
     window.__V314_USER_LAYOUT__={
       version:VERSION,
-      top:['Best-Estimate Analyzer','AI Pattern Recognizer','Main Future Road Test 2','Main Future Road Test 3','Main Future Road Test 4','Main Future Road Test 5'],
+      top:['Best-Estimate Analyzer','AI Pattern Recognizer','Main Future Road Test 2'],
       bottom:['Automatic Historical Match AI'],
       logicChanged:false
     };
@@ -19606,7 +19123,6 @@ function installDedicated(){
 function resetExistingKnown(id){
   try{
     if(id==='v360T2Reset'){state.v360Test2Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};save();window.__V360_MAIN_FUTURE_TESTS_23__?.cycle?.();return true}
-    if(id==='v360T3Reset'){state.v360Test3Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};save();window.__V360_MAIN_FUTURE_TESTS_23__?.cycle?.();return true}
     if(id==='v284Reset'){const a=appAcc();delete a.models.mainroadonlyfuturev284;delete a.pending.mainroadonlyfuturev284;save();window.__V305_MAIN_ROAD_ONLY_AI__?.render?.();return true}
     if(id==='mlv203Reset'){const a=appAcc();delete a.models.mlroad;delete a.pending.mlroad;save();try{window.__ML_V309_INDEPENDENT_SHOE_LEARNING__?.paint?.()}catch(e){};try{render()}catch(e){};return true}
     if(id==='resetShoeMatcherAccuracy'){if(window.__V86_MATCHER_ACCURACY__){const a=window.__V86_MATCHER_ACCURACY__.acc?.();if(a){a.wins=a.losses=a.waits=a.ties=0;a.pending=null;a.lastWaitHandN=null;a.lastSettledKey=null;a.ledger=[]}window.__V86_MATCHER_ACCURACY__.render?.();window.__V86_MATCHER_ACCURACY__.arm?.();return true}}
@@ -19616,22 +19132,16 @@ function resetExistingKnown(id){
   return false;
 }
 // Capture known reset buttons before older broken reset handlers can interfere.
-document.addEventListener('click',e=>{const b=e.target?.closest?.('button');if(!b)return;const ids=['resetFutureAccuracy','resetConfusionAiAccuracy','resetShoeMatcherAccuracy','v360T2Reset','v360T3Reset','mlv203Reset','v284Reset'];if(ids.includes(b.id)){const handled=resetExistingKnown(b.id);if(handled){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();setTimeout(()=>{try{render()}catch(x){};installDedicated();paintSequence();window.__V323_BEST_PATTERN_ACCURACY__?.paint?.()},0)}}},true);
+document.addEventListener('click',e=>{const b=e.target?.closest?.('button');if(!b)return;const ids=['resetFutureAccuracy','resetConfusionAiAccuracy','resetShoeMatcherAccuracy','v360T2Reset','mlv203Reset','v284Reset'];if(ids.includes(b.id)){const handled=resetExistingKnown(b.id);if(handled){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();setTimeout(()=>{try{render()}catch(x){};installDedicated();paintSequence();window.__V323_BEST_PATTERN_ACCURACY__?.paint?.()},0)}}},true);
 function install(){installDedicated();paintSequence();window.__V323_BEST_PATTERN_ACCURACY__?.paint?.()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 [300,900,1800,3500].forEach(ms=>setTimeout(install,ms));
 window.__V325_ACCURACY_REPAIR__={version:326,gradeSequence,paintSequence,resetSequence,resetBest,resetPattern,installDedicated,resetExistingKnown};
-window.__V326_RESET_AUDIT__={sequence:'dedicated',bestEstimate:'dedicated',aiPattern:'dedicated',mainFuture:'direct',test2:'direct',test3:'direct',ml:'direct',matcher:'direct',confusion:'direct',mainRoadOnly:'direct'};
+window.__V326_RESET_AUDIT__={sequence:'dedicated',bestEstimate:'dedicated',aiPattern:'dedicated',mainFuture:'direct',test2:'direct',ml:'direct',matcher:'direct',confusion:'direct',mainRoadOnly:'direct'};
 })();
 </script>
 
 
-<script id="v327-test3-false-confidence-fix">
-window.__V327_TEST3_FALSE_CONFIDENCE_FIX__={version:327,libraryOnly:true,minUniqueMatches:4,minBestMatch:.72,minEdgePP:26,minAwareness:.72,minRhythm:.64,minRawAgreement:.60,minEffectiveN:3.0,maxVoteShoes:8,otherAILogicChanged:false};
-</script>
-<script id="v328-test4-marker">window.__V328_TEST4_TOP3_LIVE_ROAD_TRACKING__={version:328,source:"V327",test3Unchanged:true,test4IndependentAccuracy:true};</script>
-
-<script id="v329-test5-marker">window.__V329_TEST5_CONTINUOUS_LIVE_ROAD_TRACKING__={version:329,source:"V328",test3Unchanged:true,test4Unchanged:true,test5IndependentAccuracy:true,continuousThroughShoe:true};</script>
 
 <!-- V330: Derived Road authoritative W/L registration + Best Estimate reset repair. Prediction logic unchanged. -->
 <script id="v330-derived-accuracy-best-reset-fix">
@@ -19728,7 +19238,58 @@ function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHan
 function acc(){try{state.v331BestEstimate2Accuracy=Object.assign(blank(),state.v331BestEstimate2Accuracy||{});return state.v331BestEstimate2Accuracy}catch(e){return blank()}}
 function save(){try{persist()}catch(e){}}
 function base(){try{return typeof computeCombinedAnalyzer==='function'?computeCombinedAnalyzer():null}catch(e){return null}}
-function road(){try{return window.__V360_MAIN_FUTURE_TESTS_23__?.test5?.()||null}catch(e){return null}}
+function roadLib(){
+  let rows=[];
+  try{if(typeof uniqueActivePatternLibrary==='function'){const a=uniqueActivePatternLibrary(false);if(Array.isArray(a)&&a.length)rows.push(...a)}}catch(e){}
+  if(!rows.length){try{if(typeof activePatternLibrary==='function'){const a=activePatternLibrary();if(Array.isArray(a)&&a.length)rows.push(...a)}}catch(e){}}
+  if(!rows.length){try{rows=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])]}catch(e){rows=[]}}
+  const seen=new Set(),out=[];
+  for(const x of rows){
+    const q=String(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||'')).toUpperCase().replace(/[^PBT]/g,'');
+    if(q.length<10||seen.has(q))continue;seen.add(q);out.push(q);
+  }
+  return out;
+}
+function roadDerived(seq,off){try{return deriveRoad(seq.map(r=>({r})),off)||[]}catch(e){return []}}
+function roadPB(seq){return (seq||[]).filter(x=>x==='P'||x==='B')}
+function roadTailScore(a,b,k=12){
+  a=Array.isArray(a)?a:[];b=Array.isArray(b)?b:[];
+  const n=Math.min(k,a.length,b.length);if(n<3)return null;
+  let hit=0,tot=0;for(let i=0;i<n;i++){const w=.65+1.35*(i+1)/n;tot+=w;if(a[a.length-n+i]===b[b.length-n+i])hit+=w}
+  return tot?hit/tot:null;
+}
+function road(){
+  const cur=live(),n=cur.length;
+  const curPB=roadPB(cur);
+  const dcur=[1,2,3].map(off=>roadDerived(cur,off));
+  const readyParts=dcur.filter(a=>a.length>=4).length;
+  const evidence={ready:curPB.length>=8&&readyParts>=2,mainN:curPB.length,readyParts};
+  if(!evidence.ready)return {side:null,p:50,b:50,mem:{qualified:false,leaderTrack:0,agreement:0,evidence,reason:`WAIT • building live roads (${readyParts}/3 derived roads ready).`}};
+  const candidates=[];
+  for(const q0 of roadLib()){
+    const q=q0.split('');if(q.length<=n)continue;const next=q[n];if(next!=='P'&&next!=='B')continue;
+    const hist=q.slice(0,n),histPB=roadPB(hist);
+    const main=roadTailScore(curPB,histPB,12);
+    const roadScores=[];for(let i=0;i<3;i++){const h=roadDerived(hist,i+1),s=roadTailScore(dcur[i],h,12);if(s!=null)roadScores.push(s)}
+    if(main==null||roadScores.length<2)continue;
+    const rmean=roadScores.reduce((a,x)=>a+x,0)/roadScores.length;
+    const track=.42*main+.58*rmean;
+    const awareness=.35*main+.65*rmean;
+    if(track<.52)continue;
+    candidates.push({next,track,awareness,parts:roadScores.length+1});
+  }
+  candidates.sort((a,b)=>(b.track+.12*b.awareness)-(a.track+.12*a.awareness));
+  const ranked=candidates.slice(0,3);
+  if(!ranked.length)return {side:null,p:50,b:50,mem:{qualified:false,leaderTrack:0,agreement:0,evidence,reason:'WAIT • roads are ready, but no saved continuation is tracking the live shoe strongly enough.'}};
+  const leader=ranked[0],second=ranked[1]||null,same=ranked.filter(x=>x.next===leader.next).length,agreement=same/ranked.length,gap=second?leader.track-second.track:leader.track;
+  const avgAware=ranked.reduce((a,x)=>a+x.awareness,0)/ranked.length;
+  const multiAgree=ranked.length>=2&&same>=2&&leader.track>=.80&&(second?.track||0)>=.72&&avgAware>=.62;
+  const exceptional=leader.track>=.92&&gap>=.09&&leader.parts>=3&&avgAware>=.64;
+  const qualified=multiAgree||exceptional;
+  let conf=50;if(qualified)conf=Math.min(88,50+25*leader.track+7*agreement+6*Math.max(0,gap));
+  const side=qualified?leader.next:null,p=leader.next==='P'?conf:100-conf,b=100-p;
+  return {side,p:+p.toFixed(1),b:+b.toFixed(1),mem:{qualified,leaderTrack:+(leader.track*100).toFixed(1),agreement:+(agreement*100).toFixed(1),gap:+(gap*100).toFixed(1),matches:ranked.length,evidence,reason:qualified?`INTERNAL LIVE-ROAD assist qualified • leader ${(leader.track*100).toFixed(0)}% • ${same}/${ranked.length} continuation agreement.`:`WAIT • internal road scan active • leader ${(leader.track*100).toFixed(0)}% • ${same}/${ranked.length} same next side • gap ${(gap*100).toFixed(0)}pp.`}};
+}
 function decide(){
   const b=base(),r=road();
   if(!b)return {side:null,qualified:false,reason:'WAIT — Best Estimate base unavailable.',base:null,road:r};
@@ -19736,9 +19297,9 @@ function decide(){
   const roadSide=norm(r?.side),roadQ=!!roadSide;
   let side=null,mode='WAIT',reason='';
   if(baseQ&&roadQ&&rawSide===roadSide){side=rawSide;mode='AGREE';reason='Best Estimate and continuous live-road tracking agree.'}
-  else if(baseQ&&roadQ&&rawSide!==roadSide){mode='VETO';reason='WAIT — strong continuous road evidence conflicts with Best Estimate.'}
+  else if(baseQ&&roadQ&&rawSide!==roadSide){side=rawSide;mode='BASE-PROTECTED';reason='Original Best Estimate qualified; conflicting live-road evidence is advisory only and cannot veto or reverse the base call.'}
   else if(baseQ&&!roadQ){side=rawSide;mode='BASE';reason='Original Best Estimate qualified; live-road tracker has not qualified strongly enough to override it.'}
-  else if(!baseQ&&roadQ&&rawSide===roadSide&&Number(b.top||0)>=53){side=roadSide;mode='ROAD-ASSIST';reason='Continuous live-road tracking qualified and confirms the Best Estimate raw lean, adding an extra selective call.'}
+  else if(!baseQ&&roadQ&&rawSide===roadSide&&Number(b.top||0)>=52){side=roadSide;mode='ROAD-ASSIST';reason='Continuous live-road tracking qualified and confirms the Best Estimate raw lean, adding an extra selective call.'}
   else {reason=roadQ?'WAIT — road tracker qualified but Best Estimate raw lean does not confirm it.':(b.gateReason||'WAIT — evidence not strong enough.')}
   let conf=0;
   if(side){
@@ -19756,8 +19317,8 @@ function ensure(){
   const original=document.getElementById('bestEstimateAccuracy')?.closest('.analyzer');
   if(!original?.parentNode)return;
   const d=document.createElement('div');d.className='analyzer';d.id='v331BestEstimate2';
-  d.innerHTML=`<div class="analyzer-title">Best-Estimate Analyzer 2 — Continuous Live-Road Assist (No-Reversal Lock)</div>
-  <div class="analyzer-sub"><b>ORIGINAL BEST ESTIMATE CLONE + TEST 5 ROAD LOGIC + NO-REVERSAL LOCK.</b> The original Best-Estimate Analyzer is untouched. This copy continuously checks the live-road tracking engine throughout the shoe. The road layer may CONFIRM a Best Estimate call, VETO it to WAIT, or add a selective call only when it matches the Best Estimate raw lean. It is never allowed to flip a PLAYER call to BANKER or a BANKER call to PLAYER.</div>
+  d.innerHTML=`<div class="analyzer-title">Best-Estimate Analyzer 2 — Independent Live-Road Assist (No-Reversal Lock)</div>
+  <div class="analyzer-sub"><b>ORIGINAL BEST ESTIMATE CLONE + INTERNAL ROAD ASSIST + NO-REVERSAL LOCK.</b> The original Best-Estimate Analyzer is untouched. This copy continuously checks the live-road tracking engine throughout the shoe. The road layer may CONFIRM a Best Estimate call or add a selective call when it matches the Best Estimate raw lean. A qualified original Best Estimate call is preserved even when the road disagrees; the road is advisory and can never reverse the side.</div>
   <div class="analyzer-grid">
     <div class="analyzer-card"><span>Next result</span><strong id="v331BE2Side">WAIT</strong></div>
     <div class="analyzer-card"><span>Hybrid confidence</span><strong id="v331BE2Conf">—</strong></div>
@@ -19766,7 +19327,7 @@ function ensure(){
   </div>
   <div class="analyzer-grid">
     <div class="analyzer-card"><span>Original Best Estimate</span><strong id="v331BE2Base">WAIT</strong></div>
-    <div class="analyzer-card"><span>Test 5 live-road signal</span><strong id="v331BE2Road">WAIT</strong></div>
+    <div class="analyzer-card"><span>Internal live-road signal</span><strong id="v331BE2Road">WAIT</strong></div>
     <div class="analyzer-card"><span>Best live-road track</span><strong id="v331BE2Track">BUILDING</strong></div>
     <div class="analyzer-card"><span>Road agreement</span><strong id="v331BE2Agree">—</strong></div>
   </div>
@@ -19831,7 +19392,7 @@ function install(){
   const n=live().length;if(n>=7)setTimeout(arm,2100);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.__V332_BEST_ESTIMATE_2__={version:339,decide,cycle,settle,arm,historyChanged,paint,originalBestEstimateUnchanged:true,otherAILogicChanged:false,continuousTest5Assist:true,noReversalLock:true,authoritativeSettlement:true};
+window.__V332_BEST_ESTIMATE_2__={version:339,decide,cycle,settle,arm,historyChanged,paint,originalBestEstimateUnchanged:true,otherAILogicChanged:false,continuousTest5Assist:false,internalRoadAssist:true,noReversalLock:true,authoritativeSettlement:true};
 })();
 </script>
 
@@ -19898,8 +19459,8 @@ window.__V334_DEEP_CLEANUP__={version:VERSION,removedPanels:removedIds.slice(),p
 <script id="v335-pattern-resume-ai">
 (function(){
 'use strict';
-const VERSION='V337 PATTERN RESUME SLIGHTLY LOOSER + SEQUENCE V2';
-const MOTIF_LEN=5, MIN_SHOES=7, MIN_RATE=.75, GAPS=[1,2,3];
+const VERSION='V356 PATTERN RESUME GENUINE-BREAK FIX';
+const MOTIF_LEN=5, MIN_SHOES=5, MIN_RATE=.75, GAPS=[1,2,3];
 function ensure(){
   if(!window.state) return null;
   state.patternResumeAI ||= {version:335,wins:0,losses:0,ties:0,pending:null,lastArmPB:-1,lastSeenPB:-1,ledger:[]};
@@ -19913,12 +19474,66 @@ function pbSeq(v){
 function trans(seq){
   const a=pbSeq(seq),o=[];for(let i=1;i<a.length;i++)o.push(a[i]===a[i-1]?'R':'S');return o;
 }
+function genuineBreak(motif,gapSeq){
+  // A break must actually interrupt the repeating motif. If the skipped 1-3
+  // transitions exactly match the next motif prefix, this is seamless continuation,
+  // not a break-and-return setup.
+  const g=String(gapSeq||'');if(!g)return false;
+  const expected=String(motif||'').slice(0,g.length);
+  return g!==expected;
+}
 function shoeRows(){
-  const rows=[];for(const n of ['redPatternLibrary','blackPatternLibrary','patternLibrary']){
-    try{const a=state?.[n];if(Array.isArray(a))rows.push(...a)}catch(e){}
+  // V355 repair: read the live active library first, then fall back through every
+  // persisted in-memory library source. This prevents a false "0 shoes" display
+  // when one accessor is stale or color routing is temporarily unavailable.
+  let rows=[];
+  try{
+    if(typeof uniqueActivePatternLibrary==='function'){
+      const a=uniqueActivePatternLibrary(false);
+      if(Array.isArray(a)&&a.length)rows.push(...a);
+    }
+  }catch(e){}
+  if(!rows.length){
+    try{
+      if(typeof activePatternLibrary==='function'){
+        const a=activePatternLibrary();
+        if(Array.isArray(a)&&a.length)rows.push(...a);
+      }
+    }catch(e){}
+  }
+  if(!rows.length){
+    for(const n of ['redPatternLibrary','blackPatternLibrary','patternLibrary']){
+      try{const a=state?.[n];if(Array.isArray(a)&&a.length)rows.push(...a)}catch(e){}
+    }
+  }
+  // Last-resort baseline only. Device-saved state always wins when available.
+  if(!rows.length){
+    try{
+      const seed=(typeof CHROME_LIBRARY_SEED!=='undefined'&&CHROME_LIBRARY_SEED)||null;
+      if(seed){
+        if(Array.isArray(seed.redPatternLibrary))rows.push(...seed.redPatternLibrary);
+        if(Array.isArray(seed.blackPatternLibrary))rows.push(...seed.blackPatternLibrary);
+      }
+    }catch(e){}
   }
   const seen=new Set(),out=[];
-  for(const x of rows){const q=String(x?.sequence||'').toUpperCase().replace(/[^PBT]/g,'');const p=q.replace(/T/g,'');if(p.length<12||seen.has(p))continue;seen.add(p);out.push(p.split(''))}
+  for(const x of rows){
+    let raw='';
+    if(typeof x==='string')raw=x;
+    else if(x){
+      raw=x.sequence??x.seq??x.results??x.history??x.hands??'';
+      if(Array.isArray(raw))raw=raw.map(v=>{
+        const z=String(typeof v==='string'?v:(v?.r??v?.result??v?.side??v?.winner??'')).toUpperCase();
+        return z==='PLAYER'?'P':z==='BANKER'?'B':z==='TIE'?'T':z;
+      }).join('');
+    }
+    const q=String(raw).toUpperCase()
+      .replace(/PLAYER/g,'P').replace(/BANKER/g,'B').replace(/TIE/g,'T')
+      .replace(/[^PBT]/g,'');
+    const p=q.replace(/T/g,'');
+    if(p.length<12||seen.has(p))continue;
+    seen.add(p);out.push(p.split(''));
+  }
   return out;
 }
 let cacheKey='',cache=null;
@@ -19932,6 +19547,8 @@ function buildStats(){
         const m2=t.slice(end2-MOTIF_LEN,end2).join('');
         const m1=t.slice(end2-(MOTIF_LEN*2+g),end2-(MOTIF_LEN+g)).join('');
         if(m1!==m2)continue;
+        const gapSeq=t.slice(end2-(MOTIF_LEN+g),end2-MOTIF_LEN).join('');
+        if(!genuineBreak(m1,gapSeq))continue;
         const next=t[end2];if(next!=='R'&&next!=='S')continue;
         const k=m2+'|'+g;const z=perShoe.get(k)||{R:0,S:0};z[next]++;perShoe.set(k,z);
       }
@@ -19951,13 +19568,15 @@ function detect(){
     const m2=t.slice(-MOTIF_LEN).join('');
     const m1=t.slice(-(MOTIF_LEN*2+g),-(MOTIF_LEN+g)).join('');
     if(m1!==m2)continue;
+    const gapSeq=t.slice(-(MOTIF_LEN+g),-MOTIF_LEN).join('');
+    if(!genuineBreak(m1,gapSeq))continue;
     const b=hist.buckets.get(m2+'|'+g);if(!b)continue;
     const n=b.R+b.S;if(n<MIN_SHOES)continue;
     const dir=b.R>=b.S?'R':'S',wins=Math.max(b.R,b.S),rate=wins/n;
     if(rate<MIN_RATE)continue;
     candidates.push({motif:m2,gap:g,dir,n,rate,R:b.R,S:b.S});
   }
-  if(!candidates.length)return {side:null,reason:'WAIT — no ≥75% qualified break-and-return setup',shoes:hist.shoes};
+  if(!candidates.length)return {side:null,reason:'WAIT — no ≥75% qualified genuine break-and-return setup',shoes:hist.shoes};
   candidates.sort((a,b)=>b.rate-a.rate||b.n-a.n||a.gap-b.gap);const c=candidates[0],last=p.at(-1);
   const patternSide=c.dir==='R'?last:(last==='P'?'B':'P');
   let seq=null;
@@ -19969,13 +19588,13 @@ function detect(){
   const confirmed=seqSide===patternSide;
   const seqState=confirmed?'CONFIRMED':(seq?.waitReason?'WAIT':'UNAVAILABLE');
   const seqText=confirmed?` • Sequence V2 CONFIRMS ${patternSide==='P'?'PLAYER':'BANKER'} (${seq?.strength||0}% strength, ${seq?.similarityScore||0}% quality)`:` • Sequence V2 ${seqState}`;
-  return {...c,side:patternSide,patternSide,seqSide,seqStrength:seq?.strength||0,seqSimilarity:seq?.similarityScore||0,seqState,confirmed,reason:`${c.motif} returned after ${c.gap}-step break • historical ${c.dir==='R'?'REPEAT':'SWITCH'} ${Math.round(c.rate*100)}% (${Math.max(c.R,c.S)}/${c.n} shoes)${seqText}` ,shoes:hist.shoes};
+  return {...c,side:patternSide,patternSide,seqSide,seqStrength:seq?.strength||0,seqSimilarity:seq?.similarityScore||0,seqState,confirmed,reason:`${c.motif} returned after ${c.gap}-step genuine break • historical ${c.dir==='R'?'REPEAT':'SWITCH'} ${Math.round(c.rate*100)}% (${Math.max(c.R,c.S)}/${c.n} shoes)${seqText}` ,shoes:hist.shoes};
 }
 function panel(){
   let p=document.getElementById('patternResumeAiPanel');if(p)return p;
   p=document.createElement('div');p.className='analyzer';p.id='patternResumeAiPanel';p.style.borderColor='#7dd3fc';
   p.innerHTML=`<div class="analyzer-title">🔁 Pattern Resume + Sequence V2 AI — Experimental</div>
-  <div class="analyzer-sub">Uses the 75% Pattern Resume signal plus the existing Sequence AI V2 logic, with the minimum historical support loosened slightly from 8 to 7 distinct shoes as an independent confirmation layer. A qualified resume can still fire when Sequence V2 is waiting, but if Sequence V2 gives the opposite side this AI waits instead of overriding either signal. Ties are ignored for the resume rhythm. Existing Sequence V2 itself is unchanged.</div>
+  <div class="analyzer-sub">Uses the 75% Pattern Resume signal plus the existing Sequence AI V2 logic, reading the same active saved-shoe library as the other library-aware AIs. Minimum historical support is 5 distinct shoes, and the 1–3 transition middle segment must now be a genuine disturbance rather than a seamless continuation of the motif. A qualified resume can still fire when Sequence V2 is waiting, but if Sequence V2 gives the opposite side this AI waits instead of overriding either signal. Ties are ignored for the resume rhythm. Existing Sequence V2 itself is unchanged.</div>
   <div class="analyzer-grid" style="margin-top:8px">
     <div class="analyzer-card"><span>Result</span><strong id="prSide">WAIT</strong></div>
     <div class="analyzer-card"><span>Historical setup</span><strong id="prHist">—</strong></div>
@@ -20017,128 +19636,57 @@ window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__={version:VERSION,detect,buildStats
 
 
 
-<!-- V338: Separate ML Pattern Resumption clone. Original V309 ML is read-only and unchanged. -->
-<script id="v338-ml-pattern-resumption-clone">
+<!-- V350: Removed V338 ML Pattern Resumption experimental clone (UI + standalone runtime) per user request. Main ML unchanged. -->
+
+
+
+
+
+<!-- V358: static visible Derived Road AI final-result panel. Display/reset only; prediction logic unchanged. -->
+<script id="v358-derived-road-visible-result-panel">
 (function(){
 'use strict';
-const VERSION='V338 ML PATTERN RESUMPTION CLONE';
-const KEY='v338MlPatternResumeAccuracy';
-function liveHands(){try{return Array.isArray(state?.hands)?state.hands:[]}catch(e){return []}}
-function actualSide(x){const v=String(typeof x==='string'?x:(x?.r||x?.result||'')).toUpperCase();return v==='PLAYER'?'P':v==='BANKER'?'B':v==='TIE'?'T':v}
-function store(){
-  if(!window.state)return null;
-  state[KEY] ||= {wins:0,losses:0,ties:0,waits:0,pending:null,lastWaitHand:-1,lastSeenHand:-1,ledger:[]};
-  if(!Number.isFinite(state[KEY].lastSeenHand))state[KEY].lastSeenHand=-1;
-  return state[KEY];
+const KEY='derivedorig';
+function model(){try{return state?.accuracyVerified?.models?.[KEY]||{}}catch(e){return {}}}
+function signal(){
+  try{
+    const z=typeof derivedRoadSequenceAI==='function'?derivedRoadSequenceAI():null;
+    return {side:(z?.side==='P'||z?.side==='B')?z.side:null,confidence:Number(z?.confidence??z?.strength)||0,reason:String(z?.reason||'')};
+  }catch(e){return {side:null,confidence:0,reason:''}}
 }
-function save(){try{typeof persist==='function'&&persist()}catch(e){try{localStorage.setItem('v338-ml-pattern-resume-accuracy',JSON.stringify(store()))}catch(_){} }}
-function baseApi(){return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null}
-function baseSignal(){try{return baseApi()?.signal?.()||null}catch(e){return null}}
-function resumeSignal(){try{return window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__?.detect?.()||null}catch(e){return null}}
-function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
-function decide(){
-  const base=baseSignal();
-  if(!base)return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:'WAIT — original ML is not available yet.',base:null,resume:null};
-  const resume=resumeSignal();
-  const baseSide=(base.side==='P'||base.side==='B')?base.side:null;
-  const rawSide=(base.rawSide==='P'||base.rawSide==='B')?base.rawSide:baseSide;
-  const baseQualified=!!base.qualified&&!!baseSide;
-  const baseConf=Number(base.confidence)||Number(base.strength)||0;
-  const rSide=(resume?.side==='P'||resume?.side==='B')?resume.side:null;
-  const rRate=Number(resume?.rate)||0;
-  const rN=Number(resume?.n)||0;
-  const strongResume=!!rSide&&rRate>=.75&&rN>=7;
-
-  // No qualified resumption setup: exact baseline behavior.
-  if(!strongResume){
-    return {side:baseQualified?baseSide:null,qualified:baseQualified,confidence:baseConf,mode:baseQualified?'BASE ML':'WAIT',reason:baseQualified?'Original V309 ML call; no qualified Pattern Resume setup is active.':(base.reason||'WAIT — original ML is not qualified.'),base,resume};
-  }
-
-  // Qualified baseline + agreeing resumption: keep side, modest confidence lift only in clone.
-  if(baseQualified&&baseSide===rSide){
-    const bonus=clamp(2 + (rRate-.75)*20 + Math.min(3,(rN-7)*.35),2,7);
-    return {side:baseSide,qualified:true,confidence:+clamp(baseConf+bonus,0,95).toFixed(1),mode:'ML + RESUME CONFIRM',reason:`Pattern Resume confirms the original ML ${baseSide==='P'?'PLAYER':'BANKER'} call at ${Math.round(rRate*100)}% historical support (N ${rN}). Original ML confidence ${baseConf.toFixed(1)}%; clone-only confidence lift ${bonus.toFixed(1)} points.`,base,resume};
-  }
-
-  // Never let the feature reverse a qualified original ML call during the experiment.
-  if(baseQualified&&baseSide!==rSide){
-    return {side:null,qualified:false,confidence:0,mode:'CONFLICT WAIT',reason:`WAIT — original ML favors ${baseSide==='P'?'PLAYER':'BANKER'} while Pattern Resume favors ${rSide==='P'?'PLAYER':'BANKER'} at ${Math.round(rRate*100)}% (N ${rN}). The clone does not reverse the original ML.`,base,resume};
-  }
-
-  // Feature-assisted call: original ML raw lean must independently agree.
-  if(!baseQualified&&rawSide===rSide&&baseConf>=50){
-    const blended=clamp(baseConf*.62 + (rRate*100)*.38,50,90);
-    return {side:rSide,qualified:true,confidence:+blended.toFixed(1),mode:'RESUME ASSIST',reason:`Feature-assisted call: original ML raw lean agrees with a ${Math.round(rRate*100)}% Pattern Resume setup across ${rN} distinct shoes. This call exists only in the clone; the original ML remains WAIT.`,base,resume};
-  }
-
-  return {side:null,qualified:false,confidence:0,mode:'RESUME WAIT',reason:`WAIT — Pattern Resume favors ${rSide==='P'?'PLAYER':'BANKER'} at ${Math.round(rRate*100)}% (N ${rN}), but the original ML raw lean does not independently agree strongly enough.`,base,resume};
-}
-function panel(){
-  let p=document.getElementById('mlPatternResumeV338');if(p)return p;
-  p=document.createElement('div');p.className='analyzer';p.id='mlPatternResumeV338';p.style.borderColor='#93c5fd';
-  p.innerHTML=`<div class="analyzer-title">🧠🔁 ML Pattern Resumption — V338 Experimental Clone</div>
-    <div class="analyzer-sub">Separate clone layer over the current V309 ML. The original ML model, training runtime, thresholds, counters, and reset logic are not modified. Pattern Resume can confirm/strengthen an ML call, create a feature-assisted call only when the ML raw lean agrees, or force this clone to WAIT on conflict. It never reverses the original ML.</div>
-    <div class="analyzer-grid" style="margin-top:8px">
-      <div class="analyzer-card"><span>Clone prediction</span><strong id="mlprPick">WAIT</strong></div>
-      <div class="analyzer-card"><span>Clone confidence</span><strong id="mlprConf">—</strong></div>
-      <div class="analyzer-card"><span>Original ML</span><strong id="mlprBase">WAIT</strong></div>
-      <div class="analyzer-card"><span>Pattern Resume</span><strong id="mlprResume">WAIT</strong></div>
-      <div class="analyzer-card"><span>Mode</span><strong id="mlprMode">WAIT</strong></div>
-      <div class="analyzer-card"><span>Live accuracy</span><strong id="mlprAcc">—</strong><small id="mlprAccDetail" style="display:block;color:var(--muted);margin-top:3px">0W-0L • N 0</small></div>
-    </div>
-    <div class="analyzer-sub" id="mlprReason" style="margin-top:8px">Waiting for ML training and live evidence.</div>
-    <button class="tiny-btn" id="mlprReset" type="button" style="margin-top:7px">Reset ML Pattern Resumption accuracy</button>`;
-  const ml=document.getElementById('mlRoadTrainerV155');
-  if(ml?.parentNode)ml.parentNode.insertBefore(p,ml.nextSibling);else document.querySelector('.app')?.appendChild(p);
-  p.querySelector('#mlprReset')?.addEventListener('click',()=>{state[KEY]={wins:0,losses:0,ties:0,waits:0,pending:null,lastWaitHand:-1,lastSeenHand:-1,ledger:[]};save();paint();});
-  return p;
+function accuracy(){
+  const m=model(),w=Number(m.wins)||0,l=Number(m.losses)||0,n=Number(m.predictions)||(w+l);
+  return {w,l,n,rate:n?100*w/n:null};
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
 function paint(){
-  panel();const A=store();if(!A)return;const x=decide();const n=A.wins+A.losses;
-  const b=x.base, r=x.resume;
-  set('mlprPick',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');
-  set('mlprConf',x.side?Number(x.confidence).toFixed(1)+'%':'—');
-  set('mlprBase',b?.qualified?(b.side==='P'?'PLAYER':'BANKER'):(b?.rawSide==='P'?'RAW P':b?.rawSide==='B'?'RAW B':'WAIT'));
-  set('mlprResume',r?.side?(r.side==='P'?'PLAYER':'BANKER')+(r.rate!=null?` ${Math.round(Number(r.rate)*100)}%`:''):'WAIT');
-  set('mlprMode',x.mode||'WAIT');
-  set('mlprAcc',n?((A.wins/n)*100).toFixed(1)+'%':'—');
-  set('mlprAccDetail',`${A.wins}W-${A.losses}L • N ${n} • WAIT ${A.waits||0}`);
-  set('mlprReason',x.reason||'');
-  const e=document.getElementById('mlprPick');if(e)e.style.color=x.side==='P'?'#4ea1ff':x.side==='B'?'#ff5b63':'#f6c85f';
-  return x;
+  if(!document.getElementById('v358DerivedResultPanel'))return;
+  const z=signal(),a=accuracy();
+  set('v358DerivedResult',z.side==='P'?'PLAYER':z.side==='B'?'BANKER':'WAIT');
+  set('v358DerivedConfidence',z.side?z.confidence.toFixed(1)+'%':'—');
+  set('v358DerivedAccuracy',a.rate==null?'—':a.rate.toFixed(1)+'%');
+  set('v358DerivedWL',`${a.w}W-${a.l}L • N=${a.n}`);
+  set('v358DerivedReason',z.reason||'Waiting for qualified derived-road evidence.');
 }
-function cycle(){
-  const A=store();if(!A)return;const h=liveHands(),hn=h.length;
-  // V342: discard stale prediction state after Undo or New Shoe before any grading can occur.
-  if((A.lastSeenHand>=0&&hn<A.lastSeenHand)||hn===0){A.pending=null;A.lastWaitHand=-1;}
-  if(A.pending&&hn>A.pending.handN){
-    const a=actualSide(h.at(-1));
-    if(a==='P'||a==='B'){
-      const win=a===A.pending.side;if(win)A.wins++;else A.losses++;
-      A.ledger.push({hand:hn,pick:A.pending.side,actual:a,win,mode:A.pending.mode||'',at:Date.now()});
-      if(A.ledger.length>120)A.ledger=A.ledger.slice(-120);
-      A.pending=null;
-    }else if(a==='T'){
-      A.ties++;A.pending=null;
-    }
-  }
-  const x=decide();
-  if(!A.pending&&x.qualified&&(x.side==='P'||x.side==='B'))A.pending={side:x.side,handN:hn,mode:x.mode,confidence:x.confidence,at:Date.now()};
-  else if(!A.pending&&!x.qualified&&A.lastWaitHand!==hn){A.waits++;A.lastWaitHand=hn}
-  A.lastSeenHand=hn;
-  save();paint();
+function reset(){
+  try{window.__V330_DERIVED_ACCURACY_FIX__?.resetDerived?.()}catch(e){}
+  try{
+    if(state?.accuracyVerified){delete state.accuracyVerified.models?.[KEY];delete state.accuracyVerified.pending?.[KEY]}
+    if(typeof persist==='function')persist();
+    window.__armVerifiedPredictions?.();
+  }catch(e){}
+  paint();
 }
 function install(){
-  panel();paint();
-  document.addEventListener('click',e=>{
-    if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB,#mlBuild'))setTimeout(cycle,220);
-  },false);
-  // Bounded repaints only; no continuous full-library scan and no ML retraining.
-  [1200,4200].forEach(ms=>setTimeout(()=>{try{paint()}catch(e){}},ms));
+  const b=document.getElementById('v358ResetDerived');
+  if(b&&!b.__v358){b.__v358=true;b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset()},true)}
+  paint();
+  document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(paint,80)},false);
+  [250,900,2200].forEach(ms=>setTimeout(paint,ms));
+  if(!window.__v358DerivedTimer)window.__v358DerivedTimer=setInterval(()=>{if(document.visibilityState!=='hidden')paint()},1200);
 }
-window.__V338_ML_PATTERN_RESUMPTION__={version:VERSION,decide,paint,cycle,baseSignal,resumeSignal,isolated:true,originalMLChanged:false,sharedTrainingRuntimeReadOnly:true,separateAccuracyState:true,conflictPolicy:'WAIT',reversalAllowed:false};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+window.__V358_DERIVED_RESULT_PANEL__={version:358,paint,logicChanged:false};
 })();
 </script>
 
