@@ -34,6 +34,7 @@
      - Sequence V2, V309 ML, Pattern Recognizer, Derived Road AI, Main Future Road Test 2, and Best-Estimate Analyzer 2 decision logic unchanged.
 -->
 <!-- V368: AI Pattern Recognizer restrictions loosened further; history anchor retained. Derived Road, Sequence V2, BE2, and recycle engine unchanged. -->
+<!-- V374: Pattern Resume practical-frequency fix: allows 3/4 motif returns, reduces minimum distinct-shoe support 5->4, exact historical floor 75%->70% (near-return floor 72%). Genuine 1-3 step break and Sequence V2 conflict-to-WAIT are preserved. -->
 <!DOCTYPE html>
 <!-- V341: Test 2 selective qualification loosening retained. Test 3 was later removed. -->
 
@@ -19671,8 +19672,8 @@ window.__V334_DEEP_CLEANUP__={version:VERSION,removedPanels:removedIds.slice(),p
 <script id="v335-pattern-resume-ai">
 (function(){
 'use strict';
-const VERSION='V361 PATTERN RESUME TARGETED FREQUENCY FIX';
-const MOTIF_LEN=4, MIN_SHOES=5, MIN_RATE=.75, GAPS=[1,2,3];
+const VERSION='V374 PATTERN RESUME PRACTICAL FREQUENCY FIX';
+const MOTIF_LEN=4, MIN_SHOES=4, MIN_RATE=.70, GAPS=[1,2,3], MIN_MOTIF_MATCH=3;
 function ensure(){
   if(!window.state) return null;
   state.patternResumeAI ||= {version:335,wins:0,losses:0,ties:0,pending:null,lastArmPB:-1,lastSeenPB:-1,ledger:[]};
@@ -19685,6 +19686,11 @@ function pbSeq(v){
 }
 function trans(seq){
   const a=pbSeq(seq),o=[];for(let i=1;i<a.length;i++)o.push(a[i]===a[i-1]?'R':'S');return o;
+}
+function motifMatches(a,b){
+  a=String(a||'');b=String(b||'');
+  if(a.length!==b.length||!a.length)return 0;
+  let n=0;for(let i=0;i<a.length;i++)if(a[i]===b[i])n++;return n;
 }
 function genuineBreak(motif,gapSeq){
   // A break must actually interrupt the repeating motif. If the skipped 1-3
@@ -19758,15 +19764,16 @@ function buildStats(){
       for(let end2=MOTIF_LEN*2+g;end2<t.length;end2++){
         const m2=t.slice(end2-MOTIF_LEN,end2).join('');
         const m1=t.slice(end2-(MOTIF_LEN*2+g),end2-(MOTIF_LEN+g)).join('');
-        if(m1!==m2)continue;
+        const motifMatch=motifMatches(m1,m2);
+        if(motifMatch<MIN_MOTIF_MATCH)continue;
         const gapSeq=t.slice(end2-(MOTIF_LEN+g),end2-MOTIF_LEN).join('');
         if(!genuineBreak(m1,gapSeq))continue;
         const next=t[end2];if(next!=='R'&&next!=='S')continue;
-        const k=m2+'|'+g;const z=perShoe.get(k)||{R:0,S:0};z[next]++;perShoe.set(k,z);
+        const k=m2+'|'+g;const z=perShoe.get(k)||{R:0,S:0,exact:0,near:0};z[next]++;if(motifMatch===MOTIF_LEN)z.exact++;else z.near++;perShoe.set(k,z);
       }
     }
     for(const [k,z] of perShoe){
-      if(z.R===z.S)continue;const vote=z.R>z.S?'R':'S';const b=buckets.get(k)||{R:0,S:0,shoes:0};b[vote]++;b.shoes++;buckets.set(k,b);
+      if(z.R===z.S)continue;const vote=z.R>z.S?'R':'S';const b=buckets.get(k)||{R:0,S:0,shoes:0,exactShoes:0,nearShoes:0};b[vote]++;b.shoes++;if(z.exact>=z.near)b.exactShoes++;else b.nearShoes++;buckets.set(k,b);
     }
   });
   cacheKey=key;cache={shoes:shoes.length,buckets};return cache;
@@ -19779,17 +19786,20 @@ function detect(){
     if(t.length<MOTIF_LEN*2+g)continue;
     const m2=t.slice(-MOTIF_LEN).join('');
     const m1=t.slice(-(MOTIF_LEN*2+g),-(MOTIF_LEN+g)).join('');
-    if(m1!==m2)continue;
+    const motifMatch=motifMatches(m1,m2);
+    if(motifMatch<MIN_MOTIF_MATCH)continue;
     const gapSeq=t.slice(-(MOTIF_LEN+g),-MOTIF_LEN).join('');
     if(!genuineBreak(m1,gapSeq))continue;
     const b=hist.buckets.get(m2+'|'+g);if(!b)continue;
     const n=b.R+b.S;if(n<MIN_SHOES)continue;
     const dir=b.R>=b.S?'R':'S',wins=Math.max(b.R,b.S),rate=wins/n;
-    if(rate<MIN_RATE)continue;
-    candidates.push({motif:m2,gap:g,dir,n,rate,R:b.R,S:b.S});
+    const liveExact=motifMatch===MOTIF_LEN;
+    const requiredRate=liveExact?MIN_RATE:.72;
+    if(rate<requiredRate)continue;
+    candidates.push({motif:m2,gap:g,dir,n,rate,R:b.R,S:b.S,motifMatch,liveExact});
   }
-  if(!candidates.length)return {side:null,reason:'WAIT — no ≥75% qualified genuine break-and-return setup',shoes:hist.shoes};
-  candidates.sort((a,b)=>b.rate-a.rate||b.n-a.n||a.gap-b.gap);const c=candidates[0],last=p.at(-1);
+  if(!candidates.length)return {side:null,reason:'WAIT — no qualified break-and-return setup yet (needs 3/4 motif return, 4+ unique shoes, ~70%+ continuation)',shoes:hist.shoes};
+  candidates.sort((a,b)=>(b.liveExact-a.liveExact)||b.motifMatch-a.motifMatch||b.rate-a.rate||b.n-a.n||a.gap-b.gap);const c=candidates[0],last=p.at(-1);
   const patternSide=c.dir==='R'?last:(last==='P'?'B':'P');
   let seq=null;
   try{ if(typeof sequenceAISignal==='function') seq=sequenceAISignal(); }catch(e){}
@@ -19800,13 +19810,13 @@ function detect(){
   const confirmed=seqSide===patternSide;
   const seqState=confirmed?'CONFIRMED':(seq?.waitReason?'WAIT':'UNAVAILABLE');
   const seqText=confirmed?` • Sequence V2 CONFIRMS ${patternSide==='P'?'PLAYER':'BANKER'} (${seq?.strength||0}% strength, ${seq?.similarityScore||0}% quality)`:` • Sequence V2 ${seqState}`;
-  return {...c,side:patternSide,patternSide,seqSide,seqStrength:seq?.strength||0,seqSimilarity:seq?.similarityScore||0,seqState,confirmed,reason:`${c.motif} returned after ${c.gap}-step genuine break • historical ${c.dir==='R'?'REPEAT':'SWITCH'} ${Math.round(c.rate*100)}% (${Math.max(c.R,c.S)}/${c.n} shoes)${seqText}` ,shoes:hist.shoes};
+  return {...c,side:patternSide,patternSide,seqSide,seqStrength:seq?.strength||0,seqSimilarity:seq?.similarityScore||0,seqState,confirmed,reason:`${c.motif} ${c.liveExact?'exactly':'near'} returned (${c.motifMatch}/4) after ${c.gap}-step genuine break • historical ${c.dir==='R'?'REPEAT':'SWITCH'} ${Math.round(c.rate*100)}% (${Math.max(c.R,c.S)}/${c.n} shoes)${seqText}` ,shoes:hist.shoes};
 }
 function panel(){
   let p=document.getElementById('patternResumeAiPanel');if(p)return p;
   p=document.createElement('div');p.className='analyzer';p.id='patternResumeAiPanel';p.style.borderColor='#7dd3fc';
   p.innerHTML=`<div class="analyzer-title">🔁 Pattern Resume + Sequence V2 AI — Experimental</div>
-  <div class="analyzer-sub">Uses the 75% Pattern Resume signal plus the existing Sequence AI V2 logic, reading the same active saved-shoe library as the other library-aware AIs. Minimum historical support is 5 distinct shoes. The resume motif uses 4 transitions so qualified setups can actually occur, while the 1–3 transition middle segment must still be a genuine disturbance rather than a seamless continuation of the motif. A qualified resume can still fire when Sequence V2 is waiting, but if Sequence V2 gives the opposite side this AI waits instead of overriding either signal. Ties are ignored for the resume rhythm. Existing Sequence V2 itself is unchanged.</div>
+  <div class="analyzer-sub">Uses Pattern Resume plus the existing Sequence AI V2 logic, reading the same active saved-shoe library as the other library-aware AIs. Exact 4/4 motif returns qualify from 4 distinct shoes at 70%+ historical continuation; near 3/4 motif returns require about 72%+. The 1–3 transition middle segment must still be a genuine disturbance rather than a seamless continuation of the motif. A qualified resume can still fire when Sequence V2 is waiting, but if Sequence V2 gives the opposite side this AI waits instead of overriding either signal. Ties are ignored for the resume rhythm. Existing Sequence V2 itself is unchanged.</div>
   <div class="analyzer-grid" style="margin-top:8px">
     <div class="analyzer-card"><span>Result</span><strong id="prSide">WAIT</strong></div>
     <div class="analyzer-card"><span>Historical setup</span><strong id="prHist">—</strong></div>
@@ -19842,7 +19852,7 @@ function settleAndArm(){
 }
 function install(){panel();ensure();paint();document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(settleAndArm,260)},false);setTimeout(settleAndArm,1300)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__={version:VERSION,detect,buildStats,settleAndArm,settings:{motifLength:MOTIF_LEN,gaps:GAPS.slice(),minimumDistinctShoes:MIN_SHOES,minimumHistoricalRate:MIN_RATE,sequenceV2ConflictPolicy:'WAIT'},isolated:true,existingSequenceV2Changed:false,otherAILogicChanged:false};
+window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__={version:VERSION,detect,buildStats,settleAndArm,settings:{motifLength:MOTIF_LEN,gaps:GAPS.slice(),minimumDistinctShoes:MIN_SHOES,minimumHistoricalRate:MIN_RATE,minimumMotifMatches:MIN_MOTIF_MATCH,sequenceV2ConflictPolicy:'WAIT'},isolated:true,existingSequenceV2Changed:false,otherAILogicChanged:false};
 })();
 </script>
 
@@ -20467,6 +20477,354 @@ document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#und
 })();
 </script>
 <script id="v370-build-marker">window.__V370_BUILD__={version:370,base:'V369 shared-memory build',sharedHistoricalMemory:true,exactPrefixPriority:true,allLibraryAwareAIs:true,coreSideReversal:false,waitRescueRequiresStrongMemory:true};</script>
+
+
+
+<!-- V371 LIVE MEMORY REFRESH FIX (2026-09-30)
+     Fixes Shared Hierarchical Partial-Shoe Recycle Engine and Shared Historical Memory Brain
+     becoming visually stale after a live result. Prediction thresholds/logic are unchanged.
+     Adds authoritative recompute/repaint after every committed P/B/T hand, preview commit,
+     Undo, New Shoe, Demo, color/mode change, and any detected hand-history change. -->
+<script id="v371-live-memory-refresh-fix">
+(function(){
+'use strict';
+if(window.__V371_LIVE_MEMORY_REFRESH_FIX__) return;
+const VERSION=371;
+let lastKey='', timer=0, heartbeat=0;
+
+function liveKey(){
+  let seq='';
+  try{seq=(typeof currentSequence==='function'?currentSequence():[]).map(x=>String((x&&x.r)||x||'')).join('')}catch(e){}
+  let color='',mode='';
+  try{color=String(state?.currentShoeColor||'');mode=String(state?.predictionLibraryMode||'')}catch(e){}
+  return seq+'|'+color+'|'+mode;
+}
+function repaint(reason){
+  try{window.__V365_SEGMENT_RECYCLE__?.paint?.()}catch(e){console.warn('V371 recycle repaint',e)}
+  try{window.__V369_SHARED_MEMORY__?.paint?.()}catch(e){console.warn('V371 memory repaint',e)}
+  lastKey=liveKey();
+  try{window.__V371_LIVE_MEMORY_REFRESH_FIX__.lastReason=reason||'refresh';window.__V371_LIVE_MEMORY_REFRESH_FIX__.lastKey=lastKey;window.__V371_LIVE_MEMORY_REFRESH_FIX__.lastAt=Date.now()}catch(e){}
+}
+function refresh(reason){
+  clearTimeout(timer);
+  // Repaint once immediately after the synchronous commit, then again after the
+  // app's coalesced 120ms render has finished. The last pass protects iOS/Chrome
+  // from a late UI render overwriting the current memory display.
+  setTimeout(()=>repaint(reason+'-0'),0);
+  timer=setTimeout(()=>repaint(reason+'-180'),180);
+  setTimeout(()=>repaint(reason+'-420'),420);
+}
+function bind(){
+  document.querySelectorAll('[data-result],#previewP,#previewB,#undoBtn,#clearBtn,#sampleBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn').forEach(el=>{
+    if(!el||el.__v371MemoryRefresh)return;
+    el.__v371MemoryRefresh=true;
+    el.addEventListener('click',()=>refresh(el.id||el.dataset?.result||'click'),false);
+  });
+}
+function watch(){
+  const k=liveKey();
+  if(k!==lastKey) refresh('history-change');
+}
+function install(){
+  bind();
+  repaint('install');
+  if(!heartbeat) heartbeat=setInterval(()=>{bind();watch()},250);
+  window.__V371_LIVE_MEMORY_REFRESH_FIX__={version:VERSION,refresh,repaint,bind,liveKey,lastKey,lastReason:'install',lastAt:Date.now(),logicChanged:false};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
+<script id="v371-build-marker">window.__V371_BUILD__={version:371,base:'V370 shared-memory build',liveMemoryRefreshFix:true,recycleLogicChanged:false,sharedMemoryLogicChanged:false};</script>
+
+
+
+<!-- V372 MEMORY ENGINE ACCURACY COUNTS (2026-09-30)
+     Adds independent verified W/L/N accuracy ledgers + reset buttons to:
+     1) Shared Hierarchical Partial-Shoe Recycle Engine
+     2) Shared Historical Memory Brain
+     Prediction/matching thresholds and decision logic are unchanged.
+     Only qualified P/B calls are graded; Tie results are skipped. -->
+<script id="v372-memory-accuracy-counts">
+(function(){
+'use strict';
+if(window.__V372_MEMORY_ACCURACY_COUNTS__) return;
+const VERSION=372;
+
+function blank(){return {wins:0,losses:0,graded:0,tiesSkipped:0,last:'',lastAt:0}}
+function ensureState(){
+  try{
+    if(!state.v372MemoryAccuracy || typeof state.v372MemoryAccuracy!=='object') state.v372MemoryAccuracy={};
+    if(!state.v372MemoryAccuracy.recycle) state.v372MemoryAccuracy.recycle=blank();
+    if(!state.v372MemoryAccuracy.memory) state.v372MemoryAccuracy.memory=blank();
+    for(const k of ['recycle','memory']){
+      const a=state.v372MemoryAccuracy[k];
+      for(const q of ['wins','losses','graded','tiesSkipped']) if(!Number.isFinite(Number(a[q]))) a[q]=0;
+      if(typeof a.last!=='string')a.last='';
+      if(!Number.isFinite(Number(a.lastAt)))a.lastAt=0;
+    }
+    return state.v372MemoryAccuracy;
+  }catch(e){return {recycle:blank(),memory:blank()}}
+}
+function save(){try{if(typeof persist==='function')persist();else localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
+function sideText(v){return v==='P'?'PLAYER':v==='B'?'BANKER':'WAIT'}
+function pct(a){return a.graded?Math.round((a.wins/a.graded)*100)+'%':'—'}
+function currentCalls(){
+  let recycle=null,memory=null;
+  try{const r=window.__V365_SEGMENT_RECYCLE__?.signal?.();if(r?.qualified&&(r.side==='P'||r.side==='B'))recycle=r.side}catch(e){}
+  try{const m=window.__V369_SHARED_MEMORY__?.memory?.();if(m?.qualified&&(m.side==='P'||m.side==='B'))memory=m.side}catch(e){}
+  return {recycle,memory};
+}
+function gradeOne(key,pred,actual){
+  const a=ensureState()[key];
+  if(!pred)return;
+  if(actual==='T'){
+    a.tiesSkipped++;a.last=`${sideText(pred)} held through TIE — not graded`;a.lastAt=Date.now();return;
+  }
+  if(actual!=='P'&&actual!=='B')return;
+  a.graded++;
+  if(pred===actual){a.wins++;a.last=`WIN — ${sideText(pred)} → ${sideText(actual)}`}
+  else{a.losses++;a.last=`LOSS — ${sideText(pred)} → ${sideText(actual)}`}
+  a.lastAt=Date.now();
+}
+function grade(actual){
+  const calls=currentCalls();
+  gradeOne('recycle',calls.recycle,actual);
+  gradeOne('memory',calls.memory,actual);
+  save();
+  setTimeout(paint,0);setTimeout(paint,220);
+}
+function card(id,label){
+  return `<div class="analyzer-card"><span>${label}</span><strong id="${id}">—</strong></div>`;
+}
+function ensurePanelBits(){
+  const recycle=document.getElementById('v365SegmentRecyclePanel');
+  if(recycle && !document.getElementById('v372RecycleAccuracyRow')){
+    const row=document.createElement('div');row.id='v372RecycleAccuracyRow';row.className='analyzer-grid';row.style.marginTop='8px';
+    row.innerHTML=card('v372RecycleAcc','Verified accuracy')+card('v372RecycleWL','W / L')+card('v372RecycleN','Graded')+card('v372RecycleTies','Ties skipped');
+    const reset=document.createElement('button');reset.id='v372ResetRecycle';reset.className='tiny-btn';reset.type='button';reset.style.cssText='margin-top:7px;width:100%';reset.textContent='Reset Recycle Engine Accuracy';
+    const note=document.getElementById('v365SegNote');if(note){note.parentNode.insertBefore(row,note);note.parentNode.insertBefore(reset,note)}else{recycle.append(row,reset)}
+  }
+  const memory=document.getElementById('v369MemoryPanel');
+  if(memory && !document.getElementById('v372MemoryAccuracyRow')){
+    const row=document.createElement('div');row.id='v372MemoryAccuracyRow';row.className='analyzer-grid';row.style.marginTop='8px';
+    row.innerHTML=card('v372MemoryAcc','Verified accuracy')+card('v372MemoryWL','W / L')+card('v372MemoryN','Graded')+card('v372MemoryTies','Ties skipped');
+    const reset=document.createElement('button');reset.id='v372ResetMemory';reset.className='tiny-btn';reset.type='button';reset.style.cssText='margin-top:7px;width:100%';reset.textContent='Reset Historical Memory Accuracy';
+    const note=document.getElementById('v369MemNote');if(note){note.parentNode.insertBefore(row,note);note.parentNode.insertBefore(reset,note)}else{memory.append(row,reset)}
+  }
+}
+function paint(){
+  ensurePanelBits();const a=ensureState();
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('v372RecycleAcc',pct(a.recycle));set('v372RecycleWL',`${a.recycle.wins}W-${a.recycle.losses}L`);set('v372RecycleN',`N ${a.recycle.graded}`);set('v372RecycleTies',String(a.recycle.tiesSkipped));
+  set('v372MemoryAcc',pct(a.memory));set('v372MemoryWL',`${a.memory.wins}W-${a.memory.losses}L`);set('v372MemoryN',`N ${a.memory.graded}`);set('v372MemoryTies',String(a.memory.tiesSkipped));
+  const rn=document.getElementById('v365SegNote'),mn=document.getElementById('v369MemNote');
+  if(rn&&a.recycle.last)rn.dataset.v372LastAccuracy=a.recycle.last;
+  if(mn&&a.memory.last)mn.dataset.v372LastAccuracy=a.memory.last;
+}
+function reset(which){
+  const a=ensureState();a[which]=blank();save();paint();
+}
+function bind(){
+  document.querySelectorAll('.main-buttons [data-result], [data-result]').forEach(el=>{
+    if(!el||el.__v372MemoryGrade)return;el.__v372MemoryGrade=true;
+    // Capture phase grades the prediction visible BEFORE the base app commits the new hand.
+    el.addEventListener('click',()=>grade(String(el.dataset.result||'').toUpperCase()),true);
+  });
+  const rr=document.getElementById('v372ResetRecycle');if(rr&&!rr.__v372Bound){rr.__v372Bound=true;rr.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('recycle')})}
+  const rm=document.getElementById('v372ResetMemory');if(rm&&!rm.__v372Bound){rm.__v372Bound=true;rm.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('memory')})}
+}
+function install(){ensureState();ensurePanelBits();bind();paint();setTimeout(()=>{ensurePanelBits();bind();paint()},500);setTimeout(()=>{ensurePanelBits();bind();paint()},1800)}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setInterval(()=>{if(document.visibilityState!=='hidden'){ensurePanelBits();bind();paint()}},2500);
+window.__V372_MEMORY_ACCURACY_COUNTS__={version:VERSION,grade,paint,reset,ensureState,qualifiedOnly:true,tiesSkipped:true,predictionLogicChanged:false};
+})();
+</script>
+<script id="v372-build-marker">window.__V372_BUILD__={version:372,base:'V371 live-memory-refresh build',memoryAccuracyCounts:true,recycleAccuracy:true,historicalMemoryAccuracy:true,qualifiedOnly:true,tiesSkipped:true,predictionLogicChanged:false};</script>
+
+
+
+<!-- V373 BEST-ESTIMATE ANALYZER 2 LIVE REFRESH + AUTHORITATIVE ACCURACY FIX (2026-09-30)
+     Fixes two observed runtime failures without changing BE2 decision thresholds:
+     - a visible qualified call could fail to enter the pending ledger, leaving Verified Accuracy at N=0;
+     - the panel could keep showing the prior hand because no final post-commit repaint/re-arm won the render race.
+     Settlement now grades the call actually visible immediately before the real P/B result is committed,
+     then the post-commit arm recomputes from the new history. WAIT is never graded; Ties are skipped. -->
+<script id="v373-be2-live-refresh-accuracy-fix">
+(function(){
+'use strict';
+if(window.__V373_BE2_FIX__) return;
+const VERSION=373;
+const prior=window.__V332_BEST_ESTIMATE_2__;
+if(!prior || typeof prior.decide!=='function') return;
+
+function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
+function seq(){try{return currentSequence().map(x=>String((x?.r??x)||'').toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
+function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1,lastSettled:null,lastArmed:null}}
+function ledger(){
+  try{
+    state.v331BestEstimate2Accuracy=Object.assign(blank(),state.v331BestEstimate2Accuracy||{});
+    return state.v331BestEstimate2Accuracy;
+  }catch(e){return blank()}
+}
+function save(){try{persist()}catch(e){}}
+function decision(){try{return prior.decide()}catch(e){return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:'WAIT — Analyzer 2 decision unavailable.'}}}
+function fmt(a){const w=Number(a.wins)||0,l=Number(a.losses)||0,n=w+l;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N=${n}`:'— • 0W-0L • N=0'}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+function roadLean(r){const s=norm(r?.side);if(s)return s;const p=Number(r?.p),b=Number(r?.b);if(Number.isFinite(p)&&Number.isFinite(b)&&p!==b)return p>b?'P':'B';return null}
+
+function paint(){
+  // Let the existing authoritative painter populate the full panel first, then overwrite the ledger/live call.
+  try{prior.paint?.()}catch(e){}
+  const x=decision(),a=ledger(),b=x?.base,r=x?.road,mem=r?.mem||{};
+  set('v331BE2Side',x?.side==='P'?'PLAYER':x?.side==='B'?'BANKER':'WAIT');
+  set('v331BE2Conf',x?.side?(Number(x.confidence)||0).toFixed(1)+'%':'—');
+  set('v331BE2Mode',x?.mode||'WAIT');
+  set('v331BE2Acc',fmt(a));
+  if(b) set('v331BE2Base',b?.qualified?(norm(b.side)==='P'?'PLAYER':'BANKER'):`WAIT (${Number(b?.top||0)}%)`);
+  if(r){const rl=roadLean(r);set('v331BE2Road',rl==='P'?'PLAYER':rl==='B'?'BANKER':'WAIT');set('v331BE2Track',mem.leaderTrack?Number(mem.leaderTrack).toFixed(1)+'%':'BUILDING');set('v331BE2Agree',mem.agreement?Number(mem.agreement).toFixed(1)+'%':'—')}
+  const hn=seq().length;
+  let note=x?.reason||'Waiting for evidence.';
+  note += ` • LIVE REFRESH: hand ${hn}`;
+  if(a.pending) note += ` • armed ${a.pending.side==='P'?'PLAYER':'BANKER'} for next hand`;
+  set('v331BE2Note',note);
+}
+
+function visibleCall(){
+  // The pre-commit decision is the call the player actually saw for the hand being entered.
+  const x=decision(),s=norm(x?.side);
+  return s?{side:s,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0}:null;
+}
+
+function settle(actual){
+  actual=String(actual||'').toUpperCase();
+  const a=ledger(),hn=seq().length;
+  let p=a.pending && norm(a.pending.side) ? a.pending : null;
+  // Critical repair: if UI has a live qualified call but the old ledger failed to arm it, recover it now.
+  if(!p){const live=visibleCall();if(live)p={...live,handN:hn,at:Date.now(),recoveredVisible:true}}
+  if(!p){paint();return false}
+  if(actual==='T'){
+    a.ties=(Number(a.ties)||0)+1;
+    // Preserve the same call across a tie; baccarat P/B prediction is still for the next non-tie outcome.
+    a.pending={...p,handN:hn+1,afterTie:true};a.lastSeenHand=hn+1;save();paint();return false;
+  }
+  if(actual!=='P'&&actual!=='B'){paint();return false}
+  if(p.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;
+  a.pending=null;a.lastSeenHand=hn+1;a.lastSettled={side:p.side,actual,handN:hn+1,mode:p.mode||'',at:Date.now(),v373:true,recoveredVisible:!!p.recoveredVisible};
+  save();paint();return true;
+}
+
+function arm(){
+  const a=ledger(),hn=seq().length,x=decision(),s=norm(x?.side);
+  // Always replace the prior hand's call with a freshly computed call for the CURRENT history.
+  if(s){a.pending={side:s,handN:hn,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0,at:Date.now(),v373:true};a.lastArmed={side:s,handN:hn,at:Date.now()}}
+  else {a.pending=null;if(a.lastWaitHand!==hn){a.waits=(Number(a.waits)||0)+1;a.lastWaitHand=hn}}
+  a.lastSeenHand=hn;save();paint();
+  // iOS/Chrome can perform a late base render; repaint after it so the panel cannot remain stale.
+  clearTimeout(window.__v373be2t1);clearTimeout(window.__v373be2t2);
+  window.__v373be2t1=setTimeout(paint,180);window.__v373be2t2=setTimeout(paint,460);
+  return x;
+}
+
+function cycle(){
+  const a=ledger(),s=seq(),hn=s.length,actual=s.at(-1);
+  if(a.pending && hn>a.pending.handN && (actual==='P'||actual==='B'||actual==='T')){
+    // Recovery path for a hand committed somewhere outside the normal core click path.
+    if(actual==='T'){a.ties=(Number(a.ties)||0)+1;a.pending.handN=hn;save();paint();return a.pending}
+    const p=a.pending;p.side===actual?a.wins=(Number(a.wins)||0)+1:a.losses=(Number(a.losses)||0)+1;
+    a.pending=null;a.lastSettled={side:p.side,actual,handN:hn,at:Date.now(),recoveredCycle:true,v373:true};save();
+  }
+  return arm();
+}
+
+function historyChanged(){
+  const a=ledger();a.pending=null;a.lastSeenHand=seq().length;a.lastWaitHand=-1;save();paint();setTimeout(arm,0);
+}
+function bindReset(){
+  const old=document.getElementById('v331BE2Reset');if(!old||old.dataset.v373Bound)return;
+  const b=old.cloneNode(true);b.dataset.v373Bound='1';old.replaceWith(b);
+  b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();state.v331BestEstimate2Accuracy=blank();save();arm()},true);
+}
+function bindRefresh(){
+  document.querySelectorAll('.main-buttons [data-result],#previewP,#previewB').forEach(el=>{
+    if(!el||el.__v373BE2Refresh)return;el.__v373BE2Refresh=true;
+    el.addEventListener('click',()=>{setTimeout(()=>{try{arm()}catch(e){}},300);setTimeout(()=>{try{paint()}catch(e){}},650)},false);
+  });
+  document.querySelectorAll('#undoBtn,#clearBtn,#sampleBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn').forEach(el=>{
+    if(!el||el.__v373BE2History)return;el.__v373BE2History=true;el.addEventListener('click',()=>setTimeout(historyChanged,260),false);
+  });
+}
+function install(){
+  window.__V332_BEST_ESTIMATE_2__={version:VERSION,decide:prior.decide,cycle,settle,arm,historyChanged,paint,authoritative:true,liveRefreshFix:true,visibleCallRecovery:true,decisionLogicChanged:false};
+  bindReset();bindRefresh();arm();
+  [180,700,1800].forEach(ms=>setTimeout(()=>{bindReset();bindRefresh();paint()},ms));
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRefresh()}},2500);
+window.__V373_BE2_FIX__={version:VERSION,accuracyFixed:true,liveRefreshFixed:true,visibleCallRecovery:true,decisionLogicChanged:false};
+})();
+</script>
+<script id="v373-build-marker">window.__V373_BUILD__={version:373,base:'V372 memory accuracy build',bestEstimate2AccuracyFix:true,bestEstimate2LiveRefreshFix:true,decisionLogicChanged:false};</script>
+
+
+
+<!-- V375 STABILITY SCAN FIX (2026-09-30)
+     Runtime scan repairs only; prediction thresholds are unchanged.
+     - Pattern Resume now refreshes on every real history change, Undo/New Shoe, and RED/BLACK/COMBINED library switch.
+     - Prevents a pending Pattern Resume call from carrying across a library-color/mode switch.
+     - Adds a low-frequency fallback watcher so iOS/Chrome late renders cannot leave Pattern Resume visually stale.
+     - No changes to Sequence V2, Main Future Road, Best Estimate, BE2, ML, Derived Road, recycle, or historical-memory decision logic. -->
+<script id="v375-stability-scan-fix">
+(function(){
+'use strict';
+if(window.__V375_STABILITY_SCAN_FIX__)return;
+const VERSION=375;
+let lastPB='', lastMode='', timer=0;
+function pb(){
+  try{return (state?.hands||[]).map(x=>String(typeof x==='string'?x:(x?.r||x?.result||'')).toUpperCase()).filter(x=>x==='P'||x==='B').join('')}catch(e){return ''}
+}
+function mode(){
+  try{return String(state?.currentShoeColor||'')+'|'+String(state?.predictionLibraryMode||'')}catch(e){return ''}
+}
+function api(){return window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__||null}
+function clearPendingForModeSwitch(){
+  try{
+    const A=state?.patternResumeAI;
+    if(A){A.pending=null;A.lastArmPB=-1;A.lastSeenPB=pb().length;}
+    if(typeof persist==='function')persist();
+  }catch(e){}
+}
+function hardRefresh(reason){
+  clearTimeout(timer);
+  timer=setTimeout(()=>{
+    try{api()?.settleAndArm?.()}catch(e){console.warn('V375 Pattern Resume refresh',e)}
+    try{window.__V375_STABILITY_SCAN_FIX__.lastReason=reason||'refresh';window.__V375_STABILITY_SCAN_FIX__.lastAt=Date.now()}catch(e){}
+  },80);
+  setTimeout(()=>{try{api()?.settleAndArm?.()}catch(e){}},360);
+}
+function check(){
+  const p=pb(),m=mode();
+  if(m!==lastMode){
+    if(lastMode!=='')clearPendingForModeSwitch();
+    lastMode=m;lastPB=p;hardRefresh('library-mode-change');return;
+  }
+  if(p!==lastPB){lastPB=p;hardRefresh('pb-history-change');}
+}
+function bind(){
+  document.querySelectorAll('#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn,#undoBtn,#clearBtn,#sampleBtn,[data-result]').forEach(el=>{
+    if(!el||el.__v375PR)return;el.__v375PR=true;
+    el.addEventListener('click',()=>setTimeout(check,220),false);
+  });
+}
+function install(){
+  lastPB=pb();lastMode=mode();bind();hardRefresh('install');
+  // 900ms is only a safety net. Normal updates remain event-driven.
+  setInterval(()=>{if(document.visibilityState!=='hidden'){bind();check()}},900);
+  window.__V375_STABILITY_SCAN_FIX__={version:VERSION,check,bind,hardRefresh,lastReason:'install',lastAt:Date.now(),predictionLogicChanged:false};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
+<script id="v375-build-marker">window.__V375_BUILD__={version:375,base:'V374 pattern-resume build',stabilityScanFix:true,patternResumeRefreshFix:true,patternResumeModeIsolation:true,predictionLogicChanged:false};</script>
 
 </body>
 </html>
