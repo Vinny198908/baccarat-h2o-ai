@@ -20826,5 +20826,119 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 <script id="v375-build-marker">window.__V375_BUILD__={version:375,base:'V374 pattern-resume build',stabilityScanFix:true,patternResumeRefreshFix:true,patternResumeModeIsolation:true,predictionLogicChanged:false};</script>
 
+
+
+<!-- V376 BEST-ESTIMATE ANALYZER 2 FRESH ACCURACY LEDGER (2026-10-01)
+     Accuracy-only repair. BE2 decision logic is unchanged.
+     Root cause repaired: legacy V373 delayed refresh listeners can repaint the old v331 ledger after a valid grade.
+     V376 owns a new independent ledger and repaints after all known legacy refresh delays. -->
+<script id="v376-be2-fresh-accuracy-ledger">
+(function(){
+'use strict';
+if(window.__V376_BE2_FRESH_ACCURACY__) return;
+const VERSION=376;
+const prior=window.__V332_BEST_ESTIMATE_2__;
+if(!prior || typeof prior.decide!=='function') return;
+
+function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
+function seq(){try{return currentSequence().map(x=>String((x?.r??x)||'').toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
+function blank(){return {version:VERSION,wins:0,losses:0,ties:0,waits:0,pending:null,lastWaitHand:-1,lastSettled:null,lastSettleToken:null,lastArmed:null}}
+function ledger(){
+  try{
+    if(!state.v376BestEstimate2Accuracy || state.v376BestEstimate2Accuracy.version!==VERSION) state.v376BestEstimate2Accuracy=blank();
+    return state.v376BestEstimate2Accuracy;
+  }catch(e){return blank()}
+}
+function save(){try{persist()}catch(e){}}
+function decision(){try{return prior.decide()}catch(e){return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:'WAIT — Analyzer 2 decision unavailable.'}}}
+function fmt(a){const w=Number(a.wins)||0,l=Number(a.losses)||0,n=w+l;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N=${n}`:'— • 0W-0L • N=0'}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+
+function paint(){
+  // Keep all existing BE2 decision fields, but V376 is the sole owner of the visible accuracy value.
+  try{prior.paint?.()}catch(e){}
+  const a=ledger(),x=decision(),hn=seq().length;
+  set('v331BE2Acc',fmt(a));
+  const note=document.getElementById('v331BE2Note');
+  if(note){
+    let base=String(x?.reason||note.textContent||'Waiting for evidence.').replace(/\s*•\s*V376 ACCURACY:.*$/,'');
+    const armed=a.pending?`${a.pending.side==='P'?'PLAYER':'BANKER'} armed`:'no graded call armed';
+    note.textContent=`${base} • V376 ACCURACY: hand ${hn} • ${armed}`;
+  }
+}
+function latePaint(){
+  // V373 has delayed 300/650 ms refreshes. Repaint after both so stale v331 data cannot win the display race.
+  [0,360,760,1100].forEach(ms=>setTimeout(()=>{try{paint()}catch(e){}},ms));
+}
+function liveCall(){
+  const x=decision(),s=norm(x?.side);
+  return s?{side:s,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0}:null;
+}
+function settle(actual){
+  actual=String(actual||'').trim().toUpperCase();
+  const a=ledger(),hn=seq().length;
+  let p=a.pending&&norm(a.pending.side)?a.pending:null;
+  // Recovery is limited to the decision that exists immediately before commit.
+  if(!p){const live=liveCall();if(live)p={...live,handN:hn,armedAt:Date.now(),recovered:true}}
+  if(!p){latePaint();return false}
+  const token=`${hn}|${actual}|${p.side}|${p.handN}`;
+  if(a.lastSettleToken===token){latePaint();return false}
+  a.lastSettleToken=token;
+  if(actual==='T'){
+    a.ties=(Number(a.ties)||0)+1;
+    a.pending={...p,handN:hn+1,afterTie:true};
+    save();latePaint();return false;
+  }
+  if(actual!=='P'&&actual!=='B'){latePaint();return false}
+  if(p.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;
+  a.lastSettled={predicted:p.side,actual,handN:hn+1,mode:p.mode||'',at:Date.now(),recovered:!!p.recovered};
+  a.pending=null;
+  save();latePaint();return true;
+}
+function arm(){
+  const a=ledger(),hn=seq().length,x=decision(),s=norm(x?.side);
+  if(s){
+    a.pending={side:s,handN:hn,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0,armedAt:Date.now()};
+    a.lastArmed={side:s,handN:hn,at:Date.now()};
+  }else{
+    a.pending=null;
+    if(a.lastWaitHand!==hn){a.waits=(Number(a.waits)||0)+1;a.lastWaitHand=hn}
+  }
+  // A new arm belongs to a new pre-result state, so a prior settle token must not block the next hand.
+  a.lastSettleToken=null;
+  save();latePaint();return x;
+}
+function cycle(){return arm()}
+function historyChanged(){const a=ledger();a.pending=null;a.lastSettleToken=null;a.lastWaitHand=-1;save();setTimeout(arm,0);latePaint()}
+function reset(){
+  try{state.v376BestEstimate2Accuracy=blank();save()}catch(e){}
+  arm();latePaint();
+}
+function bindReset(){
+  const old=document.getElementById('v331BE2Reset');if(!old||old.dataset.v376Bound)return;
+  const b=old.cloneNode(true);b.dataset.v376Bound='1';old.replaceWith(b);
+  b.textContent='Reset Best-Estimate Analyzer 2 Accuracy';
+  b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();reset()},true);
+}
+function bindRepaint(){
+  document.querySelectorAll('.main-buttons [data-result],#previewP,#previewB').forEach(el=>{
+    if(!el||el.__v376BE2Repaint)return;el.__v376BE2Repaint=true;
+    el.addEventListener('click',latePaint,false);
+  });
+  document.querySelectorAll('#undoBtn,#clearBtn,#sampleBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn').forEach(el=>{
+    if(!el||el.__v376BE2History)return;el.__v376BE2History=true;
+    el.addEventListener('click',()=>setTimeout(historyChanged,140),false);
+  });
+}
+function install(){
+  window.__V332_BEST_ESTIMATE_2__={...prior,version:VERSION,decide:prior.decide,settle,arm,cycle,historyChanged,paint,accuracy:ledger,resetAccuracy:reset,freshAccuracyLedger:true,decisionLogicChanged:false};
+  bindReset();bindRepaint();arm();latePaint();
+  [250,800,1800].forEach(ms=>setTimeout(()=>{bindReset();bindRepaint();latePaint()},ms));
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRepaint();paint()}},2200);
+window.__V376_BE2_FRESH_ACCURACY__={version:VERSION,newLedger:'state.v376BestEstimate2Accuracy',oldLedgerIgnoredForDisplay:true,lateRefreshRaceFixed:true,decisionLogicChanged:false};
+})();
+</script>
 </body>
 </html>
