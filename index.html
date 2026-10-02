@@ -1,3 +1,4 @@
+<!-- V381: Bead History accuracy moved into authoritative pre-commit/post-commit hand path. Prediction logic unchanged. -->
 <!-- V380 CLEANUP: removed conflicting V372 Recycle/Memory grader; fixed V379 stale-pending control binding. Prediction logic unchanged. -->
 <!-- V379 CURRENT BUILD: Bead Plate History AI under Deep Full-Library Learning; Recycle Engine + Historical Memory Brain accuracy ledgers rebuilt. Prediction logic unchanged. -->
 <!-- V254: Adaptive Library Intelligence Precision AI. Adds multi-window per-shoe consensus, live transition risk, context calibration, divergence control, and stricter independent-shoe qualification. Sequence V2 and Main Future Road unchanged. -->
@@ -1191,6 +1192,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     const actual=btn.dataset.result;
     try{ window.__V321_BEST_PATTERN_CORE_ACC__?.grade(actual); }catch(e){}
     try{ window.__V332_BEST_ESTIMATE_2__?.settle(actual); }catch(e){}
+    try{ window.__BEAD_HISTORY_AI_V379__?.settle(actual); }catch(e){}
     // Arm V3 in the real commit path so it cannot miss a live result because of
     // listener ordering, DOM restoration, or browser-specific event timing.
     try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}
@@ -1216,6 +1218,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     // Lock the NEXT hand only after the just-entered result is fully committed.
     try{ window.__armVerifiedPredictions?.(); }catch(e){}
     try{ window.__V332_BEST_ESTIMATE_2__?.arm(); }catch(e){}
+    try{ window.__BEAD_HISTORY_AI_V379__?.arm?.(); window.__BEAD_HISTORY_AI_V379__?.render?.(); }catch(e){}
     try{ window.__armAdaptiveDerivedRoads?.(); }catch(e){}
     try{ window.__armAdaptiveOriginalDerivedRoads?.(); }catch(e){}
     try{ window.renderVerifiedAccuracy?.(); window.renderAdaptiveDerivedMain?.(); }catch(e){}
@@ -1225,6 +1228,7 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
 function commitPreviewResult(actual){
   try{ window.__V321_BEST_PATTERN_CORE_ACC__?.grade(actual); }catch(e){}
   try{ window.__V332_BEST_ESTIMATE_2__?.settle(actual); }catch(e){}
+    try{ window.__BEAD_HISTORY_AI_V379__?.settle(actual); }catch(e){}
   // Same direct V3 arming for the preview P?/B? commit buttons.
   try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}
   try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
@@ -1241,6 +1245,7 @@ function commitPreviewResult(actual){
   __v136SchedulePostHandMaintenance();
   try{ window.__armVerifiedPredictions?.(); }catch(e){}
   try{ window.__V332_BEST_ESTIMATE_2__?.arm(); }catch(e){}
+    try{ window.__BEAD_HISTORY_AI_V379__?.arm?.(); window.__BEAD_HISTORY_AI_V379__?.render?.(); }catch(e){}
   try{ window.__armAdaptiveDerivedRoads?.(); }catch(e){}
   try{ window.__armAdaptiveOriginalDerivedRoads?.(); }catch(e){}
   try{ window.renderVerifiedAccuracy?.(); window.renderAdaptiveDerivedMain?.(); }catch(e){}
@@ -1249,14 +1254,15 @@ function commitPreviewResult(actual){
 document.getElementById('previewP').onclick=()=>commitPreviewResult('P');
 document.getElementById('previewB').onclick=()=>commitPreviewResult('B');
 document.getElementById('undoBtn').onclick=()=>{
+  try{window.__BEAD_HISTORY_AI_V379__?.clearPending?.()}catch(e){}
   state.hands.pop();state.scanSnapshot=null;
   if(state.gptMirror){state.gptMirror.pending=null;if(state.gptMirror.safety)state.gptMirror.safety.shadowPending=null;}
   persist();render();
-  setTimeout(()=>{try{armGPTMirrorPrediction()}catch(e){}},0);
+  setTimeout(()=>{try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){};try{armGPTMirrorPrediction()}catch(e){}},0);
 };
 document.getElementById('clearBtn').onclick=()=>{
   if(confirm('Start a new shoe and clear all results?')){
-    
+    try{window.__BEAD_HISTORY_AI_V379__?.clearPending?.()}catch(e){}
     const seq=currentSequence();
     /* Library auto-save removed: completed shoes are added only with Save Current Shoe. */
     state.hands=[];state.cards=[];state.scanSnapshot=null;
@@ -10608,7 +10614,15 @@ window.__V24_DIAGNOSTIC_REPAIR__={
     const s=S();s.ledger.push({...clone(p),actual,settledAt:Date.now()});if(s.ledger.length>600)s.ledger.splice(0,s.ledger.length-600);
     audit('SETTLE','Unseen candidate graded',{actual,correct:p.candidate===actual,color:p.color,phase:p.phase,n:s.ledger.length});return true;
   }
-  function settle(actual){const s=S(),p=s.pending;s.pending=null;if(!p||!sideOf(actual))return;if(finalize(p,actual))return;s.deferred={pending:p,actual,queuedAt:Date.now()}}
+  function arm(){
+  const seq=liveSequence(),x=predict(seq),hands=pb(seq).length;
+  if(acc.pending&&hands<acc.pending.armedAt)acc.pending=null;
+  acc.pending=x.side?{side:x.side,armedAt:hands}:null;
+  window.__BEAD_HISTORY_AI_V379__.last=x;
+  render();
+  return acc.pending;
+}
+function settle(actual){const s=S(),p=s.pending;s.pending=null;if(!p||!sideOf(actual))return;if(finalize(p,actual))return;s.deferred={pending:p,actual,queuedAt:Date.now()}}
   function flushDeferred(){const s=S();if(s.deferred){const d=s.deferred;if(finalize(d.pending,d.actual))s.deferred=null}}
 
   // Wrap verified pre/post result cycle AFTER V50. This preserves chronological ordering.
@@ -20943,7 +20957,6 @@ function render(){
   set('beadHistN',`N ${n}`);
   const hands=pb(seq).length;
   if(acc.pending&&hands<acc.pending.armedAt)acc.pending=null;
-  if(!acc.pending&&x.side)acc.pending={side:x.side,armedAt:hands};
   window.__BEAD_HISTORY_AI_V379__.last=x;
 }
 function settle(actual){
@@ -20957,10 +20970,6 @@ function settle(actual){
 }
 function post(){setTimeout(render,0);setTimeout(render,220);}
 function bind(){
-  document.querySelectorAll('[data-result]').forEach(btn=>{
-    if(btn.__v379BeadBound)return;btn.__v379BeadBound=true;
-    btn.addEventListener('click',()=>{settle(btn.dataset.result);post();},true);
-  });
   for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){
     const el=document.getElementById(id);
     if(!el||el.__v379BeadHist) continue;
@@ -20970,8 +20979,9 @@ function bind(){
   const r=document.getElementById('beadHistReset');
   if(r&&!r.__v379BeadReset){r.__v379BeadReset=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.pending=null;acc.last='';saveScore();render();},true);}
 }
-function install(){bind();render();[250,900,1800].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
-window.__BEAD_HISTORY_AI_V379__={version:379,config:CFG,predict,render,settle,uniqueLibrary,last:null,accuracy:acc};
+function clearPending(){acc.pending=null;render();}
+function install(){bind();arm();[250,900,1800].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
+window.__BEAD_HISTORY_AI_V379__={version:381,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,last:null,accuracy:acc,authoritativeCoreAccuracy:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},1500);
 })();
@@ -21095,6 +21105,15 @@ window.__V380_BUILD__={
   beadHistoryPredictionLogicChanged:false,
   recyclePredictionLogicChanged:false,
   memoryPredictionLogicChanged:false
+};
+</script>
+<script id="v381-build-marker">
+window.__V381_BUILD__={
+  version:381,
+  beadHistoryAccuracyCoreCommit:true,
+  beadHistoryDirectClickGraderRemoved:true,
+  beadHistoryExplicitArm:true,
+  predictionLogicChanged:false
 };
 </script>
 </body>
