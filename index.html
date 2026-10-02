@@ -1,3 +1,4 @@
+<!-- V384: Bead History accuracy moved into the actual V135 authoritative result queue; accidental V51 contamination removed. Prediction logic unchanged. -->
 <!-- V383: Bead History visible PLAYER/BANKER call is now always the exact pending call graded by accuracy. Prediction logic unchanged. -->
 <!-- V382: Restores missing Bead History arm() runtime function. Prediction engine unchanged; core accuracy path retained. -->
 <!-- V381: Bead History accuracy moved into authoritative pre-commit/post-commit hand path. Prediction logic unchanged. -->
@@ -10617,14 +10618,12 @@ window.__V24_DIAGNOSTIC_REPAIR__={
     audit('SETTLE','Unseen candidate graded',{actual,correct:p.candidate===actual,color:p.color,phase:p.phase,n:s.ledger.length});return true;
   }
   function arm(){
-  const seq=liveSequence(),x=predict(seq),hands=pb(seq).length;
-  if(acc.pending&&hands<acc.pending.armedAt)acc.pending=null;
-  acc.pending=x.side?{side:x.side,armedAt:hands}:null;
-  window.__BEAD_HISTORY_AI_V379__.last=x;
-  render();
-  return acc.pending;
-}
-function settle(actual){const s=S(),p=s.pending;s.pending=null;if(!p||!sideOf(actual))return;if(finalize(p,actual))return;s.deferred={pending:p,actual,queuedAt:Date.now()}}
+    const s=S(),handN=pb().length,z=rawV50(),candidate=sideOf(z.candidate)||sideOf(z.rawSide)||sideOf(z.side);
+    s.lastHandN=handN;
+    s.pending=candidate?{handN,candidate,color:color(),phase:phase(),v50Qualified:z.qualified===true,armedAt:Date.now()}:null;
+    audit('ARM',candidate?'Pre-result V51 candidate stored':'No P/B candidate to store',{handN,candidate});
+  }
+  function settle(actual){const s=S(),p=s.pending;s.pending=null;if(!p||!sideOf(actual))return;if(finalize(p,actual))return;s.deferred={pending:p,actual,queuedAt:Date.now()}}
   function flushDeferred(){const s=S();if(s.deferred){const d=s.deferred;if(finalize(d.pending,d.actual))s.deferred=null}}
 
   // Wrap verified pre/post result cycle AFTER V50. This preserves chronological ordering.
@@ -12721,7 +12720,10 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V377 ROOT FIX: Best-Estimate Analyzer 2 must grade in this authoritative
       // PRE-COMMIT queue, while its visible/pending call still belongs to the hand being entered.
       ()=>{try{window.__V332_BEST_ESTIMATE_2__?.settle?.(actual)}catch(e){console.warn('V377 BE2 settle',e)}},
-      ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}},
+      // V384: Bead History must settle in this authoritative queue because V135
+      // stops all legacy result listeners before they can run.
+      ()=>{try{window.__BEAD_HISTORY_AI_V379__?.settle?.(actual)}catch(e){console.warn('V384 Bead History settle',e)}},
+      ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}}, 
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
       ()=>{try{window.__chartPatternRecognizerV156?.settle?.(actual)}catch(e){console.warn('V168 chart settle',e)}},
@@ -12754,6 +12756,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{armMainFuture()}catch(e){}
       // V377: after a committed hand, arm BE2 from the NEW history only.
       try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 queued arm',e)}
+      try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History queued arm',e)}
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       busy=false;
       const queued=pendingResults.shift();
@@ -12787,6 +12790,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         ()=>{try{armMainFuture()}catch(e){}},
         // V377: BE2 is armed only after the committed hand is visible.
         ()=>{try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 arm',e)}},
+        ()=>{try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History arm',e)}},
 
         // Refresh live AI cards independently. A slow optional card can no longer
         // block every other panel because each job yields back to Chrome first.
@@ -12888,6 +12892,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
     armMainFuture();
     try{window.__V332_BEST_ESTIMATE_2__?.historyChanged?.()}catch(e){try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(x){}}
+    try{window.__BEAD_HISTORY_AI_V379__?.clearPending?.();window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){}
     try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.();window.__V332_BEST_ESTIMATE_2__?.paint?.()}catch(e){}
     try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
   },0);
@@ -21149,6 +21154,16 @@ window.__V383_BUILD__={
   beadVisibleCallEqualsGradedCall:true,
   beadAccuracyImmediateRender:true,
   beadCorePreCommitSettlement:true,
+  predictionLogicChanged:false
+};
+</script>
+<script id="v384-build-marker">
+window.__V384_BUILD__={
+  version:384,
+  beadHistoryInV135AuthoritativeQueue:true,
+  beadHistoryPostCommitArm:true,
+  beadHistoryUndoNewShoeResync:true,
+  removedAccidentalV51Contamination:true,
   predictionLogicChanged:false
 };
 </script>
