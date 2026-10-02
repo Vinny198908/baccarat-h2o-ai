@@ -12680,6 +12680,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // anywhere else can never be reliable.
       ()=>{try{window.__V323_BEST_PATTERN_ACCURACY__?.grade?.(actual)}catch(e){console.warn('V324 best/pattern settle',e)}},
        ()=>{try{window.__V325_ACCURACY_REPAIR__?.gradeSequence?.(actual)}catch(e){console.warn('V325 sequence settle',e)}},
+      // V377 ROOT FIX: Best-Estimate Analyzer 2 must grade in this authoritative
+      // PRE-COMMIT queue, while its visible/pending call still belongs to the hand being entered.
+      ()=>{try{window.__V332_BEST_ESTIMATE_2__?.settle?.(actual)}catch(e){console.warn('V377 BE2 settle',e)}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}},
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
@@ -12711,6 +12714,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}
       try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
       try{armMainFuture()}catch(e){}
+      // V377: after a committed hand, arm BE2 from the NEW history only.
+      try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 queued arm',e)}
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       busy=false;
       const queued=pendingResults.shift();
@@ -12742,6 +12747,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         ()=>{try{window.__armAdaptiveOriginalDerivedRoads?.()}catch(e){}},
         ()=>{try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}},
         ()=>{try{armMainFuture()}catch(e){}},
+        // V377: BE2 is armed only after the committed hand is visible.
+        ()=>{try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 arm',e)}},
 
         // Refresh live AI cards independently. A slow optional card can no longer
         // block every other panel because each job yields back to Chrome first.
@@ -12842,7 +12849,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.__armVerifiedPredictions?.()}catch(e){}
     try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
     armMainFuture();
-    try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}
+    try{window.__V332_BEST_ESTIMATE_2__?.historyChanged?.()}catch(e){try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(x){}}
+    try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.();window.__V332_BEST_ESTIMATE_2__?.paint?.()}catch(e){}
     try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
   },0);
   document.getElementById('undoBtn')?.addEventListener('click',resync,false);
@@ -20939,6 +20947,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRepaint();paint()}},2200);
 window.__V376_BE2_FRESH_ACCURACY__={version:VERSION,newLedger:'state.v376BestEstimate2Accuracy',oldLedgerIgnoredForDisplay:true,lateRefreshRaceFixed:true,decisionLogicChanged:false};
 })();
+</script>
+
+<!-- V377 BE2 CORE TRANSACTION ACCURACY ROOT FIX (2026-10-01)
+     Root cause: BE2 was absent from V135's authoritative pre-commit settlement queue.
+     Fix: settle BE2 before state.hands.push(), then arm BE2 after the committed hand is visible.
+     This changes accuracy plumbing only; BE2 decision thresholds/side logic are unchanged. -->
+<script id="v377-be2-core-accuracy-marker">
+window.__V377_BE2_CORE_ACCURACY_FIX__={version:377,preCommitSettlement:true,postCommitArm:true,queuedArm:true,resyncOnUndoNewShoe:true,decisionLogicChanged:false};
 </script>
 </body>
 </html>
