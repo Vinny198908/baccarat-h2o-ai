@@ -1,3 +1,4 @@
+<!-- V382: Restores missing Bead History arm() runtime function. Prediction engine unchanged; core accuracy path retained. -->
 <!-- V381: Bead History accuracy moved into authoritative pre-commit/post-commit hand path. Prediction logic unchanged. -->
 <!-- V380 CLEANUP: removed conflicting V372 Recycle/Memory grader; fixed V379 stale-pending control binding. Prediction logic unchanged. -->
 <!-- V379 CURRENT BUILD: Bead Plate History AI under Deep Full-Library Learning; Recycle Engine + Historical Memory Brain accuracy ledgers rebuilt. Prediction logic unchanged. -->
@@ -20959,6 +20960,16 @@ function render(){
   if(acc.pending&&hands<acc.pending.armedAt)acc.pending=null;
   window.__BEAD_HISTORY_AI_V379__.last=x;
 }
+function arm(){
+  const seq=liveSequence();
+  const x=predict(seq);
+  const hands=pb(seq).length;
+  if(acc.pending && hands < acc.pending.armedAt) acc.pending=null;
+  acc.pending = x.side ? {side:x.side, armedAt:hands} : null;
+  window.__BEAD_HISTORY_AI_V379__.last=x;
+  render();
+  return acc.pending;
+}
 function settle(actual){
   actual=String(actual||'').toUpperCase();
   if(actual==='T')return;
@@ -20974,14 +20985,14 @@ function bind(){
     const el=document.getElementById(id);
     if(!el||el.__v379BeadHist) continue;
     el.__v379BeadHist=true;
-    el.addEventListener('click',()=>{acc.pending=null;setTimeout(render,260);},false);
+    el.addEventListener('click',()=>{acc.pending=null;setTimeout(arm,260);},false);
   }
   const r=document.getElementById('beadHistReset');
-  if(r&&!r.__v379BeadReset){r.__v379BeadReset=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.pending=null;acc.last='';saveScore();render();},true);}
+  if(r&&!r.__v379BeadReset){r.__v379BeadReset=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.pending=null;acc.last='';saveScore();arm();},true);}
 }
 function clearPending(){acc.pending=null;render();}
 function install(){bind();arm();[250,900,1800].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
-window.__BEAD_HISTORY_AI_V379__={version:381,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,last:null,accuracy:acc,authoritativeCoreAccuracy:true};
+window.__BEAD_HISTORY_AI_V379__={version:382,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,last:null,accuracy:acc,authoritativeCoreAccuracy:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},1500);
 })();
@@ -21113,6 +21124,15 @@ window.__V381_BUILD__={
   beadHistoryAccuracyCoreCommit:true,
   beadHistoryDirectClickGraderRemoved:true,
   beadHistoryExplicitArm:true,
+  predictionLogicChanged:false
+};
+</script>
+<script id="v382-build-marker">
+window.__V382_BUILD__={
+  version:382,
+  beadHistoryMissingArmRuntimeFixed:true,
+  beadHistoryPredictionRestored:true,
+  beadHistoryCoreAccuracyPreserved:true,
   predictionLogicChanged:false
 };
 </script>
