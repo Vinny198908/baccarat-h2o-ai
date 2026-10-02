@@ -1,3 +1,5 @@
+<!-- V380 CLEANUP: removed conflicting V372 Recycle/Memory grader; fixed V379 stale-pending control binding. Prediction logic unchanged. -->
+<!-- V379 CURRENT BUILD: Bead Plate History AI under Deep Full-Library Learning; Recycle Engine + Historical Memory Brain accuracy ledgers rebuilt. Prediction logic unchanged. -->
 <!-- V254: Adaptive Library Intelligence Precision AI. Adds multi-window per-shoe consensus, live transition risk, context calibration, divergence control, and stricter independent-shoe qualification. Sequence V2 and Main Future Road unchanged. -->
 <!-- V241: deep scan fixed PFG runtime reassignment, rapid-repeat input loss, Mirror new-shoe safety carryover, and stale Mirror pending after Undo; V239: deep runtime audit fix; PFG reassignment bug fixed; V237: adds Duplicate Trajectory Mode; V235: selective triple-confirmation Pattern Recognizer; V234: Pattern Recognizer removes live Main Road logic; V233: Pattern Recognizer TRUE P/B-only inside V217 closure; V232: Pattern Recognizer P/B-only, ties invisible; V231: adds standalone 3-Road Confusion AI A/A+; V221 base: V220 base + scan fixes: single Pattern accuracy reset path + single authoritative layout mover -->
 <!-- 2026-09-23 V290 FULL PORT:
@@ -604,6 +606,26 @@
 <div class="analyzer-grid" id="instantLibraryLearnGrid" style="margin-top:8px"></div>
 <div class="analyzer-sub" id="instantLibraryLearnNote" style="margin-top:8px"></div>
 </div>
+
+<!-- V379: Bead Plate History AI placed directly under Deep Full-Library Learning panel -->
+<div class="analyzer" id="beadHistoryAiPanel" style="border-color:#53677e">
+  <div class="analyzer-title">🧠 Bead Plate History AI — Full Saved-History Learner</div>
+  <div class="analyzer-sub">Learns only from the complete saved Bead Plate library. It compares full-prefix memory, partial P/B endings, inverted P/B shapes, and Repeat/Switch rhythm from beginning through end of saved shoes. Exact duplicate shoes are collapsed to one independent learning vote.</div>
+  <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+    <div class="analyzer-card"><span>NEXT RESULT</span><strong id="beadHistSide">WAIT</strong></div>
+    <div class="analyzer-card"><span>CONFIDENCE</span><strong id="beadHistConf">—</strong></div>
+    <div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="beadHistEvidence">0</strong></div>
+    <div class="analyzer-card"><span>LIBRARY</span><strong id="beadHistLibrary">0 / 0</strong></div>
+  </div>
+  <div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px">
+    <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="beadHistAccuracy">—</strong></div>
+    <div class="analyzer-card"><span>W / L</span><strong id="beadHistWL">0W-0L</strong></div>
+    <div class="analyzer-card"><span>GRADED</span><strong id="beadHistN">N 0</strong></div>
+  </div>
+  <div class="analyzer-sub" id="beadHistReason" style="margin-top:7px">Waiting for at least 6 Player/Banker results.</div>
+  <button class="tiny-btn" id="beadHistReset" type="button" style="margin-top:7px;width:100%">Reset Bead Plate History AI Accuracy</button>
+</div>
+
 <div class="card-entry">
 <div class="analyzer-title">Optional Card-Rank Tracker</div>
 <div class="analyzer-sub">Tap ranks as cards are exposed. This does not identify exact future cards; it only estimates whether the remaining shoe is slightly richer in low or high baccarat values.</div>
@@ -20546,111 +20568,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 
 
-<!-- V372 MEMORY ENGINE ACCURACY COUNTS (2026-09-30)
-     Adds independent verified W/L/N accuracy ledgers + reset buttons to:
-     1) Shared Hierarchical Partial-Shoe Recycle Engine
-     2) Shared Historical Memory Brain
-     Prediction/matching thresholds and decision logic are unchanged.
-     Only qualified P/B calls are graded; Tie results are skipped. -->
-<script id="v372-memory-accuracy-counts">
-(function(){
-'use strict';
-if(window.__V372_MEMORY_ACCURACY_COUNTS__) return;
-const VERSION=372;
-
-function blank(){return {wins:0,losses:0,graded:0,tiesSkipped:0,last:'',lastAt:0}}
-function ensureState(){
-  try{
-    if(!state.v372MemoryAccuracy || typeof state.v372MemoryAccuracy!=='object') state.v372MemoryAccuracy={};
-    if(!state.v372MemoryAccuracy.recycle) state.v372MemoryAccuracy.recycle=blank();
-    if(!state.v372MemoryAccuracy.memory) state.v372MemoryAccuracy.memory=blank();
-    for(const k of ['recycle','memory']){
-      const a=state.v372MemoryAccuracy[k];
-      for(const q of ['wins','losses','graded','tiesSkipped']) if(!Number.isFinite(Number(a[q]))) a[q]=0;
-      if(typeof a.last!=='string')a.last='';
-      if(!Number.isFinite(Number(a.lastAt)))a.lastAt=0;
-    }
-    return state.v372MemoryAccuracy;
-  }catch(e){return {recycle:blank(),memory:blank()}}
-}
-function save(){try{if(typeof persist==='function')persist();else localStorage.setItem(KEY,JSON.stringify(state))}catch(e){}}
-function sideText(v){return v==='P'?'PLAYER':v==='B'?'BANKER':'WAIT'}
-function pct(a){return a.graded?Math.round((a.wins/a.graded)*100)+'%':'—'}
-function currentCalls(){
-  let recycle=null,memory=null;
-  try{const r=window.__V365_SEGMENT_RECYCLE__?.signal?.();if(r?.qualified&&(r.side==='P'||r.side==='B'))recycle=r.side}catch(e){}
-  try{const m=window.__V369_SHARED_MEMORY__?.memory?.();if(m?.qualified&&(m.side==='P'||m.side==='B'))memory=m.side}catch(e){}
-  return {recycle,memory};
-}
-function gradeOne(key,pred,actual){
-  const a=ensureState()[key];
-  if(!pred)return;
-  if(actual==='T'){
-    a.tiesSkipped++;a.last=`${sideText(pred)} held through TIE — not graded`;a.lastAt=Date.now();return;
-  }
-  if(actual!=='P'&&actual!=='B')return;
-  a.graded++;
-  if(pred===actual){a.wins++;a.last=`WIN — ${sideText(pred)} → ${sideText(actual)}`}
-  else{a.losses++;a.last=`LOSS — ${sideText(pred)} → ${sideText(actual)}`}
-  a.lastAt=Date.now();
-}
-function grade(actual){
-  const calls=currentCalls();
-  gradeOne('recycle',calls.recycle,actual);
-  gradeOne('memory',calls.memory,actual);
-  save();
-  setTimeout(paint,0);setTimeout(paint,220);
-}
-function card(id,label){
-  return `<div class="analyzer-card"><span>${label}</span><strong id="${id}">—</strong></div>`;
-}
-function ensurePanelBits(){
-  const recycle=document.getElementById('v365SegmentRecyclePanel');
-  if(recycle && !document.getElementById('v372RecycleAccuracyRow')){
-    const row=document.createElement('div');row.id='v372RecycleAccuracyRow';row.className='analyzer-grid';row.style.marginTop='8px';
-    row.innerHTML=card('v372RecycleAcc','Verified accuracy')+card('v372RecycleWL','W / L')+card('v372RecycleN','Graded')+card('v372RecycleTies','Ties skipped');
-    const reset=document.createElement('button');reset.id='v372ResetRecycle';reset.className='tiny-btn';reset.type='button';reset.style.cssText='margin-top:7px;width:100%';reset.textContent='Reset Recycle Engine Accuracy';
-    const note=document.getElementById('v365SegNote');if(note){note.parentNode.insertBefore(row,note);note.parentNode.insertBefore(reset,note)}else{recycle.append(row,reset)}
-  }
-  const memory=document.getElementById('v369MemoryPanel');
-  if(memory && !document.getElementById('v372MemoryAccuracyRow')){
-    const row=document.createElement('div');row.id='v372MemoryAccuracyRow';row.className='analyzer-grid';row.style.marginTop='8px';
-    row.innerHTML=card('v372MemoryAcc','Verified accuracy')+card('v372MemoryWL','W / L')+card('v372MemoryN','Graded')+card('v372MemoryTies','Ties skipped');
-    const reset=document.createElement('button');reset.id='v372ResetMemory';reset.className='tiny-btn';reset.type='button';reset.style.cssText='margin-top:7px;width:100%';reset.textContent='Reset Historical Memory Accuracy';
-    const note=document.getElementById('v369MemNote');if(note){note.parentNode.insertBefore(row,note);note.parentNode.insertBefore(reset,note)}else{memory.append(row,reset)}
-  }
-}
-function paint(){
-  ensurePanelBits();const a=ensureState();
-  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
-  set('v372RecycleAcc',pct(a.recycle));set('v372RecycleWL',`${a.recycle.wins}W-${a.recycle.losses}L`);set('v372RecycleN',`N ${a.recycle.graded}`);set('v372RecycleTies',String(a.recycle.tiesSkipped));
-  set('v372MemoryAcc',pct(a.memory));set('v372MemoryWL',`${a.memory.wins}W-${a.memory.losses}L`);set('v372MemoryN',`N ${a.memory.graded}`);set('v372MemoryTies',String(a.memory.tiesSkipped));
-  const rn=document.getElementById('v365SegNote'),mn=document.getElementById('v369MemNote');
-  if(rn&&a.recycle.last)rn.dataset.v372LastAccuracy=a.recycle.last;
-  if(mn&&a.memory.last)mn.dataset.v372LastAccuracy=a.memory.last;
-}
-function reset(which){
-  const a=ensureState();a[which]=blank();save();paint();
-}
-function bind(){
-  document.querySelectorAll('.main-buttons [data-result], [data-result]').forEach(el=>{
-    if(!el||el.__v372MemoryGrade)return;el.__v372MemoryGrade=true;
-    // Capture phase grades the prediction visible BEFORE the base app commits the new hand.
-    el.addEventListener('click',()=>grade(String(el.dataset.result||'').toUpperCase()),true);
-  });
-  const rr=document.getElementById('v372ResetRecycle');if(rr&&!rr.__v372Bound){rr.__v372Bound=true;rr.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('recycle')})}
-  const rm=document.getElementById('v372ResetMemory');if(rm&&!rm.__v372Bound){rm.__v372Bound=true;rm.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('memory')})}
-}
-function install(){ensureState();ensurePanelBits();bind();paint();setTimeout(()=>{ensurePanelBits();bind();paint()},500);setTimeout(()=>{ensurePanelBits();bind();paint()},1800)}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){ensurePanelBits();bind();paint()}},2500);
-window.__V372_MEMORY_ACCURACY_COUNTS__={version:VERSION,grade,paint,reset,ensureState,qualifiedOnly:true,tiesSkipped:true,predictionLogicChanged:false};
-})();
-</script>
-<script id="v372-build-marker">window.__V372_BUILD__={version:372,base:'V371 live-memory-refresh build',memoryAccuracyCounts:true,recycleAccuracy:true,historicalMemoryAccuracy:true,qualifiedOnly:true,tiesSkipped:true,predictionLogicChanged:false};</script>
-
-
-
+<!-- V380: obsolete V372 Recycle/Memory accuracy grader removed; V379/V380 pending-call ledger is authoritative. -->
 <!-- V373 BEST-ESTIMATE ANALYZER 2 LIVE REFRESH + AUTHORITATIVE ACCURACY FIX (2026-09-30)
      Fixes two observed runtime failures without changing BE2 decision thresholds:
      - a visible qualified call could fail to enter the pending ledger, leaving Verified Accuracy at N=0;
@@ -20955,6 +20873,229 @@ window.__V376_BE2_FRESH_ACCURACY__={version:VERSION,newLedger:'state.v376BestEst
      This changes accuracy plumbing only; BE2 decision thresholds/side logic are unchanged. -->
 <script id="v377-be2-core-accuracy-marker">
 window.__V377_BE2_CORE_ACCURACY_FIX__={version:377,preCommitSettlement:true,postCommitArm:true,queuedArm:true,resyncOnUndoNewShoe:true,decisionLogicChanged:false};
+</script>
+
+
+<script id="v379-bead-history-full-library-ai">
+(function(){
+'use strict';
+if(window.__BEAD_HISTORY_AI_V379__) return;
+const SCORE_KEY='bead-history-ai-v379-accuracy';
+const CFG={minPB:6,conf:0.58,edge:0.08,minSupport:3,windows:[14,12,10,8,7,6,5,4],rhythmWindows:[10,8,7,6,5,4]};
+const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+const pb=s=>clean(s).replace(/T/g,'');
+const inv=s=>String(s||'').replace(/[PB]/g,c=>c==='P'?'B':'P');
+function rhythm(s){s=pb(s);let o='';for(let i=1;i<s.length;i++)o+=s[i]===s[i-1]?'R':'S';return o;}
+function loadScore(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'null');if(x&&Number.isFinite(x.w)&&Number.isFinite(x.l))return {w:x.w,l:x.l,pending:null,last:x.last||''};}catch(e){}return {w:0,l:0,pending:null,last:''};}
+const acc=loadScore();
+function saveScore(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l,last:acc.last||''}));}catch(e){}}
+function rawLibrary(){
+  let r=[],b=[];
+  try{r=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]}catch(e){}
+  try{b=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[]}catch(e){}
+  return [...r,...b].filter(x=>x&&clean(typeof x==='string'?x:x.sequence).length>=4);
+}
+function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''));}
+function uniqueLibrary(){const out=[],seen=new Set();for(const x of rawLibrary()){const s=seqOf(x);if(!s||seen.has(s))continue;seen.add(s);out.push({sequence:s,pb:pb(s),rhythm:rhythm(s)});}return out;}
+function liveSequence(){try{return (Array.isArray(state?.hands)?state.hands:[]).map(h=>String(typeof h==='string'?h:(h?.r||h?.result||''))).join('');}catch(e){return '';}}
+function predict(seq){
+  const live=clean(seq),lp=pb(live);
+  if(lp.length<CFG.minPB)return {side:null,reason:`Need ${CFG.minPB-lp.length} more P/B result${CFG.minPB-lp.length===1?'':'s'}.`,stored:rawLibrary().length,library:uniqueLibrary().length};
+  const lt=rhythm(lp),cur=lp[lp.length-1],lib=uniqueLibrary(),best=new Map();
+  const add=(i,w,v,k,n)=>{if(v!=='P'&&v!=='B')return;const old=best.get(i);if(!old||w>old.w)best.set(i,{w,v,k,n});};
+  lib.forEach((sh,i)=>{
+    const spbt=sh.sequence,sp=sh.pb,st=sh.rhythm;
+    if(spbt.startsWith(live)&&spbt.length>live.length){let j=live.length;while(j<spbt.length&&spbt[j]==='T')j++;if(j<spbt.length)add(i,10+Math.min(lp.length,20)*0.15,spbt[j],'full-prefix',lp.length);}
+    if(sp.startsWith(lp)&&sp.length>lp.length)add(i,9+Math.min(lp.length,20)*0.14,sp[lp.length],'pb-prefix',lp.length);
+    for(const n of CFG.windows){
+      if(lp.length<n||sp.length<=n)continue;
+      const pat=lp.slice(-n);let pos=sp.indexOf(pat);
+      while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0),sp[j],'suffix',n);pos=sp.indexOf(pat,pos+1);}
+      const ip=inv(pat);pos=sp.indexOf(ip);
+      while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0)-0.35,inv(sp[j]),'inverted',n);pos=sp.indexOf(ip,pos+1);}
+    }
+    for(const n of CFG.rhythmWindows){
+      if(lt.length<n||st.length<=n)continue;
+      const pat=lt.slice(-n);let pos=st.indexOf(pat);
+      while(pos!==-1){const j=pos+n;if(j<st.length){const v=st[j]==='R'?cur:inv(cur);add(i,1+n*0.30,v,'rhythm',n);}pos=st.indexOf(pat,pos+1);}
+    }
+  });
+  let pW=0,bW=0,pN=0,bN=0;const kinds={};
+  for(const x of best.values()){if(x.v==='P'){pW+=x.w;pN++;}else{bW+=x.w;bN++;}kinds[x.k]=(kinds[x.k]||0)+1;}
+  const total=pW+bW;
+  if(!total||pW===bW)return {side:null,evidence:best.size,library:lib.length,stored:rawLibrary().length,reason:'Saved-history evidence is tied.'};
+  const side=pW>bW?'P':'B',winW=Math.max(pW,bW),conf=winW/total,edge=Math.abs(pW-bW)/total,support=side==='P'?pN:bN;
+  if(conf<CFG.conf||edge<CFG.edge||support<CFG.minSupport)return {side:null,conf,evidence:best.size,library:lib.length,stored:rawLibrary().length,pN,bN,reason:`WAIT • history lean ${side} ${Math.round(conf*100)}% • support P ${pN} / B ${bN}`};
+  const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';
+  return {side,conf,edge,evidence:best.size,library:lib.length,stored:rawLibrary().length,pN,bN,leadKind,reason:`${side==='P'?'PLAYER':'BANKER'} • ${Math.round(conf*100)}% weighted history • P ${pN} / B ${bN} independent shoes • strongest family ${leadKind}`};
+}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function render(){
+  const seq=liveSequence(),x=predict(seq),stored=rawLibrary().length,uniq=uniqueLibrary().length;
+  set('beadHistLibrary',`${stored} / ${uniq}`);
+  set('beadHistEvidence',String(x.evidence||0));
+  set('beadHistSide',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
+  set('beadHistConf',x.conf?`${(x.conf*100).toFixed(1)}%`:'—');
+  set('beadHistReason',x.reason||'Waiting for saved-history evidence.');
+  const n=acc.w+acc.l;
+  set('beadHistAccuracy',n?`${(100*acc.w/n).toFixed(1)}%`:'—');
+  set('beadHistWL',`${acc.w}W-${acc.l}L`);
+  set('beadHistN',`N ${n}`);
+  const hands=pb(seq).length;
+  if(acc.pending&&hands<acc.pending.armedAt)acc.pending=null;
+  if(!acc.pending&&x.side)acc.pending={side:x.side,armedAt:hands};
+  window.__BEAD_HISTORY_AI_V379__.last=x;
+}
+function settle(actual){
+  actual=String(actual||'').toUpperCase();
+  if(actual==='T')return;
+  if(actual!=='P'&&actual!=='B')return;
+  const p=acc.pending;if(!p)return;
+  const ok=p.side===actual;if(ok)acc.w++;else acc.l++;
+  acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;
+  acc.pending=null;saveScore();
+}
+function post(){setTimeout(render,0);setTimeout(render,220);}
+function bind(){
+  document.querySelectorAll('[data-result]').forEach(btn=>{
+    if(btn.__v379BeadBound)return;btn.__v379BeadBound=true;
+    btn.addEventListener('click',()=>{settle(btn.dataset.result);post();},true);
+  });
+  for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){
+    const el=document.getElementById(id);
+    if(!el||el.__v379BeadHist) continue;
+    el.__v379BeadHist=true;
+    el.addEventListener('click',()=>{acc.pending=null;setTimeout(render,260);},false);
+  }
+  const r=document.getElementById('beadHistReset');
+  if(r&&!r.__v379BeadReset){r.__v379BeadReset=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.pending=null;acc.last='';saveScore();render();},true);}
+}
+function install(){bind();render();[250,900,1800].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
+window.__BEAD_HISTORY_AI_V379__={version:379,config:CFG,predict,render,settle,uniqueLibrary,last:null,accuracy:acc};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},1500);
+})();
+</script>
+
+
+<style id="v379-memory-accuracy-style">
+/* V380: V372 accuracy UI no longer exists; V379/V380 counters are authoritative. */
+</style>
+<script id="v379-authoritative-memory-accuracy">
+(function(){
+'use strict';
+if(window.__V379_MEMORY_ACCURACY__) return;
+const VERSION=379;
+const STORE='v379-memory-accuracy';
+function blank(){return {wins:0,losses:0,tiesSkipped:0,last:''};}
+function load(){
+  try{
+    const x=JSON.parse(localStorage.getItem(STORE)||'{}');
+    return {recycle:Object.assign(blank(),x.recycle||{}),memory:Object.assign(blank(),x.memory||{})};
+  }catch(e){return {recycle:blank(),memory:blank()};}
+}
+const score=load();
+let pending={recycle:null,memory:null};
+let lastHistoryKey='';
+function save(){try{localStorage.setItem(STORE,JSON.stringify(score));}catch(e){}}
+function rawSeq(){
+  try{return (Array.isArray(state?.hands)?state.hands:[]).map(h=>String(typeof h==='string'?h:(h?.r||h?.result||''))).join('').toUpperCase().replace(/PLAYER/g,'P').replace(/BANKER/g,'B').replace(/TIE/g,'T').replace(/[^PBT]/g,'');}catch(e){return '';}
+}
+function calls(){
+  let recycle=null,memory=null;
+  try{const r=window.__V365_SEGMENT_RECYCLE__?.signal?.();if(r?.qualified&&(r.side==='P'||r.side==='B'))recycle={side:r.side,confidence:Number(r.confidence)||0};}catch(e){}
+  try{const m=window.__V369_SHARED_MEMORY__?.memory?.();if(m?.qualified&&(m.side==='P'||m.side==='B'))memory={side:m.side,confidence:Number(m.score)||0};}catch(e){}
+  return {recycle,memory};
+}
+function arm(){
+  const c=calls(),n=rawSeq().length;
+  pending.recycle=c.recycle?{...c.recycle,armedAt:n}:null;
+  pending.memory=c.memory?{...c.memory,armedAt:n}:null;
+  lastHistoryKey=rawSeq();
+  paint();
+}
+function settleOne(key,actual){
+  const p=pending[key];if(!p)return;
+  if(actual==='T'){score[key].tiesSkipped++;score[key].last=`${p.side==='P'?'PLAYER':'BANKER'} held through TIE — not graded`;return;}
+  if(actual!=='P'&&actual!=='B')return;
+  if(p.side===actual){score[key].wins++;score[key].last=`WIN — ${p.side==='P'?'PLAYER':'BANKER'} → ${actual==='P'?'PLAYER':'BANKER'}`;}
+  else{score[key].losses++;score[key].last=`LOSS — ${p.side==='P'?'PLAYER':'BANKER'} → ${actual==='P'?'PLAYER':'BANKER'}`;}
+  pending[key]=null;
+}
+function settle(actual){
+  actual=String(actual||'').toUpperCase();
+  settleOne('recycle',actual);settleOne('memory',actual);save();paint();
+}
+function pct(a){const n=a.wins+a.losses;return n?`${(100*a.wins/n).toFixed(1)}%`:'—';}
+function card(id,label){return `<div class="analyzer-card"><span>${label}</span><strong id="${id}">—</strong></div>`;}
+function ensure(){
+  const r=document.getElementById('v365SegmentRecyclePanel');
+  if(r&&!document.getElementById('v379RecycleAccuracyRow')){
+    const row=document.createElement('div');row.id='v379RecycleAccuracyRow';row.className='analyzer-grid';row.style.marginTop='8px';
+    row.innerHTML=card('v379RecycleAcc','Verified accuracy')+card('v379RecycleWL','W / L')+card('v379RecycleN','Graded')+card('v379RecycleTies','Ties skipped');
+    const b=document.createElement('button');b.id='v379ResetRecycle';b.type='button';b.className='tiny-btn';b.style.cssText='margin-top:7px;width:100%';b.textContent='Reset Recycle Engine Accuracy';
+    const note=document.getElementById('v365SegNote');if(note){note.before(row);note.before(b);}else r.append(row,b);
+  }
+  const m=document.getElementById('v369MemoryPanel');
+  if(m&&!document.getElementById('v379MemoryAccuracyRow')){
+    const row=document.createElement('div');row.id='v379MemoryAccuracyRow';row.className='analyzer-grid';row.style.marginTop='8px';
+    row.innerHTML=card('v379MemoryAcc','Verified accuracy')+card('v379MemoryWL','W / L')+card('v379MemoryN','Graded')+card('v379MemoryTies','Ties skipped');
+    const b=document.createElement('button');b.id='v379ResetMemory';b.type='button';b.className='tiny-btn';b.style.cssText='margin-top:7px;width:100%';b.textContent='Reset Historical Memory Accuracy';
+    const note=document.getElementById('v369MemNote');if(note){note.before(row);note.before(b);}else m.append(row,b);
+  }
+}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function paint(){
+  ensure();
+  for(const [key,prefix] of [['recycle','v379Recycle'],['memory','v379Memory']]){
+    const a=score[key],n=a.wins+a.losses;
+    set(prefix+'Acc',pct(a));set(prefix+'WL',`${a.wins}W-${a.losses}L`);set(prefix+'N',`N ${n}`);set(prefix+'Ties',String(a.tiesSkipped));
+  }
+}
+function reset(key){score[key]=blank();pending[key]=null;save();arm();}
+function bind(){
+  document.querySelectorAll('[data-result]').forEach(el=>{
+    if(el.__v379MemGrade)return;el.__v379MemGrade=true;
+    // Capture phase: settle the call that was armed for THIS result before state.hands changes.
+    el.addEventListener('click',()=>{settle(el.dataset.result);setTimeout(arm,260);setTimeout(paint,520);},true);
+  });
+  for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){
+    const el=document.getElementById(id);
+    if(!el||el.__v379MemHistory) continue;
+    el.__v379MemHistory=true;
+    el.addEventListener('click',()=>{pending={recycle:null,memory:null};setTimeout(arm,300);},false);
+  }
+  const rr=document.getElementById('v379ResetRecycle');if(rr&&!rr.__v379Reset){rr.__v379Reset=true;rr.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('recycle');},true);}
+  const rm=document.getElementById('v379ResetMemory');if(rm&&!rm.__v379Reset){rm.__v379Reset=true;rm.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('memory');},true);}
+}
+function watch(){
+  const k=rawSeq();
+  if(k!==lastHistoryKey){
+    // Recovery for history changes that did not come through the normal result buttons.
+    if(lastHistoryKey && k.length===lastHistoryKey.length+1 && k.startsWith(lastHistoryKey)){
+      const actual=k.slice(-1);settle(actual);
+    }
+    setTimeout(arm,80);
+  }
+}
+function install(){ensure();bind();arm();[400,1200,2200].forEach(ms=>setTimeout(()=>{ensure();bind();paint();},ms));}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setInterval(()=>{if(document.visibilityState!=='hidden'){ensure();bind();watch();paint();}},700);
+window.__V379_MEMORY_ACCURACY__={version:VERSION,score,pending,arm,settle,paint,reset,predictionLogicChanged:false,authoritativePendingLedger:true};
+})();
+</script>
+<script id="v379-build-marker">window.__V379_BUILD__={version:379,beadHistoryAI:true,beadPlacedUnderDeepLearning:true,recycleAccuracyRebuilt:true,memoryAccuracyRebuilt:true,predictionLogicChanged:false};</script>
+
+<script id="v380-build-marker">
+window.__V380_BUILD__={
+  version:380,
+  base:'V379 Bead History AI + Recycle/Memory accuracy',
+  removedObsoleteV372AccuracyGrader:true,
+  fixedControlBindingEarlyReturn:true,
+  beadHistoryPredictionLogicChanged:false,
+  recyclePredictionLogicChanged:false,
+  memoryPredictionLogicChanged:false
+};
 </script>
 </body>
 </html>
