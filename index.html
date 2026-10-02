@@ -1,3 +1,5 @@
+<!-- V387 STABILITY FIX: cached Bead/road library, event-driven next-call arming, no settle->render re-arm race, Main Road one vote per independent shoe, dead V386 roadAssist removed. Prediction hierarchy retained (~70% Bead / ~22% 3-road / ~8% Main). -->
+<!-- V386: Adaptive Bead History state matcher: Bead Plate dominant (~70%), same-state 3-road confirmation (~22%), Main Road minor influence (~8%); adaptive evidence weighting, ties/traps/break-resume retained. Accuracy plumbing from V384 preserved. -->
 <!-- V384: Bead History accuracy moved into the actual V135 authoritative result queue; accidental V51 contamination removed. Prediction logic unchanged. -->
 <!-- V383: Bead History visible PLAYER/BANKER call is now always the exact pending call graded by accuracy. Prediction logic unchanged. -->
 <!-- V382: Restores missing Bead History arm() runtime function. Prediction engine unchanged; core accuracy path retained. -->
@@ -20897,116 +20899,127 @@ window.__V377_BE2_CORE_ACCURACY_FIX__={version:377,preCommitSettlement:true,post
 </script>
 
 
-<script id="v379-bead-history-full-library-ai">
+<script id="v387-bead-history-adaptive-state-ai">
 (function(){
 'use strict';
-if(window.__BEAD_HISTORY_AI_V379__) return;
 const SCORE_KEY='bead-history-ai-v379-accuracy';
-const CFG={minPB:6,conf:0.58,edge:0.08,minSupport:3,windows:[14,12,10,8,7,6,5,4],rhythmWindows:[10,8,7,6,5,4]};
+const CFG={minPB:6,conf:0.55,edge:0.05,minSupport:2,windows:[16,14,12,10,8,7,6,5,4],rhythmWindows:[12,10,8,7,6,5,4],tieWindows:[12,10,8,6,5,4],baseWeights:{bead:0.70,roads:0.22,main:0.08}};
 const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
 const pb=s=>clean(s).replace(/T/g,'');
 const inv=s=>String(s||'').replace(/[PB]/g,c=>c==='P'?'B':'P');
 function rhythm(s){s=pb(s);let o='';for(let i=1;i<s.length;i++)o+=s[i]===s[i-1]?'R':'S';return o;}
+function runs(s){s=pb(s);if(!s)return[];const a=[];let side=s[0],n=1;for(let i=1;i<s.length;i++){if(s[i]===side)n++;else{a.push(side+n);side=s[i];n=1;}}a.push(side+n);return a;}
+function runShape(s){return runs(s).slice(-7).map(x=>x.slice(1)).join('-');}
+function prefixForPbCount(s,count){s=clean(s);if(count<=0)return '';let n=0;for(let i=0;i<s.length;i++){if(s[i]==='P'||s[i]==='B')n++;if(n>=count)return s.slice(0,i+1);}return s;}
+function roadSuffixMatch(a,b){let n=Math.min(a.length,b.length,12),m=0;for(let i=1;i<=n;i++){if(a[a.length-i]!==b[b.length-i])break;m++;}return m;}
+function buildLiveRoads(live){const hs=live.split('').map(r=>({r}));const out=[];for(let o=1;o<=3;o++){try{out.push(deriveRoad(hs,o)||[]);}catch(e){out.push([]);}}return out;}
+function roadStateAt(liveRoads,sh,pbCount){
+  try{
+    sh._roadPrefixCache ||= new Map();
+    let savedRoads=sh._roadPrefixCache.get(pbCount);
+    if(!savedRoads){
+      const saved=prefixForPbCount(sh.sequence,pbCount).split('').map(r=>({r}));
+      savedRoads=[];for(let o=1;o<=3;o++){try{savedRoads.push(deriveRoad(saved,o)||[]);}catch(e){savedRoads.push([]);}}
+      sh._roadPrefixCache.set(pbCount,savedRoads);
+      if(sh._roadPrefixCache.size>80){const first=sh._roadPrefixCache.keys().next().value;sh._roadPrefixCache.delete(first);}
+    }
+    let matched=0,total=0;const lens=[];
+    for(let i=0;i<3;i++){const m=roadSuffixMatch(liveRoads[i]||[],savedRoads[i]||[]);lens.push(m);if(m>=4)matched++;total+=Math.min(m,10);}
+    return {matched,total,lens,all3:matched===3};
+  }catch(e){return {matched:0,total:0,lens:[0,0,0],all3:false};}
+}
+function mainStateAssist(lp,lib){
+  const lr=runs(lp);if(lr.length<3)return {side:null,conf:.5,p:0,b:0,evidence:0};
+  const cur=lp.at(-1),sig=lr.slice(-5).map(x=>x.slice(1));let p=0,b=0,evidence=0;
+  for(const sh of lib){
+    const sp=sh.pb;let best=null;
+    for(let j=4;j<sp.length;j++){
+      const rr=runs(sp.slice(0,j));if(rr.length<sig.length)continue;
+      const ss=rr.slice(-sig.length).map(x=>x.slice(1));let hit=0;for(let k=0;k<sig.length;k++)if(sig[k]===ss[k])hit++;
+      const sim=hit/sig.length;if(sim<.8)continue;
+      const nx=sp[j];if(nx!=='P'&&nx!=='B')continue;
+      const prev=sp[j-1],v=nx===prev?cur:inv(cur);
+      const recency=1/(1+Math.abs(j-lp.length));
+      const score=sim+0.08*recency;
+      if(!best||score>best.score)best={score,sim,v};
+    }
+    if(best){const w=.5+best.sim*.5;if(best.v==='P')p+=w;else b+=w;evidence++;}
+  }
+  const z=p+b;return {side:p>b?'P':b>p?'B':null,conf:z?Math.max(p,b)/z:.5,p,b,evidence};
+}
+function adaptiveWeights(beadConf,roadQ,mainQ){let wb=CFG.baseWeights.bead,wr=CFG.baseWeights.roads,wm=CFG.baseWeights.main;wb+=Math.max(0,beadConf-.55)*.30;wr+=Math.max(0,roadQ-.5)*.12;wm+=Math.max(0,mainQ-.5)*.05;const z=wb+wr+wm;return {bead:wb/z,roads:wr/z,main:wm/z};}
 function loadScore(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'null');if(x&&Number.isFinite(x.w)&&Number.isFinite(x.l))return {w:x.w,l:x.l,pending:null,last:x.last||''};}catch(e){}return {w:0,l:0,pending:null,last:''};}
 const acc=loadScore();
 function saveScore(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l,last:acc.last||''}));}catch(e){}}
-function rawLibrary(){
-  let r=[],b=[];
-  try{r=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]}catch(e){}
-  try{b=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[]}catch(e){}
-  return [...r,...b].filter(x=>x&&clean(typeof x==='string'?x:x.sequence).length>=4);
-}
+function rawLibrary(){let r=[],b=[];try{r=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]}catch(e){}try{b=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[]}catch(e){}return [...r,...b].filter(x=>x&&clean(typeof x==='string'?x:x.sequence).length>=4);}
 function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''));}
-function uniqueLibrary(){const out=[],seen=new Set();for(const x of rawLibrary()){const s=seqOf(x);if(!s||seen.has(s))continue;seen.add(s);out.push({sequence:s,pb:pb(s),rhythm:rhythm(s)});}return out;}
+let libCache={sig:null,rawCount:0,unique:[]};
+function librarySignature(raw){let h=2166136261>>>0;for(const x of raw){const q=seqOf(x);for(let i=0;i<q.length;i++){h^=q.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}h^=124;h=Math.imul(h,16777619)>>>0;}return `${raw.length}:${h}`;}
+function uniqueLibrary(force=false){
+  const raw=rawLibrary(),sig=librarySignature(raw);if(!force&&libCache.sig===sig)return libCache.unique;
+  const out=[],seen=new Set();for(const x of raw){const q=seqOf(x);if(!q||seen.has(q))continue;seen.add(q);out.push({sequence:q,pb:pb(q),rhythm:rhythm(q),shape:runShape(q),_roadPrefixCache:new Map()});}
+  libCache={sig,rawCount:raw.length,unique:out};predictionCache.key=null;return out;
+}
 function liveSequence(){try{return (Array.isArray(state?.hands)?state.hands:[]).map(h=>String(typeof h==='string'?h:(h?.r||h?.result||''))).join('');}catch(e){return '';}}
+const predictionCache={key:null,value:null};
+function invalidate(){predictionCache.key=null;}
 function predict(seq){
-  const live=clean(seq),lp=pb(live);
-  if(lp.length<CFG.minPB)return {side:null,reason:`Need ${CFG.minPB-lp.length} more P/B result${CFG.minPB-lp.length===1?'':'s'}.`,stored:rawLibrary().length,library:uniqueLibrary().length};
-  const lt=rhythm(lp),cur=lp[lp.length-1],lib=uniqueLibrary(),best=new Map();
-  const add=(i,w,v,k,n)=>{if(v!=='P'&&v!=='B')return;const old=best.get(i);if(!old||w>old.w)best.set(i,{w,v,k,n});};
+  const live=clean(seq),lp=pb(live),lib=uniqueLibrary();
+  const cacheKey=`${libCache.sig}|${live}`;if(predictionCache.key===cacheKey&&predictionCache.value)return predictionCache.value;
+  let result;
+  if(lp.length<CFG.minPB){result={side:null,reason:`Need ${CFG.minPB-lp.length} more P/B result${CFG.minPB-lp.length===1?'':'s'}.`,stored:libCache.rawCount,library:lib.length};predictionCache.key=cacheKey;predictionCache.value=result;return result;}
+  const lt=rhythm(lp),cur=lp[lp.length-1],best=new Map(),liveRoads=buildLiveRoads(live);
+  const add=(i,w,v,k,n,pbCount)=>{if(v!=='P'&&v!=='B')return;const old=best.get(i);if(!old||w>old.w)best.set(i,{w,v,k,n,pbCount:Number.isFinite(pbCount)?pbCount:null});};
   lib.forEach((sh,i)=>{
     const spbt=sh.sequence,sp=sh.pb,st=sh.rhythm;
-    if(spbt.startsWith(live)&&spbt.length>live.length){let j=live.length;while(j<spbt.length&&spbt[j]==='T')j++;if(j<spbt.length)add(i,10+Math.min(lp.length,20)*0.15,spbt[j],'full-prefix',lp.length);}
-    if(sp.startsWith(lp)&&sp.length>lp.length)add(i,9+Math.min(lp.length,20)*0.14,sp[lp.length],'pb-prefix',lp.length);
+    if(spbt.startsWith(live)&&spbt.length>live.length){let j=live.length;while(j<spbt.length&&spbt[j]==='T')j++;if(j<spbt.length)add(i,10+Math.min(lp.length,24)*0.16,spbt[j],'full-prefix',lp.length,lp.length);}
+    if(sp.startsWith(lp)&&sp.length>lp.length)add(i,8.8+Math.min(lp.length,24)*0.14,sp[lp.length],'pb-prefix',lp.length,lp.length);
+    for(const n of CFG.tieWindows){if(live.length<n||spbt.length<=n)continue;const pat=live.slice(-n);let pos=spbt.indexOf(pat);while(pos!==-1){let j=pos+n;while(j<spbt.length&&spbt[j]==='T')j++;if(j<spbt.length)add(i,2.0+n*0.34+(live.endsWith('T')?1.1:0),spbt[j],'tie-context',n,pb(spbt.slice(0,j)).length);pos=spbt.indexOf(pat,pos+1);}}
     for(const n of CFG.windows){
-      if(lp.length<n||sp.length<=n)continue;
-      const pat=lp.slice(-n);let pos=sp.indexOf(pat);
-      while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0),sp[j],'suffix',n);pos=sp.indexOf(pat,pos+1);}
-      const ip=inv(pat);pos=sp.indexOf(ip);
-      while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0)-0.35,inv(sp[j]),'inverted',n);pos=sp.indexOf(ip,pos+1);}
+      if(lp.length<n||sp.length<=n)continue;const pat=lp.slice(-n);let pos=sp.indexOf(pat);
+      while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0),sp[j],'suffix',n,j);pos=sp.indexOf(pat,pos+1);}
+      const ip=inv(pat);pos=sp.indexOf(ip);while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0)-0.35,inv(sp[j]),'inverted',n,j);pos=sp.indexOf(ip,pos+1);}
     }
-    for(const n of CFG.rhythmWindows){
-      if(lt.length<n||st.length<=n)continue;
-      const pat=lt.slice(-n);let pos=st.indexOf(pat);
-      while(pos!==-1){const j=pos+n;if(j<st.length){const v=st[j]==='R'?cur:inv(cur);add(i,1+n*0.30,v,'rhythm',n);}pos=st.indexOf(pat,pos+1);}
-    }
+    for(const n of CFG.rhythmWindows){if(lt.length<n||st.length<=n)continue;const pat=lt.slice(-n);let pos=st.indexOf(pat);while(pos!==-1){const j=pos+n;if(j<st.length){const v=st[j]==='R'?cur:inv(cur);add(i,1+n*0.30,v,'rhythm',n,j+1);}pos=st.indexOf(pat,pos+1);}}
+    const lr=runs(lp),sr=runs(sp);for(const k of [6,5,4,3]){if(lr.length<k||sr.length<=k)continue;const sig=lr.slice(-k).map(x=>x.slice(1)).join('-');for(let j=k;j<sr.length;j++){const ss=sr.slice(j-k,j).map(x=>x.slice(1)).join('-');if(ss!==sig)continue;const prev=sr[j-1][0],next=sr[j][0],v=next===prev?cur:inv(cur);add(i,1.8+k*0.55,v,'run-behavior',k,j);}};
   });
-  let pW=0,bW=0,pN=0,bN=0;const kinds={};
-  for(const x of best.values()){if(x.v==='P'){pW+=x.w;pN++;}else{bW+=x.w;bN++;}kinds[x.k]=(kinds[x.k]||0)+1;}
-  const total=pW+bW;
-  if(!total||pW===bW)return {side:null,evidence:best.size,library:lib.length,stored:rawLibrary().length,reason:'Saved-history evidence is tied.'};
-  const side=pW>bW?'P':'B',winW=Math.max(pW,bW),conf=winW/total,edge=Math.abs(pW-bW)/total,support=side==='P'?pN:bN;
-  if(conf<CFG.conf||edge<CFG.edge||support<CFG.minSupport)return {side:null,conf,evidence:best.size,library:lib.length,stored:rawLibrary().length,pN,bN,reason:`WAIT • history lean ${side} ${Math.round(conf*100)}% • support P ${pN} / B ${bN}`};
-  const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';
-  return {side,conf,edge,evidence:best.size,library:lib.length,stored:rawLibrary().length,pN,bN,leadKind,reason:`${side==='P'?'PLAYER':'BANKER'} • ${Math.round(conf*100)}% weighted history • P ${pN} / B ${bN} independent shoes • strongest family ${leadKind}`};
+  let pW=0,bW=0,pN=0,bN=0,rp=0,rb=0,rN=0;const kinds={};
+  for(const [i,x] of best){let w=x.w;const sh=lib[i];if(sh&&Number.isFinite(x.pbCount)){const rs=roadStateAt(liveRoads,sh,x.pbCount);x.roadState=rs;if(rs.all3)w*=1.34;else if(rs.matched===2)w*=1.16;else if(rs.matched===1)w*=1.06;if(rs.matched>=2){const rw=(rs.all3?1.35:0.75)*(0.7+Math.min(1,rs.total/24));if(x.v==='P')rp+=rw;else rb+=rw;rN++;}}
+    if(x.v==='P'){pW+=w;pN++;}else{bW+=w;bN++;}kinds[x.k]=(kinds[x.k]||0)+1;}
+  const beadTotal=pW+bW;
+  if(!beadTotal||pW===bW){result={side:null,evidence:best.size,library:lib.length,stored:libCache.rawCount,reason:'Saved-history evidence is tied.'};predictionCache.key=cacheKey;predictionCache.value=result;return result;}
+  const beadP=pW/beadTotal,beadB=bW/beadTotal,roadZ=rp+rb,road={p:rp,b:rb,total:roadZ,side:rp>rb?'P':rb>rp?'B':null,conf:roadZ?Math.max(rp,rb)/roadZ:.5,evidence:rN};
+  const main=mainStateAssist(lp,lib),weights=adaptiveWeights(Math.max(beadP,beadB),road.conf,main.conf);
+  let pScore=weights.bead*beadP+weights.roads*(roadZ?rp/roadZ:.5)+weights.main*(main.p+main.b?main.p/(main.p+main.b):.5);
+  let bScore=weights.bead*beadB+weights.roads*(roadZ?rb/roadZ:.5)+weights.main*(main.p+main.b?main.b/(main.p+main.b):.5);
+  const z=pScore+bScore||1;pScore/=z;bScore/=z;
+  const side=pScore>bScore?'P':'B',conf=Math.max(pScore,bScore),edge=Math.abs(pScore-bScore),support=side==='P'?pN:bN;
+  const beadSide=beadP>beadB?'P':'B',roadConflict=road.side&&road.side!==beadSide,mainConflict=main.side&&main.side!==beadSide;
+  const strongBead=Math.max(beadP,beadB)>=.595&&Math.abs(beadP-beadB)>=.09;
+  const finalSide=(strongBead&&side!==beadSide)?beadSide:side,finalConf=(finalSide===side?conf:Math.max(beadP,beadB));
+  const roadConfirmed=road.side===beadSide&&road.evidence>=2,allRoadState=[...best.values()].some(x=>x.roadState?.all3);
+  const localGate=allRoadState?Math.max(.535,CFG.conf-.015):CFG.conf;
+  if(finalConf<localGate||edge<CFG.edge||support<CFG.minSupport)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,reason:`WAIT • bead ${beadSide} ${Math.round(Math.max(beadP,beadB)*100)}% • support P ${pN} / B ${bN}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
+  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • adaptive bead-dominant history${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
+  predictionCache.key=cacheKey;predictionCache.value=result;return result;
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function render(){
-  const seq=liveSequence(),x=predict(seq),stored=rawLibrary().length,uniq=uniqueLibrary().length;
-  set('beadHistLibrary',`${stored} / ${uniq}`);
-  set('beadHistEvidence',String(x.evidence||0));
-  set('beadHistSide',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
-  set('beadHistConf',x.conf?`${(x.conf*100).toFixed(1)}%`:'—');
-  set('beadHistReason',x.reason||'Waiting for saved-history evidence.');
-  const n=acc.w+acc.l;
-  set('beadHistAccuracy',n?`${(100*acc.w/n).toFixed(1)}%`:'—');
-  set('beadHistWL',`${acc.w}W-${acc.l}L`);
-  set('beadHistN',`N ${n}`);
-  const hands=pb(seq).length;
-  if(acc.pending&&hands<acc.pending.armedAt)acc.pending=null;
-  // V383: the call shown on screen must be the exact call waiting to be graded.
-  // If PLAYER/BANKER is visible and there is no pending call for this hand,
-  // lock that visible call immediately. WAIT never creates a pending grade.
-  if(x.side && !acc.pending){
-    acc.pending={side:x.side,armedAt:hands};
-  }
-  window.__BEAD_HISTORY_AI_V379__.last=x;
-}
-function arm(){
-  const seq=liveSequence();
-  const x=predict(seq);
-  const hands=pb(seq).length;
-  if(acc.pending && hands < acc.pending.armedAt) acc.pending=null;
-  acc.pending = x.side ? {side:x.side, armedAt:hands} : null;
-  window.__BEAD_HISTORY_AI_V379__.last=x;
-  render();
-  return acc.pending;
-}
-function settle(actual){
-  actual=String(actual||'').toUpperCase();
-  if(actual==='T')return;
-  if(actual!=='P'&&actual!=='B')return;
-  const p=acc.pending;if(!p)return;
-  const ok=p.side===actual;if(ok)acc.w++;else acc.l++;
-  acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;
-  acc.pending=null;saveScore();render();
-}
-function post(){setTimeout(render,0);setTimeout(render,220);}
+function paintAccuracy(){const n=acc.w+acc.l;set('beadHistAccuracy',n?`${(100*acc.w/n).toFixed(1)}%`:'—');set('beadHistWL',`${acc.w}W-${acc.l}L`);set('beadHistN',`N ${n}`);}
+function paintPrediction(x,seq){const stored=libCache.rawCount||rawLibrary().length,uniq=uniqueLibrary().length;set('beadHistLibrary',`${stored} / ${uniq}`);set('beadHistEvidence',String(x?.evidence||0));set('beadHistSide',x?.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('beadHistConf',x?.conf?`${(x.conf*100).toFixed(1)}%`:'—');set('beadHistReason',x?.reason||'Waiting for saved-history evidence.');paintAccuracy();if(window.__BEAD_HISTORY_AI_V379__)window.__BEAD_HISTORY_AI_V379__.last=x;}
+function render(){const seq=liveSequence(),x=predict(seq);paintPrediction(x,seq);return x;}
+function arm(){const seq=liveSequence(),x=predict(seq),hands=pb(seq).length;if(acc.pending&&hands<acc.pending.armedAt)acc.pending=null;acc.pending=x.side?{side:x.side,armedAt:hands}:null;paintPrediction(x,seq);return acc.pending;}
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T')return;if(actual!=='P'&&actual!=='B')return;const p=acc.pending;if(!p)return;const ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;saveScore();paintAccuracy();}
+function historyChanged(){acc.pending=null;invalidate();setTimeout(()=>{uniqueLibrary();arm();},260);}
 function bind(){
-  for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){
-    const el=document.getElementById(id);
-    if(!el||el.__v379BeadHist) continue;
-    el.__v379BeadHist=true;
-    el.addEventListener('click',()=>{acc.pending=null;setTimeout(arm,260);},false);
-  }
-  const r=document.getElementById('beadHistReset');
-  if(r&&!r.__v379BeadReset){r.__v379BeadReset=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.pending=null;acc.last='';saveScore();arm();},true);}
+  for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){const el=document.getElementById(id);if(!el||el.__v387BeadHist)continue;el.__v387BeadHist=true;el.addEventListener('click',historyChanged,false);}
+  const r=document.getElementById('beadHistReset');if(r&&!r.__v387BeadReset){r.__v387BeadReset=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.pending=null;acc.last='';saveScore();invalidate();arm();},true);}
 }
-function clearPending(){acc.pending=null;render();}
-function install(){bind();arm();[250,900,1800].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
-window.__BEAD_HISTORY_AI_V379__={version:383,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,last:null,accuracy:acc,authoritativeCoreAccuracy:true};
+function clearPending(){acc.pending=null;invalidate();render();}
+function install(){bind();uniqueLibrary(true);invalidate();arm();[400,1400].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
+window.__BEAD_HISTORY_AI_V379__={version:387,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
+window.__BEAD_HISTORY_AI_V385__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V386__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V387__=window.__BEAD_HISTORY_AI_V379__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},1500);
+if(!window.__v387BeadHealthTimer)window.__v387BeadHealthTimer=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},12000);
 })();
 </script>
 
