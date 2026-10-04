@@ -1,3 +1,5 @@
+<!-- V401 STABILITY + AUTHORITATIVE ACCURACY FIX: Recycle panel no longer rebuilds on repaint; HPR/Recognition grade in V135 pre-commit queue with post-commit arming and Undo-safe rollback; redundant watchdogs throttled. Prediction logic unchanged. -->
+<!-- V400: Hierarchical Pattern Retrieval AI and Saved-Shoe Recognition AI permanently grouped at page bottom. Logic unchanged. -->
 <!-- V399: Visible Saved-Shoe Recognition AI moved to permanent bottom-of-page position. Prediction and accuracy logic unchanged. -->
 <!-- V397: Shared live-shoe recognition: exact saved-shoe prefix/offset/inverted matching from live hands only; exact unanimous recognition may dominate library-aware AI calls. No future live-hand leakage. -->
 <!-- V395 COMPACT UI: Shared Hierarchical Partial-Shoe Recycle Engine + Shared Historical Memory Brain condensed; prediction/accuracy logic unchanged. -->
@@ -668,26 +670,6 @@ button { touch-action: manipulation; }
   </div>
   <div class="analyzer-sub" id="beadHistReason" style="margin-top:7px">Waiting for at least 6 Player/Banker results.</div>
   <button class="tiny-btn" id="beadHistReset" type="button" style="margin-top:7px;width:100%">Reset Bead Plate History AI Accuracy</button>
-</div>
-
-<!-- V394: Hierarchical Pattern Retrieval AI permanently mounted so iOS cannot miss runtime insertion -->
-<div class="analyzer" id="v392HprAi" style="border-color:#67577d">
-  <div class="analyzer-title">🧬 Hierarchical Pattern Retrieval AI V393 — Pattern Families + Continuation</div>
-  <div class="analyzer-sub">One AI using your saved library: same-pattern-anywhere search, inverted P/B matching, Repeat/Switch rhythm, run/trap shape, tie context, Big Eye/Small/Cockroach confirmation, pattern-family clustering, and multi-hand continuation depth. One vote per independent shoe and one capped vote per related pattern family.</div>
-  <div class="v392-grid">
-    <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v392Side">WAIT</strong></div>
-    <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v392Conf">—</strong></div>
-    <div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v392Matches">0</strong></div>
-    <div class="analyzer-card"><span>LONGEST MATCH</span><strong id="v392Longest">—</strong></div>
-  </div>
-  <div class="v392-grid">
-    <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v392Acc">—</strong></div>
-    <div class="analyzer-card"><span>W / L</span><strong id="v392WL">0W-0L</strong></div>
-    <div class="analyzer-card"><span>GRADED</span><strong id="v392N">N 0</strong></div>
-    <div class="analyzer-card"><span>LIBRARY</span><strong id="v392Lib">0</strong></div>
-  </div>
-  <div class="analyzer-sub" id="v392Reason" style="margin-top:7px">Waiting.</div>
-  <button class="tiny-btn" id="v392Reset" type="button" style="margin-top:7px;width:100%">Reset Retrieval AI Accuracy</button>
 </div>
 
 <div class="card-entry">
@@ -12789,6 +12771,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V384: Bead History must settle in this authoritative queue because V135
       // stops all legacy result listeners before they can run.
       ()=>{try{window.__BEAD_HISTORY_AI_V379__?.settle?.(actual)}catch(e){console.warn('V384 Bead History settle',e)}},
+      // V401: new bottom AIs grade only here, before the hand is committed.
+      ()=>{try{window.__V392_HPR_AI__?.settle?.(actual)}catch(e){console.warn('V401 HPR settle',e)}},
+      ()=>{try{window.__V398_RECOGNITION_AI__?.settle?.(actual)}catch(e){console.warn('V401 Recognition settle',e)}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}}, 
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
@@ -12823,6 +12808,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V377: after a committed hand, arm BE2 from the NEW history only.
       try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 queued arm',e)}
       try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History queued arm',e)}
+      try{window.__V392_HPR_AI__?.arm?.()}catch(e){console.warn('V401 HPR queued arm',e)}
+      try{window.__V398_RECOGNITION_AI__?.arm?.()}catch(e){console.warn('V401 Recognition queued arm',e)}
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       busy=false;
       const queued=pendingResults.shift();
@@ -12857,6 +12844,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         // V377: BE2 is armed only after the committed hand is visible.
         ()=>{try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 arm',e)}},
         ()=>{try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History arm',e)}},
+        ()=>{try{window.__V392_HPR_AI__?.arm?.()}catch(e){console.warn('V401 HPR arm',e)}},
+        ()=>{try{window.__V398_RECOGNITION_AI__?.arm?.()}catch(e){console.warn('V401 Recognition arm',e)}},
 
         // Refresh live AI cards independently. A slow optional card can no longer
         // block every other panel because each job yields back to Chrome first.
@@ -12870,6 +12859,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         ()=>{try{window.renderVerifiedAccuracy?.()}catch(e){}},
         ()=>{try{window.__V86_MATCHER_ACCURACY__?.render?.()}catch(e){}},
         ()=>{try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}},
+        ()=>{try{window.__V392_HPR_AI__?.render?.()}catch(e){}},
+        ()=>{try{window.__V398_RECOGNITION_AI__?.paint?.()}catch(e){}},
         // V168: direct live refresh; no dependency on the legacy full-render wrapper chain.
         ()=>{try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart live refresh',e)}},
       ];
@@ -20031,7 +20022,7 @@ function install(){
   paint();
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(paint,80)},false);
   [250,900,2200].forEach(ms=>setTimeout(paint,ms));
-  if(!window.__v358DerivedTimer)window.__v358DerivedTimer=setInterval(()=>{if(document.visibilityState!=='hidden')paint()},3000);
+  if(!window.__v358DerivedTimer)window.__v358DerivedTimer=setInterval(()=>{if(document.visibilityState!=='hidden')paint()},15000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 window.__V358_DERIVED_RESULT_PANEL__={version:358,paint,logicChanged:false};
@@ -20453,7 +20444,9 @@ function wrapFamilies(){const old=window.independentEvidenceFamilies;if(typeof o
 function ensurePanel(){
   let d=document.getElementById('v363SegmentRecyclePanel')||document.getElementById('v364SegmentRecyclePanel')||document.getElementById('v365SegmentRecyclePanel');
   if(!d){const anchor=document.getElementById('currentShoeColorStatus')||document.querySelector('.analyzer');if(!anchor?.parentNode)return;d=document.createElement('div');d.className='analyzer';d.id='v365SegmentRecyclePanel';anchor.parentNode.insertBefore(d,anchor.nextSibling)}
-  d.id='v365SegmentRecyclePanel';d.innerHTML=`<div class="analyzer-title">Shared Hierarchical Partial-Shoe Recycle Engine — Tie Aware</div><div class="analyzer-sub">Prioritizes the longest strongest recycled segment first and now preserves P/B/T tie placement as context. Exact 12/15-hand matches are not diluted by weaker 6/8-hand matches. Direct, inverted and short-break/resume matches remain supported.</div><div class="analyzer-grid"><div class="analyzer-card"><span>Next lean</span><strong id="v365SegSide">WAIT</strong></div><div class="analyzer-card"><span>Consensus</span><strong id="v365SegConsensus">—</strong></div><div class="analyzer-card"><span>Unique shoe support</span><strong id="v365SegSupport">0</strong></div><div class="analyzer-card"><span>Strongest tier</span><strong id="v365SegBest">—</strong></div></div><div class="analyzer-sub" id="v365SegNote" style="margin-top:7px">Waiting for live hands.</div>`;
+  d.id='v365SegmentRecyclePanel';
+  // V401: build the panel only once. Repainting must not destroy injected accuracy/reset controls.
+  if(!d.querySelector('#v365SegSide'))d.innerHTML=`<div class="analyzer-title">Shared Hierarchical Partial-Shoe Recycle Engine — Tie Aware</div><div class="analyzer-sub">Prioritizes the longest strongest recycled segment first and now preserves P/B/T tie placement as context. Exact 12/15-hand matches are not diluted by weaker 6/8-hand matches. Direct, inverted and short-break/resume matches remain supported.</div><div class="analyzer-grid"><div class="analyzer-card"><span>Next lean</span><strong id="v365SegSide">WAIT</strong></div><div class="analyzer-card"><span>Consensus</span><strong id="v365SegConsensus">—</strong></div><div class="analyzer-card"><span>Unique shoe support</span><strong id="v365SegSupport">0</strong></div><div class="analyzer-card"><span>Strongest tier</span><strong id="v365SegBest">—</strong></div></div><div class="analyzer-sub" id="v365SegNote" style="margin-top:7px">Waiting for live hands.</div>`;
 }
 function paint(){ensurePanel();const r=signal(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};set('v365SegSide',r.qualified?(r.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v365SegConsensus',r.matches?`${r.consensus.toFixed(0)}%`:'—');set('v365SegSupport',String(r.supportShoes||0));set('v365SegBest',r.bestWindow?`${r.bestWindow} hands • ${r.tier||'near'} • ${r.bestSimilarity}%`:'—');set('v365SegNote',`${r.reason} Exact ${r.exactMatches||0} • direct ${r.direct||0} • inverted ${r.inverted||0} • tie-aware ${r.tieAwareMatches||0}${r.afterTie?' • AFTER TIE':''} • ${r.libraryShoes||0} unique saved shoes scanned.`)}
 function install(){installSignalWrappers();wrapCombined();wrapFamilies();ensurePanel();paint();window.__V365_SEGMENT_RECYCLE__={version:VERSION,signal,scan,paint,windows:WINDOWS.slice(),hierarchical:true,tieAware:true,cacheFingerprint:true,oneVotePerShoe:true,derivedRoadTouched:false}}
@@ -20653,7 +20646,7 @@ function watch(){
 function install(){
   bind();
   repaint('install');
-  if(!heartbeat) heartbeat=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();watch()}},1800);
+  if(!heartbeat) heartbeat=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();watch()}},15000);
   window.__V371_LIVE_MEMORY_REFRESH_FIX__={version:VERSION,refresh,repaint,bind,liveKey,lastKey,lastReason:'install',lastAt:Date.now(),logicChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
@@ -20780,7 +20773,7 @@ function install(){
   [180,700,1800].forEach(ms=>setTimeout(()=>{bindReset();bindRefresh();paint()},ms));
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRefresh()}},2500);
+setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRefresh()}},15000);
 window.__V373_BE2_FIX__={version:VERSION,accuracyFixed:true,liveRefreshFixed:true,visibleCallRecovery:true,decisionLogicChanged:false};
 })();
 </script>
@@ -20839,7 +20832,7 @@ function bind(){
 function install(){
   lastPB=pb();lastMode=mode();bind();hardRefresh('install');
   // 900ms is only a safety net. Normal updates remain event-driven.
-  setInterval(()=>{if(document.visibilityState!=='hidden'){bind();check()}},2500);
+  setInterval(()=>{if(document.visibilityState!=='hidden'){bind();check()}},15000);
   window.__V375_STABILITY_SCAN_FIX__={version:VERSION,check,bind,hardRefresh,lastReason:'install',lastAt:Date.now(),predictionLogicChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
@@ -20957,7 +20950,7 @@ function install(){
   [250,800,1800].forEach(ms=>setTimeout(()=>{bindReset();bindRepaint();latePaint()},ms));
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRepaint();paint()}},4000);
+setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRepaint();paint()}},15000);
 window.__V376_BE2_FRESH_ACCURACY__={version:VERSION,newLedger:'state.v376BestEstimate2Accuracy',oldLedgerIgnoredForDisplay:true,lateRefreshRaceFixed:true,decisionLogicChanged:false};
 })();
 </script>
@@ -21205,7 +21198,7 @@ function watch(){
 }
 function install(){ensure();bind();arm();[400,1200,2200].forEach(ms=>setTimeout(()=>{ensure();bind();paint();},ms));}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){ensure();bind();watch();paint();}},2500);
+setInterval(()=>{if(document.visibilityState!=='hidden'){ensure();bind();watch();paint();}},15000);
 window.__V379_MEMORY_ACCURACY__={version:VERSION,score,pending,arm,settle,paint,reset,predictionLogicChanged:false,authoritativePendingLedger:true};
 })();
 </script>
@@ -21313,17 +21306,18 @@ for(const group of families.values()){
 const z=p+b||1,conf=Math.max(p,b)/z,side=p>b?'P':b>p?'B':null;
 if(!side||conf<CFG.minConf)return predCache={key,value:{side:null,reason:'WAIT • '+vals.length+' matches • '+families.size+' pattern families • agreement '+Math.round(conf*100)+'% • longest '+longest+' hands',matches:vals.length,conf,longest,families:families.size}}.value;
 const top=vals[0];return predCache={key,value:{side,conf,matches:vals.length,longest,road:top.roadSim,tie:top.tieSim,families:families.size,reason:(side==='P'?'PLAYER':'BANKER')+' • '+Math.round(conf*100)+'% • '+vals.length+' independent matches • '+families.size+' pattern families • longest '+longest+' hands • continuation-depth confirmed • 3-road confirmation '+Math.round(top.roadSim*100)+'%'+(top.tieSim>.5?' • tie-context match':'')}}.value}
-let acc={w:0,l:0,pending:null};try{const a=JSON.parse(localStorage.getItem(SCORE_KEY)||'null');if(a){acc.w=+a.w||0;acc.l=+a.l||0}}catch(e){}
+let acc={w:0,l:0,pending:null,lastSettled:null};try{const a=JSON.parse(localStorage.getItem(SCORE_KEY)||'null');if(a){acc.w=+a.w||0;acc.l=+a.l||0}}catch(e){}
 function save(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l}))}catch(e){}}
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function ensure(){const existing=document.getElementById('v392HprAi');if(existing){const r=existing.querySelector('#v392Reset');if(r&&!r.__v394Bound){r.__v394Bound=true;r.addEventListener('click',()=>{acc.w=0;acc.l=0;acc.pending=null;save();render()})}return existing;}const anchor=document.getElementById('beadHistoryAiPanel')||document.getElementById('instantLibraryLearnPanel');if(!anchor?.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='v392HprAi';d.innerHTML='<div class="analyzer-title">🧬 Hierarchical Pattern Retrieval AI V393 — Pattern Families + Continuation</div><div class="analyzer-sub">One AI using your saved library: same-pattern-anywhere search, inverted P/B matching, Repeat/Switch rhythm, run/trap shape, tie context, Big Eye/Small/Cockroach confirmation, pattern-family clustering, and multi-hand continuation depth. One vote per independent shoe and one capped vote per related pattern family.</div><div class="v392-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v392Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v392Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v392Matches">0</strong></div><div class="analyzer-card"><span>LONGEST MATCH</span><strong id="v392Longest">—</strong></div></div><div class="v392-grid"><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v392Acc">—</strong></div><div class="analyzer-card"><span>W / L</span><strong id="v392WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v392N">N 0</strong></div><div class="analyzer-card"><span>LIBRARY</span><strong id="v392Lib">0</strong></div></div><div class="analyzer-sub" id="v392Reason" style="margin-top:7px">Waiting.</div><button class="tiny-btn" id="v392Reset" type="button" style="margin-top:7px;width:100%">Reset Retrieval AI Accuracy</button>';anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#v392Reset').addEventListener('click',()=>{acc.w=0;acc.l=0;acc.pending=null;save();render()})}
+function ensure(){const existing=document.getElementById('v392HprAi');if(!existing)return null;const r=existing.querySelector('#v392Reset');if(r&&!r.__v401Bound){r.__v401Bound=true;r.addEventListener('click',()=>{acc.w=0;acc.l=0;acc.pending=null;acc.lastSettled=null;save();render();arm()})}return existing;}
 function paint(x){const n=acc.w+acc.l;set('v392Side',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v392Conf',x.conf?Math.round(x.conf*100)+'%':'—');set('v392Matches',String(x.matches||0));set('v392Longest',x.longest?x.longest+' hands':'—');set('v392Acc',n?(100*acc.w/n).toFixed(1)+'%':'—');set('v392WL',acc.w+'W-'+acc.l+'L');set('v392N','N '+n);set('v392Lib',String(rebuild().shoes.length));set('v392Reason',x.reason||'WAIT')}
 function render(){ensure();const x=predict(liveSeq());paint(x);window.__V392_HPR_AI__.last=x;return x}
 function arm(){const x=predict(liveSeq());acc.pending=x.side?{side:x.side,hand:pb(liveSeq()).length}:null;paint(x)}
-function settle(actual){actual=String(actual||'').toUpperCase();if(actual!=='P'&&actual!=='B')return;const p=acc.pending;if(!p)return;if(p.side===actual)acc.w++;else acc.l++;acc.pending=null;save()}
-document.addEventListener('click',e=>{const r=e.target?.closest?.('[data-result]');if(r){const v=String(r.dataset.result||r.getAttribute('data-result')||'').toUpperCase();settle(v);predCache.key='';setTimeout(arm,220)}else if(e.target?.closest?.('#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){acc.pending=null;predCache.key='';setTimeout(()=>{rebuild(true);arm()},260)}},true);
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T')return false;if(actual!=='P'&&actual!=='B')return false;const p=acc.pending;if(!p)return false;const ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.lastSettled={ok,side:p.side,actual,handBefore:pb(liveSeq()).length};acc.pending=null;save();paint(predict(liveSeq()));return true}
+function rollbackLast(){const z=acc.lastSettled;if(!z)return false;const n=pb(liveSeq()).length;if(n!==z.handBefore)return false;if(z.ok)acc.w=Math.max(0,acc.w-1);else acc.l=Math.max(0,acc.l-1);acc.lastSettled=null;acc.pending=null;save();predCache.key='';render();arm();return true}
+document.addEventListener('click',e=>{if(e.target?.closest?.('#undoBtn')){acc.pending=null;predCache.key='';setTimeout(()=>{rollbackLast();rebuild(true);arm()},300)}else if(e.target?.closest?.('#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){acc.pending=null;acc.lastSettled=null;predCache.key='';setTimeout(()=>{rebuild(true);arm()},300)}},false);
 function boot(){ensure();rebuild(true);predCache.key='';arm()}
-window.__V392_HPR_AI__={version:VERSION,config:CFG,predict,render,arm,rebuild,last:null,experimental:true,sources:['saved-library','same-pattern-anywhere','inverted-pattern','repeat-switch-rhythm','run-trap-shape','tie-context','big-eye','small-road','cockroach-road','pattern-family-clustering','continuation-depth'],oneVotePerIndependentShoe:true,oneCappedVotePerPatternFamily:true,multiHandContinuationDepth:true};window.__V393_HPR_AI__=window.__V392_HPR_AI__;
+window.__V392_HPR_AI__={version:401,config:CFG,predict,render,arm,settle,rollbackLast,rebuild,last:null,accuracy:acc,authoritativeCoreAccuracy:true,experimental:true,sources:['saved-library','same-pattern-anywhere','inverted-pattern','repeat-switch-rhythm','run-trap-shape','tie-context','big-eye','small-road','cockroach-road','pattern-family-clustering','continuation-depth'],oneVotePerIndependentShoe:true,oneCappedVotePerPatternFamily:true,multiHandContinuationDepth:true};window.__V393_HPR_AI__=window.__V392_HPR_AI__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>\n<script id="v394-build-marker">window.__V394_BUILD__={version:394,base:'V393',hprPanelPermanentlyMounted:true,iosVisibilityFix:true,patternFamilyClustering:true,multiHandContinuationDepth:true,existingAIsChanged:false};</script>
@@ -21368,6 +21362,27 @@ document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#und
 
 
 <div class="app" id="v399RecognitionBottomWrap" style="padding-top:0">
+<!-- V400: Both new library AIs permanently grouped at bottom -->
+<!-- V394: Hierarchical Pattern Retrieval AI permanently mounted so iOS cannot miss runtime insertion -->
+<div class="analyzer" id="v392HprAi" style="border-color:#67577d">
+  <div class="analyzer-title">🧬 Hierarchical Pattern Retrieval AI V393 — Pattern Families + Continuation</div>
+  <div class="analyzer-sub">One AI using your saved library: same-pattern-anywhere search, inverted P/B matching, Repeat/Switch rhythm, run/trap shape, tie context, Big Eye/Small/Cockroach confirmation, pattern-family clustering, and multi-hand continuation depth. One vote per independent shoe and one capped vote per related pattern family.</div>
+  <div class="v392-grid">
+    <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v392Side">WAIT</strong></div>
+    <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v392Conf">—</strong></div>
+    <div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v392Matches">0</strong></div>
+    <div class="analyzer-card"><span>LONGEST MATCH</span><strong id="v392Longest">—</strong></div>
+  </div>
+  <div class="v392-grid">
+    <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v392Acc">—</strong></div>
+    <div class="analyzer-card"><span>W / L</span><strong id="v392WL">0W-0L</strong></div>
+    <div class="analyzer-card"><span>GRADED</span><strong id="v392N">N 0</strong></div>
+    <div class="analyzer-card"><span>LIBRARY</span><strong id="v392Lib">0</strong></div>
+  </div>
+  <div class="analyzer-sub" id="v392Reason" style="margin-top:7px">Waiting.</div>
+  <button class="tiny-btn" id="v392Reset" type="button" style="margin-top:7px;width:100%">Reset Retrieval AI Accuracy</button>
+</div>
+
 <!-- V399: Saved-Shoe Recognition AI permanently placed at bottom -->
 <div class="analyzer" id="v398RecognitionAi" style="border-color:#4f6f63">
   <div class="analyzer-title">🔎 Saved-Shoe Recognition AI — Live Library Match</div>
@@ -21393,7 +21408,7 @@ document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#und
 'use strict';
 if(window.__V398_RECOGNITION_AI__)return;
 const STORE='v398-saved-shoe-recognition-accuracy';
-let acc={w:0,l:0,pending:null,last:''};
+let acc={w:0,l:0,pending:null,last:'',lastSettled:null};
 try{const z=JSON.parse(localStorage.getItem(STORE)||'null');if(z){acc.w=Number(z.w)||0;acc.l=Number(z.l)||0;acc.last=z.last||''}}catch(e){}
 function save(){try{localStorage.setItem(STORE,JSON.stringify({w:acc.w,l:acc.l,last:acc.last}))}catch(e){}}
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
@@ -21401,15 +21416,17 @@ function currentPB(){try{return (Array.isArray(state?.hands)?state.hands:[]).map
 function signal(){try{return window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.()||null}catch(e){return null}}
 function paint(){const r=signal()||{};const n=acc.w+acc.l;set('v398Side',r.dominant&&r.side?(r.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v398Conf',r.dominant?`${Math.round(r.confidence||0)}%`:'—');set('v398Kind',r.kind||'SEARCHING');set('v398Candidates',String(r.candidates||0));set('v398Acc',n?`${(100*acc.w/n).toFixed(1)}%`:'—');set('v398WL',`${acc.w}W-${acc.l}L`);set('v398N',`N ${n}`);set('v398Lib',String(r.library||0));set('v398Reason',r.dominant?`${r.kind} recognition • ${Math.round(r.consensus||0)}% next-result agreement • ${r.pbN||0} P/B hands used • future live hands not used`:`${r.kind||'SEARCHING'} • ${r.pbN||0} P/B hands • ${r.candidates||0} candidates • waiting for qualified recognition`);return r}
 function arm(){const r=paint(),n=currentPB();acc.pending=(r?.dominant&&(r.side==='P'||r.side==='B'))?{side:r.side,armedAt:n}:null;return acc.pending}
-function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T')return;if(actual!=='P'&&actual!=='B')return;const p=acc.pending;if(!p)return;const ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;save();}
-function reset(){acc.w=0;acc.l=0;acc.pending=null;acc.last='';save();arm()}
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T')return false;if(actual!=='P'&&actual!=='B')return false;const p=acc.pending;if(!p)return false;const ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.lastSettled={ok,side:p.side,actual,handBefore:currentPB()};acc.pending=null;save();paint();return true}
+function rollbackLast(){const z=acc.lastSettled;if(!z)return false;const n=currentPB();if(n!==z.handBefore)return false;if(z.ok)acc.w=Math.max(0,acc.w-1);else acc.l=Math.max(0,acc.l-1);acc.lastSettled=null;acc.pending=null;save();paint();arm();return true}
+function reset(){acc.w=0;acc.l=0;acc.pending=null;acc.last='';acc.lastSettled=null;save();arm()}
 function install(){const b=document.getElementById('v398Reset');if(b&&!b.__v398){b.__v398=true;b.addEventListener('click',e=>{e.preventDefault();reset()},false)};paint();arm()}
-document.addEventListener('click',e=>{const r=e.target?.closest?.('[data-result]');if(r){const actual=String(r.getAttribute('data-result')||'').toUpperCase();settle(actual);setTimeout(()=>{try{window.__V397_LIVE_SHOE_RECOGNITION__?.refresh?.()}catch(e){};arm()},360);return}if(e.target?.closest?.('#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){acc.pending=null;setTimeout(arm,360)}},true);
-window.__V398_RECOGNITION_AI__={version:398,signal,paint,arm,settle,reset,accuracy:acc,visiblePanel:true};
+document.addEventListener('click',e=>{if(e.target?.closest?.('#undoBtn')){acc.pending=null;setTimeout(()=>{rollbackLast();try{window.__V397_LIVE_SHOE_RECOGNITION__?.refresh?.()}catch(e){};arm()},360);return}if(e.target?.closest?.('#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){acc.pending=null;acc.lastSettled=null;setTimeout(arm,360)}},false);
+window.__V398_RECOGNITION_AI__={version:401,signal,paint,arm,settle,rollbackLast,reset,accuracy:acc,authoritativeCoreAccuracy:true,visiblePanel:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 </script>
-<script id="v397-build-marker">window.__V397_BUILD__={version:399,base:'V398',sharedLiveShoeRecognition:true,exactKnownShoeDominance:true,offsetAndInvertedRecognition:true,usesOnlyHandsAlreadyPlayed:true,futureLeakage:false,duplicatesOneVote:true};</script>
+<script id="v397-build-marker">window.__V397_BUILD__={version:400,base:'V399',sharedLiveShoeRecognition:true,exactKnownShoeDominance:true,offsetAndInvertedRecognition:true,usesOnlyHandsAlreadyPlayed:true,futureLeakage:false,duplicatesOneVote:true};</script>
 
+<script id="v401-build-marker">window.__V401_BUILD__={version:401,base:'V400',recyclePanelStable:true,hprAuthoritativeAccuracy:true,recognitionAuthoritativeAccuracy:true,undoRollback:true,legacyWatchdogsThrottled:true,predictionLogicChanged:false};</script>
 </body>
 </html>
