@@ -1,3 +1,4 @@
+<!-- V397: Shared live-shoe recognition: exact saved-shoe prefix/offset/inverted matching from live hands only; exact unanimous recognition may dominate library-aware AI calls. No future live-hand leakage. -->
 <!-- V395 COMPACT UI: Shared Hierarchical Partial-Shoe Recycle Engine + Shared Historical Memory Brain condensed; prediction/accuracy logic unchanged. -->
 <!-- V389 IOS STABILITY FIX: removes forced scrollTop correction that caused visible bounce, throttles high-frequency safety polling/repaints, and preserves event-driven result commits. Prediction/accuracy/library logic unchanged. -->
 <!-- V388 VIEWPORT STABILITY FIX superseded by V389: forced viewport correction disabled because it could bounce on iOS during staged layout changes. -->
@@ -666,6 +667,25 @@ button { touch-action: manipulation; }
   </div>
   <div class="analyzer-sub" id="beadHistReason" style="margin-top:7px">Waiting for at least 6 Player/Banker results.</div>
   <button class="tiny-btn" id="beadHistReset" type="button" style="margin-top:7px;width:100%">Reset Bead Plate History AI Accuracy</button>
+</div>
+
+<!-- V398: Saved-Shoe Recognition AI visible compact panel -->
+<div class="analyzer" id="v398RecognitionAi" style="border-color:#4f6f63">
+  <div class="analyzer-title">🔎 Saved-Shoe Recognition AI — Live Library Match</div>
+  <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:6px">
+    <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v398Side">WAIT</strong></div>
+    <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v398Conf">—</strong></div>
+    <div class="analyzer-card"><span>MATCH TYPE</span><strong id="v398Kind">BUILDING</strong></div>
+    <div class="analyzer-card"><span>CANDIDATES</span><strong id="v398Candidates">0</strong></div>
+  </div>
+  <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:5px">
+    <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v398Acc">—</strong></div>
+    <div class="analyzer-card"><span>W / L</span><strong id="v398WL">0W-0L</strong></div>
+    <div class="analyzer-card"><span>GRADED</span><strong id="v398N">N 0</strong></div>
+    <div class="analyzer-card"><span>LIBRARY</span><strong id="v398Lib">0</strong></div>
+  </div>
+  <div class="analyzer-sub" id="v398Reason" style="margin-top:5px;line-height:1.2;max-height:2.4em;overflow:hidden">Uses only live hands already played to recognize an exact/offset/inverted saved-shoe continuation.</div>
+  <button class="tiny-btn" id="v398Reset" type="button" style="margin-top:5px;width:100%;padding:6px">Reset Recognition AI Accuracy</button>
 </div>
 
 <!-- V394: Hierarchical Pattern Retrieval AI permanently mounted so iOS cannot miss runtime insertion -->
@@ -19898,6 +19918,12 @@ function buildStats(){
 }
 function detect(){
   const p=pbSeq(),t=trans(p),hist=buildStats();
+  try{
+    const rec=window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.();
+    if(rec?.dominant&&(rec.side==='P'||rec.side==='B')){
+      return {side:rec.side,patternSide:rec.side,seqSide:rec.side,seqStrength:rec.confidence,seqState:'RECOGNIZED',confirmed:true,rate:rec.consensus/100,n:rec.candidates,shoes:hist.shoes,recognition:rec,reason:`EXACT SAVED-SHOE RECOGNITION • ${rec.candidates} candidate${rec.candidates===1?'':'s'} • ${Math.round(rec.consensus)}% next-side consensus • live prefix only`};
+    }
+  }catch(e){}
   if(t.length<MOTIF_LEN*2+1)return {side:null,reason:`WAIT — need at least ${MOTIF_LEN*2+2} non-tie hands`,shoes:hist.shoes};
   const candidates=[];
   for(const g of GAPS){
@@ -21032,6 +21058,13 @@ function predict(seq){
   const cacheKey=`${libCache.sig}|${live}`;if(predictionCache.key===cacheKey&&predictionCache.value)return predictionCache.value;
   let result;
   if(lp.length<CFG.minPB){result={side:null,reason:`Need ${CFG.minPB-lp.length} more P/B result${CFG.minPB-lp.length===1?'':'s'}.`,stored:libCache.rawCount,library:lib.length};predictionCache.key=cacheKey;predictionCache.value=result;return result;}
+  try{
+    const rec=window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.(live);
+    if(rec?.dominant&&(rec.side==='P'||rec.side==='B')){
+      result={side:rec.side,conf:rec.confidence/100,edge:1,evidence:rec.candidates,library:lib.length,stored:libCache.rawCount,pN:rec.side==='P'?rec.candidates:0,bN:rec.side==='B'?rec.candidates:0,leadKind:'saved-shoe-recognition',recognition:rec,reason:`${rec.side==='P'?'PLAYER':'BANKER'} • ${Math.round(rec.confidence)}% • EXACT SAVED-SHOE RECOGNITION • ${rec.candidates} candidate${rec.candidates===1?'':'s'} • ${Math.round(rec.consensus)}% next-side consensus`};
+      predictionCache.key=cacheKey;predictionCache.value=result;return result;
+    }
+  }catch(e){}
   const lt=rhythm(lp),cur=lp[lp.length-1],best=new Map(),liveRoads=buildLiveRoads(live);
   const add=(i,w,v,k,n,pbCount)=>{if(v!=='P'&&v!=='B')return;const old=best.get(i);if(!old||w>old.w)best.set(i,{w,v,k,n,pbCount:Number.isFinite(pbCount)?pbCount:null});};
   lib.forEach((sh,i)=>{
@@ -21276,7 +21309,7 @@ function rebuild(force=false){const raw=rawLib(),sg=sig(raw);if(!force&&sg===cac
 function liveSeq(){try{return clean((Array.isArray(state?.hands)?state.hands:[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
 function match(live,histSeq,histPb,count){const lp=pb(live),hp=histPb.slice(0,count),direct=suffix(lp,hp,24),inverse=suffix(lp,inv(hp),24),flip=inverse>direct,bl=Math.max(direct,inverse);if(bl<CFG.minBead)return null;const hpre=prefixForPbCount(histSeq,count),lr=rhythm(lp),hr=rhythm(hp),rl=suffix(lr,hr,18);const liveRoads=[road(live,1),road(live,2),road(live,3)],histRoads=[road(hpre,1),road(hpre,2),road(hpre,3)];let roadSim=0;for(let i=0;i<3;i++)roadSim+=Math.min(1,suffix(liveRoads[i],histRoads[i],12)/7);roadSim/=3;const a=runs(lp).slice(-6),b=runs(hp).slice(-6),n=Math.min(a.length,b.length,6);let runSim=0;if(n){for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])runSim++;runSim/=n}const oriented=flip?inv(hpre):hpre,tieSim=Math.min(1,suffix(live,oriented,12)/8);const beadScore=Math.min(1,bl/18),rhScore=Math.min(1,rl/12),score=52*beadScore+16*rhScore+18*roadSim+9*runSim+5*tieSim;let nx=histPb[count];if(flip)nx=nx==='P'?'B':'P';let cont=histPb.slice(count,count+CFG.continuationDepth);if(flip)cont=inv(cont);const familyKey=`${rhythm(hp).slice(-6)}|${runs(hp).slice(-4).join('-')}|${Math.round(roadSim*4)}|${Math.round(runSim*4)}|${Math.round(tieSim*4)}`;return{score,nx,bl,rl,roadSim,runSim,tieSim,flip,cont,familyKey}}
 let predCache={key:'',value:null};
-function predict(seq){seq=clean(seq);const lp=pb(seq),lib=rebuild();const key=lib.sig+'|'+seq;if(predCache.key===key)return predCache.value;if(lp.length<CFG.minPB)return predCache={key,value:{side:null,reason:'WAIT • need '+(CFG.minPB-lp.length)+' more P/B hands',matches:0,conf:0}}.value;const k=lp.slice(-6),ik=inv(k),occ=(lib.index.get(k)||[]).concat(lib.index.get(ik)||[]),best=new Map();for(const [si,count] of occ){const sh=lib.shoes[si],z=match(seq,sh.sequence,sh.pb,count);if(!z)continue;const old=best.get(si);if(!old||z.score>old.score)best.set(si,z)}let vals=[...best.values()];if(!vals.length)return predCache={key,value:{side:null,reason:'WAIT • no qualified historical state matches',matches:0,conf:0}}.value;const longest=Math.max(...vals.map(x=>x.bl));vals=vals.filter(x=>x.bl>=Math.max(CFG.minBead,longest-CFG.longestBand)).sort((a,b)=>b.score-a.score).slice(0,CFG.topN);if(vals.length<CFG.minShoes)return predCache={key,value:{side:null,reason:'WAIT • only '+vals.length+' independent long-pattern matches',matches:vals.length,conf:0,longest}}.value;const families=new Map();
+function predict(seq){seq=clean(seq);const lp=pb(seq),lib=rebuild();const key=lib.sig+'|'+seq;if(predCache.key===key)return predCache.value;if(lp.length<CFG.minPB)return predCache={key,value:{side:null,reason:'WAIT • need '+(CFG.minPB-lp.length)+' more P/B hands',matches:0,conf:0}}.value;try{const rec=window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.(seq);if(rec?.dominant&&(rec.side==='P'||rec.side==='B'))return predCache={key,value:{side:rec.side,conf:rec.confidence/100,matches:rec.candidates,longest:lp.length,families:rec.candidates,recognition:rec,reason:(rec.side==='P'?'PLAYER':'BANKER')+' • EXACT SAVED-SHOE RECOGNITION • '+rec.candidates+' candidate'+(rec.candidates===1?'':'s')+' • '+Math.round(rec.consensus)+'% next-side consensus'}}.value}catch(e){}const k=lp.slice(-6),ik=inv(k),occ=(lib.index.get(k)||[]).concat(lib.index.get(ik)||[]),best=new Map();for(const [si,count] of occ){const sh=lib.shoes[si],z=match(seq,sh.sequence,sh.pb,count);if(!z)continue;const old=best.get(si);if(!old||z.score>old.score)best.set(si,z)}let vals=[...best.values()];if(!vals.length)return predCache={key,value:{side:null,reason:'WAIT • no qualified historical state matches',matches:0,conf:0}}.value;const longest=Math.max(...vals.map(x=>x.bl));vals=vals.filter(x=>x.bl>=Math.max(CFG.minBead,longest-CFG.longestBand)).sort((a,b)=>b.score-a.score).slice(0,CFG.topN);if(vals.length<CFG.minShoes)return predCache={key,value:{side:null,reason:'WAIT • only '+vals.length+' independent long-pattern matches',matches:vals.length,conf:0,longest}}.value;const families=new Map();
 for(const x of vals){
   const familyKey=x.familyKey||`${Math.round(x.runSim*4)}|${Math.round(x.roadSim*4)}|${Math.round(x.tieSim*4)}|${Math.min(4,Math.floor(x.rl/3))}`;
   if(!families.has(familyKey))families.set(familyKey,[]);
@@ -21312,5 +21345,67 @@ window.__V392_HPR_AI__={version:VERSION,config:CFG,predict,render,arm,rebuild,la
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>\n<script id="v394-build-marker">window.__V394_BUILD__={version:394,base:'V393',hprPanelPermanentlyMounted:true,iosVisibilityFix:true,patternFamilyClustering:true,multiHandContinuationDepth:true,existingAIsChanged:false};</script>
+
+<!-- V397 SHARED LIVE-SHOE RECOGNITION: exact/offset saved-shoe recognition from live prefix only. -->
+<style id="v397-recognition-style">
+#v397RecognitionStrip{margin:6px 0;padding:7px 9px;border:1px solid #3f4b59;border-radius:10px;background:#11161c;display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:10px;line-height:1.2}
+#v397RecognitionStrip strong{font-size:11px}#v397RecognitionStrip .v397-meta{color:var(--muted);text-align:right}
+</style>
+<script id="v397-live-shoe-recognition">
+(function(){
+'use strict';
+if(window.__V397_LIVE_SHOE_RECOGNITION__)return;
+const VERSION=397,MIN_PB=8,MIN_OFFSET_PB=12;
+const clean=s=>String(s||'').toUpperCase().replace(/PLAYER/g,'P').replace(/BANKER/g,'B').replace(/TIE/g,'T').replace(/[^PBT]/g,'');
+const pb=s=>clean(s).replace(/T/g,'');
+const inv=s=>clean(s).replace(/[PB]/g,c=>c==='P'?'B':'P');
+function live(){try{return clean((Array.isArray(state?.hands)?state.hands:[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
+function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''))}
+function rows(){let a=[];try{a=typeof activePatternLibrary==='function'?activePatternLibrary():[]}catch(e){}if(!Array.isArray(a)||!a.length){try{a=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])]}catch(e){a=[]}}const seen=new Set(),out=[];for(const x of a||[]){const q=seqOf(x);if(q.length<8||seen.has(q))continue;seen.add(q);out.push(q)}return out}
+function nextPB(q,pos){for(let i=pos;i<q.length;i++)if(q[i]==='P'||q[i]==='B')return q[i];return null}
+function prefixVote(q,lib){const votes={P:0,B:0},matches=[];for(let i=0;i<lib.length;i++){const h=lib[i];if(h.length<=q.length)continue;if(h.startsWith(q)){const nx=nextPB(h,q.length);if(nx){votes[nx]++;matches.push({i,mode:'DIRECT',pos:0,next:nx})}}else{const hi=inv(h.slice(0,q.length));if(hi===q){const nx=nextPB(h,q.length);if(nx){const v=nx==='P'?'B':'P';votes[v]++;matches.push({i,mode:'INVERTED',pos:0,next:v})}}}}return {votes,matches}}
+function offsetVote(q,lib){const qp=pb(q);if(qp.length<MIN_OFFSET_PB)return {votes:{P:0,B:0},matches:[]};const tail=qp.slice(-Math.min(16,qp.length)),it=inv(tail),votes={P:0,B:0},matches=[];for(let i=0;i<lib.length;i++){const hp=pb(lib[i]);let best=null;for(const [pat,flip] of [[tail,false],[it,true]]){let pos=hp.indexOf(pat);while(pos!==-1){const end=pos+pat.length;if(end<hp.length){let nx=hp[end];if(flip)nx=nx==='P'?'B':'P';best={i,mode:flip?'OFFSET-INVERTED':'OFFSET',pos,next:nx};break}pos=hp.indexOf(pat,pos+1)}if(best)break}if(best){votes[best.next]++;matches.push(best)}}return {votes,matches}}
+function finish(kind,x,pbN){const n=x.votes.P+x.votes.B;if(!n)return null;const side=x.votes.P>=x.votes.B?'P':'B',win=x.votes[side],cons=100*win/n;const unanimous=win===n;const exact=kind==='EXACT';const dominant=exact?unanimous:(n>=2&&cons>=75);const confidence=exact?(unanimous?Math.min(99,94+Math.min(5,pbN/5)):Math.max(50,cons)):Math.min(90,55+(cons-50)*.6+Math.min(8,n));return {side,kind,candidates:n,consensus:cons,confidence,dominant,unanimous,pbN,matches:x.matches,votes:x.votes,usesFutureLiveHands:false,oneVotePerUniqueShoe:true}}
+let cache={key:'',value:null};
+function signal(seq){const q=clean(seq==null?live():seq),n=pb(q).length,lib=rows(),key=q+'|'+lib.length;if(cache.key===key)return cache.value;if(n<MIN_PB)return cache={key,value:{side:null,kind:'BUILDING',dominant:false,candidates:0,consensus:0,confidence:0,pbN:n,library:lib.length,usesFutureLiveHands:false}}.value;let r=finish('EXACT',prefixVote(q,lib),n);if(r?.dominant)return cache={key,value:Object.assign(r,{library:lib.length})}.value;r=finish('OFFSET',offsetVote(q,lib),n)||r;return cache={key,value:Object.assign(r||{side:null,kind:'NONE',dominant:false,candidates:0,consensus:0,confidence:0,pbN:n},{library:lib.length})}.value}
+function apply(z){if(!z||typeof z!=='object')z={};const r=signal();z.liveShoeRecognition=r;if(!r.dominant||!(r.side==='P'||r.side==='B'))return z;const native=(z.side==='P'||z.side==='B')?z.side:null;z.preRecognitionSide=native;z.side=r.side;z.qualified=true;if('strength' in z)z.strength=Math.max(Number(z.strength)||0,r.confidence);if('confidence' in z)z.confidence=Math.max(Number(z.confidence)||0,r.confidence);if('top' in z)z.top=Math.max(Number(z.top)||0,r.confidence);z.recognitionOverride=!!(native&&native!==r.side);z.recognitionDominant=true;z.waitReason='';z.gateReason='';const txt=`Saved-shoe recognition: ${r.kind} • ${r.candidates} candidate${r.candidates===1?'':'s'} • ${Math.round(r.consensus)}% next-side consensus`;if(typeof z.reason==='string'||!z.reason)z.reason=txt;return z}
+function wrap(name){try{const old=window[name];if(typeof old!=='function'||old.__v397Recognition)return;const w=function(){return apply(old.apply(this,arguments)||{})};w.__v397Recognition=true;w.__original=old;window[name]=w;try{eval(`${name}=window[name]`)}catch(e){}}catch(e){}}
+function wrapAll(){[
+'sequenceAISignal','roadPreviewAISignal','roadPreviewSignal','patternRecognizerSignal','historyPatternSignal','librarySignal','colorPatternAISignal','derivedRoadSignal','derivedRoadSequenceAI','adaptiveDerivedSignal','walkForwardSignal','highPoweredBotSignal','mainRoadFutureTest'
+].forEach(wrap);try{const old=window.computeCombinedAnalyzer;if(typeof old==='function'&&!old.__v397Recognition){const w=function(){return apply(old.apply(this,arguments)||{})};w.__v397Recognition=true;w.__original=old;window.computeCombinedAnalyzer=w;try{computeCombinedAnalyzer=w}catch(e){}}}catch(e){}
+try{const api=window.__V332_BEST_ESTIMATE_2__;if(api&&typeof api.decide==='function'&&!api.__v397Recognition){const old=api.decide.bind(api);api.decide=function(){return apply(old.apply(this,arguments)||{})};api.__v397Recognition=true}}catch(e){}
+try{const api=window.__V305_MAIN_ROAD_ONLY_AI__;if(api&&typeof api.signal==='function'&&!api.__v397Recognition){const old=api.signal.bind(api);api.signal=function(){return apply(old.apply(this,arguments)||{})};api.__v397Recognition=true}}catch(e){}
+}
+function strip(){let d=document.getElementById('v397RecognitionStrip');if(!d){const a=document.getElementById('beadHistoryAiPanel')||document.getElementById('instantLibraryLearnPanel');if(!a?.parentNode)return;d=document.createElement('div');d.id='v397RecognitionStrip';d.innerHTML='<strong id="v397RecMain">Saved-shoe recognition: BUILDING</strong><span class="v397-meta" id="v397RecMeta">live-prefix only</span>';a.parentNode.insertBefore(d,a.nextSibling)}const r=signal(),m=document.getElementById('v397RecMain'),x=document.getElementById('v397RecMeta');if(m)m.textContent=r.dominant?`Saved-shoe recognition: ${r.kind} → ${r.side==='P'?'PLAYER':'BANKER'}`:`Saved-shoe recognition: ${r.kind||'SEARCHING'}`;if(x)x.textContent=`${r.candidates||0} candidate${r.candidates===1?'':'s'} • ${Math.round(r.consensus||0)}% • ${r.pbN||0} P/B hands • ${r.library||0} shoes`}
+function refresh(){cache.key='';wrapAll();strip();try{window.__V369_SHARED_MEMORY__?.paint?.()}catch(e){}try{window.__BEAD_HISTORY_AI_V379__?.invalidate?.();window.__BEAD_HISTORY_AI_V379__?.render?.()}catch(e){}try{window.__V392_HPR_AI__?.render?.()}catch(e){}try{window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__?.settleAndArm?.()}catch(e){}}
+window.__V397_LIVE_SHOE_RECOGNITION__={version:VERSION,signal,apply,refresh,config:{minPB:MIN_PB,minOffsetPB:MIN_OFFSET_PB,exactRequiresUnanimous:true,offsetMinConsensus:75,offsetMinShoes:2},recognitionDominatesExactKnownShoe:true,usesOnlyLivePrefix:true,futureLeakage:false,duplicatesOneVote:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{wrapAll();strip();[250,1200].forEach(ms=>setTimeout(()=>{wrapAll();strip()},ms))},{once:true});else{wrapAll();strip()}
+document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn'))setTimeout(refresh,300)},false);
+})();
+</script>
+
+<script id="v398-visible-recognition-ai">
+(function(){
+'use strict';
+if(window.__V398_RECOGNITION_AI__)return;
+const STORE='v398-saved-shoe-recognition-accuracy';
+let acc={w:0,l:0,pending:null,last:''};
+try{const z=JSON.parse(localStorage.getItem(STORE)||'null');if(z){acc.w=Number(z.w)||0;acc.l=Number(z.l)||0;acc.last=z.last||''}}catch(e){}
+function save(){try{localStorage.setItem(STORE,JSON.stringify({w:acc.w,l:acc.l,last:acc.last}))}catch(e){}}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+function currentPB(){try{return (Array.isArray(state?.hands)?state.hands:[]).map(h=>String(typeof h==='string'?h:(h?.r||h?.result||''))).join('').toUpperCase().replace(/[^PBT]/g,'').replace(/T/g,'').length}catch(e){return 0}}
+function signal(){try{return window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.()||null}catch(e){return null}}
+function paint(){const r=signal()||{};const n=acc.w+acc.l;set('v398Side',r.dominant&&r.side?(r.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v398Conf',r.dominant?`${Math.round(r.confidence||0)}%`:'—');set('v398Kind',r.kind||'SEARCHING');set('v398Candidates',String(r.candidates||0));set('v398Acc',n?`${(100*acc.w/n).toFixed(1)}%`:'—');set('v398WL',`${acc.w}W-${acc.l}L`);set('v398N',`N ${n}`);set('v398Lib',String(r.library||0));set('v398Reason',r.dominant?`${r.kind} recognition • ${Math.round(r.consensus||0)}% next-result agreement • ${r.pbN||0} P/B hands used • future live hands not used`:`${r.kind||'SEARCHING'} • ${r.pbN||0} P/B hands • ${r.candidates||0} candidates • waiting for qualified recognition`);return r}
+function arm(){const r=paint(),n=currentPB();acc.pending=(r?.dominant&&(r.side==='P'||r.side==='B'))?{side:r.side,armedAt:n}:null;return acc.pending}
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T')return;if(actual!=='P'&&actual!=='B')return;const p=acc.pending;if(!p)return;const ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;save();}
+function reset(){acc.w=0;acc.l=0;acc.pending=null;acc.last='';save();arm()}
+function install(){const b=document.getElementById('v398Reset');if(b&&!b.__v398){b.__v398=true;b.addEventListener('click',e=>{e.preventDefault();reset()},false)};paint();arm()}
+document.addEventListener('click',e=>{const r=e.target?.closest?.('[data-result]');if(r){const actual=String(r.getAttribute('data-result')||'').toUpperCase();settle(actual);setTimeout(()=>{try{window.__V397_LIVE_SHOE_RECOGNITION__?.refresh?.()}catch(e){};arm()},360);return}if(e.target?.closest?.('#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){acc.pending=null;setTimeout(arm,360)}},true);
+window.__V398_RECOGNITION_AI__={version:398,signal,paint,arm,settle,reset,accuracy:acc,visiblePanel:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
+<script id="v397-build-marker">window.__V397_BUILD__={version:398,base:'V397',sharedLiveShoeRecognition:true,exactKnownShoeDominance:true,offsetAndInvertedRecognition:true,usesOnlyHandsAlreadyPlayed:true,futureLeakage:false,duplicatesOneVote:true};</script>
+
 </body>
 </html>
