@@ -1,3 +1,4 @@
+<!-- V388 VIEWPORT STABILITY FIX: prevents vertical bounce/jump after P/B/T entry by locking the visible result-controls position while staged UI panels refresh. Prediction/accuracy/library logic unchanged. -->
 <!-- V387 STABILITY FIX: cached Bead/road library, event-driven next-call arming, no settle->render re-arm race, Main Road one vote per independent shoe, dead V386 roadAssist removed. Prediction hierarchy retained (~70% Bead / ~22% 3-road / ~8% Main). -->
 <!-- V386: Adaptive Bead History state matcher: Bead Plate dominant (~70%), same-state 3-road confirmation (~22%), Main Road minor influence (~8%); adaptive evidence weighting, ties/traps/break-resume retained. Accuracy plumbing from V384 preserved. -->
 <!-- V384: Bead History accuracy moved into the actual V135 authoritative result queue; accidental V51 contamination removed. Prediction logic unchanged. -->
@@ -364,6 +365,13 @@
   #roadPreviewAiPanel .analyzer-card{padding:4px 3px!important}
   #roadPreviewAiPanel .match-pct{padding:4px 2px!important}
 }
+</style>
+
+
+<style id="v388-no-vertical-bounce">
+/* V388 UI-only: prevent browser scroll anchoring from fighting staged panel refreshes. */
+html, body, .app { overflow-anchor: none !important; }
+.controls, .main-buttons, [data-result] { overflow-anchor: none !important; }
 </style>
 
 </head>
@@ -12707,6 +12715,30 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     }catch(e){console.warn('V102 future arm',e)}
   }
 
+  // V388: keep the result-entry controls at a fixed viewport position while the
+  // staged render pipeline changes heights above them. UI-only; no AI logic changes.
+  let __v388ViewportLock=null;
+  function __v388CaptureViewportLock(el){
+    try{
+      const anchor=el?.closest?.('.controls') || document.querySelector('.controls');
+      if(!anchor)return;
+      const r=anchor.getBoundingClientRect();
+      __v388ViewportLock={anchor,top:r.top,until:Date.now()+1800};
+    }catch(e){}
+  }
+  function __v388RestoreViewportLock(){
+    try{
+      const x=__v388ViewportLock;
+      if(!x||Date.now()>x.until||!x.anchor?.isConnected){__v388ViewportLock=null;return;}
+      const nowTop=x.anchor.getBoundingClientRect().top;
+      const delta=nowTop-x.top;
+      if(Math.abs(delta)>0.5){
+        const scroller=document.scrollingElement||document.documentElement;
+        scroller.scrollTop += delta;
+      }
+    }catch(e){}
+  }
+
   function settleAllQueued(actual, done){
     // V135 ROOT FIX: no AI settlement chain is allowed to run inside the button event.
     // Each independent ledger settles in its own macrotask so Chrome can paint/process
@@ -12812,6 +12844,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       let j=0;
       const next=()=>{
         if(j>=jobs.length){
+          __v388RestoreViewportLock();
           busy=false;
           const queued=pendingResults.shift();
           if(queued) setTimeout(()=>commit(queued.actual,queued.isPreview),0);
@@ -12819,6 +12852,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         }
         const fn=jobs[j++];
         try{fn()}catch(e){}
+        __v388RestoreViewportLock();
         // Yield between every unit. This is the key anti-freeze guarantee.
         setTimeout(next,0);
       };
@@ -12885,6 +12919,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     ev.preventDefault();
     ev.stopPropagation();
     ev.stopImmediatePropagation();
+    __v388CaptureViewportLock(el);
     commit(actual, el.id==='previewP'||el.id==='previewB');
   },true);
 
@@ -12916,7 +12951,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     coalescedHeavyWork:true,
     uiYieldBeforeRender:true,
     fifoInputQueue:true,
-    rapidDuplicateInputRejected:true,boundedPendingInput:true
+    rapidDuplicateInputRejected:true,boundedPendingInput:true,
+    viewportBounceFixV388:true
   };
 })();
 </script>
