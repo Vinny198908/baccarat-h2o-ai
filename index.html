@@ -1,4 +1,5 @@
-<!-- V388 VIEWPORT STABILITY FIX: prevents vertical bounce/jump after P/B/T entry by locking the visible result-controls position while staged UI panels refresh. Prediction/accuracy/library logic unchanged. -->
+<!-- V389 IOS STABILITY FIX: removes forced scrollTop correction that caused visible bounce, throttles high-frequency safety polling/repaints, and preserves event-driven result commits. Prediction/accuracy/library logic unchanged. -->
+<!-- V388 VIEWPORT STABILITY FIX superseded by V389: forced viewport correction disabled because it could bounce on iOS during staged layout changes. -->
 <!-- V387 STABILITY FIX: cached Bead/road library, event-driven next-call arming, no settle->render re-arm race, Main Road one vote per independent shoe, dead V386 roadAssist removed. Prediction hierarchy retained (~70% Bead / ~22% 3-road / ~8% Main). -->
 <!-- V386: Adaptive Bead History state matcher: Bead Plate dominant (~70%), same-state 3-road confirmation (~22%), Main Road minor influence (~8%); adaptive evidence weighting, ties/traps/break-resume retained. Accuracy plumbing from V384 preserved. -->
 <!-- V384: Bead History accuracy moved into the actual V135 authoritative result queue; accidental V51 contamination removed. Prediction logic unchanged. -->
@@ -369,9 +370,12 @@
 
 
 <style id="v388-no-vertical-bounce">
-/* V388 UI-only: prevent browser scroll anchoring from fighting staged panel refreshes. */
+/* V389 UI-only: browser manages viewport naturally; no JavaScript scroll compensation. */
 html, body, .app { overflow-anchor: none !important; }
 .controls, .main-buttons, [data-result] { overflow-anchor: none !important; }
+/* Reduce touch-triggered visual movement/reflow on iOS. */
+button { touch-action: manipulation; }
+.controls { contain: layout style; }
 </style>
 
 </head>
@@ -12715,29 +12719,11 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     }catch(e){console.warn('V102 future arm',e)}
   }
 
-  // V388: keep the result-entry controls at a fixed viewport position while the
-  // staged render pipeline changes heights above them. UI-only; no AI logic changes.
-  let __v388ViewportLock=null;
-  function __v388CaptureViewportLock(el){
-    try{
-      const anchor=el?.closest?.('.controls') || document.querySelector('.controls');
-      if(!anchor)return;
-      const r=anchor.getBoundingClientRect();
-      __v388ViewportLock={anchor,top:r.top,until:Date.now()+1800};
-    }catch(e){}
-  }
-  function __v388RestoreViewportLock(){
-    try{
-      const x=__v388ViewportLock;
-      if(!x||Date.now()>x.until||!x.anchor?.isConnected){__v388ViewportLock=null;return;}
-      const nowTop=x.anchor.getBoundingClientRect().top;
-      const delta=nowTop-x.top;
-      if(Math.abs(delta)>0.5){
-        const scroller=document.scrollingElement||document.documentElement;
-        scroller.scrollTop += delta;
-      }
-    }catch(e){}
-  }
+  // V389: DO NOT programmatically correct scroll position after a hand.
+  // On iOS, staged height changes + scrollTop compensation caused the visible up/down bounce.
+  // Keep these functions as no-ops so the authoritative V102/V135 transaction can remain unchanged.
+  function __v388CaptureViewportLock(el){}
+  function __v388RestoreViewportLock(){}
 
   function settleAllQueued(actual, done){
     // V135 ROOT FIX: no AI settlement chain is allowed to run inside the button event.
@@ -12952,7 +12938,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     uiYieldBeforeRender:true,
     fifoInputQueue:true,
     rapidDuplicateInputRejected:true,boundedPendingInput:true,
-    viewportBounceFixV388:true
+    viewportBounceFixV388:false,viewportBounceFixV389:true,iosPollingThrottleV389:true
   };
 })();
 </script>
@@ -19994,7 +19980,7 @@ function install(){
   paint();
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'))setTimeout(paint,80)},false);
   [250,900,2200].forEach(ms=>setTimeout(paint,ms));
-  if(!window.__v358DerivedTimer)window.__v358DerivedTimer=setInterval(()=>{if(document.visibilityState!=='hidden')paint()},1200);
+  if(!window.__v358DerivedTimer)window.__v358DerivedTimer=setInterval(()=>{if(document.visibilityState!=='hidden')paint()},3000);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 window.__V358_DERIVED_RESULT_PANEL__={version:358,paint,logicChanged:false};
@@ -20600,8 +20586,7 @@ function refresh(reason){
   // app's coalesced 120ms render has finished. The last pass protects iOS/Chrome
   // from a late UI render overwriting the current memory display.
   setTimeout(()=>repaint(reason+'-0'),0);
-  timer=setTimeout(()=>repaint(reason+'-180'),180);
-  setTimeout(()=>repaint(reason+'-420'),420);
+  timer=setTimeout(()=>repaint(reason+'-240'),240);
 }
 function bind(){
   document.querySelectorAll('[data-result],#previewP,#previewB,#undoBtn,#clearBtn,#sampleBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn').forEach(el=>{
@@ -20617,7 +20602,7 @@ function watch(){
 function install(){
   bind();
   repaint('install');
-  if(!heartbeat) heartbeat=setInterval(()=>{bind();watch()},250);
+  if(!heartbeat) heartbeat=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();watch()}},1800);
   window.__V371_LIVE_MEMORY_REFRESH_FIX__={version:VERSION,refresh,repaint,bind,liveKey,lastKey,lastReason:'install',lastAt:Date.now(),logicChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
@@ -20803,7 +20788,7 @@ function bind(){
 function install(){
   lastPB=pb();lastMode=mode();bind();hardRefresh('install');
   // 900ms is only a safety net. Normal updates remain event-driven.
-  setInterval(()=>{if(document.visibilityState!=='hidden'){bind();check()}},900);
+  setInterval(()=>{if(document.visibilityState!=='hidden'){bind();check()}},2500);
   window.__V375_STABILITY_SCAN_FIX__={version:VERSION,check,bind,hardRefresh,lastReason:'install',lastAt:Date.now(),predictionLogicChanged:false};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
@@ -20921,7 +20906,7 @@ function install(){
   [250,800,1800].forEach(ms=>setTimeout(()=>{bindReset();bindRepaint();latePaint()},ms));
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRepaint();paint()}},2200);
+setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRepaint();paint()}},4000);
 window.__V376_BE2_FRESH_ACCURACY__={version:VERSION,newLedger:'state.v376BestEstimate2Accuracy',oldLedgerIgnoredForDisplay:true,lateRefreshRaceFixed:true,decisionLogicChanged:false};
 })();
 </script>
@@ -21162,7 +21147,7 @@ function watch(){
 }
 function install(){ensure();bind();arm();[400,1200,2200].forEach(ms=>setTimeout(()=>{ensure();bind();paint();},ms));}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){ensure();bind();watch();paint();}},700);
+setInterval(()=>{if(document.visibilityState!=='hidden'){ensure();bind();watch();paint();}},2500);
 window.__V379_MEMORY_ACCURACY__={version:VERSION,score,pending,arm,settle,paint,reset,predictionLogicChanged:false,authoritativePendingLedger:true};
 })();
 </script>
@@ -21216,5 +21201,73 @@ window.__V384_BUILD__={
   predictionLogicChanged:false
 };
 </script>
+
+<script id="v389-build-marker">
+window.__V389_BUILD__={version:389,iosViewportNatural:true,forcedScrollCompensationRemoved:true,highFrequencyPollingThrottled:true,predictionLogicChanged:false,accuracyLogicChanged:false};
+</script>
+\n<!-- V392 EXPERIMENTAL HIERARCHICAL PATTERN RETRIEVAL AI -->
+<style id="v392-hpr-style">
+#v392HprAi{border-color:#5b6f8c}
+#v392HprAi .v392-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:7px}
+@media(max-width:560px){#v392HprAi .v392-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script id="v392-hierarchical-pattern-retrieval-ai">
+(function(){
+'use strict';
+if(window.__V392_HPR_AI__)return;
+const VERSION=393, SCORE_KEY='v392-hpr-accuracy';
+const CFG={minPB:8,minBead:8,minShoes:3,minConf:.67,topN:12,longestBand:0,continuationDepth:4,continuationWeight:.10,familyVoteCap:1};
+const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+const pb=s=>clean(s).replace(/T/g,'');
+const inv=s=>String(s||'').replace(/[PB]/g,c=>c==='P'?'B':'P');
+const rhythm=s=>{s=pb(s);let o='';for(let i=1;i<s.length;i++)o+=s[i]===s[i-1]?'R':'S';return o};
+const runs=s=>{s=pb(s);if(!s)return[];let out=[],c=s[0],n=1;for(let i=1;i<s.length;i++){if(s[i]===c)n++;else{out.push(n);c=s[i];n=1}}out.push(n);return out};
+function suffix(a,b,cap){let n=Math.min(a.length,b.length,cap),k=0;for(let i=1;i<=n;i++){if(a[a.length-i]!==b[b.length-i])break;k++}return k}
+function prefixForPbCount(s,count){s=clean(s);let n=0;for(let i=0;i<s.length;i++){if(s[i]==='P'||s[i]==='B')n++;if(n>=count)return s.slice(0,i+1)}return s}
+function road(hands,off){try{return typeof deriveRoad==='function'?(deriveRoad(clean(hands).split('').map(r=>({r})),off)||[]):[]}catch(e){return[]}}
+function rawLib(){let r=[],b=[];try{r=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]}catch(e){}try{b=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[]}catch(e){}return r.concat(b)}
+function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''))}
+let cache={sig:'',shoes:[],index:new Map()};
+function sig(raw){let h=2166136261>>>0;for(const x of raw){const q=seqOf(x);for(let i=0;i<q.length;i++){h^=q.charCodeAt(i);h=Math.imul(h,16777619)>>>0}h^=124;h=Math.imul(h,16777619)>>>0}return raw.length+':'+h}
+function rebuild(force=false){const raw=rawLib(),sg=sig(raw);if(!force&&sg===cache.sig)return cache;const seen=new Set(),shoes=[],index=new Map();for(const x of raw){const sequence=seqOf(x);if(!sequence||seen.has(sequence))continue;seen.add(sequence);const q=pb(sequence),i=shoes.length;shoes.push({sequence,pb:q});for(let c=6;c<q.length;c++){const key=q.slice(c-6,c);if(!index.has(key))index.set(key,[]);index.get(key).push([i,c])}}cache={sig:sg,shoes,index};return cache}
+function liveSeq(){try{return clean((Array.isArray(state?.hands)?state.hands:[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
+function match(live,histSeq,histPb,count){const lp=pb(live),hp=histPb.slice(0,count),direct=suffix(lp,hp,24),inverse=suffix(lp,inv(hp),24),flip=inverse>direct,bl=Math.max(direct,inverse);if(bl<CFG.minBead)return null;const hpre=prefixForPbCount(histSeq,count),lr=rhythm(lp),hr=rhythm(hp),rl=suffix(lr,hr,18);const liveRoads=[road(live,1),road(live,2),road(live,3)],histRoads=[road(hpre,1),road(hpre,2),road(hpre,3)];let roadSim=0;for(let i=0;i<3;i++)roadSim+=Math.min(1,suffix(liveRoads[i],histRoads[i],12)/7);roadSim/=3;const a=runs(lp).slice(-6),b=runs(hp).slice(-6),n=Math.min(a.length,b.length,6);let runSim=0;if(n){for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])runSim++;runSim/=n}const oriented=flip?inv(hpre):hpre,tieSim=Math.min(1,suffix(live,oriented,12)/8);const beadScore=Math.min(1,bl/18),rhScore=Math.min(1,rl/12),score=52*beadScore+16*rhScore+18*roadSim+9*runSim+5*tieSim;let nx=histPb[count];if(flip)nx=nx==='P'?'B':'P';let cont=histPb.slice(count,count+CFG.continuationDepth);if(flip)cont=inv(cont);const familyKey=`${rhythm(hp).slice(-6)}|${runs(hp).slice(-4).join('-')}|${Math.round(roadSim*4)}|${Math.round(runSim*4)}|${Math.round(tieSim*4)}`;return{score,nx,bl,rl,roadSim,runSim,tieSim,flip,cont,familyKey}}
+let predCache={key:'',value:null};
+function predict(seq){seq=clean(seq);const lp=pb(seq),lib=rebuild();const key=lib.sig+'|'+seq;if(predCache.key===key)return predCache.value;if(lp.length<CFG.minPB)return predCache={key,value:{side:null,reason:'WAIT • need '+(CFG.minPB-lp.length)+' more P/B hands',matches:0,conf:0}}.value;const k=lp.slice(-6),ik=inv(k),occ=(lib.index.get(k)||[]).concat(lib.index.get(ik)||[]),best=new Map();for(const [si,count] of occ){const sh=lib.shoes[si],z=match(seq,sh.sequence,sh.pb,count);if(!z)continue;const old=best.get(si);if(!old||z.score>old.score)best.set(si,z)}let vals=[...best.values()];if(!vals.length)return predCache={key,value:{side:null,reason:'WAIT • no qualified historical state matches',matches:0,conf:0}}.value;const longest=Math.max(...vals.map(x=>x.bl));vals=vals.filter(x=>x.bl>=Math.max(CFG.minBead,longest-CFG.longestBand)).sort((a,b)=>b.score-a.score).slice(0,CFG.topN);if(vals.length<CFG.minShoes)return predCache={key,value:{side:null,reason:'WAIT • only '+vals.length+' independent long-pattern matches',matches:vals.length,conf:0,longest}}.value;const families=new Map();
+for(const x of vals){
+  const familyKey=x.familyKey||`${Math.round(x.runSim*4)}|${Math.round(x.roadSim*4)}|${Math.round(x.tieSim*4)}|${Math.min(4,Math.floor(x.rl/3))}`;
+  if(!families.has(familyKey))families.set(familyKey,[]);
+  families.get(familyKey).push(x);
+}
+let p=0,b=0;
+for(const group of families.values()){
+  let gp=0,gb=0;
+  for(const x of group){
+    const baseW=(1+Math.max(0,x.bl-CFG.minBead)*.22)*(.7+.3*x.roadSim)*(.9+.1*x.tieSim)*(.9+.1*Math.min(1,x.rl/10));
+    let depth=.5;
+    if(Array.isArray(x.cont)&&x.cont.length){let same=0;for(const c of x.cont)if(c===x.nx)same++;depth=same/x.cont.length;}
+    const w=baseW*(1+CFG.continuationWeight*(depth-.5));
+    if(x.nx==='P')gp+=w;else if(x.nx==='B')gb+=w;
+  }
+  const total=gp+gb;if(!total)continue;const agree=Math.max(gp,gb)/total,fw=(.7+.3*agree)*CFG.familyVoteCap;
+  if(gp>gb)p+=fw;else if(gb>gp)b+=fw;
+}
+const z=p+b||1,conf=Math.max(p,b)/z,side=p>b?'P':b>p?'B':null;
+if(!side||conf<CFG.minConf)return predCache={key,value:{side:null,reason:'WAIT • '+vals.length+' matches • '+families.size+' pattern families • agreement '+Math.round(conf*100)+'% • longest '+longest+' hands',matches:vals.length,conf,longest,families:families.size}}.value;
+const top=vals[0];return predCache={key,value:{side,conf,matches:vals.length,longest,road:top.roadSim,tie:top.tieSim,families:families.size,reason:(side==='P'?'PLAYER':'BANKER')+' • '+Math.round(conf*100)+'% • '+vals.length+' independent matches • '+families.size+' pattern families • longest '+longest+' hands • continuation-depth confirmed • 3-road confirmation '+Math.round(top.roadSim*100)+'%'+(top.tieSim>.5?' • tie-context match':'')}}.value}
+let acc={w:0,l:0,pending:null};try{const a=JSON.parse(localStorage.getItem(SCORE_KEY)||'null');if(a){acc.w=+a.w||0;acc.l=+a.l||0}}catch(e){}
+function save(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l}))}catch(e){}}
+function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
+function ensure(){if(document.getElementById('v392HprAi'))return;const anchor=document.getElementById('beadHistoryAiPanel')||document.getElementById('instantLibraryLearnPanel');if(!anchor?.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='v392HprAi';d.innerHTML='<div class="analyzer-title">🧬 Hierarchical Pattern Retrieval AI V393 — Pattern Families + Continuation</div><div class="analyzer-sub">One AI using your saved library: same-pattern-anywhere search, inverted P/B matching, Repeat/Switch rhythm, run/trap shape, tie context, Big Eye/Small/Cockroach confirmation, pattern-family clustering, and multi-hand continuation depth. One vote per independent shoe and one capped vote per related pattern family.</div><div class="v392-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v392Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v392Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v392Matches">0</strong></div><div class="analyzer-card"><span>LONGEST MATCH</span><strong id="v392Longest">—</strong></div></div><div class="v392-grid"><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v392Acc">—</strong></div><div class="analyzer-card"><span>W / L</span><strong id="v392WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v392N">N 0</strong></div><div class="analyzer-card"><span>LIBRARY</span><strong id="v392Lib">0</strong></div></div><div class="analyzer-sub" id="v392Reason" style="margin-top:7px">Waiting.</div><button class="tiny-btn" id="v392Reset" type="button" style="margin-top:7px;width:100%">Reset Retrieval AI Accuracy</button>';anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#v392Reset').addEventListener('click',()=>{acc.w=0;acc.l=0;acc.pending=null;save();render()})}
+function paint(x){const n=acc.w+acc.l;set('v392Side',x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v392Conf',x.conf?Math.round(x.conf*100)+'%':'—');set('v392Matches',String(x.matches||0));set('v392Longest',x.longest?x.longest+' hands':'—');set('v392Acc',n?(100*acc.w/n).toFixed(1)+'%':'—');set('v392WL',acc.w+'W-'+acc.l+'L');set('v392N','N '+n);set('v392Lib',String(rebuild().shoes.length));set('v392Reason',x.reason||'WAIT')}
+function render(){ensure();const x=predict(liveSeq());paint(x);window.__V392_HPR_AI__.last=x;return x}
+function arm(){const x=predict(liveSeq());acc.pending=x.side?{side:x.side,hand:pb(liveSeq()).length}:null;paint(x)}
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual!=='P'&&actual!=='B')return;const p=acc.pending;if(!p)return;if(p.side===actual)acc.w++;else acc.l++;acc.pending=null;save()}
+document.addEventListener('click',e=>{const r=e.target?.closest?.('[data-result]');if(r){const v=String(r.dataset.result||r.getAttribute('data-result')||'').toUpperCase();settle(v);predCache.key='';setTimeout(arm,220)}else if(e.target?.closest?.('#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){acc.pending=null;predCache.key='';setTimeout(()=>{rebuild(true);arm()},260)}},true);
+function boot(){ensure();rebuild(true);predCache.key='';arm()}
+window.__V392_HPR_AI__={version:VERSION,config:CFG,predict,render,arm,rebuild,last:null,experimental:true,sources:['saved-library','same-pattern-anywhere','inverted-pattern','repeat-switch-rhythm','run-trap-shape','tie-context','big-eye','small-road','cockroach-road','pattern-family-clustering','continuation-depth'],oneVotePerIndependentShoe:true,oneCappedVotePerPatternFamily:true,multiHandContinuationDepth:true};window.__V393_HPR_AI__=window.__V392_HPR_AI__;
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+})();
+</script>\n<script id="v393-build-marker">window.__V393_BUILD__={version:393,base:'V392',patternFamilyClustering:true,multiHandContinuationDepth:true,leaveInValidated:true,existingAIsChanged:false};</script>
 </body>
 </html>
