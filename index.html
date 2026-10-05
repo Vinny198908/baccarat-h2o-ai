@@ -1,3 +1,6 @@
+<!-- V405 BEHAVIOR STATE MEMORY FIX: side-agnostic live behavior matching across unique saved shoes; capped confirmation/conflict veto only; no shared hard override. -->
+<!-- V404 FULL AI AUDIT REPAIR: direct recognition consumers now require true EXACT+unanimous before bypassing native logic; Bead trap guard can no longer be bypassed by OFFSET recognition; Main Future Test 2 refreshes its prediction after a tie instead of carrying a stale pre-tie call. Combined-mode library routing preserved. -->
+<!-- V403 BEAD TRAP GUARD: Bead Plate History AI now has a separate data-driven run-shape trap veto. It can WAIT on historical trap conflicts/chop decoys instead of letting strong Bead evidence force a continuation. Exact saved-shoe recognition and other AI cores unchanged. -->
 <!-- V401 STABILITY + AUTHORITATIVE ACCURACY FIX: Recycle panel no longer rebuilds on repaint; HPR/Recognition grade in V135 pre-commit queue with post-commit arming and Undo-safe rollback; redundant watchdogs throttled. Prediction logic unchanged. -->
 <!-- V400: Hierarchical Pattern Retrieval AI and Saved-Shoe Recognition AI permanently grouped at page bottom. Logic unchanged. -->
 <!-- V399: Visible Saved-Shoe Recognition AI moved to permanent bottom-of-page position. Prediction and accuracy logic unchanged. -->
@@ -1857,6 +1860,10 @@ function saveSequenceToLibrary(seq, source='manual', quiet=false){
   state[key].push(makeShoeRecord(seq,source));
   persist();
   saveLocalLibraryBackup('shoe_saved');
+  // V402: immediately invalidate/rebuild shared library-aware AI caches after a new shoe is saved.
+  try{window.__V397_LIVE_SHOE_RECOGNITION__?.refresh?.()}catch(e){}
+  try{window.__V392_HPR_AI__?.rebuild?.(true);window.__V392_HPR_AI__?.render?.()}catch(e){}
+  try{window.__BEAD_HISTORY_AI_V379__?.invalidate?.();window.__BEAD_HISTORY_AI_V379__?.render?.()}catch(e){}
   if(!quiet) alert(`Saved ${seq.length} hands to the ${saveColorName} pattern library. A safety backup was also updated.`);
   return true;
 }
@@ -18815,7 +18822,7 @@ function ensure(){
 function settle(key,testFn){const A=st(key),seq=live(),hn=seq.length,actual=seq.at(-1);
   // V342 rewind/new-shoe guard: never carry a future prediction backward into an older hand state.
   if((Number.isFinite(A.lastSeenHand)&&A.lastSeenHand>=0&&hn<A.lastSeenHand)||hn===0){A.pending=null;A.lastWaitHand=-1;}
-  if(A.pending&&hn>A.pending.handN){if(actual==='T'){A.ties++;A.pending.handN=hn}else if(actual==='P'||actual==='B'){if(actual===A.pending.side)A.wins++;else A.losses++;A.pending=null}}
+  if(A.pending&&hn>A.pending.handN){if(actual==='T'){A.ties++;A.pending=null}else if(actual==='P'||actual==='B'){if(actual===A.pending.side)A.wins++;else A.losses++;A.pending=null}}
   const x=testFn();if(!A.pending&&x.side){A.pending={side:x.side,handN:hn,at:Date.now()}}else if(!A.pending&&!x.side&&A.lastWaitHand!==hn){A.waits++;A.lastWaitHand=hn}A.lastSeenHand=hn;try{persist()}catch(e){}return x}
 function fmtAcc(A){const n=A.wins+A.losses;return n?`${(100*A.wins/n).toFixed(1)}% • ${A.wins}W-${A.losses}L • N=${n}`:`— • 0W-0L • N=0`}
 function paint(){ensure();const x2=test2(),a2=st('v360Test2Accuracy');
@@ -19893,7 +19900,7 @@ function detect(){
   const p=pbSeq(),t=trans(p),hist=buildStats();
   try{
     const rec=window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.();
-    if(rec?.dominant&&(rec.side==='P'||rec.side==='B')){
+    if(rec?.dominant&&rec.kind==='EXACT'&&rec.unanimous===true&&(rec.side==='P'||rec.side==='B')){
       return {side:rec.side,patternSide:rec.side,seqSide:rec.side,seqStrength:rec.confidence,seqState:'RECOGNIZED',confirmed:true,rate:rec.consensus/100,n:rec.candidates,shoes:hist.shoes,recognition:rec,reason:`EXACT SAVED-SHOE RECOGNITION • ${rec.candidates} candidate${rec.candidates===1?'':'s'} • ${Math.round(rec.consensus)}% next-side consensus • live prefix only`};
     }
   }catch(e){}
@@ -21013,6 +21020,33 @@ function mainStateAssist(lp,lib){
   const z=p+b;return {side:p>b?'P':b>p?'B':null,conf:z?Math.max(p,b)/z:.5,p,b,evidence};
 }
 function adaptiveWeights(beadConf,roadQ,mainQ){let wb=CFG.baseWeights.bead,wr=CFG.baseWeights.roads,wm=CFG.baseWeights.main;wb+=Math.max(0,beadConf-.55)*.30;wr+=Math.max(0,roadQ-.5)*.12;wm+=Math.max(0,mainQ-.5)*.05;const z=wb+wr+wm;return {bead:wb/z,roads:wr/z,main:wm/z};}
+function beadTrapProfile(lp,lib){
+  const lr=runs(lp);if(lr.length<4)return {active:false,support:0,repeat:0,switch:0,consensus:.5,side:null,reason:'building'};
+  const cur=lp.at(-1);let repeat=0,switchN=0,support=0,bestK=0;
+  const liveLens=lr.map(x=>+x.slice(1));
+  for(const sh of lib){
+    const sp=sh.pb;if(!sp||sp.length<6)continue;let vote=null;
+    for(const k of [6,5,4,3]){
+      if(liveLens.length<k)continue;const sig=liveLens.slice(-k).join('-');
+      for(let j=4;j<sp.length;j++){
+        const rr=runs(sp.slice(0,j));if(rr.length<k)continue;
+        const ss=rr.slice(-k).map(x=>+x.slice(1)).join('-');if(ss!==sig)continue;
+        const prev=sp[j-1],nx=sp[j];if(nx!=='P'&&nx!=='B')continue;
+        vote={repeat:nx===prev,k};
+      }
+      if(vote)break;
+    }
+    if(vote){support++;bestK=Math.max(bestK,vote.k);if(vote.repeat)repeat++;else switchN++;}
+  }
+  const top=Math.max(repeat,switchN),consensus=support?top/support:.5;
+  const behavior=repeat>switchN?'REPEAT':switchN>repeat?'SWITCH':null;
+  const side=behavior==='REPEAT'?cur:behavior==='SWITCH'?inv(cur):null;
+  const currentRun=+lr.at(-1).slice(1);
+  const prior=liveLens.slice(-6,-1),ones=prior.filter(n=>n===1).length;
+  const chopDecoy=prior.length>=4&&ones/prior.length>=.6&&currentRun>=2&&currentRun<=3;
+  const active=support>=4&&consensus>=.65;
+  return {active,support,repeat,switch:switchN,consensus,behavior,side,bestK,currentRun,chopDecoy,reason:`${behavior||'MIXED'} ${Math.round(consensus*100)}% from ${support} unique shoes`};
+}
 function loadScore(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'null');if(x&&Number.isFinite(x.w)&&Number.isFinite(x.l))return {w:x.w,l:x.l,pending:null,last:x.last||''};}catch(e){}return {w:0,l:0,pending:null,last:''};}
 const acc=loadScore();
 function saveScore(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l,last:acc.last||''}));}catch(e){}}
@@ -21035,7 +21069,7 @@ function predict(seq){
   if(lp.length<CFG.minPB){result={side:null,reason:`Need ${CFG.minPB-lp.length} more P/B result${CFG.minPB-lp.length===1?'':'s'}.`,stored:libCache.rawCount,library:lib.length};predictionCache.key=cacheKey;predictionCache.value=result;return result;}
   try{
     const rec=window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.(live);
-    if(rec?.dominant&&(rec.side==='P'||rec.side==='B')){
+    if(rec?.dominant&&rec.kind==='EXACT'&&rec.unanimous===true&&(rec.side==='P'||rec.side==='B')){
       result={side:rec.side,conf:rec.confidence/100,edge:1,evidence:rec.candidates,library:lib.length,stored:libCache.rawCount,pN:rec.side==='P'?rec.candidates:0,bN:rec.side==='B'?rec.candidates:0,leadKind:'saved-shoe-recognition',recognition:rec,reason:`${rec.side==='P'?'PLAYER':'BANKER'} • ${Math.round(rec.confidence)}% • EXACT SAVED-SHOE RECOGNITION • ${rec.candidates} candidate${rec.candidates===1?'':'s'} • ${Math.round(rec.consensus)}% next-side consensus`};
       predictionCache.key=cacheKey;predictionCache.value=result;return result;
     }
@@ -21065,14 +21099,29 @@ function predict(seq){
   let pScore=weights.bead*beadP+weights.roads*(roadZ?rp/roadZ:.5)+weights.main*(main.p+main.b?main.p/(main.p+main.b):.5);
   let bScore=weights.bead*beadB+weights.roads*(roadZ?rb/roadZ:.5)+weights.main*(main.p+main.b?main.b/(main.p+main.b):.5);
   const z=pScore+bScore||1;pScore/=z;bScore/=z;
+  let behaviorState=null,behaviorConflictStrong=false;
+  try{behaviorState=window.__V405_BEHAVIOR_STATE__?.signal?.(live)||null}catch(e){}
+  const preBehaviorSide=pScore>bScore?'P':'B';
+  if(behaviorState?.qualified&&behaviorState.side===preBehaviorSide){
+    const bw=Math.min(.08,.04+Math.max(0,behaviorState.consensus-.62)*.20);
+    const bpv=behaviorState.side==='P'?behaviorState.consensus:1-behaviorState.consensus;
+    pScore=(1-bw)*pScore+bw*bpv;bScore=1-pScore;
+  }else if(behaviorState?.qualified&&behaviorState.side!==preBehaviorSide&&behaviorState.consensus>=.68&&behaviorState.support>=6&&behaviorState.best>=.76){behaviorConflictStrong=true;}
   const side=pScore>bScore?'P':'B',conf=Math.max(pScore,bScore),edge=Math.abs(pScore-bScore),support=side==='P'?pN:bN;
   const beadSide=beadP>beadB?'P':'B',roadConflict=road.side&&road.side!==beadSide,mainConflict=main.side&&main.side!==beadSide;
   const strongBead=Math.max(beadP,beadB)>=.595&&Math.abs(beadP-beadB)>=.09;
   const finalSide=(strongBead&&side!==beadSide)?beadSide:side,finalConf=(finalSide===side?conf:Math.max(beadP,beadB));
   const roadConfirmed=road.side===beadSide&&road.evidence>=2,allRoadState=[...best.values()].some(x=>x.roadState?.all3);
+  const trap=beadTrapProfile(lp,lib);
+  const trapConflict=trap.active&&trap.side&&trap.side!==finalSide;
+  const chopContinuationRisk=trap.chopDecoy&&finalSide===cur&&!roadConfirmed&&finalConf<.63;
   const localGate=allRoadState?Math.max(.535,CFG.conf-.015):CFG.conf;
-  if(finalConf<localGate||edge<CFG.edge||support<CFG.minSupport)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,reason:`WAIT • bead ${beadSide} ${Math.round(Math.max(beadP,beadB)*100)}% • support P ${pN} / B ${bN}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
-  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • adaptive bead-dominant history${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
+  if(trapConflict||chopContinuationRisk||behaviorConflictStrong){
+    const why=behaviorConflictStrong?`live behavior memory favors ${behaviorState.side==='P'?'PLAYER':'BANKER'} (${Math.round(behaviorState.consensus*100)}% • ${behaviorState.support} unique shoes • ${behaviorState.regime})`:trapConflict?`historical trap profile favors ${trap.side==='P'?'PLAYER':'BANKER'} (${Math.round(trap.consensus*100)}% • ${trap.support} unique shoes)`:`short run inside a chop-heavy regime is not road-confirmed`;
+    result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,trap,behaviorState,trapVeto:!!(trapConflict||chopContinuationRisk),behaviorVeto:behaviorConflictStrong,reason:`WAIT • ${behaviorConflictStrong?'BEHAVIOR GUARD':'TRAP GUARD'} • ${why} • bead wanted ${finalSide==='P'?'PLAYER':'BANKER'}`};
+  }
+  else if(finalConf<localGate||edge<CFG.edge||support<CFG.minSupport)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,trap,reason:`WAIT • bead ${beadSide} ${Math.round(Math.max(beadP,beadB)*100)}% • support P ${pN} / B ${bN}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
+  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,trap,behaviorState,trapVeto:false,behaviorVeto:false,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • adaptive bead-dominant history${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''}${trap.active&&trap.side===finalSide?' • trap profile agrees':''} • strongest ${leadKind}`};}
   predictionCache.key=cacheKey;predictionCache.value=result;return result;
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
@@ -21088,7 +21137,7 @@ function bind(){
 }
 function clearPending(){acc.pending=null;invalidate();render();}
 function install(){bind();uniqueLibrary(true);invalidate();arm();[400,1400].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
-window.__BEAD_HISTORY_AI_V379__={version:387,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
+window.__BEAD_HISTORY_AI_V379__={version:405,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
 window.__BEAD_HISTORY_AI_V385__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V386__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V387__=window.__BEAD_HISTORY_AI_V379__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 if(!window.__v387BeadHealthTimer)window.__v387BeadHealthTimer=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},12000);
@@ -21284,7 +21333,7 @@ function rebuild(force=false){const raw=rawLib(),sg=sig(raw);if(!force&&sg===cac
 function liveSeq(){try{return clean((Array.isArray(state?.hands)?state.hands:[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
 function match(live,histSeq,histPb,count){const lp=pb(live),hp=histPb.slice(0,count),direct=suffix(lp,hp,24),inverse=suffix(lp,inv(hp),24),flip=inverse>direct,bl=Math.max(direct,inverse);if(bl<CFG.minBead)return null;const hpre=prefixForPbCount(histSeq,count),lr=rhythm(lp),hr=rhythm(hp),rl=suffix(lr,hr,18);const liveRoads=[road(live,1),road(live,2),road(live,3)],histRoads=[road(hpre,1),road(hpre,2),road(hpre,3)];let roadSim=0;for(let i=0;i<3;i++)roadSim+=Math.min(1,suffix(liveRoads[i],histRoads[i],12)/7);roadSim/=3;const a=runs(lp).slice(-6),b=runs(hp).slice(-6),n=Math.min(a.length,b.length,6);let runSim=0;if(n){for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])runSim++;runSim/=n}const oriented=flip?inv(hpre):hpre,tieSim=Math.min(1,suffix(live,oriented,12)/8);const beadScore=Math.min(1,bl/18),rhScore=Math.min(1,rl/12),score=52*beadScore+16*rhScore+18*roadSim+9*runSim+5*tieSim;let nx=histPb[count];if(flip)nx=nx==='P'?'B':'P';let cont=histPb.slice(count,count+CFG.continuationDepth);if(flip)cont=inv(cont);const familyKey=`${rhythm(hp).slice(-6)}|${runs(hp).slice(-4).join('-')}|${Math.round(roadSim*4)}|${Math.round(runSim*4)}|${Math.round(tieSim*4)}`;return{score,nx,bl,rl,roadSim,runSim,tieSim,flip,cont,familyKey}}
 let predCache={key:'',value:null};
-function predict(seq){seq=clean(seq);const lp=pb(seq),lib=rebuild();const key=lib.sig+'|'+seq;if(predCache.key===key)return predCache.value;if(lp.length<CFG.minPB)return predCache={key,value:{side:null,reason:'WAIT • need '+(CFG.minPB-lp.length)+' more P/B hands',matches:0,conf:0}}.value;try{const rec=window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.(seq);if(rec?.dominant&&(rec.side==='P'||rec.side==='B'))return predCache={key,value:{side:rec.side,conf:rec.confidence/100,matches:rec.candidates,longest:lp.length,families:rec.candidates,recognition:rec,reason:(rec.side==='P'?'PLAYER':'BANKER')+' • EXACT SAVED-SHOE RECOGNITION • '+rec.candidates+' candidate'+(rec.candidates===1?'':'s')+' • '+Math.round(rec.consensus)+'% next-side consensus'}}.value}catch(e){}const k=lp.slice(-6),ik=inv(k),occ=(lib.index.get(k)||[]).concat(lib.index.get(ik)||[]),best=new Map();for(const [si,count] of occ){const sh=lib.shoes[si],z=match(seq,sh.sequence,sh.pb,count);if(!z)continue;const old=best.get(si);if(!old||z.score>old.score)best.set(si,z)}let vals=[...best.values()];if(!vals.length)return predCache={key,value:{side:null,reason:'WAIT • no qualified historical state matches',matches:0,conf:0}}.value;const longest=Math.max(...vals.map(x=>x.bl));vals=vals.filter(x=>x.bl>=Math.max(CFG.minBead,longest-CFG.longestBand)).sort((a,b)=>b.score-a.score).slice(0,CFG.topN);if(vals.length<CFG.minShoes)return predCache={key,value:{side:null,reason:'WAIT • only '+vals.length+' independent long-pattern matches',matches:vals.length,conf:0,longest}}.value;const families=new Map();
+function predict(seq){seq=clean(seq);const lp=pb(seq),lib=rebuild();const key=lib.sig+'|'+seq;if(predCache.key===key)return predCache.value;if(lp.length<CFG.minPB)return predCache={key,value:{side:null,reason:'WAIT • need '+(CFG.minPB-lp.length)+' more P/B hands',matches:0,conf:0}}.value;try{const rec=window.__V397_LIVE_SHOE_RECOGNITION__?.signal?.(seq);if(rec?.dominant&&rec.kind==='EXACT'&&rec.unanimous===true&&(rec.side==='P'||rec.side==='B'))return predCache={key,value:{side:rec.side,conf:rec.confidence/100,matches:rec.candidates,longest:lp.length,families:rec.candidates,recognition:rec,reason:(rec.side==='P'?'PLAYER':'BANKER')+' • EXACT SAVED-SHOE RECOGNITION • '+rec.candidates+' candidate'+(rec.candidates===1?'':'s')+' • '+Math.round(rec.consensus)+'% next-side consensus'}}.value}catch(e){}const k=lp.slice(-6),ik=inv(k),occ=(lib.index.get(k)||[]).concat(lib.index.get(ik)||[]),best=new Map();for(const [si,count] of occ){const sh=lib.shoes[si],z=match(seq,sh.sequence,sh.pb,count);if(!z)continue;const old=best.get(si);if(!old||z.score>old.score)best.set(si,z)}let vals=[...best.values()];if(!vals.length)return predCache={key,value:{side:null,reason:'WAIT • no qualified historical state matches',matches:0,conf:0}}.value;const longest=Math.max(...vals.map(x=>x.bl));vals=vals.filter(x=>x.bl>=Math.max(CFG.minBead,longest-CFG.longestBand)).sort((a,b)=>b.score-a.score).slice(0,CFG.topN);if(vals.length<CFG.minShoes)return predCache={key,value:{side:null,reason:'WAIT • only '+vals.length+' independent long-pattern matches',matches:vals.length,conf:0,longest}}.value;const families=new Map();
 for(const x of vals){
   const familyKey=x.familyKey||`${Math.round(x.runSim*4)}|${Math.round(x.roadSim*4)}|${Math.round(x.tieSim*4)}|${Math.min(4,Math.floor(x.rl/3))}`;
   if(!families.has(familyKey))families.set(familyKey,[]);
@@ -21305,7 +21354,9 @@ for(const group of families.values()){
 }
 const z=p+b||1,conf=Math.max(p,b)/z,side=p>b?'P':b>p?'B':null;
 if(!side||conf<CFG.minConf)return predCache={key,value:{side:null,reason:'WAIT • '+vals.length+' matches • '+families.size+' pattern families • agreement '+Math.round(conf*100)+'% • longest '+longest+' hands',matches:vals.length,conf,longest,families:families.size}}.value;
-const top=vals[0];return predCache={key,value:{side,conf,matches:vals.length,longest,road:top.roadSim,tie:top.tieSim,families:families.size,reason:(side==='P'?'PLAYER':'BANKER')+' • '+Math.round(conf*100)+'% • '+vals.length+' independent matches • '+families.size+' pattern families • longest '+longest+' hands • continuation-depth confirmed • 3-road confirmation '+Math.round(top.roadSim*100)+'%'+(top.tieSim>.5?' • tie-context match':'')}}.value}
+let behaviorState=null;try{behaviorState=window.__V405_BEHAVIOR_STATE__?.signal?.(seq)||null}catch(e){}
+if(behaviorState?.qualified&&behaviorState.side!==side&&behaviorState.consensus>=.68&&behaviorState.support>=6&&behaviorState.best>=.76)return predCache={key,value:{side:null,conf,matches:vals.length,longest,families:families.size,behaviorState,behaviorVeto:true,reason:'WAIT • BEHAVIOR GUARD • HPR '+(side==='P'?'PLAYER':'BANKER')+' conflicts with '+behaviorState.behavior+' '+Math.round(behaviorState.consensus*100)+'% from '+behaviorState.support+' unique shoes'}}.value;
+const top=vals[0];return predCache={key,value:{side,conf,matches:vals.length,longest,road:top.roadSim,tie:top.tieSim,families:families.size,behaviorState,behaviorVeto:false,reason:(side==='P'?'PLAYER':'BANKER')+' • '+Math.round(conf*100)+'% • '+vals.length+' independent matches • '+families.size+' pattern families • longest '+longest+' hands • continuation-depth confirmed • 3-road confirmation '+Math.round(top.roadSim*100)+'%'+(top.tieSim>.5?' • tie-context match':'')}}.value}
 let acc={w:0,l:0,pending:null,lastSettled:null};try{const a=JSON.parse(localStorage.getItem(SCORE_KEY)||'null');if(a){acc.w=+a.w||0;acc.l=+a.l||0}}catch(e){}
 function save(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l}))}catch(e){}}
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
@@ -21317,7 +21368,7 @@ function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T')
 function rollbackLast(){const z=acc.lastSettled;if(!z)return false;const n=pb(liveSeq()).length;if(n!==z.handBefore)return false;if(z.ok)acc.w=Math.max(0,acc.w-1);else acc.l=Math.max(0,acc.l-1);acc.lastSettled=null;acc.pending=null;save();predCache.key='';render();arm();return true}
 document.addEventListener('click',e=>{if(e.target?.closest?.('#undoBtn')){acc.pending=null;predCache.key='';setTimeout(()=>{rollbackLast();rebuild(true);arm()},300)}else if(e.target?.closest?.('#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){acc.pending=null;acc.lastSettled=null;predCache.key='';setTimeout(()=>{rebuild(true);arm()},300)}},false);
 function boot(){ensure();rebuild(true);predCache.key='';arm()}
-window.__V392_HPR_AI__={version:401,config:CFG,predict,render,arm,settle,rollbackLast,rebuild,last:null,accuracy:acc,authoritativeCoreAccuracy:true,experimental:true,sources:['saved-library','same-pattern-anywhere','inverted-pattern','repeat-switch-rhythm','run-trap-shape','tie-context','big-eye','small-road','cockroach-road','pattern-family-clustering','continuation-depth'],oneVotePerIndependentShoe:true,oneCappedVotePerPatternFamily:true,multiHandContinuationDepth:true};window.__V393_HPR_AI__=window.__V392_HPR_AI__;
+window.__V392_HPR_AI__={version:405,config:CFG,predict,render,arm,settle,rollbackLast,rebuild,last:null,accuracy:acc,authoritativeCoreAccuracy:true,experimental:true,sources:['saved-library','same-pattern-anywhere','inverted-pattern','repeat-switch-rhythm','run-trap-shape','tie-context','big-eye','small-road','cockroach-road','pattern-family-clustering','continuation-depth'],oneVotePerIndependentShoe:true,oneCappedVotePerPatternFamily:true,multiHandContinuationDepth:true};window.__V393_HPR_AI__=window.__V392_HPR_AI__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>\n<script id="v394-build-marker">window.__V394_BUILD__={version:394,base:'V393',hprPanelPermanentlyMounted:true,iosVisibilityFix:true,patternFamilyClustering:true,multiHandContinuationDepth:true,existingAIsChanged:false};</script>
@@ -21337,14 +21388,15 @@ const pb=s=>clean(s).replace(/T/g,'');
 const inv=s=>clean(s).replace(/[PB]/g,c=>c==='P'?'B':'P');
 function live(){try{return clean((Array.isArray(state?.hands)?state.hands:[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
 function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''))}
-function rows(){let a=[];try{a=typeof activePatternLibrary==='function'?activePatternLibrary():[]}catch(e){}if(!Array.isArray(a)||!a.length){try{a=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])]}catch(e){a=[]}}const seen=new Set(),out=[];for(const x of a||[]){const q=seqOf(x);if(q.length<8||seen.has(q))continue;seen.add(q);out.push(q)}return out}
+function rows(){let a=[];try{a=[...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])]}catch(e){a=[]}if((!Array.isArray(a)||!a.length)&&typeof activePatternLibrary==='function'){try{a=activePatternLibrary()||[]}catch(e){a=[]}}const seen=new Set(),out=[];for(const x of a||[]){const q=seqOf(x);if(q.length<8||seen.has(q))continue;seen.add(q);out.push(q)}return out}
+function libSig(lib){let h=2166136261>>>0;for(const q of lib||[]){for(let i=0;i<q.length;i++){h^=q.charCodeAt(i);h=Math.imul(h,16777619)>>>0}h^=124;h=Math.imul(h,16777619)>>>0}return (lib?.length||0)+':'+h}
 function nextPB(q,pos){for(let i=pos;i<q.length;i++)if(q[i]==='P'||q[i]==='B')return q[i];return null}
 function prefixVote(q,lib){const votes={P:0,B:0},matches=[];for(let i=0;i<lib.length;i++){const h=lib[i];if(h.length<=q.length)continue;if(h.startsWith(q)){const nx=nextPB(h,q.length);if(nx){votes[nx]++;matches.push({i,mode:'DIRECT',pos:0,next:nx})}}else{const hi=inv(h.slice(0,q.length));if(hi===q){const nx=nextPB(h,q.length);if(nx){const v=nx==='P'?'B':'P';votes[v]++;matches.push({i,mode:'INVERTED',pos:0,next:v})}}}}return {votes,matches}}
 function offsetVote(q,lib){const qp=pb(q);if(qp.length<MIN_OFFSET_PB)return {votes:{P:0,B:0},matches:[]};const tail=qp.slice(-Math.min(16,qp.length)),it=inv(tail),votes={P:0,B:0},matches=[];for(let i=0;i<lib.length;i++){const hp=pb(lib[i]);let best=null;for(const [pat,flip] of [[tail,false],[it,true]]){let pos=hp.indexOf(pat);while(pos!==-1){const end=pos+pat.length;if(end<hp.length){let nx=hp[end];if(flip)nx=nx==='P'?'B':'P';best={i,mode:flip?'OFFSET-INVERTED':'OFFSET',pos,next:nx};break}pos=hp.indexOf(pat,pos+1)}if(best)break}if(best){votes[best.next]++;matches.push(best)}}return {votes,matches}}
 function finish(kind,x,pbN){const n=x.votes.P+x.votes.B;if(!n)return null;const side=x.votes.P>=x.votes.B?'P':'B',win=x.votes[side],cons=100*win/n;const unanimous=win===n;const exact=kind==='EXACT';const dominant=exact?unanimous:(n>=2&&cons>=75);const confidence=exact?(unanimous?Math.min(99,94+Math.min(5,pbN/5)):Math.max(50,cons)):Math.min(90,55+(cons-50)*.6+Math.min(8,n));return {side,kind,candidates:n,consensus:cons,confidence,dominant,unanimous,pbN,matches:x.matches,votes:x.votes,usesFutureLiveHands:false,oneVotePerUniqueShoe:true}}
 let cache={key:'',value:null};
-function signal(seq){const q=clean(seq==null?live():seq),n=pb(q).length,lib=rows(),key=q+'|'+lib.length;if(cache.key===key)return cache.value;if(n<MIN_PB)return cache={key,value:{side:null,kind:'BUILDING',dominant:false,candidates:0,consensus:0,confidence:0,pbN:n,library:lib.length,usesFutureLiveHands:false}}.value;let r=finish('EXACT',prefixVote(q,lib),n);if(r?.dominant)return cache={key,value:Object.assign(r,{library:lib.length})}.value;r=finish('OFFSET',offsetVote(q,lib),n)||r;return cache={key,value:Object.assign(r||{side:null,kind:'NONE',dominant:false,candidates:0,consensus:0,confidence:0,pbN:n},{library:lib.length})}.value}
-function apply(z){if(!z||typeof z!=='object')z={};const r=signal();z.liveShoeRecognition=r;if(!r.dominant||!(r.side==='P'||r.side==='B'))return z;const native=(z.side==='P'||z.side==='B')?z.side:null;z.preRecognitionSide=native;z.side=r.side;z.qualified=true;if('strength' in z)z.strength=Math.max(Number(z.strength)||0,r.confidence);if('confidence' in z)z.confidence=Math.max(Number(z.confidence)||0,r.confidence);if('top' in z)z.top=Math.max(Number(z.top)||0,r.confidence);z.recognitionOverride=!!(native&&native!==r.side);z.recognitionDominant=true;z.waitReason='';z.gateReason='';const txt=`Saved-shoe recognition: ${r.kind} • ${r.candidates} candidate${r.candidates===1?'':'s'} • ${Math.round(r.consensus)}% next-side consensus`;if(typeof z.reason==='string'||!z.reason)z.reason=txt;return z}
+function signal(seq){const q=clean(seq==null?live():seq),n=pb(q).length,lib=rows(),key=q+'|'+libSig(lib);if(cache.key===key)return cache.value;if(n<MIN_PB)return cache={key,value:{side:null,kind:'BUILDING',dominant:false,candidates:0,consensus:0,confidence:0,pbN:n,library:lib.length,usesFutureLiveHands:false}}.value;let r=finish('EXACT',prefixVote(q,lib),n);if(r?.dominant)return cache={key,value:Object.assign(r,{library:lib.length})}.value;r=finish('OFFSET',offsetVote(q,lib),n)||r;return cache={key,value:Object.assign(r||{side:null,kind:'NONE',dominant:false,candidates:0,consensus:0,confidence:0,pbN:n},{library:lib.length})}.value}
+function apply(z){if(!z||typeof z!=='object')z={};const r=signal();z.liveShoeRecognition=r;if(!r.dominant||!(r.side==='P'||r.side==='B'))return z;const native=(z.side==='P'||z.side==='B')?z.side:null;z.preRecognitionSide=native;z.recognitionSuggestedSide=r.side;z.recognitionInfluence=true;const hard=(r.kind==='EXACT'&&r.unanimous===true);if(!hard){z.recognitionOverride=false;z.recognitionDominant=false;return z}z.side=r.side;z.qualified=true;if('strength' in z)z.strength=Math.max(Number(z.strength)||0,r.confidence);if('confidence' in z)z.confidence=Math.max(Number(z.confidence)||0,r.confidence);if('top' in z)z.top=Math.max(Number(z.top)||0,r.confidence);z.recognitionOverride=!!(native&&native!==r.side);z.recognitionDominant=true;z.waitReason='';z.gateReason='';const txt=`Saved-shoe recognition: ${r.kind} • ${r.candidates} candidate${r.candidates===1?'':'s'} • ${Math.round(r.consensus)}% next-side consensus`;if(typeof z.reason==='string'||!z.reason)z.reason=txt;return z}
 function wrap(name){try{const old=window[name];if(typeof old!=='function'||old.__v397Recognition)return;const w=function(){return apply(old.apply(this,arguments)||{})};w.__v397Recognition=true;w.__original=old;window[name]=w;try{eval(`${name}=window[name]`)}catch(e){}}catch(e){}}
 function wrapAll(){[
 'sequenceAISignal','roadPreviewAISignal','roadPreviewSignal','patternRecognizerSignal','historyPatternSignal','librarySignal','colorPatternAISignal','derivedRoadSignal','derivedRoadSequenceAI','adaptiveDerivedSignal','walkForwardSignal','highPoweredBotSignal','mainRoadFutureTest'
@@ -21428,5 +21480,146 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script id="v397-build-marker">window.__V397_BUILD__={version:400,base:'V399',sharedLiveShoeRecognition:true,exactKnownShoeDominance:true,offsetAndInvertedRecognition:true,usesOnlyHandsAlreadyPlayed:true,futureLeakage:false,duplicatesOneVote:true};</script>
 
 <script id="v401-build-marker">window.__V401_BUILD__={version:401,base:'V400',recyclePanelStable:true,hprAuthoritativeAccuracy:true,recognitionAuthoritativeAccuracy:true,undoRollback:true,legacyWatchdogsThrottled:true,predictionLogicChanged:false};</script>
+<script id="v402-build-marker">window.__V402_BUILD__={version:402,base:'V401',recognitionCacheUsesLibraryFingerprint:true,recognitionSearchesFullRedBlackLibrary:true,exactRecognitionMayOverride:true,offsetRecognitionInfluenceOnly:true,newShoeSaveInvalidatesAiCaches:true,coreAiLogicChanged:false};</script>
+
+<script id="v404-full-ai-audit-marker">
+window.__V404_FULL_AI_AUDIT__={version:404,base:'V403',directRecognitionExactOnly:true,offsetCannotBypassBeadTrapGuard:true,patternResumeExactOnly:true,hprExactOnly:true,mainFutureTest2FreshAfterTie:true,combinedModePreserved:true,coreSequenceFormulaChanged:false,coreMainFutureFormulaChanged:false};
+</script>
+<script id="v405-live-behavior-state-memory">
+(function(){
+'use strict';
+if(window.__V405_BEHAVIOR_STATE__)return;
+const VERSION=405,CFG={minPB:8,minSupport:5,minConsensus:.62,strongConsensus:.68,minBest:.72,topN:28};
+const clean=s=>String(s||'').toUpperCase().replace(/PLAYER/g,'P').replace(/BANKER/g,'B').replace(/TIE/g,'T').replace(/[^PBT]/g,'');
+const pb=s=>clean(s).replace(/T/g,'');
+const invSide=s=>s==='P'?'B':s==='B'?'P':null;
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+function live(){try{return clean((Array.isArray(state?.hands)?state.hands:[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
+function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''))}
+function source(){let a=[];try{a=typeof activePatternLibrary==='function'?(activePatternLibrary()||[]):[]}catch(e){}if(!Array.isArray(a)||!a.length){try{a=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])]}catch(e){a=[]}}const seen=new Set(),out=[];for(const x of a){const q=seqOf(x);if(q.length<10||seen.has(q))continue;seen.add(q);out.push(q)}return out}
+function hash(lib){let h=2166136261>>>0;for(const q of lib){for(let i=0;i<q.length;i++){h^=q.charCodeAt(i);h=Math.imul(h,16777619)>>>0}h^=124;h=Math.imul(h,16777619)>>>0}return `${lib.length}:${h}`}
+function runs(s){s=pb(s);if(!s)return[];const a=[];let c=s[0],n=1;for(let i=1;i<s.length;i++){if(s[i]===c)n++;else{a.push(n);c=s[i];n=1}}a.push(n);return a}
+function rhythm(s){s=pb(s);let o='';for(let i=1;i<s.length;i++)o+=s[i]===s[i-1]?'R':'S';return o}
+function switchRate(s,n){s=pb(s).slice(-n);if(s.length<2)return .5;let z=0;for(let i=1;i<s.length;i++)if(s[i]!==s[i-1])z++;return z/(s.length-1)}
+function bucket(n){return n>=5?'5+':n>=3?'3-4':n===2?'2':'1'}
+function feat(s){const q=pb(s),rr=runs(q),r=rr.at(-1)||0,t6=switchRate(q,6),t10=switchRate(q,10),t16=switchRate(q,16),mix=.48*t6+.32*t10+.20*t16;let regime='MIXED';if(q.length<6)regime='BUILDING';else if(mix>=.67)regime='CHOP';else if(mix<=.34||r>=4)regime='STREAK';return {n:q.length,last:q.at(-1)||null,r,rb:bucket(r),runs:rr.slice(-5),rh:rhythm(q).slice(-10),t6,t10,t16,regime,changeRisk:clamp(Math.abs(t6-t16)/.42)} }
+function tailSim(a,b){const n=Math.min(a.length,b.length,10);if(!n)return 0;let hit=0,w=0;for(let i=1;i<=n;i++){const ww=.6+1.4*(n-i+1)/n;w+=ww;if(a[a.length-i]===b[b.length-i])hit+=ww}return hit/(w||1)}
+function runSim(a,b){const n=Math.min(a.length,b.length,5);if(!n)return 0;let s=0;for(let i=1;i<=n;i++){const d=Math.abs(a[a.length-i]-b[b.length-i]);s+=d===0?1:d===1?.62:d===2?.25:0}return s/n}
+function similarity(a,b){const rh=tailSim(a.rh,b.rh),rs=runSim(a.runs,b.runs),tr=1-(Math.abs(a.t6-b.t6)*.45+Math.abs(a.t10-b.t10)*.35+Math.abs(a.t16-b.t16)*.20),reg=a.regime===b.regime?1:(a.regime==='MIXED'||b.regime==='MIXED'?.45:0),rb=a.rb===b.rb?1:(Math.abs(a.r-b.r)<=1?.55:0);return clamp(.34*rh+.24*rs+.22*clamp(tr)+.12*reg+.08*rb)}
+let cache={sig:'',rows:[],byKey:new Map()},pred={key:'',value:null};
+function rebuild(force=false){const lib=source(),sg=hash(lib);if(!force&&cache.sig===sg)return cache;const rows=[],byKey=new Map();lib.forEach((q,si)=>{const p=pb(q);for(let j=6;j<p.length;j++){const f=feat(p.slice(0,j)),mode=p[j]===p[j-1]?'R':'S',row={si,j,f,mode};rows.push(row);const key=f.regime+'|'+f.rb;(byKey.get(key)||byKey.set(key,[]).get(key)).push(row);const any=f.regime+'|*';(byKey.get(any)||byKey.set(any,[]).get(any)).push(row)}});cache={sig:sg,rows,byKey,libCount:lib.length};pred.key='';return cache}
+function candidates(f){const keys=[f.regime+'|'+f.rb,f.regime+'|*'];if(f.regime!=='MIXED')keys.push('MIXED|'+f.rb,'MIXED|*');const out=[],seen=new Set();for(const k of keys)for(const r of cache.byKey.get(k)||[]){const id=r.si+':'+r.j;if(!seen.has(id)){seen.add(id);out.push(r)}}return out.length?out:cache.rows}
+function signal(seq){const q=clean(seq==null?live():seq),lp=pb(q),c=rebuild(),key=c.sig+'|'+lp;if(pred.key===key)return pred.value;if(lp.length<CFG.minPB)return pred={key,value:{side:null,qualified:false,behavior:null,support:0,consensus:0,best:0,regime:'BUILDING',library:c.libCount,reason:`behavior memory building (${lp.length}/${CFG.minPB})`}}.value;const lf=feat(lp),bestByShoe=new Map();for(const row of candidates(lf)){const s=similarity(lf,row.f);if(s<.60)continue;const old=bestByShoe.get(row.si);if(!old||s>old.score)bestByShoe.set(row.si,{score:s,mode:row.mode})}let vals=[...bestByShoe.values()].sort((a,b)=>b.score-a.score).slice(0,CFG.topN);if(!vals.length)return pred={key,value:{side:null,qualified:false,behavior:null,support:0,consensus:0,best:0,regime:lf.regime,changeRisk:lf.changeRisk,library:c.libCount,reason:'no comparable saved behavior states'}}.value;const best=vals[0].score,band=Math.max(.62,best-.10);vals=vals.filter(x=>x.score>=band);let R=0,S=0,W=0,W2=0,rawR=0,rawS=0;for(const x of vals){const w=Math.pow(x.score,4);W+=w;W2+=w*w;if(x.mode==='R'){R+=w;rawR++}else{S+=w;rawS++}}const support=vals.length,consensus=W?Math.max(R,S)/W:0,behavior=R>S?'REPEAT':S>R?'SWITCH':null,effN=W2?W*W/W2:0,side=behavior==='REPEAT'?lf.last:behavior==='SWITCH'?invSide(lf.last):null;const qualified=!!side&&support>=CFG.minSupport&&consensus>=CFG.minConsensus&&best>=CFG.minBest&&effN>=3.2;const strength=qualified?Math.min(76,Math.round(50+(consensus-.5)*48+(best-.7)*24+Math.min(5,support/4))):0;return pred={key,value:{side:qualified?side:null,suggestedSide:side,qualified,behavior,support,consensus,best,effN,regime:lf.regime,run:lf.r,changeRisk:lf.changeRisk,library:c.libCount,strength,rawRepeat:rawR,rawSwitch:rawS,reason:qualified?`${behavior} ${Math.round(consensus*100)}% from ${support} unique shoes • ${lf.regime} state`:`WAIT • ${support} behavior matches • ${Math.round(consensus*100)}% agreement • best ${Math.round(best*100)}%`}}.value}
+function strongConflict(base,b){return !!(base?.side&&b?.qualified&&base.side!==b.side&&b.consensus>=CFG.strongConsensus&&b.support>=6&&b.best>=.76)}
+function exactLocked(x){return !!(x?.recognitionDominant&&x?.liveShoeRecognition?.kind==='EXACT')}
+function guard(base,label){const x=base&&typeof base==='object'?base:{},b=signal();x.behaviorState=b;if(!x.side||!b.qualified||exactLocked(x))return x;if(x.side===b.side){if(Number.isFinite(+x.strength))x.strength=Math.min(94,Math.round(+x.strength+Math.min(5,2+(b.consensus-.62)*18)));x.behaviorConfirmed=true;return x}if(strongConflict(x,b)){x.preBehaviorSide=x.side;x.side=null;x.qualified=false;x.strength=0;x.behaviorVeto=true;x.waitReason=`WAIT: ${label} conflicts with live behavior memory (${b.behavior} ${Math.round(b.consensus*100)}% • ${b.support} unique shoes).`;if(typeof x.reason==='string')x.reason=x.waitReason}return x}
+function wrap(name,label){try{const old=window[name];if(typeof old!=='function'||old.__v405Behavior)return;const w=function(){return guard(old.apply(this,arguments)||{},label)};w.__v405Behavior=true;w.__original=old;window[name]=w;try{eval(`${name}=window[name]`)}catch(e){}}catch(e){}}
+function wrapCombined(){try{const old=window.computeCombinedAnalyzer;if(typeof old!=='function'||old.__v405Behavior)return;const w=function(){const x=old.apply(this,arguments)||{},b=signal();x.behaviorState=b;if(!b.qualified||exactLocked(x))return x;if(x.side===b.side){x.behaviorConfirmed=true;if(x.qualified&&Number.isFinite(+x.top)){const add=Math.min(3,1+Math.max(0,b.consensus-.62)*10);x.top=Math.min(92,Math.round(+x.top+add));if(x.side==='P'){x.pPct=x.top;x.bPct=100-x.top}else{x.bPct=x.top;x.pPct=100-x.top}}}else if(x.side&&b.consensus>=.68&&b.support>=6&&b.best>=.76){x.qualified=false;x.behaviorVeto=true;x.gateReason=`Live behavior-state memory conflicts: ${b.behavior} ${Math.round(b.consensus*100)}% from ${b.support} unique shoes.`}return x};w.__v405Behavior=true;w.__original=old;window.computeCombinedAnalyzer=w;try{computeCombinedAnalyzer=w}catch(e){}}catch(e){}}
+function install(){rebuild(true);wrap('sequenceAISignal','Sequence AI V2');wrap('roadPreviewAISignal','Road Preview AI');wrapCombined()}
+function refresh(){rebuild(true);pred.key='';install();try{window.__BEAD_HISTORY_AI_V379__?.invalidate?.();window.__BEAD_HISTORY_AI_V379__?.render?.()}catch(e){}try{window.__V392_HPR_AI__?.render?.()}catch(e){}}
+window.__V405_BEHAVIOR_STATE__={version:VERSION,config:CFG,signal,rebuild,refresh,oneVotePerUniqueShoe:true,sideAgnosticStateMatching:true,hardOverride:false,usesActiveLibraryMode:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{install();setTimeout(install,1200)},{once:true});else install();
+document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn,#saveCurrentShoeBtn'))setTimeout(refresh,260)},false);
+})();
+</script>
+<script id="v405-build-marker">window.__V405_BUILD__={version:405,base:'V404',behaviorStateMemory:true,oneVotePerUniqueShoe:true,hardOverride:false,sequenceConflictVeto:true,roadPreviewConflictVeto:true,bestEstimateConflictVeto:true,beadConflictVeto:true,hprConflictVeto:true};</script>
+
+
+<script id="v406-best-estimate-prehand-lock">
+(function(){
+'use strict';
+if(window.__V406_BEST_ESTIMATE_AUDIT_FIX__)return;
+const VERSION=406;
+function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
+function ensure(){
+  try{
+    state.v323BestPatternAccuracy ||= {best:{w:0,l:0,n:0,last:null},pattern:{w:0,l:0,n:0,last:null},version:323};
+    state.v406BestPatternPending ||= {best:null,pattern:null};
+    return state.v406BestPatternPending;
+  }catch(e){return {best:null,pattern:null}}
+}
+function save(){try{persist()}catch(e){}}
+function handN(){try{return currentSequence().length+1}catch(e){return 0}}
+function arm(){
+  const q=ensure(),h=handN();
+  const best=norm(document.getElementById('bestSide')?.textContent);
+  const pattern=norm(document.getElementById('roadAiSide')?.textContent);
+  q.best=best?{side:best,hand:h,armedAt:Date.now()}:null;
+  q.pattern=pattern?{side:pattern,hand:h,armedAt:Date.now()}:null;
+  save();
+  return {best:q.best&&{...q.best},pattern:q.pattern&&{...q.pattern}};
+}
+let lastKey='';
+function safeGrade(actual){
+  actual=String(actual||'').toUpperCase();
+  if(actual==='T')return false;
+  if(actual!=='P'&&actual!=='B')return false;
+  const q=ensure(),h=handN();
+  const key=h+'|'+actual; if(lastKey===key)return false; lastKey=key;
+  const s=state.v323BestPatternAccuracy;
+  const gradeOne=(name)=>{
+    const p=q[name]; if(!p||p.hand!==h||!p.side)return;
+    const z=s[name]||(s[name]={w:0,l:0,n:0,last:null});
+    z.n=(Number(z.n)||0)+1;
+    const win=p.side===actual; if(win)z.w=(Number(z.w)||0)+1;else z.l=(Number(z.l)||0)+1;
+    z.last={predicted:p.side,actual,win,at:Date.now(),hand:h,armedAt:p.armedAt};
+    q[name]=null;
+  };
+  gradeOne('best'); gradeOne('pattern'); save();
+  try{window.__V323_BEST_PATTERN_ACCURACY__?.paint?.()}catch(e){}
+  return true;
+}
+function install(){
+  const a=window.__V323_BEST_PATTERN_ACCURACY__;
+  if(a){a.grade=safeGrade;a.arm=arm;a.preHandLocked=true;a.version=VERSION;}
+  const b=window.__V321_BEST_PATTERN_CORE_ACC__;
+  if(b){b.grade=safeGrade;b.arm=arm;b.preHandLocked=true;b.version=VERSION;}
+  if(typeof window.render==='function'&&!window.render.__v406BestLock){
+    const old=window.render; const w=function(){const r=old.apply(this,arguments);setTimeout(arm,0);return r};
+    w.__v406BestLock=true;w.__base=old;window.render=w;try{render=w}catch(e){}
+  }
+  setTimeout(arm,0);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1800),{once:true});else setTimeout(install,1800);
+document.addEventListener('click',e=>{
+  if(e.target?.closest?.('[data-result],#previewP,#previewB'))setTimeout(arm,320);
+  else if(e.target?.closest?.('#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn'))setTimeout(arm,220);
+},false);
+window.__V406_BEST_ESTIMATE_AUDIT_FIX__={version:VERSION,arm,grade:safeGrade,preHandLocked:true,waitsCounted:false,tiesCounted:false};
+})();
+</script>
+<script id="v406-build-marker">window.__V406_BUILD__={version:406,base:'V405',bestEstimatePreHandAccuracyLock:true,patternPreHandAccuracyLock:true,bestEstimateCoreFormulaChanged:false,behaviorLayerPreserved:true};</script>
+
+<script id="v407-authoritative-best-pattern-arming">
+(function(){
+'use strict';
+if(window.__V407_LIVE_ARMING_AUDIT_REPAIR__)return;
+const VERSION=407;
+function api(){return window.__V406_BEST_ESTIMATE_AUDIT_FIX__||null}
+function clearPending(){try{state.v406BestPatternPending={best:null,pattern:null};persist()}catch(e){}}
+function arm(){try{return api()?.arm?.()}catch(e){return null}}
+function install(){
+  const old=window.__armVerifiedPredictions;
+  if(typeof old==='function'&&!old.__v407BestPatternArm){
+    const w=function(){const r=old.apply(this,arguments);try{arm()}catch(e){}return r};
+    w.__v407BestPatternArm=true;w.__base=old;window.__armVerifiedPredictions=w;
+  }
+  // Lock immediately after install from the current visible pre-hand state.
+  try{arm()}catch(e){}
+}
+// Clear stale Best/Pattern locks synchronously on state-rewinding or library-mode changes.
+document.addEventListener('click',e=>{
+  if(e.target?.closest?.('#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){
+    clearPending();setTimeout(()=>{try{arm()}catch(x){}},0);
+  }
+},true);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1900),{once:true});else setTimeout(install,1900);
+// Re-install once after delayed legacy/deferred modules finish wrapping the verified lifecycle.
+setTimeout(install,3600);
+window.__V407_LIVE_ARMING_AUDIT_REPAIR__={version:VERSION,install,arm,clearPending,authoritativeArmLifecycle:true};
+})();
+</script>
+<script id="v407-build-marker">window.__V407_BUILD__={version:407,base:'V406',bestPatternAuthoritativeArming:true,rewindClearsPendingSynchronously:true,bestEstimateCoreFormulaChanged:false,sequenceCoreChanged:false,mainFutureCoreChanged:false};</script>
+
 </body>
 </html>
