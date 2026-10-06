@@ -21258,5 +21258,107 @@ window.__V388_SCREEN_STABILITY_FIX__={
 })();
 </script>
 
+
+<!-- V388: 6-Step Context Resolver AI — independent historical continuation resolver. Does not modify Sequence V2 or Main Future Road. -->
+<style id="v388-context-resolver-style">
+#v388ContextResolver{border-color:#5d7292;margin-top:8px}
+#v388ContextResolver .v388-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px}
+#v388ContextResolver .v388-stepgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:7px}
+#v388ContextResolver .v388-step{background:var(--panel2);border-radius:9px;padding:6px;text-align:center;font-size:9px;color:var(--muted)}
+#v388ContextResolver .v388-step b{display:block;color:var(--text);font-size:11px;margin-top:2px}
+@media(max-width:560px){#v388ContextResolver .v388-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#v388ContextResolver .v388-stepgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script id="v388-six-step-context-resolver">
+(function(){
+'use strict';
+if(window.__V388_CONTEXT_RESOLVER__)return;
+const SCORE_KEY='v388-six-step-context-resolver-accuracy';
+const MIN_PB=8, MIN_SCORE=.60, MIN_MARGIN=.08, MIN_SUPPORT=2;
+const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+const pb=s=>clean(s).replace(/T/g,'');
+const inv=s=>String(s||'').replace(/[PB]/g,c=>c==='P'?'B':'P');
+function live(){try{return clean((state?.hands||[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
+function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''))}
+function lib(){let a=[];try{a=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[]}catch(e){}const out=[],seen=new Set();for(const x of a){const q=seqOf(x);if(q.length<5||seen.has(q))continue;seen.add(q);out.push(q)}return out}
+function runs(s){s=pb(s);if(!s)return[];const a=[];let c=s[0],n=1;for(let i=1;i<s.length;i++){if(s[i]===c)n++;else{a.push({side:c,n});c=s[i];n=1}}a.push({side:c,n});return a}
+function rhythm(s){s=pb(s);let r='';for(let i=1;i<s.length;i++)r+=s[i]===s[i-1]?'R':'S';return r}
+function phaseScore(curLen,pos,total){const a=curLen/Math.max(curLen+25,55),b=pos/Math.max(total,1);return Math.max(0,1-Math.abs(a-b)*2.2)}
+function suffixSim(a,b,max=14){a=pb(a);b=pb(b);let n=Math.min(max,a.length,b.length),m=0;for(let i=1;i<=n;i++){if(a[a.length-i]===b[b.length-i])m++;else break}return n?m/n:0}
+function rhythmSim(a,b,max=10){a=rhythm(a);b=rhythm(b);let n=Math.min(max,a.length,b.length),m=0;for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])m++;return n?m/n:0}
+function roadSig(seq){try{const hs=clean(seq).split('').map(r=>({r}));return [1,2,3].map(o=>{const r=deriveRoad(hs,o)||[];return r.slice(-10).join('')})}catch(e){return['','','']}}
+function roadAgreement(a,b){const A=roadSig(a),B=roadSig(b);let sum=0,n=0;for(let k=0;k<3;k++){const x=A[k],y=B[k],q=Math.min(x.length,y.length,8);if(!q)continue;let m=0;for(let i=1;i<=q;i++)if(x[x.length-i]===y[y.length-i])m++;sum+=m/q;n++}return n?sum/n:.5}
+function contextScore(a,b){const ra=runs(a),rb=runs(b);if(!ra.length||!rb.length)return.5;const A=ra.slice(-3).map(x=>x.n),B=rb.slice(-3).map(x=>x.n);let d=0,n=Math.min(A.length,B.length);for(let i=1;i<=n;i++)d+=Math.abs(A[A.length-i]-B[B.length-i]);let score=Math.max(0,1-d/Math.max(3,n*4));const at=clean(a).endsWith('T'),bt=clean(b).endsWith('T');if(at===bt)score=Math.min(1,score+.08);return score}
+function findNext(saved,liveSeq){const L=clean(liveSeq),LP=pb(L),SP=pb(saved);if(SP.length<=LP.length)return null;let best=null;const wins=[14,12,10,8,6,5,4];for(const w of wins){if(LP.length<w)continue;const pat=LP.slice(-w);let i=SP.indexOf(pat);while(i>=0){const j=i+w;if(j<SP.length){const cand={prefix:SP.slice(0,j),next:SP[j],w,pos:j,sim:w/Math.min(14,LP.length)};if(!best||cand.w>best.w)best=cand}i=SP.indexOf(pat,i+1)}if(best&&best.w>=10)break}return best}
+function decide(seq){const L=clean(seq),LP=pb(L),library=lib();if(LP.length<MIN_PB)return{side:null,reason:`Need ${MIN_PB-LP.length} more P/B results.`,n:0,lib:library.length};const rows=[];for(const s of library){const c=findNext(s,L);if(!c)continue;const s1=Math.min(1,c.w/12);const s2=rhythmSim(L,c.prefix);const s3=roadAgreement(L,c.prefix);const s4=phaseScore(LP.length,c.pos,pb(s).length);const s5=contextScore(L,c.prefix);const score=.26*s1+.18*s2+.18*s3+.12*s4+.16*s5+.10;rows.push({...c,score,s1,s2,s3,s4,s5,shoe:s})}
+if(!rows.length)return{side:null,reason:'No comparable saved continuation.',n:0,lib:library.length};rows.sort((a,b)=>b.score-a.score);const byShoe=new Map();for(const r of rows){const old=byShoe.get(r.shoe);if(!old||r.score>old.score)byShoe.set(r.shoe,r)}const uniq=[...byShoe.values()].sort((a,b)=>b.score-a.score).slice(0,12);let p=0,b=0,pn=0,bn=0;for(const r of uniq){const w=r.score*r.score;if(r.next==='P'){p+=w;pn++}else if(r.next==='B'){b+=w;bn++}}
+const z=p+b;if(!z)return{side:null,reason:'Historical continuations do not resolve to P/B.',n:uniq.length,lib:library.length};const pp=p/z,bp=b/z,side=pp>bp?'P':'B',conf=Math.max(pp,bp),margin=Math.abs(pp-bp),support=side==='P'?pn:bn;const top=uniq[0];const qualifies=conf>=MIN_SCORE&&margin>=MIN_MARGIN&&support>=MIN_SUPPORT;return{side:qualifies?side:null,rawSide:side,conf,margin,support,n:uniq.length,lib:library.length,pn,bn,steps:{sequence:top?.s1||0,rhythm:top?.s2||0,roads:top?.s3||0,phase:top?.s4||0,context:top?.s5||0,independent:support/Math.max(1,uniq.length)},reason:qualifies?`${side==='P'?'PLAYER':'BANKER'} • ${(conf*100).toFixed(1)}% weighted continuation • ${support}/${uniq.length} independent shoes support`:`WAIT • ${(conf*100).toFixed(1)}% ${side==='P'?'P':'B'} lean • support ${support}/${uniq.length} • margin ${(margin*100).toFixed(1)}pp`}}
+function load(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'{}');return{w:+x.w||0,l:+x.l||0,last:x.last||'',pending:null}}catch(e){return{w:0,l:0,last:'',pending:null}}}
+const acc=load();function save(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l,last:acc.last}))}catch(e){}}
+function panel(){let d=document.getElementById('v388ContextResolver');if(d)return d;const anchor=document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return null;d=document.createElement('div');d.className='analyzer';d.id='v388ContextResolver';d.innerHTML=`<div class="analyzer-title">🧭 6-Step Context Resolver AI</div><div class="analyzer-sub">Different-purpose resolver: when saved patterns have conflicting next results, it ranks the continuations with six context checks instead of simple majority voting.</div><div class="v388-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v388Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v388Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v388Matches">0</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v388Acc">—</strong></div></div><div class="v388-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px"><div class="analyzer-card"><span>W / L COUNT</span><strong id="v388WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v388N">N 0</strong></div><div class="analyzer-card"><span>LAST GRADE</span><strong id="v388Last" style="font-size:12px">—</strong></div></div><div class="v388-stepgrid"><div class="v388-step">1 Sequence<b id="v388S1">—</b></div><div class="v388-step">2 Run/Chop<b id="v388S2">—</b></div><div class="v388-step">3 Three Roads<b id="v388S3">—</b></div><div class="v388-step">4 Shoe Phase<b id="v388S4">—</b></div><div class="v388-step">5 Tie/Break/Streak<b id="v388S5">—</b></div><div class="v388-step">6 Independent Support<b id="v388S6">—</b></div></div><div class="analyzer-sub" id="v388Reason" style="margin-top:7px">Waiting for enough live history.</div><button class="tiny-btn" id="v388Reset" type="button" style="margin-top:7px;width:100%">Reset 6-Step Resolver Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);return d}
+const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};const pct=x=>Number.isFinite(x)?Math.round(x*100)+'%':'—';
+function paint(x){panel();const n=acc.w+acc.l;set('v388Side',x?.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v388Conf',x?.conf?pct(x.conf):'—');set('v388Matches',String(x?.n||0));set('v388Acc',n?((100*acc.w/n).toFixed(1)+'%'):'—');set('v388WL',`${acc.w}W-${acc.l}L`);set('v388N',`N ${n}`);set('v388Last',acc.last||'—');set('v388Reason',x?.reason||'Waiting for enough live history.');const q=x?.steps||{};set('v388S1',pct(q.sequence));set('v388S2',pct(q.rhythm));set('v388S3',pct(q.roads));set('v388S4',pct(q.phase));set('v388S5',pct(q.context));set('v388S6',pct(q.independent))}
+function render(){const x=decide(live());paint(x);window.__V388_CONTEXT_RESOLVER__.last=x;return x}
+function arm(){const x=render(),n=pb(live()).length;acc.pending=x.side?{side:x.side,armedAt:n}:null;return acc.pending}
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T'||!acc.pending)return;if(actual!=='P'&&actual!=='B')return;const p=acc.pending;if(p.side===actual)acc.w++;else acc.l++;acc.last=`${p.side===actual?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;save();paint(decide(live()))}
+function bind(){panel();const r=document.getElementById('v388Reset');if(r&&!r.__v388){r.__v388=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=acc.l=0;acc.last='';acc.pending=null;save();paint(decide(live()));setTimeout(arm,50)},true)}document.querySelectorAll('[data-result]').forEach(el=>{if(el.__v388)return;el.__v388=true;el.addEventListener('click',e=>{const a=String(el.dataset.result||'').toUpperCase();settle(a);setTimeout(arm,280)},true)});for(const id of ['undoBtn','clearBtn']){const el=document.getElementById(id);if(el&&!el.__v388){el.__v388=true;el.addEventListener('click',()=>{acc.pending=null;setTimeout(arm,300)},true)}}}
+function install(){panel();bind();setTimeout(arm,100);setTimeout(()=>{bind();render()},900)}
+window.__V388_CONTEXT_RESOLVER__={version:388,decide,render,arm,settle,accuracy:acc,sixSteps:true,sharedMemoryWrapped:false,changesSequenceV2:false,changesMainFutureRoad:false,last:null};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render()}},12000);
+})();
+</script>
+
+
+
+<!-- V389: 6-Step Resolver accuracy UI verified: separate Accuracy, W/L Count, Graded N, Last Grade, and isolated Reset. Prediction logic unchanged. -->
+<!-- V388 USER CLEANUP: remove Pattern Resume + Sequence V2 AI and Best-Estimate Analyzer 2 from active UI. Core Sequence V2, original Best Estimate, Main Future Road and 6-Step Context Resolver are untouched. -->
+<style id="v388-remove-two-ai-panels">
+#patternResumeAiPanel,
+#v331BestEstimate2 { display:none !important; }
+</style>
+<script id="v388-remove-two-ai-runtime">
+(function(){
+'use strict';
+if(window.__V388_REMOVE_TWO_AIS__) return;
+window.__V388_REMOVE_TWO_AIS__={version:388,removed:['Pattern Resume + Sequence V2 AI','Best-Estimate Analyzer 2'],corePredictionLogicChanged:false};
+function removePanels(){
+  try{document.getElementById('patternResumeAiPanel')?.remove();}catch(e){}
+  try{document.getElementById('v331BestEstimate2')?.remove();}catch(e){}
+  // Remove their rows/cards from any generic audit UI if present.
+  try{
+    document.querySelectorAll('*').forEach(el=>{
+      const t=(el.textContent||'').trim();
+      if(!t)return;
+      if((t==='Pattern Resume + Sequence V2 AI' || t==='Best-Estimate Analyzer 2') && el.closest('.analyzer-card,.v285-audit-row,.accuracy-row')){
+        el.closest('.analyzer-card,.v285-audit-row,.accuracy-row')?.remove();
+      }
+    });
+  }catch(e){}
+}
+function disablePublicAPIs(){
+  // Keep harmless no-op objects so older settlement hooks do not throw.
+  try{
+    window.__V332_BEST_ESTIMATE_2__={
+      version:388,removed:true,
+      decide:()=>({side:null,qualified:false,confidence:0,mode:'REMOVED',reason:'Best-Estimate Analyzer 2 removed.'}),
+      cycle:()=>null,settle:()=>null,arm:()=>null,historyChanged:()=>null,paint:()=>null,
+      accuracy:{wins:0,losses:0,pending:null}
+    };
+  }catch(e){}
+  try{
+    window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__={
+      version:388,removed:true,
+      detect:()=>({side:null,reason:'Pattern Resume + Sequence V2 AI removed.'}),
+      buildStats:()=>({}),settleAndArm:()=>null
+    };
+  }catch(e){}
+}
+function apply(){removePanels();disablePublicAPIs();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
+[50,250,700,1500,3000].forEach(ms=>setTimeout(apply,ms));
+const mo=new MutationObserver(()=>removePanels());
+try{mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
+})();
+</script>
 </body>
 </html>
