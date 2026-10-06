@@ -21180,5 +21180,83 @@ window.__V384_BUILD__={
   predictionLogicChanged:false
 };
 </script>
+
+
+<!-- V388 SCREEN STABILITY FIX — 2026-10-06
+     Prevents vertical page bounce after live result entry on iPhone/iPad/Chrome/Safari.
+     UI-only: preserves viewport + horizontal road positions while delayed AI panels repaint.
+     Prediction engines, thresholds, libraries, grading, and result logic are unchanged. -->
+<style id="v388-screen-stability-css">
+html{scroll-behavior:auto!important;overflow-anchor:none}
+body,.app{overflow-anchor:none}
+button,[data-result],#undoBtn,#clearBtn,#previewP,#previewB{touch-action:manipulation}
+</style>
+<script id="v388-screen-stability-fix">
+(function(){
+'use strict';
+if(window.__V388_SCREEN_STABILITY_FIX__)return;
+let token=0,lastUserScrollAt=0,programmatic=false;
+
+// Track deliberate user scrolling so a long repaint cannot drag the user back
+// after they intentionally start moving the page themselves.
+window.addEventListener('scroll',function(){
+  if(!programmatic) lastUserScrollAt=Date.now();
+},{passive:true});
+
+function roadPositions(){
+  const out=[];
+  document.querySelectorAll('.road-wrap,.derived-grid').forEach(function(el,i){
+    out.push([el,el.scrollLeft,el.scrollTop]);
+  });
+  return out;
+}
+function restoreRoads(a){
+  for(const x of a){
+    try{ if(x[0]&&x[0].isConnected){x[0].scrollLeft=x[1];x[0].scrollTop=x[2];} }catch(e){}
+  }
+}
+function sameViewport(y,roads,myToken,startUserScroll){
+  if(myToken!==token)return;
+  // Stop restoring if the user has deliberately scrolled since this input began.
+  if(lastUserScrollAt>startUserScroll+40)return;
+  try{
+    const max=Math.max(0,document.documentElement.scrollHeight-window.innerHeight);
+    const target=Math.max(0,Math.min(y,max));
+    if(Math.abs(window.scrollY-target)>1){
+      programmatic=true;
+      window.scrollTo(0,target);
+      requestAnimationFrame(function(){programmatic=false;});
+    }
+    restoreRoads(roads);
+  }catch(e){programmatic=false;}
+}
+function stabilize(){
+  const myToken=++token;
+  const y=window.scrollY||window.pageYOffset||0;
+  const roads=roadPositions();
+  const startUserScroll=lastUserScrollAt;
+  // Covers the app's immediate paint plus its 120/180/220/260/320/380/420ms delayed refreshes.
+  [0,16,55,125,205,285,385,485,620].forEach(function(ms){
+    setTimeout(function(){sameViewport(y,roads,myToken,startUserScroll)},ms);
+  });
+}
+function isLiveControl(t){
+  return !!(t&&t.closest&&t.closest('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'));
+}
+// Capture before legacy bubbling handlers mutate/re-render the page.
+document.addEventListener('pointerdown',function(e){if(isLiveControl(e.target))stabilize()},true);
+document.addEventListener('click',function(e){if(isLiveControl(e.target))stabilize()},true);
+
+window.__V388_SCREEN_STABILITY_FIX__={
+  version:388,
+  enabled:true,
+  viewportLockOnLiveInput:true,
+  horizontalRoadLock:true,
+  predictionLogicChanged:false,
+  libraryChanged:false
+};
+})();
+</script>
+
 </body>
 </html>
