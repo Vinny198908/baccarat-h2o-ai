@@ -12725,6 +12725,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V384: Bead History must settle in this authoritative queue because V135
       // stops all legacy result listeners before they can run.
       ()=>{try{window.__BEAD_HISTORY_AI_V379__?.settle?.(actual)}catch(e){console.warn('V384 Bead History settle',e)}},
+      // V390: 6-Step Resolver grades in the authoritative PRE-COMMIT queue.
+      ()=>{try{window.__V390_CONTEXT_RESOLVER__?.settle?.(actual)}catch(e){console.warn('V390 6-Step settle',e)}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}}, 
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
@@ -12759,6 +12761,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V377: after a committed hand, arm BE2 from the NEW history only.
       try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 queued arm',e)}
       try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History queued arm',e)}
+      try{window.__V390_CONTEXT_RESOLVER__?.invalidate?.();window.__V390_CONTEXT_RESOLVER__?.arm?.()}catch(e){console.warn('V390 6-Step queued arm',e)}
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       busy=false;
       const queued=pendingResults.shift();
@@ -12793,6 +12796,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         // V377: BE2 is armed only after the committed hand is visible.
         ()=>{try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 arm',e)}},
         ()=>{try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History arm',e)}},
+        ()=>{try{window.__V390_CONTEXT_RESOLVER__?.invalidate?.();window.__V390_CONTEXT_RESOLVER__?.arm?.()}catch(e){console.warn('V390 6-Step arm',e)}},
 
         // Refresh live AI cards independently. A slow optional card can no longer
         // block every other panel because each job yields back to Chrome first.
@@ -12895,6 +12899,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     armMainFuture();
     try{window.__V332_BEST_ESTIMATE_2__?.historyChanged?.()}catch(e){try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(x){}}
     try{window.__BEAD_HISTORY_AI_V379__?.clearPending?.();window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){}
+    try{window.__V390_CONTEXT_RESOLVER__?.invalidate?.();window.__V390_CONTEXT_RESOLVER__?.arm?.()}catch(e){}
     try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.();window.__V332_BEST_ESTIMATE_2__?.paint?.()}catch(e){}
     try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
   },0);
@@ -21268,43 +21273,72 @@ window.__V388_SCREEN_STABILITY_FIX__={
 #v388ContextResolver .v388-step b{display:block;color:var(--text);font-size:11px;margin-top:2px}
 @media(max-width:560px){#v388ContextResolver .v388-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#v388ContextResolver .v388-stepgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
-<script id="v388-six-step-context-resolver">
+<script id="v390-six-step-context-resolver">
 (function(){
 'use strict';
-if(window.__V388_CONTEXT_RESOLVER__)return;
+if(window.__V390_CONTEXT_RESOLVER__)return;
 const SCORE_KEY='v388-six-step-context-resolver-accuracy';
 const MIN_PB=8, MIN_SCORE=.60, MIN_MARGIN=.08, MIN_SUPPORT=2;
 const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
 const pb=s=>clean(s).replace(/T/g,'');
-const inv=s=>String(s||'').replace(/[PB]/g,c=>c==='P'?'B':'P');
 function live(){try{return clean((state?.hands||[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
 function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''))}
-function lib(){let a=[];try{a=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[]}catch(e){}const out=[],seen=new Set();for(const x of a){const q=seqOf(x);if(q.length<5||seen.has(q))continue;seen.add(q);out.push(q)}return out}
 function runs(s){s=pb(s);if(!s)return[];const a=[];let c=s[0],n=1;for(let i=1;i<s.length;i++){if(s[i]===c)n++;else{a.push({side:c,n});c=s[i];n=1}}a.push({side:c,n});return a}
 function rhythm(s){s=pb(s);let r='';for(let i=1;i<s.length;i++)r+=s[i]===s[i-1]?'R':'S';return r}
 function phaseScore(curLen,pos,total){const a=curLen/Math.max(curLen+25,55),b=pos/Math.max(total,1);return Math.max(0,1-Math.abs(a-b)*2.2)}
-function suffixSim(a,b,max=14){a=pb(a);b=pb(b);let n=Math.min(max,a.length,b.length),m=0;for(let i=1;i<=n;i++){if(a[a.length-i]===b[b.length-i])m++;else break}return n?m/n:0}
 function rhythmSim(a,b,max=10){a=rhythm(a);b=rhythm(b);let n=Math.min(max,a.length,b.length),m=0;for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])m++;return n?m/n:0}
-function roadSig(seq){try{const hs=clean(seq).split('').map(r=>({r}));return [1,2,3].map(o=>{const r=deriveRoad(hs,o)||[];return r.slice(-10).join('')})}catch(e){return['','','']}}
-function roadAgreement(a,b){const A=roadSig(a),B=roadSig(b);let sum=0,n=0;for(let k=0;k<3;k++){const x=A[k],y=B[k],q=Math.min(x.length,y.length,8);if(!q)continue;let m=0;for(let i=1;i<=q;i++)if(x[x.length-i]===y[y.length-i])m++;sum+=m/q;n++}return n?sum/n:.5}
 function contextScore(a,b){const ra=runs(a),rb=runs(b);if(!ra.length||!rb.length)return.5;const A=ra.slice(-3).map(x=>x.n),B=rb.slice(-3).map(x=>x.n);let d=0,n=Math.min(A.length,B.length);for(let i=1;i<=n;i++)d+=Math.abs(A[A.length-i]-B[B.length-i]);let score=Math.max(0,1-d/Math.max(3,n*4));const at=clean(a).endsWith('T'),bt=clean(b).endsWith('T');if(at===bt)score=Math.min(1,score+.08);return score}
-function findNext(saved,liveSeq){const L=clean(liveSeq),LP=pb(L),SP=pb(saved);if(SP.length<=LP.length)return null;let best=null;const wins=[14,12,10,8,6,5,4];for(const w of wins){if(LP.length<w)continue;const pat=LP.slice(-w);let i=SP.indexOf(pat);while(i>=0){const j=i+w;if(j<SP.length){const cand={prefix:SP.slice(0,j),next:SP[j],w,pos:j,sim:w/Math.min(14,LP.length)};if(!best||cand.w>best.w)best=cand}i=SP.indexOf(pat,i+1)}if(best&&best.w>=10)break}return best}
-function decide(seq){const L=clean(seq),LP=pb(L),library=lib();if(LP.length<MIN_PB)return{side:null,reason:`Need ${MIN_PB-LP.length} more P/B results.`,n:0,lib:library.length};const rows=[];for(const s of library){const c=findNext(s,L);if(!c)continue;const s1=Math.min(1,c.w/12);const s2=rhythmSim(L,c.prefix);const s3=roadAgreement(L,c.prefix);const s4=phaseScore(LP.length,c.pos,pb(s).length);const s5=contextScore(L,c.prefix);const score=.26*s1+.18*s2+.18*s3+.12*s4+.16*s5+.10;rows.push({...c,score,s1,s2,s3,s4,s5,shoe:s})}
-if(!rows.length)return{side:null,reason:'No comparable saved continuation.',n:0,lib:library.length};rows.sort((a,b)=>b.score-a.score);const byShoe=new Map();for(const r of rows){const old=byShoe.get(r.shoe);if(!old||r.score>old.score)byShoe.set(r.shoe,r)}const uniq=[...byShoe.values()].sort((a,b)=>b.score-a.score).slice(0,12);let p=0,b=0,pn=0,bn=0;for(const r of uniq){const w=r.score*r.score;if(r.next==='P'){p+=w;pn++}else if(r.next==='B'){b+=w;bn++}}
-const z=p+b;if(!z)return{side:null,reason:'Historical continuations do not resolve to P/B.',n:uniq.length,lib:library.length};const pp=p/z,bp=b/z,side=pp>bp?'P':'B',conf=Math.max(pp,bp),margin=Math.abs(pp-bp),support=side==='P'?pn:bn;const top=uniq[0];const qualifies=conf>=MIN_SCORE&&margin>=MIN_MARGIN&&support>=MIN_SUPPORT;return{side:qualifies?side:null,rawSide:side,conf,margin,support,n:uniq.length,lib:library.length,pn,bn,steps:{sequence:top?.s1||0,rhythm:top?.s2||0,roads:top?.s3||0,phase:top?.s4||0,context:top?.s5||0,independent:support/Math.max(1,uniq.length)},reason:qualifies?`${side==='P'?'PLAYER':'BANKER'} • ${(conf*100).toFixed(1)}% weighted continuation • ${support}/${uniq.length} independent shoes support`:`WAIT • ${(conf*100).toFixed(1)}% ${side==='P'?'P':'B'} lean • support ${support}/${uniq.length} • margin ${(margin*100).toFixed(1)}pp`}}
-function load(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'{}');return{w:+x.w||0,l:+x.l||0,last:x.last||'',pending:null}}catch(e){return{w:0,l:0,last:'',pending:null}}}
+
+// V390 performance cache: library parsing and derived-road signatures are reused.
+let libCache={sig:'',rows:[]};
+const roadCache=new Map();
+let predCache={key:'',value:null};
+function rawLib(){let a=[];try{a=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[]}catch(e){}return a}
+function library(){
+  const a=rawLib();let h=2166136261>>>0;const tmp=[];
+  for(const x of a){const q=seqOf(x);if(q.length<5)continue;for(let i=0;i<q.length;i++){h^=q.charCodeAt(i);h=Math.imul(h,16777619)>>>0}h^=124;h=Math.imul(h,16777619)>>>0;tmp.push(q)}
+  const sig=a.length+':'+h;
+  if(sig===libCache.sig)return libCache.rows;
+  const seen=new Set(),rows=[];for(const q of tmp){if(seen.has(q))continue;seen.add(q);rows.push({seq:q,pb:pb(q),len:pb(q).length})}
+  libCache={sig,rows};roadCache.clear();predCache.key='';predCache.value=null;return rows;
+}
+function roadSig(seq){
+  const q=clean(seq);if(roadCache.has(q))return roadCache.get(q);
+  let out=['','',''];try{const hs=q.split('').map(r=>({r}));out=[1,2,3].map(o=>{const r=deriveRoad(hs,o)||[];return r.slice(-10).join('')})}catch(e){}
+  roadCache.set(q,out);if(roadCache.size>1400){let n=0;for(const k of roadCache.keys()){roadCache.delete(k);if(++n>=350)break}}
+  return out;
+}
+function roadAgreementFrom(A,b){const B=roadSig(b);let sum=0,n=0;for(let k=0;k<3;k++){const x=A[k],y=B[k],q=Math.min(x.length,y.length,8);if(!q)continue;let m=0;for(let i=1;i<=q;i++)if(x[x.length-i]===y[y.length-i])m++;sum+=m/q;n++}return n?sum/n:.5}
+function findNext(row,liveSeq){const LP=pb(liveSeq),SP=row.pb;if(SP.length<=LP.length)return null;let best=null;for(const w of [14,12,10,8,6,5,4]){if(LP.length<w)continue;const pat=LP.slice(-w);let i=SP.indexOf(pat);while(i>=0){const j=i+w;if(j<SP.length){const cand={prefix:SP.slice(0,j),next:SP[j],w,pos:j};if(!best||cand.w>best.w)best=cand}i=SP.indexOf(pat,i+1)}if(best&&best.w>=10)break}return best}
+function decide(seq){
+  const L=clean(seq),LP=pb(L),lib=library(),key=libCache.sig+'|'+L;if(predCache.key===key&&predCache.value)return predCache.value;
+  if(LP.length<MIN_PB){const z={side:null,reason:`Need ${MIN_PB-LP.length} more P/B results.`,n:0,lib:lib.length};predCache={key,value:z};return z}
+  const liveRoad=roadSig(L),rows=[];
+  for(const sh of lib){const c=findNext(sh,L);if(!c)continue;const s1=Math.min(1,c.w/12),s2=rhythmSim(L,c.prefix),s3=roadAgreementFrom(liveRoad,c.prefix),s4=phaseScore(LP.length,c.pos,sh.len),s5=contextScore(L,c.prefix);const score=.26*s1+.18*s2+.18*s3+.12*s4+.16*s5+.10;rows.push({...c,score,s1,s2,s3,s4,s5,shoe:sh.seq})}
+  if(!rows.length){const z={side:null,reason:'No comparable saved continuation.',n:0,lib:lib.length};predCache={key,value:z};return z}
+  rows.sort((a,b)=>b.score-a.score);const uniq=rows.slice(0,12);let p=0,b=0,pn=0,bn=0;
+  for(const r of uniq){const w=r.score*r.score;if(r.next==='P'){p+=w;pn++}else if(r.next==='B'){b+=w;bn++}}
+  const tot=p+b;if(!tot){const z={side:null,reason:'Historical continuations do not resolve to P/B.',n:uniq.length,lib:lib.length};predCache={key,value:z};return z}
+  const pp=p/tot,bp=b/tot,side=pp>bp?'P':'B',conf=Math.max(pp,bp),margin=Math.abs(pp-bp),support=side==='P'?pn:bn,top=uniq[0],qualified=conf>=MIN_SCORE&&margin>=MIN_MARGIN&&support>=MIN_SUPPORT;
+  const z={side:qualified?side:null,rawSide:side,conf,margin,support,n:uniq.length,lib:lib.length,pn,bn,steps:{sequence:top?.s1||0,rhythm:top?.s2||0,roads:top?.s3||0,phase:top?.s4||0,context:top?.s5||0,independent:support/Math.max(1,uniq.length)},reason:qualified?`${side==='P'?'PLAYER':'BANKER'} • ${(conf*100).toFixed(1)}% weighted continuation • ${support}/${uniq.length} independent shoes support`:`WAIT • ${(conf*100).toFixed(1)}% ${side==='P'?'P':'B'} lean • support ${support}/${uniq.length} • margin ${(margin*100).toFixed(1)}pp`};
+  predCache={key,value:z};return z;
+}
+function load(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'{}');return{w:+x.w||0,l:+x.l||0,last:x.last||'',pending:null,lastSettledKey:''}}catch(e){return{w:0,l:0,last:'',pending:null,lastSettledKey:''}}}
 const acc=load();function save(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l,last:acc.last}))}catch(e){}}
-function panel(){let d=document.getElementById('v388ContextResolver');if(d)return d;const anchor=document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return null;d=document.createElement('div');d.className='analyzer';d.id='v388ContextResolver';d.innerHTML=`<div class="analyzer-title">🧭 6-Step Context Resolver AI</div><div class="analyzer-sub">Different-purpose resolver: when saved patterns have conflicting next results, it ranks the continuations with six context checks instead of simple majority voting.</div><div class="v388-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v388Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v388Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v388Matches">0</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v388Acc">—</strong></div></div><div class="v388-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px"><div class="analyzer-card"><span>W / L COUNT</span><strong id="v388WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v388N">N 0</strong></div><div class="analyzer-card"><span>LAST GRADE</span><strong id="v388Last" style="font-size:12px">—</strong></div></div><div class="v388-stepgrid"><div class="v388-step">1 Sequence<b id="v388S1">—</b></div><div class="v388-step">2 Run/Chop<b id="v388S2">—</b></div><div class="v388-step">3 Three Roads<b id="v388S3">—</b></div><div class="v388-step">4 Shoe Phase<b id="v388S4">—</b></div><div class="v388-step">5 Tie/Break/Streak<b id="v388S5">—</b></div><div class="v388-step">6 Independent Support<b id="v388S6">—</b></div></div><div class="analyzer-sub" id="v388Reason" style="margin-top:7px">Waiting for enough live history.</div><button class="tiny-btn" id="v388Reset" type="button" style="margin-top:7px;width:100%">Reset 6-Step Resolver Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);return d}
-const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};const pct=x=>Number.isFinite(x)?Math.round(x*100)+'%':'—';
-function paint(x){panel();const n=acc.w+acc.l;set('v388Side',x?.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v388Conf',x?.conf?pct(x.conf):'—');set('v388Matches',String(x?.n||0));set('v388Acc',n?((100*acc.w/n).toFixed(1)+'%'):'—');set('v388WL',`${acc.w}W-${acc.l}L`);set('v388N',`N ${n}`);set('v388Last',acc.last||'—');set('v388Reason',x?.reason||'Waiting for enough live history.');const q=x?.steps||{};set('v388S1',pct(q.sequence));set('v388S2',pct(q.rhythm));set('v388S3',pct(q.roads));set('v388S4',pct(q.phase));set('v388S5',pct(q.context));set('v388S6',pct(q.independent))}
-function render(){const x=decide(live());paint(x);window.__V388_CONTEXT_RESOLVER__.last=x;return x}
+function panel(){let d=document.getElementById('v388ContextResolver');if(d)return d;const anchor=document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return null;d=document.createElement('div');d.className='analyzer';d.id='v388ContextResolver';d.innerHTML=`<div class="analyzer-title">🧭 6-Step Context Resolver AI</div><div class="analyzer-sub">Ranks conflicting saved continuations with six context checks. V390 uses cached library/road states and authoritative accuracy grading.</div><div class="v388-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v388Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v388Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v388Matches">0</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v388Acc">—</strong></div></div><div class="v388-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px"><div class="analyzer-card"><span>W / L COUNT</span><strong id="v388WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v388N">N 0</strong></div><div class="analyzer-card"><span>LAST GRADE</span><strong id="v388Last" style="font-size:12px">—</strong></div></div><div class="v388-stepgrid"><div class="v388-step">1 Sequence<b id="v388S1">—</b></div><div class="v388-step">2 Run/Chop<b id="v388S2">—</b></div><div class="v388-step">3 Three Roads<b id="v388S3">—</b></div><div class="v388-step">4 Shoe Phase<b id="v388S4">—</b></div><div class="v388-step">5 Tie/Break/Streak<b id="v388S5">—</b></div><div class="v388-step">6 Independent Support<b id="v388S6">—</b></div></div><div class="analyzer-sub" id="v388Reason" style="margin-top:7px">Waiting for enough live history.</div><button class="tiny-btn" id="v388Reset" type="button" style="margin-top:7px;width:100%">Reset 6-Step Resolver Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);return d}
+const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v},pct=x=>Number.isFinite(x)?Math.round(x*100)+'%':'—';
+function paintAccuracy(){const n=acc.w+acc.l;set('v388Acc',n?((100*acc.w/n).toFixed(1)+'%'):'—');set('v388WL',`${acc.w}W-${acc.l}L`);set('v388N',`N ${n}`);set('v388Last',acc.last||'—')}
+function paint(x){panel();set('v388Side',x?.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v388Conf',x?.conf?pct(x.conf):'—');set('v388Matches',String(x?.n||0));paintAccuracy();set('v388Reason',x?.reason||'Waiting for enough live history.');const q=x?.steps||{};set('v388S1',pct(q.sequence));set('v388S2',pct(q.rhythm));set('v388S3',pct(q.roads));set('v388S4',pct(q.phase));set('v388S5',pct(q.context));set('v388S6',pct(q.independent))}
+function render(){const x=decide(live());paint(x);window.__V390_CONTEXT_RESOLVER__.last=x;return x}
 function arm(){const x=render(),n=pb(live()).length;acc.pending=x.side?{side:x.side,armedAt:n}:null;return acc.pending}
-function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T'||!acc.pending)return;if(actual!=='P'&&actual!=='B')return;const p=acc.pending;if(p.side===actual)acc.w++;else acc.l++;acc.last=`${p.side===actual?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;save();paint(decide(live()))}
-function bind(){panel();const r=document.getElementById('v388Reset');if(r&&!r.__v388){r.__v388=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=acc.l=0;acc.last='';acc.pending=null;save();paint(decide(live()));setTimeout(arm,50)},true)}document.querySelectorAll('[data-result]').forEach(el=>{if(el.__v388)return;el.__v388=true;el.addEventListener('click',e=>{const a=String(el.dataset.result||'').toUpperCase();settle(a);setTimeout(arm,280)},true)});for(const id of ['undoBtn','clearBtn']){const el=document.getElementById(id);if(el&&!el.__v388){el.__v388=true;el.addEventListener('click',()=>{acc.pending=null;setTimeout(arm,300)},true)}}}
-function install(){panel();bind();setTimeout(arm,100);setTimeout(()=>{bind();render()},900)}
-window.__V388_CONTEXT_RESOLVER__={version:388,decide,render,arm,settle,accuracy:acc,sixSteps:true,sharedMemoryWrapped:false,changesSequenceV2:false,changesMainFutureRoad:false,last:null};
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T'||actual!=='P'&&actual!=='B'||!acc.pending)return;const handLen=Array.isArray(state?.hands)?state.hands.length:0,key=handLen+':'+actual+':'+acc.pending.armedAt;if(acc.lastSettledKey===key)return;acc.lastSettledKey=key;const p=acc.pending,ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;save();paintAccuracy()}
+function invalidate(){predCache.key='';predCache.value=null}
+function historyChanged(){acc.pending=null;invalidate();setTimeout(arm,160)}
+function bind(){panel();const r=document.getElementById('v388Reset');if(r&&!r.__v390){r.__v390=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.last='';acc.pending=null;acc.lastSettledKey='';save();paintAccuracy();invalidate();setTimeout(arm,80)},true)}for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){const el=document.getElementById(id);if(el&&!el.__v390){el.__v390=true;el.addEventListener('click',historyChanged,false)}}}
+function install(){panel();bind();library();invalidate();setTimeout(arm,120)}
+window.__V390_CONTEXT_RESOLVER__={version:390,decide,render,arm,settle,invalidate,accuracy:acc,sixSteps:true,authoritativeCoreAccuracy:true,cachedLibrary:true,cachedRoads:true,eventDrivenOnly:true,noPolling:true,sharedMemoryWrapped:false,changesSequenceV2:false,changesMainFutureRoad:false,last:null};
+window.__V388_CONTEXT_RESOLVER__=window.__V390_CONTEXT_RESOLVER__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render()}},12000);
 })();
 </script>
 
@@ -21360,5 +21394,7 @@ const mo=new MutationObserver(()=>removePanels());
 try{mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
 })();
 </script>
+
+<script id="v390-build-marker">window.__V390_BUILD__={version:390,sixStepAccuracyAuthoritative:true,sixStepCached:true,sixStepPollingRemoved:true,freezeFix:true};</script>
 </body>
 </html>
