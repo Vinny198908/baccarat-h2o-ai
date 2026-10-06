@@ -44,7 +44,6 @@
 -->
 <!-- V368: AI Pattern Recognizer restrictions loosened further; history anchor retained. Derived Road, Sequence V2, BE2, and recycle engine unchanged. -->
 <!-- V374: Pattern Resume practical-frequency fix: allows 3/4 motif returns, reduces minimum distinct-shoe support 5->4, exact historical floor 75%->70% (near-return floor 72%). Genuine 1-3 step break and Sequence V2 conflict-to-WAIT are preserved. -->
-<!-- V401: Bead Plate History AI practical-frequency fix. Large independent-library support can now emit a low-confidence P/B lean instead of WAIT when the original strong gate narrowly misses; trap-memory/behavior/streak/chop vetoes remain active. -->
 <!DOCTYPE html>
 <!-- V341: Test 2 selective qualification loosening retained. Test 3 was later removed. -->
 
@@ -20794,14 +20793,7 @@ function predict(seq){
   const trapMemory=trapMemoryLookup(live,lib);
   const recentTie=tieDistance(live)<=1;
   let trapGate='';
-  // V401 practical-frequency fallback: when dozens of independent saved shoes agree only
-  // modestly, emit the low-confidence Bead lean instead of staying WAIT forever. Strong
-  // qualification still uses the original gate. Fallback never bypasses trap protection.
-  const primaryQualified=finalConf>=localGate&&edge>=CFG.edge&&finalSupport>=CFG.minSupport;
-  const broadSupport=best.size>=40&&pN>=12&&bN>=12;
-  const fallbackQualified=broadSupport&&finalConf>=.515&&edge>=.025&&finalSupport>=12;
-  const candidateQualified=primaryQualified||fallbackQualified;
-  if(candidateQualified){
+  if(finalConf>=localGate&&edge>=CFG.edge&&finalSupport>=CFG.minSupport){
     // Preserve the V397 trap guard first. Library trap memory is veto-only:
     // it may stop a risky call, but it can never rescue or create one.
     if(behaviorSide&&behaviorBest.size>=4&&behaviorConf>=.62&&behaviorSide!==finalSide&&exactSupport<2)trapGate='behavior conflict';
@@ -20810,8 +20802,8 @@ function predict(seq){
     else if(trapMemory.qualified&&trapMemory.side!==finalSide&&trapMemory.conf>=.70&&trapMemory.support>=6&&!(exactSupport>=2&&histConf>=.74))trapGate=`library trap-memory veto ${Math.round(trapMemory.conf*100)}%/${trapMemory.support}`;
     else if(recentTie&&trapMemory.qualified&&trapMemory.side!==finalSide&&trapMemory.conf>=.70&&trapMemory.support>=6&&exactSupport<2)trapGate='after-tie trap-memory veto';
   }
-  if(!candidateQualified||trapGate)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,behaviorSide,behaviorConf,trapMemory,trapGate,reason:`WAIT • bead ${beadSide} ${Math.round(histConf*100)}% • support P ${pN} / B ${bN}${trapGate?' • trap guard: '+trapGate:''}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
-  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,behaviorSide,behaviorConf,trapMemory,trapGuard:true,trapMemoryLearned:true,fallbackQualified:!primaryQualified,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • ${primaryQualified?'saved Bead history leads':'broad saved-history lean'} • library trap memory vetoes strong historical trap conflicts${!primaryQualified?' • low-confidence call from large independent support':''}${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
+  if(finalConf<localGate||edge<CFG.edge||finalSupport<CFG.minSupport||trapGate)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,behaviorSide,behaviorConf,trapMemory,trapGate,reason:`WAIT • bead ${beadSide} ${Math.round(histConf*100)}% • support P ${pN} / B ${bN}${trapGate?' • trap guard: '+trapGate:''}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
+  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,behaviorSide,behaviorConf,trapMemory,trapGuard:true,trapMemoryLearned:true,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • saved Bead history leads • library trap memory vetoes strong historical trap conflicts • run/chop confirmation only${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
   predictionCache.key=cacheKey;predictionCache.value=result;return result;
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
@@ -20827,7 +20819,7 @@ function bind(){
 }
 function clearPending(){acc.pending=null;invalidate();render();}
 function install(){bind();uniqueLibrary(true);invalidate();arm();[400,1400].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
-window.__BEAD_HISTORY_AI_V379__={version:401,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,runBehaviorConfirmationOnly:true,trapGuard:true,matureChopGuard:true,streakBreakGuard:true,libraryTrapMemory:true,independentShoeTrapVotes:true,trapMemoryConfirmationOnly:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
+window.__BEAD_HISTORY_AI_V379__={version:398,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,runBehaviorConfirmationOnly:true,trapGuard:true,matureChopGuard:true,streakBreakGuard:true,libraryTrapMemory:true,independentShoeTrapVotes:true,trapMemoryConfirmationOnly:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
 window.__BEAD_HISTORY_AI_V385__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V386__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V387__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V398__=window.__BEAD_HISTORY_AI_V379__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 if(!window.__v387BeadHealthTimer)window.__v387BeadHealthTimer=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},12000);
