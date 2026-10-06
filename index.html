@@ -1,4 +1,3 @@
-<!-- V396: Removed Automatic Historical Match AI V301 completely (UI + runtime + grading). Other prediction engines unchanged. -->
 <!-- V387 STABILITY FIX: cached Bead/road library, event-driven next-call arming, no settle->render re-arm race, Main Road one vote per independent shoe, dead V386 roadAssist removed. Prediction hierarchy retained (~70% Bead / ~22% 3-road / ~8% Main). -->
 <!-- V386: Adaptive Bead History state matcher: Bead Plate dominant (~70%), same-state 3-road confirmation (~22%), Main Road minor influence (~8%); adaptive evidence weighting, ties/traps/break-resume retained. Accuracy plumbing from V384 preserved. -->
 <!-- V384: Bead History accuracy moved into the actual V135 authoritative result queue; accidental V51 contamination removed. Prediction logic unchanged. -->
@@ -6,7 +5,7 @@
 <!-- V382: Restores missing Bead History arm() runtime function. Prediction engine unchanged; core accuracy path retained. -->
 <!-- V381: Bead History accuracy moved into authoritative pre-commit/post-commit hand path. Prediction logic unchanged. -->
 <!-- V380 CLEANUP: removed conflicting V372 Recycle/Memory grader; fixed V379 stale-pending control binding. Prediction logic unchanged. -->
-<!-- V399: AI Pattern Recognizer repair. Historical and Bead evidence are collapsed to one effective vote per saved shoe, minimum independent-history support is enforced, displayed confidence is recalibrated, and a saved-library streak/chop trap veto can only block risky calls. V398 Bead trap memory remains unchanged. -->
+<!-- V379 CURRENT BUILD: Bead Plate History AI under Deep Full-Library Learning; Recycle Engine + Historical Memory Brain accuracy ledgers rebuilt. Prediction logic unchanged. -->
 <!-- V254: Adaptive Library Intelligence Precision AI. Adds multi-window per-shoe consensus, live transition risk, context calibration, divergence control, and stricter independent-shoe qualification. Sequence V2 and Main Future Road unchanged. -->
 <!-- V241: deep scan fixed PFG runtime reassignment, rapid-repeat input loss, Mirror new-shoe safety carryover, and stale Mirror pending after Undo; V239: deep runtime audit fix; PFG reassignment bug fixed; V237: adds Duplicate Trajectory Mode; V235: selective triple-confirmation Pattern Recognizer; V234: Pattern Recognizer removes live Main Road logic; V233: Pattern Recognizer TRUE P/B-only inside V217 closure; V232: Pattern Recognizer P/B-only, ties invisible; V231: adds standalone 3-Road Confusion AI A/A+; V221 base: V220 base + scan fixes: single Pattern accuracy reset path + single authoritative layout mover -->
 <!-- 2026-09-23 V290 FULL PORT:
@@ -12726,8 +12725,6 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V384: Bead History must settle in this authoritative queue because V135
       // stops all legacy result listeners before they can run.
       ()=>{try{window.__BEAD_HISTORY_AI_V379__?.settle?.(actual)}catch(e){console.warn('V384 Bead History settle',e)}},
-      // V390: 6-Step Resolver grades in the authoritative PRE-COMMIT queue.
-      ()=>{try{window.__V390_CONTEXT_RESOLVER__?.settle?.(actual)}catch(e){console.warn('V390 6-Step settle',e)}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}}, 
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
@@ -12762,7 +12759,6 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V377: after a committed hand, arm BE2 from the NEW history only.
       try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 queued arm',e)}
       try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History queued arm',e)}
-      try{window.__V390_CONTEXT_RESOLVER__?.invalidate?.();window.__V390_CONTEXT_RESOLVER__?.arm?.()}catch(e){console.warn('V390 6-Step queued arm',e)}
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       busy=false;
       const queued=pendingResults.shift();
@@ -12797,7 +12793,6 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         // V377: BE2 is armed only after the committed hand is visible.
         ()=>{try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 arm',e)}},
         ()=>{try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History arm',e)}},
-        ()=>{try{window.__V390_CONTEXT_RESOLVER__?.invalidate?.();window.__V390_CONTEXT_RESOLVER__?.arm?.()}catch(e){console.warn('V390 6-Step arm',e)}},
 
         // Refresh live AI cards independently. A slow optional card can no longer
         // block every other panel because each job yields back to Chrome first.
@@ -12900,7 +12895,6 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     armMainFuture();
     try{window.__V332_BEST_ESTIMATE_2__?.historyChanged?.()}catch(e){try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(x){}}
     try{window.__BEAD_HISTORY_AI_V379__?.clearPending?.();window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){}
-    try{window.__V390_CONTEXT_RESOLVER__?.invalidate?.();window.__V390_CONTEXT_RESOLVER__?.arm?.()}catch(e){}
     try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.();window.__V332_BEST_ESTIMATE_2__?.paint?.()}catch(e){}
     try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
   },0);
@@ -15850,16 +15844,251 @@ window.__V210_PREVIEW_AI__={version:VERSION,sources:['road-preview','saved-shoes
 </script>
 
 
-<!-- V396: Automatic Historical Match AI removed at user request.
-     Panel, prediction runtime, live grading, and after-tie ledger disabled.
-     Compatibility no-op globals retained so older refresh/layout hooks do not throw. -->
-<script id="v396-remove-auto-historical-match-ai">
+<!-- 2026-09-23 V290 Automatic Historical Match repair:
+     Ported V271 Precision Consensus Auto Match from the later tested branch.
+     Adds multi-window 6/9/12/16/20 matching, one vote per saved shoe,
+     live streak/switch-rate/phase context, exact-prefix continuation handling,
+     stronger after-tie gate, and stale-prediction cancellation on evidence collapse.
+     Sequence V2, Main Future Road, Best Estimate, ML, and other AI cores unchanged. -->
+<!-- V213 Automatic Historical Match AI + After-Tie Accuracy — scan/lock sync fix -->
+<script>
 (function(){
 'use strict';
-try{document.getElementById('autoHistMatchBox')?.remove();}catch(e){}
-window.__AUTO_HIST_UPDATE__=function(){};
-window.__AUTO_HISTORICAL_MATCH_AI__={version:'V396',removed:true,side:null,pct:0,best:0,matches:0,pn:0,bn:0,locked:null,afterTieStats:{w:0,l:0,n:0}};
-window.__V301_AUTO_MATCH_ADAPTIVE__={version:'V396',removed:true};
+const VERSION='V301 Auto Match Adaptive Context';
+const KEY='baccarat-auto-historical-match-v211';
+let runtime={handN:-1,locked:null,lastResult:null,lastRaw:null,stats:{w:0,l:0,t:0,n:0,afterTie:{w:0,l:0,n:0}},installed:false};
+try{
+  const x=JSON.parse(localStorage.getItem(KEY)||'null');
+  if(x&&x.stats){
+    const at=x.stats.afterTie||{};
+    runtime.stats={w:+x.stats.w||0,l:+x.stats.l||0,t:+x.stats.t||0,n:+x.stats.n||0,afterTie:{w:+at.w||0,l:+at.l||0,n:+at.n||0}};
+  }
+}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({stats:runtime.stats}))}catch(e){}}
+function q(id){return document.getElementById(id)}
+function set(id,v){const e=q(id);if(e)e.textContent=v}
+function ensureUI(){
+  if(q('autoHistMatchBox'))return;
+  const anchor=q('shoeMatcherBox')||q('reuseScannerBox');
+  if(!anchor||!anchor.parentNode)return;
+  const box=document.createElement('div');box.className='match-box';box.id='autoHistMatchBox';
+  box.innerHTML=`
+    <div class="match-head"><b>Automatic Historical Match AI — ${VERSION}</b><span id="autoHistStatus" style="font-size:10px;color:var(--muted)">AUTO</span></div>
+    <div class="match-line">Automatically re-scans saved shoes after every live hand. V301 uses adaptive 6/9/12/16/20-hand consensus, regime-aware streak/chop/dragon/mixed context, one effective vote per historical shoe, a protected multi-shoe exact-match path, and dynamic qualification so 2–3 exceptionally strong independent matches may qualify while weak volume still returns WAIT.</div>
+    <div class="match-pcts" style="margin-top:8px">
+      <div class="match-pct"><strong id="autoHistNext">—</strong><span>Next prediction</span></div>
+      <div class="match-pct"><strong id="autoHistConf">—</strong><span>Match confidence</span></div>
+      <div class="match-pct"><strong id="autoHistCount">—</strong><span>Qualified matches</span></div>
+    </div>
+    <div class="match-pcts" style="margin-top:8px">
+      <div class="match-pct"><strong id="autoHistPB">—</strong><span>Historical next P/B</span></div>
+      <div class="match-pct"><strong id="autoHistBest">—</strong><span>Best alignment</span></div>
+      <div class="match-pct"><strong id="autoHistState">—</strong><span>Update state</span></div>
+    </div>
+    <div class="match-line" id="autoHistNote" style="margin-top:8px">Waiting for enough live hands and saved-shoe evidence.</div>
+    <div style="margin-top:8px;padding:8px 10px;border:1px solid #303743;border-radius:10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <strong>Auto Match Accuracy</strong><span id="autoHistAcc">—</span><span id="autoHistWL">0W-0L</span><span id="autoHistN">N=0</span><button class="tiny-btn" id="autoHistReset" type="button">Reset</button>
+    </div>
+    <div style="margin-top:8px;padding:8px 10px;border:1px solid #5b4b7a;border-radius:10px;font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <strong>After Tie Accuracy</strong><span id="autoHistAfterTieAcc">—</span><span id="autoHistAfterTieWL">0W-0L</span><span id="autoHistAfterTieN">N=0</span><button class="tiny-btn" id="autoHistAfterTieReset" type="button">Reset After Tie</button>
+    </div>`;
+  anchor.parentNode.insertBefore(box,anchor.nextSibling);
+  q('autoHistReset')?.addEventListener('click',()=>{runtime.stats.w=0;runtime.stats.l=0;runtime.stats.t=0;runtime.stats.n=0;save();paintStats();});
+  q('autoHistAfterTieReset')?.addEventListener('click',()=>{runtime.stats.afterTie={w:0,l:0,n:0};save();paintStats();});
+}
+function paintStats(){
+  const s=runtime.stats,n=s.w+s.l,at=s.afterTie||(s.afterTie={w:0,l:0,n:0}),an=at.w+at.l;
+  set('autoHistAcc',n?Math.round(s.w*1000/n)/10+'%':'—');set('autoHistWL',`${s.w}W-${s.l}L`);set('autoHistN',`N=${n}`);
+  set('autoHistAfterTieAcc',an?Math.round(at.w*1000/an)/10+'%':'—');set('autoHistAfterTieWL',`${at.w}W-${at.l}L`);set('autoHistAfterTieN',`N=${an}`);
+}
+function currentSeq(){try{return (typeof currentSequence==='function'?currentSequence():[]).join('')}catch(e){return ''}}
+function sideName(x){return x==='P'?'PLAYER':x==='B'?'BANKER':'WAIT'}
+function gradeIfNeeded(seq){
+  const n=seq.length;if(!runtime.locked||n<=runtime.locked.handN)return;
+  const actual=seq[runtime.locked.handN];
+  if(actual==='T'){runtime.stats.t++;runtime.locked=null;save();return;}
+  if(actual==='P'||actual==='B'){
+    const win=runtime.locked.side===actual;
+    if(win)runtime.stats.w++;else runtime.stats.l++;
+    runtime.stats.n=runtime.stats.w+runtime.stats.l;
+    if(runtime.locked.afterTie){
+      const at=runtime.stats.afterTie||(runtime.stats.afterTie={w:0,l:0,n:0});
+      if(win)at.w++;else at.l++;
+      at.n=at.w+at.l;
+    }
+    runtime.lastResult={side:runtime.locked.side,actual,ok:win,afterTie:!!runtime.locked.afterTie};runtime.locked=null;save();
+  }
+}
+function qualifiedPool(r){
+  if(!r||r.error||!Array.isArray(r.top)||!r.top.length)return [];
+  const best=+r.top[0].score||0, floor=Math.max(.42,best*.76);
+  // V264: strong evidence only. Never back-fill with weak top-five matches.
+  // Keep at most one continuation from each saved shoe so one historical shoe
+  // cannot manufacture confidence through several nearby matching positions.
+  const seenShoes=new Set(), pool=[];
+  for(const x of r.top){
+    if((x.next!=='P'&&x.next!=='B') || (+x.score||0)<floor)continue;
+    const shoeKey=(x.idx!=null)?`shoe:${x.idx}`:`fallback:${x.shoeId||x.id||pool.length}`;
+    if(seenShoes.has(shoeKey))continue;
+    seenShoes.add(shoeKey);pool.push(x);
+  }
+  return pool;
+}
+function exactHistoricalContinuation(seq){
+  try{
+    const livePB=String(seq||'').replace(/[^PB]/g,'');
+    if(livePB.length<8)return null;
+    const lib=(typeof activePatternLibrary==='function'?activePatternLibrary():[]).filter(x=>x&&typeof x.sequence==='string');
+    const exact=[];
+    lib.forEach((shoe,idx)=>{const hist=String(shoe.sequence||'').replace(/[^PB]/g,'');if(hist.length>livePB.length&&hist.slice(0,livePB.length)===livePB){const next=hist[livePB.length];if(next==='P'||next==='B')exact.push({shoe,idx,next});}});
+    if(exact.length<2)return null; // V301: never trust a lone exact-prefix shoe by itself.
+    const p=exact.filter(x=>x.next==='P').length,b=exact.filter(x=>x.next==='B').length,total=p+b;
+    const edge=total?Math.abs(p-b)/total:0;
+    const side=(edge>=.20)?(p>b?'P':b>p?'B':null):null;
+    const pct=side?Math.round(Math.max(p,b)*100/total):50;
+    return {side,pct,p,b,matches:exact.length,exact,edge};
+  }catch(e){return null}
+}
+function autoHistRun(pb){let r=pb.length?1:0;for(let i=pb.length-1;i>0&&pb[i]===pb[i-1];i--)r++;return r;}
+function autoHistSwitch(pb,n=12){const a=pb.slice(-n);if(a.length<2)return .5;let x=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])x++;return x/(a.length-1);}
+function precisionHistoricalConsensus(seq){
+  try{
+    const live=String(seq||'').replace(/[^PB]/g,'');
+    if(live.length<6)return null;
+    const lib=(typeof activePatternLibrary==='function'?activePatternLibrary():[]).filter(x=>x&&typeof x.sequence==='string');
+    const lens=[6,9,12,16,20].filter(k=>k<=live.length), votes=[];
+    const liveRun=autoHistRun(live), liveSw=autoHistSwitch(live), livePhase=Math.min(1,live.length/70);
+    lib.forEach((shoe,idx)=>{
+      const hist=String(shoe.sequence||'').replace(/[^PB]/g,''); if(hist.length<8)return;
+      let best=null;
+      for(let pos=0;pos<hist.length-1;pos++){
+        let agree=0,scoreSum=0,longest=0;
+        for(const k of lens){
+          if(pos-k+1<0)continue;
+          let same=0;const start=pos-k+1,target=live.slice(-k);
+          for(let j=0;j<k;j++)if(hist[start+j]===target[j])same++;
+          const sim=same/k, threshold=k>=16?.75:k>=12?.78:k>=9?.82:.86;
+          if(sim>=threshold){agree++;scoreSum+=sim*(1+k/20);longest=Math.max(longest,k);}
+        }
+        if(!agree)continue;
+        const next=hist[pos+1];if(next!=='P'&&next!=='B')continue;
+        const ctx=hist.slice(0,pos+1), runDiff=Math.abs(autoHistRun(ctx)-liveRun), swDiff=Math.abs(autoHistSwitch(ctx)-liveSw);
+        const histPhase=Math.min(1,(pos+1)/Math.max(1,hist.length)), phaseDiff=Math.abs(histPhase-livePhase);
+        const context=Math.max(.35,1-.10*Math.min(4,runDiff)-.55*swDiff-.25*phaseDiff);
+        const multi=agree/Math.max(1,lens.length), base=(scoreSum/agree)*(.72+.28*multi)*context;
+        if(!best||base>best.weight)best={idx,pos,next,weight:base,agree,longest,context,multi};
+      }
+      if(best)votes.push(best);
+    });
+    if(!votes.length)return null;
+    votes.sort((a,b)=>b.weight-a.weight);const top=votes.slice(0,Math.min(18,votes.length));
+    let p=0,b=0,pn=0,bn=0,total=0;
+    top.forEach(v=>{const w=Math.max(.01,v.weight*v.weight);if(v.next==='P'){p+=w;pn++}else{b+=w;bn++}total+=w;});
+    if(!total)return null;
+    const side=b>p?'B':'P', pct=Math.round(100*Math.max(p,b)/total), edge=Math.abs(p-b)/total;
+    const diversity=top.length, multiAgree=top.reduce((z,v)=>z+v.multi,0)/top.length, context=top.reduce((z,v)=>z+v.context,0)/top.length;
+    const best=Math.round(100*Math.min(1,top[0].weight/1.9));
+    return {side,pct,edge,pn,bn,pool:top,best,diversity,multiAgree,context,r:{best:{idx:top[0].idx,pos:top[0].pos,score:best/100}}};
+  }catch(e){return null;}
+}
+function buildSignal(){
+  const seq=currentSeq();
+  if(seq.length<6||typeof shoeMatcherScanCore!=='function')return {side:null,pct:0,reason:'Need at least 6 live results.',seq};
+  const exact=exactHistoricalContinuation(seq);
+  if(exact){
+    if(!exact.side)return {side:null,pct:50,reason:`EXACT PREFIX CONFLICT: ${exact.p} saved continuations say Player and ${exact.b} say Banker. Waiting for the next hand to separate them.`,seq,pn:exact.p,bn:exact.b,pool:exact.exact,best:100,exactMode:true};
+    return {side:exact.side,pct:exact.pct,reason:'exact saved-shoe prefix continuation',seq,pn:exact.p,bn:exact.b,pool:exact.exact,best:100,edge:Math.abs(exact.p-exact.b)/(exact.p+exact.b),exactMode:true,r:{best:{idx:exact.exact[0].idx,pos:String(seq).replace(/[^PB]/g,'').length,score:1}}};
+  }
+  const pc=precisionHistoricalConsensus(seq);
+  if(!pc)return {side:null,pct:0,reason:'No sufficiently similar independent historical shoes.',seq};
+  const {r,pool,pn,bn,best,edge}=pc;let {side,pct}=pc;
+  const afterTie=seq.length>0&&seq[seq.length-1]==='T';
+  const at=runtime.stats.afterTie||(runtime.stats.afterTie={w:0,l:0,n:0});
+  const atN=(+at.w||0)+(+at.l||0),atRate=atN?((+at.w||0)/atN):null;
+  const livePB=String(seq||'').replace(/[^PB]/g,'');
+  const liveRun=autoHistRun(livePB), liveSw=autoHistSwitch(livePB);
+  const regime=liveRun>=4?'DRAGON':liveSw>=.67?'CHOP':liveSw<=.33?'STREAK':'MIXED';
+  const phase=livePB.length<20?'EARLY':livePB.length<45?'MIDDLE':'LATE';
+  // V301 adaptive gates: ordinary calls need 3 independent shoes; exceptionally
+  // strong agreement can qualify on 2. After a tie remains more conservative.
+  let needPool=afterTie?4:3, needBest=afterTie?64:50, needPct=afterTie?67:58, needEdge=afterTie?.25:.14;
+  let needMulti=afterTie?.44:.34, needContext=afterTie?.60:.50;
+  if(regime==='DRAGON'){needBest+=2;needPct+=2;needEdge+=.02;}
+  if(regime==='CHOP'){needMulti+=.03;needContext+=.02;}
+  if(phase==='EARLY'){needBest+=2;needContext+=.03;}
+  const elite=pool.length>=2 && best>=72 && pct>=67 && edge>=.25 && pc.multiAgree>=.42 && pc.context>=.58;
+  if(afterTie&&atN>=3&&atRate<.45)return {side:null,rawSide:side,pct,reason:`After-tie safety WAIT: recorded Auto Match after-tie accuracy is ${Math.round(atRate*1000)/10}% (${at.w}W-${at.l}L).`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+  if(!elite && (pool.length<needPool||best<needBest||pct<needPct||edge<needEdge||pc.multiAgree<needMulti||pc.context<needContext))
+    return {side:null,rawSide:side,pct,reason:`Adaptive WAIT (${regime}/${phase}): ${pool.length} independent shoes • best ${best}% • continuation ${pct}% • edge ${Math.round(edge*100)}pp • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%.`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+  return {side,pct,reason:`${elite?'ELITE 2+':'ADAPTIVE'} historical consensus • ${regime}/${phase} • ${pool.length} independent shoes • multi-window ${Math.round(pc.multiAgree*100)}% • context ${Math.round(pc.context*100)}%`,seq,r,pn,bn,pool,best,edge,afterTie,regime,phase};
+}
+function renderSignal(sig,changed){
+  const r=sig.r;set('autoHistStatus',sig.side?'ACTIVE':'WAIT');set('autoHistNext',sig.side?`${sideName(sig.side)} ${sig.pct}%`:'WAIT');set('autoHistConf',sig.best!=null?`${sig.best}% best`:'—');set('autoHistCount',sig.pool?`${sig.pool.length} matches`:'—');
+  set('autoHistPB',sig.pool?`${sig.pn||0}P / ${sig.bn||0}B`:'—');set('autoHistBest',r&&r.best?`Shoe #${r.best.idx+1} • hand ${r.best.pos+1}`:'—');set('autoHistState',changed?'UPDATED':'STABLE');
+  const previous=runtime.lastResult?` Last graded: ${runtime.lastResult.side}→${runtime.lastResult.actual} ${runtime.lastResult.ok?'WIN':'LOSS'}.`:'';
+  set('autoHistNote',sig.side?`Current evidence favors ${sideName(sig.side)}. ${sig.pool.length} qualified historical positions produced ${sig.pn} Player and ${sig.bn} Banker next outcomes. Prediction is locked for grading once issued.${runtime.locked?.afterTie?' AFTER-TIE TRACKING ACTIVE for this pick.':''}${previous}`:`${sig.reason}${sig.rawSide?` Raw lean: ${sideName(sig.rawSide)} ${sig.pct}%.`:''}${previous}`);
+  paintStats();
+}
+function update(){
+  ensureUI();const seq=currentSeq();gradeIfNeeded(seq);
+  const sig=buildSignal();const n=seq.length;
+  let changed=false;
+  const sameHandLock=runtime.locked&&runtime.locked.handN===n?runtime.locked:null;
+  if(sig.side){
+    // Keep the visible call and the accuracy lock synchronized. A materially stronger
+    // opposite call may replace the pending call, but the side that is displayed is
+    // always the side that will be graded.
+    if(sameHandLock&&sameHandLock.side!==sig.side){
+      const prev=Number(sameHandLock.pct)||0;
+      if(sig.pct<prev+6){
+        sig.side=sameHandLock.side;sig.pct=prev;sig.reason='stability hold';
+      }else{
+        runtime.locked={...sameHandLock,side:sig.side,pct:sig.pct,updatedAt:Date.now()};
+        changed=true;
+      }
+    }else if(runtime.lastRaw&&runtime.lastRaw.handN===n&&runtime.lastRaw.side&&runtime.lastRaw.side!==sig.side){
+      const prev=Number(runtime.lastRaw.pct)||0;
+      if(sig.pct<prev+6){sig.side=runtime.lastRaw.side;sig.pct=prev;sig.reason='stability hold';}
+      else changed=true;
+    }else if(!runtime.lastRaw||runtime.lastRaw.handN!==n||runtime.lastRaw.side!==sig.side){
+      changed=true;
+    }
+    runtime.lastRaw={handN:n,side:sig.side,pct:sig.pct};
+    if(!runtime.locked||runtime.locked.handN!==n){
+      const afterTie=n>0&&seq[n-1]==='T';
+      runtime.locked={handN:n,side:sig.side,pct:sig.pct,afterTie,ts:Date.now()};
+    }else if(runtime.locked.side!==sig.side){
+      // Defensive sync: never leave a hidden grading side behind the visible call.
+      runtime.locked.side=sig.side;runtime.locked.pct=sig.pct;runtime.locked.updatedAt=Date.now();
+    }
+  }else if(sameHandLock){
+    // V264: if current evidence genuinely falls below the qualification gate, cancel
+    // the pending call instead of displaying/grading stale evidence. Only preserve a
+    // lock for a clearly transient scanner/runtime failure.
+    const transient=!sig.r || !!sig.r.error || /temporar|scanner|unavailable|error/i.test(String(sig.reason||''));
+    if(transient){
+      sig.rawSide=sig.rawSide||null;sig.side=sameHandLock.side;sig.pct=sameHandLock.pct;
+      sig.reason='temporary scan hold';sig.lockHeld=true;
+      runtime.lastRaw={handN:n,side:sig.side,pct:sig.pct};
+    }else{
+      runtime.locked=null;
+      runtime.lastRaw={handN:n,side:null,pct:sig.pct||0};
+      sig.reason=`${sig.reason} Pending prediction cancelled because current evidence no longer qualifies.`;
+      changed=true;
+    }
+  }else{
+    runtime.lastRaw={handN:n,side:null,pct:sig.pct||0};
+  }
+  runtime.handN=n;renderSignal(sig,changed);
+  window.__AUTO_HISTORICAL_MATCH_AI__={version:VERSION,handN:n,side:sig.side||null,pct:sig.pct||0,best:sig.best||0,matches:sig.pool?.length||0,pn:sig.pn||0,bn:sig.bn||0,locked:runtime.locked?{...runtime.locked}:null,afterTieStats:{...(runtime.stats.afterTie||{w:0,l:0,n:0})}};
+}
+function boot(){ensureUI();paintStats();update();if(runtime.installed)return;runtime.installed=true;
+  const old=window.render;if(typeof old==='function'&&!old.__v213AutoMatch){const w=function(){const r=old.apply(this,arguments);setTimeout(update,0);return r};w.__v213AutoMatch=true;w.__base=old;window.render=w;try{render=w}catch(e){}}
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(update,0)});
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1700));else setTimeout(boot,1700);
+window.__AUTO_HIST_UPDATE__=update;
+window.__V301_AUTO_MATCH_ADAPTIVE__={version:VERSION,multiWindow:[6,9,12,16,20],oneVotePerHistoricalShoe:true,continuationReliability:true,liveContext:['streak','switch-rate','shoe-phase','dragon','regime'],protectedExactPath:'2+ independent shoes, >=20pp edge',eliteTwoMatchPath:true,dynamicRegimeGates:true,divergenceRejection:true,staleLockCancelledOnEvidenceCollapse:true,sameHandFlipRequiresPlus6:true,afterTieLedgerSeparate:true};
 })();
 </script>
 
@@ -15876,7 +16105,7 @@ window.__V301_AUTO_MATCH_ADAPTIVE__={version:'V396',removed:true};
 <script id="v217-adaptive-pattern-recognizer-scan-fix">
 (function(){
 'use strict';
-const VERSION='V399_INDEPENDENT_PATTERN_TRAP_GUARD';
+const VERSION='V367_MORE_LOOSENED_PATTERN_CONFIRMATION';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pb=a=>(a||[]).filter(x=>x==='P'||x==='B');
 const rawSeq=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}};
@@ -15999,73 +16228,23 @@ function historicalMainPattern(seq,shoes){
 }
 
 function beadPattern(raw,shoes){
-  const global={p:0,b:0,n:0};let matches=0,bestLen=0,bestSim=0;
-  if(raw.length<5)return {vote:normVote(global),quality:0,matches,bestLen,bestSim,oneVotePerShoe:true};
+  const v={p:0,b:0,n:0};let matches=0,bestLen=0;
+  if(raw.length<5)return {vote:normVote(v),quality:0,matches,bestLen};
   const row=raw.length%6;
   for(const shoe of shoes){
     const hist=String(shoe.sequence||'').split('').filter(x=>x==='P'||x==='B');
-    let best=null;
     for(let pos=5;pos<hist.length;pos++){
       if(pos%6!==row)continue;
       const next=hist[pos];if(next!=='P'&&next!=='B')continue;
       const k=Math.min(12,raw.length,pos);if(k<5)continue;
       let hit=0,den=0;
       for(let j=1;j<=k;j++){const wt=1+(k-j)*.045;den+=wt;if(hist[pos-j]===raw[raw.length-j])hit+=wt;}
-      const sim=den?hit/den:0;if(sim<.70)continue;
-      const score=Math.pow(sim,3.8)*(0.75+k/12);
-      if(!best||score>best.score)best={side:next,score,sim,k};
+      const sim=den?hit/den:0;if(sim<.68)continue;
+      const w=Math.pow(sim,3.5)*(0.75+k/12);addVote(v,next,w);matches++;bestLen=Math.max(bestLen,k);
     }
-    if(!best)continue;
-    // One effective Bead vote per historical shoe; repeated positions in one shoe cannot multiply influence.
-    const reliability=clamp(.56+best.sim*.28+Math.min(.16,best.k*.01),.56,1);
-    addVote(global,best.side,reliability);
-    matches++;bestLen=Math.max(bestLen,best.k);bestSim=Math.max(bestSim,best.sim);
   }
-  const vote=normVote(global),quality=Math.round(100*clamp(
-    .48*Math.min(1,matches/12)+.24*Math.min(1,bestLen/10)+.16*bestSim+.12*vote.edge,0,1
-  ));
-  return {vote,quality,matches,bestLen,bestSim,row,oneVotePerShoe:true};
-}
-
-function prTrailingSwitches(seq){
-  let n=0;for(let i=seq.length-1;i>0;i--){if(seq[i]!==seq[i-1])n++;else break;}return n;
-}
-function prRunLen(seq){
-  if(!seq.length)return 0;let n=1;for(let i=seq.length-1;i>0&&seq[i]===seq[i-1];i--)n++;return n;
-}
-function prTrapContext(seq){
-  if(seq.length<6)return null;
-  const run=Math.min(5,prRunLen(seq)),sw=Math.min(5,prTrailingSwitches(seq));
-  let r='';for(let i=Math.max(1,seq.length-6);i<seq.length;i++)r+=seq[i]===seq[i-1]?'R':'S';
-  const phase=seq.length<18?'EARLY':seq.length<36?'MID':'LATE';
-  return {key:`${phase}|R${run}|S${sw}|${r}`,coarse:`${phase}|R${run}|S${sw}`,cur:seq[seq.length-1],run,sw};
-}
-function prTrapMemory(seq,shoes){
-  const ctx=prTrapContext(seq);if(!ctx)return {qualified:false};
-  const full={R:0,S:0},coarse={R:0,S:0};
-  for(const shoe of shoes){
-    const h=String(shoe.sequence||'').replace(/[^PB]/g,'').split('');
-    let fR=0,fS=0,cR=0,cS=0;
-    for(let i=5;i<h.length-1;i++){
-      const c=prTrapContext(h.slice(0,i+1));if(!c)continue;
-      const act=h[i+1]===h[i]?'R':'S';
-      if(c.key===ctx.key){if(act==='R')fR++;else fS++;}
-      if(c.coarse===ctx.coarse){if(act==='R')cR++;else cS++;}
-    }
-    // One vote per saved shoe per context.
-    if(fR!==fS){if(fR>fS)full.R++;else full.S++;}
-    if(cR!==cS){if(cR>cS)coarse.R++;else coarse.S++;}
-  }
-  const candidates=[];
-  const add=(kind,x,minSupport,minConf)=>{
-    const n=x.R+x.S;if(n<minSupport)return;const conf=Math.max(x.R,x.S)/n;
-    if(conf<minConf)return;candidates.push({kind,action:x.R>x.S?'R':'S',support:n,conf,r:x.R,s:x.S});
-  };
-  add('full',full,6,.68);add('coarse',coarse,10,.72);
-  if(!candidates.length)return {qualified:false,ctx};
-  candidates.sort((a,b)=>(b.conf+Math.min(12,b.support)*.008)-(a.conf+Math.min(12,a.support)*.008));
-  const x=candidates[0],side=x.action==='R'?ctx.cur:(ctx.cur==='P'?'B':'P');
-  return {...x,side,ctx,qualified:true};
+  const vote=normVote(v),quality=Math.round(100*clamp(.55*Math.min(1,matches/14)+.25*Math.min(1,bestLen/10)+.20*vote.edge,0,1));
+  return {vote,quality,matches,bestLen,row};
 }
 
 function derivedConfirmation(){
@@ -16165,7 +16344,6 @@ function patternRecognizerSignal(){
   const hist=historicalMainPattern(seq,shoes);
   const bead=beadPattern(raw,shoes);
   const roads=derivedConfirmation();
-  const trapMemory=prTrapMemory(seq,shoes);
   const adapt=adaptiveWeights(seq,hist,bead,roads);
   const reg=adapt.reg||regimeProfile(seq);
 
@@ -16248,12 +16426,11 @@ function patternRecognizerSignal(){
   let waitReason='',tier='';
   if(!candidate)waitReason='WAIT: Player and Banker adaptive pattern scores are tied.';
   else if(!hist.vote.n)waitReason='WAIT: saved-shoe history is not ready; live flow cannot qualify by itself.';
-  else if((hist.matches||0)<4)waitReason=`WAIT: only ${hist.matches||0} independent saved shoes support history; need 4+.`;
   else if(histSide!==candidate)waitReason='WAIT: historical consensus does not support the combined candidate.';
   else if(ready.length<2)waitReason=`WAIT: only ${ready.length} of 4 pattern sources are ready; need at least 2.`;
   else if(oppose.length>=3)waitReason='WAIT: three independent pattern sources oppose the candidate.';
   else if(support.length<2)waitReason='WAIT: fewer than two independent pattern sources support the candidate.';
-  else if(histStrength<.55)waitReason=`WAIT: saved-history consensus is below 55%.`;
+  else if(histStrength<.50)waitReason=`WAIT: saved-history consensus is below 50%.`;
   else {
     // Strong 3-of-4 confirmation is the preferred gate.
     if(support.length>=3){
@@ -16274,15 +16451,6 @@ function patternRecognizerSignal(){
     }
   }
 
-  // V399 library-trained trap veto. It can only stop a risky streak/chop call;
-  // it cannot create or reverse a prediction.
-  if(!waitReason&&trapMemory.qualified&&trapMemory.side!==candidate){
-    const risky=(trapMemory.ctx?.run>=3||trapMemory.ctx?.sw>=3);
-    if(risky&&trapMemory.conf>=.70&&trapMemory.support>=6){
-      waitReason=`WAIT: saved-library trap veto opposes ${candidate==='P'?'PLAYER':'BANKER'} (${Math.round(trapMemory.conf*100)}% across ${trapMemory.support} independent shoes).`;
-    }
-  }
-
   // Transition is no longer an automatic WAIT. It may qualify only when live
   // flow and history agree and overall support is strong.
   if(!waitReason && reg.regime==='TRANSITION'){
@@ -16298,7 +16466,7 @@ function patternRecognizerSignal(){
     decisionRuntime.pending={handN:seq.length,side};
   }
 
-  const strength=side?clamp(Math.round(50+edge*.34+quality*.11+(support.length>=3?2:0)),54,82):0;
+  const strength=side?clamp(Math.round(50+edge*.60+quality*.24+(support.length>=3?3:0)),54,91):0;
 
   return {
     side,candidate,qualified:!!side,strength,pPct,bPct,edge,quality,
@@ -16312,7 +16480,7 @@ function patternRecognizerSignal(){
     waitReason,patternRecognizer:true,adaptiveLiveShoe:true,version:249,tier,
     live,hist,bead,roads,sources,adapt,
     sourceReady:ready.length,sourceSupport:support.length,sourceOppose:oppose.length,
-    oneVotePerHistoricalShoe:true,oneVotePerBeadShoe:true,independentHistoryMin:4,trapMemoryVetoOnly:true,trapMemory,
+    oneVotePerHistoricalShoe:true,
     decision:recentDecisionState()
   };
 }
@@ -16326,7 +16494,7 @@ function paint(){
   const panel=document.getElementById('roadPreviewAiPanel');
   if(panel){
     const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 AI Pattern Recognizer — Live-Adaptive Consensus';
-    const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>PATTERN ENGINE V249 — LIVE-ADAPTIVE CONSENSUS.</b> Uses saved-shoe history, Bead Plate, the 3 derived roads, and the current live-shoe pattern engine. Historical and Bead evidence now get one effective vote per saved shoe. A+ prefers 3-of-4 agreement; A-tier requires saved history plus a strong second source. At least 4 independent saved shoes are required, and library trap memory may veto risky streak/chop calls but never create a prediction.';
+    const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>PATTERN ENGINE V249 — LIVE-ADAPTIVE CONSENSUS.</b> Uses saved-shoe history, Bead Plate, the 3 derived roads, and the current live-shoe pattern engine. Historical shoes get one consensus vote each. A+ prefers 3-of-4 agreement; further-loosened A-tier allows 2-source confirmation when saved history anchors the direction. TRANSITION can qualify with 2-source agreement when live flow and history agree.';
   }
   const note=document.getElementById('roadAiNote');if(note){
     const hp=r.hist||{},bp=r.bead||{},rd=r.roads||{},lv=r.live||{};
@@ -20017,7 +20185,7 @@ window.__V362_BE2_FIX__={version:VERSION,derivedRoadTouched:false,patternResumeT
 (function(){
 'use strict';
 if(window.__V365_SEGMENT_RECYCLE__) return;
-const VERSION=395;
+const VERSION=365;
 const WINDOWS=[15,12,10,8,6];
 const CACHE={key:'',value:null};
 function rawNorm(v){return String(v||'').toUpperCase().replace(/[^PBT]/g,'')}
@@ -20079,13 +20247,11 @@ function compare(a,b){
   return {score:Math.min(1,base+resumeBonus),mismatches:mis,maxBreak,suffix};
 }
 function cfg(k){
-  // V395 LIVE SELECTIVE GATE: long direct/exact evidence is allowed to lead;
-  // approximate/inverted evidence is confirmation-only and needs stronger consensus.
-  if(k>=15)return {maxMis:2,minScore:.88,exactConsensus:.66,approxConsensus:.76,minExactSide:3,minApproxSide:4,minDirectExact:1,minDirectApprox:2};
-  if(k>=12)return {maxMis:2,minScore:.89,exactConsensus:.68,approxConsensus:.78,minExactSide:3,minApproxSide:4,minDirectExact:1,minDirectApprox:2};
-  if(k>=10)return {maxMis:1,minScore:.91,exactConsensus:.72,approxConsensus:.80,minExactSide:3,minApproxSide:5,minDirectExact:1,minDirectApprox:3};
-  if(k>=8)return {maxMis:1,minScore:.925,exactConsensus:.76,approxConsensus:.83,minExactSide:3,minApproxSide:5,minDirectExact:2,minDirectApprox:3};
-  return {maxMis:0,minScore:1,exactConsensus:.82,approxConsensus:.86,minExactSide:3,minApproxSide:6,minDirectExact:2,minDirectApprox:4};
+  if(k>=15)return {maxMis:2,minScore:.84,exactConsensus:.55,approxConsensus:.66,minExactSide:2,minApproxSide:3};
+  if(k>=12)return {maxMis:2,minScore:.84,exactConsensus:.58,approxConsensus:.67,minExactSide:2,minApproxSide:3};
+  if(k>=10)return {maxMis:1,minScore:.86,exactConsensus:.60,approxConsensus:.69,minExactSide:2,minApproxSide:4};
+  if(k>=8)return {maxMis:1,minScore:.875,exactConsensus:.64,approxConsensus:.72,minExactSide:2,minApproxSide:4};
+  return {maxMis:0,minScore:1,exactConsensus:.70,approxConsensus:.76,minExactSide:2,minApproxSide:5};
 }
 function bestAtWindow(tail,liveTie,row,si,k){
   const h=row.seq,c=cfg(k);if(h.length<k+1)return null;
@@ -20131,43 +20297,25 @@ function voteCohort(cands,k){
       tier='exact+near';
     }
   }
-  const vote={P:0,B:0},support={P:new Set(),B:new Set()},directSupport={P:new Set(),B:new Set()},directExact={P:new Set(),B:new Set()};
+  const vote={P:0,B:0},support={P:new Set(),B:new Set()};
   for(const x of cohort){
-    // V395: exact + direct is the primary evidence. Approximate and inverted matches can
-    // confirm a call, but they are deliberately too weak to create a call by themselves.
+    // One saved shoe = one vote. Long exact evidence receives the most weight.
     const lengthWeight=Math.pow(k/6,3);
-    const qualityWeight=Math.pow(x.score,10);
-    const modeWeight=x.mode==='direct'?1:(x.exact?.48:.28);
-    const exactWeight=x.exact?(x.mode==='direct'?3.2:1.15):.72;
-    const resumeWeight=(!x.exact&&x.mode==='direct'&&x.suffix>=5&&x.mismatches>0)?1.05:1;
-    const tieWeight=x.tieActive?(0.86+0.28*x.tieScore):1;
-    const afterTieWeight=(x.liveTrailingTies>0&&x.histTrailingTies>0)?1.08:1;
-    const w=lengthWeight*qualityWeight*modeWeight*exactWeight*resumeWeight*tieWeight*afterTieWeight;
+    const qualityWeight=Math.pow(x.score,8);
+    const exactWeight=x.exact?2.2:1;
+    const resumeWeight=(!x.exact&&x.suffix>=4&&x.mismatches>0)?1.12:1;
+    const tieWeight=x.tieActive?(0.82+0.36*x.tieScore):1;
+    const afterTieWeight=(x.liveTrailingTies>0&&x.histTrailingTies>0)?1.10:1;
+    const w=lengthWeight*qualityWeight*exactWeight*resumeWeight*tieWeight*afterTieWeight;
     vote[x.next]+=w;support[x.next].add(x.si);x.w=w;
-    if(x.mode==='direct')directSupport[x.next].add(x.si);
-    if(x.mode==='direct'&&x.exact)directExact[x.next].add(x.si);
   }
   const total=vote.P+vote.B;if(!total)return null;
   const side=vote.P>=vote.B?'P':'B',consensus=100*vote[side]/total;
   const supportShoes=support[side].size,oppSupport=support[side==='P'?'B':'P'].size;
-  const directShoes=directSupport[side].size,directExactShoes=directExact[side].size;
   const minSide=tier==='exact'?c.minExactSide:c.minApproxSide;
   const minConsensus=100*(tier==='exact'?c.exactConsensus:c.approxConsensus);
-  const minDirect=tier==='exact'?c.minDirectExact:c.minDirectApprox;
-  const primaryOK=directShoes>=minDirect && (tier!=='exact'||directExactShoes>=1);
-  const qualified=supportShoes>=minSide&&consensus>=minConsensus&&primaryOK;
-  return {side,consensus,supportShoes,oppSupport,directShoes,directExactShoes,qualified,tier,cohort,minConsensus,minSide,minDirect,primaryOK};
-}
-function liveGuard(){
-  try{
-    const x=JSON.parse(localStorage.getItem('v379-memory-accuracy')||'{}')?.recycle||{};
-    const recent=Array.isArray(x.recent)?x.recent.slice(-12):[];
-    if(recent.length<6)return {level:0,n:recent.length,rate:null,extraConsensus:0,extraSupport:0,minWindow:0,hard:false};
-    const wins=recent.filter(v=>v===1||v==='W').length,rate=wins/recent.length;
-    if(rate<.45)return {level:2,n:recent.length,rate,extraConsensus:10,extraSupport:1,minWindow:12,hard:true};
-    if(rate<.55)return {level:1,n:recent.length,rate,extraConsensus:6,extraSupport:1,minWindow:10,hard:false};
-    return {level:0,n:recent.length,rate,extraConsensus:0,extraSupport:0,minWindow:0,hard:false};
-  }catch(e){return {level:0,n:0,rate:null,extraConsensus:0,extraSupport:0,minWindow:0,hard:false}}
+  const qualified=supportShoes>=minSide&&consensus>=minConsensus;
+  return {side,consensus,supportShoes,oppSupport,qualified,tier,cohort,minConsensus,minSide};
 }
 function scan(input,libArg){
   const raw=rawNorm(input||seqRaw()),live=pb(raw),lib=Array.isArray(libArg)?libArg:rows(),livePos=pbRawPositions(raw);
@@ -20186,18 +20334,12 @@ function scan(input,libArg){
     const exactN=voted.cohort.filter(x=>x.exact).length;
     const afterTie=raw.endsWith('T'),tieAwareN=voted.cohort.filter(x=>x.tieActive).length;
     const avgTie=tieAwareN?voted.cohort.filter(x=>x.tieActive).reduce((s,x)=>s+(x.tieScore||0),0)/tieAwareN:0;
-    const guard=liveGuard();
-    const needConsensus=voted.minConsensus+guard.extraConsensus,needSupport=voted.minSide+guard.extraSupport;
-    let liveQualified=voted.qualified&&voted.consensus>=needConsensus&&voted.supportShoes>=needSupport&&k>=guard.minWindow;
-    // On a poor recent live run, only long exact/direct evidence can reopen the gate.
-    if(guard.hard)liveQualified=liveQualified&&k>=12&&voted.tier==='exact'&&voted.directExactShoes>=2&&voted.directShoes>=2&&voted.consensus>=Math.max(80,needConsensus);
     const confidence=Math.min(92,Math.max(50,50+(voted.consensus-50)*.62+Math.min(10,voted.supportShoes)*1.15+Math.max(0,k-6)*.8+(voted.tier==='exact'?4:0)+(afterTie&&avgTie>=.7?2:0)));
-    const r={side:liveQualified?voted.side:null,rawSide:voted.side,qualified:liveQualified,baseQualified:voted.qualified,veryStrong:liveQualified&&k>=12&&voted.consensus>=78&&voted.supportShoes>=3&&voted.directShoes>=2,confidence:+confidence.toFixed(1),consensus:+voted.consensus.toFixed(1),supportShoes:voted.supportShoes,oppSupport:voted.oppSupport,directShoes:voted.directShoes,directExactShoes:voted.directExactShoes,bestWindow:k,bestSimilarity,matches:voted.cohort.length,direct,inverted,exactMatches:exactN,tieAwareMatches:tieAwareN,tieSimilarity:+(avgTie*100).toFixed(0),afterTie,tier:voted.tier,liveN:live.length,libraryShoes:lib.length,liveGuard:guard,top:voted.cohort.sort((a,b)=>(b.w||0)-(a.w||0)).slice(0,12)};
+    const r={side:voted.qualified?voted.side:null,rawSide:voted.side,qualified:voted.qualified,veryStrong:voted.qualified&&k>=12&&voted.consensus>=72&&voted.supportShoes>=3,confidence:+confidence.toFixed(1),consensus:+voted.consensus.toFixed(1),supportShoes:voted.supportShoes,oppSupport:voted.oppSupport,bestWindow:k,bestSimilarity,matches:voted.cohort.length,direct,inverted,exactMatches:exactN,tieAwareMatches:tieAwareN,tieSimilarity:+(avgTie*100).toFixed(0),afterTie,tier:voted.tier,liveN:live.length,libraryShoes:lib.length,top:voted.cohort.sort((a,b)=>(b.w||0)-(a.w||0)).slice(0,12)};
     const tieText=afterTie?` • after-tie context ${r.tieSimilarity}%`:'';
-    const guardText=guard.level?` • live guard L${guard.level}${guard.rate!=null?` ${(guard.rate*100).toFixed(0)}% recent`:''}`:'';
-    r.reason=liveQualified?`Selective recycle match: ${k}-hand ${voted.tier} tier • ${voted.supportShoes} shoes (${voted.directShoes} direct) support ${voted.side} • ${voted.consensus.toFixed(0)}% consensus${tieText}${guardText}.`:`WAIT at strongest ${k}-hand tier: ${voted.supportShoes}/${needSupport} support • ${voted.directShoes}/${voted.minDirect} direct • ${voted.consensus.toFixed(0)}%/${needConsensus.toFixed(0)}% consensus${tieText}${guardText}.`;
+    r.reason=voted.qualified?`Hierarchical recycle match: ${k}-hand ${voted.tier} tier • ${voted.supportShoes} saved shoes support ${voted.side} next • ${voted.consensus.toFixed(0)}% weighted consensus${tieText}.`:`WAIT at strongest ${k}-hand tier: ${voted.supportShoes}/${voted.minSide} supporting shoes • ${voted.consensus.toFixed(0)}%/${voted.minConsensus.toFixed(0)}% needed${tieText}.`;
     // If the strongest tier has real evidence but conflicts, WAIT instead of falling down to noisy short windows.
-    if(liveQualified)return r;
+    if(voted.qualified)return r;
     if(!fallback)fallback=r;
     if(k>=10&&(voted.cohort.length>=2||exactN>=1))return r;
   }
@@ -20250,8 +20392,149 @@ document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#und
 <script id="v365-tie-aware-library-fix-marker">
 window.__V365_LIBRARY_FIX__={version:365,source:'V364 171-shoe build',tieAwareRecycle:true,cacheUsesLibraryFingerprint:true,mirrorUsesActiveLibraryLabel:true,v155ValidationDatasetRelabeled:true,derivedRoadTouched:false,patternResumeTouched:false,sequenceV2Touched:false};
 </script>
+<script id="v369-shared-historical-memory-brain">
+(function(){
+'use strict';
+if(window.__V369_SHARED_MEMORY__)return;
+const VERSION=370;
+function normSide(v){v=String(v||'').toUpperCase();return v==='P'||v.includes('PLAYER')?'P':v==='B'||v.includes('BANKER')?'B':null}
+function pbN(){try{return currentSequence().filter(x=>{const r=String((x&&x.r)||x||'').toUpperCase();return r==='P'||r==='B'||r==='PLAYER'||r==='BANKER'}).length}catch(e){return 0}}
+function segment(){try{return window.__V365_SEGMENT_RECYCLE__?.signal?.()||window.__V365_SEGMENT_RECYCLE_LAST__||null}catch(e){return null}}
+function exactContext(){try{return window.__SHARED_SHOE_CONTEXT__||null}catch(e){return null}}
+function rawLive(){try{return currentSequence().map(x=>String((x&&x.r)||x||'').toUpperCase().replace(/PLAYER/g,'P').replace(/BANKER/g,'B').replace(/TIE/g,'T')).join('').replace(/[^PBT]/g,'')}catch(e){return ''}}
+function uniqueMemoryRows(){
+  let a=[];try{a=typeof activePatternLibrary==='function'?activePatternLibrary():[]}catch(e){}
+  if(!Array.isArray(a)||!a.length){try{a=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])]}catch(e){a=[]}}
+  const seen=new Set(),out=[];
+  for(const x of a||[]){let q=String(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||'')).toUpperCase().replace(/PLAYER/g,'P').replace(/BANKER/g,'B').replace(/TIE/g,'T').replace(/[^PBT]/g,'');if(q.length<8||seen.has(q))continue;seen.add(q);out.push(q)}
+  return out;
+}
+function exactPrefix(){
+  const live=rawLive(),pbN=live.replace(/T/g,'').length;if(pbN<8||!live)return null;
+  const vote={P:0,B:0},rows=uniqueMemoryRows();let candidates=0;
+  for(const q of rows){if(!q.startsWith(live)||q.length<=live.length)continue;const rest=q.slice(live.length),next=(rest.match(/[PB]/)||[])[0];if(next==='P'||next==='B'){vote[next]++;candidates++}}
+  if(!candidates)return null;const side=vote.P>=vote.B?'P':'B',consensus=vote[side]/candidates;
+  if(consensus<.60)return null;
+  return {side,consensus,candidates,pbN};
+}
+function memory(){
+  const s=segment()||{},c=exactContext()||{},px=exactPrefix();
+  let side=null,score=0,source='NONE',detail='',qualified=false,priority='NONE';
+  // V370: an exact beginning-to-current saved-shoe continuation outranks all fuzzy/segment voting.
+  if(px){side=px.side;score=Math.min(99,Math.max(70,px.consensus*100));source='PREFIX';qualified=true;priority='ELITE';detail=`exact saved-shoe prefix ${px.pbN} hands • ${px.candidates} candidate${px.candidates===1?'':'s'} • ${Math.round(px.consensus*100)}% next-side consensus`;}
+  // Long hierarchical segment evidence remains the fallback when no exact prefix survives.
+  if(!qualified&&s.qualified&&(s.side==='P'||s.side==='B')){
+    side=s.side; score=Math.max(50,Number(s.confidence)||50); source='SEGMENT'; qualified=true;
+    if((s.bestWindow||0)>=12 && ((s.exactMatches||0)>=2 || s.veryStrong)) priority='ELITE';
+    else if((s.bestWindow||0)>=10 && (s.consensus||0)>=68) priority='STRONG';
+    else priority='MODERATE';
+    detail=`${s.bestWindow||0}-hand ${s.tier||'near'} • ${Math.round(s.consensus||0)}% consensus • ${s.supportShoes||0} shoes`;
+  }
+  // Exact/follow matcher can outrank segment evidence only when it is genuinely elite.
+  if(source!=='PREFIX' && c.ready && !c.eliteConflict && (c.nextSide==='P'||c.nextSide==='B') && Number(c.bestScore)>=.95){
+    const exactScore=Math.min(96,Math.max(72,Number(c.nextPct)||72));
+    if(!qualified || exactScore>=score || priority!=='ELITE'){
+      side=c.nextSide; score=exactScore; source='EXACT'; qualified=true; priority='ELITE';
+      detail=`95%+ saved-shoe alignment • next ${c.nextSide} ${Number(c.nextPct)||0}%`;
+    }
+  }
+  const conflict=!!(c.ready&&c.eliteConflict);
+  if(conflict){side=null;qualified=false;priority='CONFLICT';source='EXACT';detail='Elite saved-shoe continuations disagree';}
+  return {side,score:+score.toFixed(1),source,qualified,priority,detail,segment:s,context:c,handN:pbN(),version:VERSION};
+}
+function apply(name,z,opt={}){
+  if(!z||typeof z!=='object')return z;
+  const m=memory();z.sharedHistoricalMemory=m;
+  const native=normSide(z.side);z.sharedMemoryAgreement=native&&m.qualified?(native===m.side?'AGREE':'CONFLICT'):'NEUTRAL';
+  if(!m.qualified)return z;
+  // Existing calls are not silently reversed. Strong memory confirms them or marks conflict.
+  if(native){
+    if(native===m.side && Number.isFinite(Number(z.strength))){
+      const boost=m.priority==='ELITE'?8:m.priority==='STRONG'?5:3;
+      z.strength=Math.min(99,Number(z.strength)+boost);z.sharedMemoryBoost=boost;
+    }else if(native!==m.side && Number.isFinite(Number(z.strength))){
+      const cut=m.priority==='ELITE'?8:m.priority==='STRONG'?5:2;
+      z.strength=Math.max(0,Number(z.strength)-cut);z.sharedMemoryConflictPenalty=cut;
+    }
+    return z;
+  }
+  // A WAIT may be rescued only by high-quality long-memory evidence. This is the key
+  // architectural change: saved shoes can now create a qualified historical continuation
+  // without needing unrelated weak/fuzzy sources to vote the same way.
+  const canRescue=(m.priority==='ELITE') || (m.priority==='STRONG' && (m.segment?.supportShoes||0)>=3);
+  if(canRescue && opt.rescue!==false){
+    z.side=m.side;z.qualified=true;z.strength=Math.max(Number(z.strength)||0,Math.min(92,m.score));
+    z.sharedMemoryRescue=true;z.waitReason='';z.gateReason='';z.reason=`Shared historical memory: ${m.detail}`;
+  }
+  return z;
+}
+function wrapFn(name,opt){
+  try{
+    const old=window[name];if(typeof old!=='function'||old.__v369Memory)return;
+    const w=function(){return apply(name,old.apply(this,arguments),opt||{})};
+    w.__v369Memory=true;w.__original=old;window[name]=w;try{eval(`${name}=window[name]`)}catch(e){}
+  }catch(e){console.warn('V369 wrap',name,e)}
+}
+function installSignals(){
+  [
+    ['sequenceAISignal',{rescue:true}],['patternRecognizerSignal',{rescue:true}],['roadPreviewAISignal',{rescue:true}],
+    ['roadPreviewSignal',{rescue:true}],['derivedRoadSignal',{rescue:true}],['adaptiveDerivedSignal',{rescue:true}],
+    ['walkForwardSignal',{rescue:true}],['highPoweredBotSignal',{rescue:true}],['librarySignal',{rescue:true}],
+    ['historyPatternSignal',{rescue:true}],['colorPatternAISignal',{rescue:true}],['mainRoadFutureTest',{rescue:true}]
+  ].forEach(x=>wrapFn(x[0],x[1]));
+}
+function wrapCombined(){
+  const old=window.computeCombinedAnalyzer;if(typeof old!=='function'||old.__v369Memory)return;
+  const w=function(){
+    const z=old.apply(this,arguments)||{},m=memory();z.sharedHistoricalMemory=m;
+    const native=normSide(z.side);
+    if(!m.qualified)return z;
+    if(native===m.side){const b=m.priority==='ELITE'?7:m.priority==='STRONG'?4:2;z.top=Math.min(99,(Number(z.top)||50)+b);z.sharedMemoryBoost=b;}
+    else if(!z.qualified && (m.priority==='ELITE'||(m.priority==='STRONG'&&(m.segment?.supportShoes||0)>=3))){
+      z.side=m.side;z.qualified=true;z.top=Math.max(Number(z.top)||50,Math.min(92,m.score));z.gateReason='';z.sharedMemoryRescue=true;
+      if(Number.isFinite(Number(z.pPct))&&Number.isFinite(Number(z.bPct))){if(m.side==='P'){z.pPct=Math.round(z.top);z.bPct=100-z.pPct}else{z.bPct=Math.round(z.top);z.pPct=100-z.bPct}}
+    }else if(native&&native!==m.side){z.sharedMemoryAgreement='CONFLICT';}
+    return z;
+  };
+  w.__v369Memory=true;w.__original=old;window.computeCombinedAnalyzer=w;try{computeCombinedAnalyzer=w}catch(e){}
+}
+function wrapBE2(){
+  const api=window.__V332_BEST_ESTIMATE_2__;if(!api||typeof api.decide!=='function'||api.__v369Memory)return;
+  const old=api.decide.bind(api);
+  api.decide=function(){
+    const z=old.apply(this,arguments)||{},m=memory();z.sharedHistoricalMemory=m;
+    const native=normSide(z.side);
+    if(!m.qualified)return z;
+    if(native){z.sharedMemoryAgreement=native===m.side?'AGREE':'CONFLICT';if(native===m.side)z.confidence=Math.min(99,(Number(z.confidence)||50)+(m.priority==='ELITE'?7:4));return z;}
+    if(m.priority==='ELITE'||(m.priority==='STRONG'&&(m.segment?.supportShoes||0)>=3)){
+      return Object.assign({},z,{side:m.side,qualified:true,confidence:Math.min(92,m.score),mode:'MEMORY-ASSIST',reason:`Shared historical memory: ${m.detail}`,sharedMemoryRescue:true,sharedHistoricalMemory:m});
+    }
+    return z;
+  };
+  api.__v369Memory=true;
+}
+function ensurePanel(){
+  let d=document.getElementById('v369MemoryPanel');if(d)return d;
+  const anchor=document.getElementById('v365SegmentRecyclePanel')||document.querySelector('.analyzer');if(!anchor?.parentNode)return null;
+  d=document.createElement('div');d.className='analyzer';d.id='v369MemoryPanel';d.innerHTML=`<div class="analyzer-title">Shared Historical Memory Brain — V370</div><div class="analyzer-sub">One ranked library-memory layer for every library-aware AI. Exact beginning-to-current saved-shoe continuations now have first priority; long exact/near-exact segments remain the fallback. Exact duplicates receive one vote. Ties, inverted segments, offsets and short break/resume patterns are preserved.</div><div class="analyzer-grid"><div class="analyzer-card"><span>Memory next</span><strong id="v369MemSide">WAIT</strong></div><div class="analyzer-card"><span>Priority</span><strong id="v369MemPriority">—</strong></div><div class="analyzer-card"><span>Confidence</span><strong id="v369MemConf">—</strong></div><div class="analyzer-card"><span>Evidence</span><strong id="v369MemEvidence">—</strong></div></div><div class="analyzer-sub" id="v369MemNote" style="margin-top:7px">Waiting for saved-shoe evidence.</div>`;
+  anchor.parentNode.insertBefore(d,anchor.nextSibling);return d;
+}
+function paint(){
+  ensurePanel();const m=memory(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  set('v369MemSide',m.qualified?(m.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v369MemPriority',m.priority||'NONE');set('v369MemConf',m.qualified?`${Math.round(m.score)}%`:'—');
+  set('v369MemEvidence',m.source||'NONE');set('v369MemNote',m.qualified?`${m.detail}. This same ranked memory is available to all library-aware AI calls.`:(m.detail||'No qualified historical continuation yet.'));
+}
+function install(){installSignals();wrapCombined();wrapBE2();ensurePanel();paint();window.__V369_SHARED_MEMORY__={version:VERSION,memory,apply,paint,allLibraryAwareAIs:true,duplicatesOneVote:true,exactPrefixPriority:true,longMatchesPriority:true,tieAware:true,invertedAware:true,breakResumeAware:true};}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{[120,900,2200].forEach(ms=>setTimeout(install,ms))},{once:true});else[120,900,2200].forEach(ms=>setTimeout(install,ms));
+document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#redShoeBtn,#blackShoeBtn'))setTimeout(()=>{installSignals();wrapCombined();wrapBE2();paint()},260)},false);
+})();
+</script>
+<script id="v370-build-marker">window.__V370_BUILD__={version:370,base:'V369 shared-memory build',sharedHistoricalMemory:true,exactPrefixPriority:true,allLibraryAwareAIs:true,coreSideReversal:false,waitRescueRequiresStrongMemory:true};</script>
+
+
+
 <!-- V371 LIVE MEMORY REFRESH FIX (2026-09-30)
-     Refreshes Shared Hierarchical Partial-Shoe Recycle Engine after live results
+     Fixes Shared Hierarchical Partial-Shoe Recycle Engine and Shared Historical Memory Brain
      becoming visually stale after a live result. Prediction thresholds/logic are unchanged.
      Adds authoritative recompute/repaint after every committed P/B/T hand, preview commit,
      Undo, New Shoe, Demo, color/mode change, and any detected hand-history change. -->
@@ -20271,6 +20554,7 @@ function liveKey(){
 }
 function repaint(reason){
   try{window.__V365_SEGMENT_RECYCLE__?.paint?.()}catch(e){console.warn('V371 recycle repaint',e)}
+  try{window.__V369_SHARED_MEMORY__?.paint?.()}catch(e){console.warn('V371 memory repaint',e)}
   lastKey=liveKey();
   try{window.__V371_LIVE_MEMORY_REFRESH_FIX__.lastReason=reason||'refresh';window.__V371_LIVE_MEMORY_REFRESH_FIX__.lastKey=lastKey;window.__V371_LIVE_MEMORY_REFRESH_FIX__.lastAt=Date.now()}catch(e){}
 }
@@ -20303,7 +20587,7 @@ function install(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 </script>
-<script id="v371-build-marker">window.__V371_BUILD__={version:371,base:'Recycle refresh compatibility',liveMemoryRefreshFix:true,recycleLogicChanged:false,historicalMemoryRemoved:true};</script>
+<script id="v371-build-marker">window.__V371_BUILD__={version:371,base:'V370 shared-memory build',liveMemoryRefreshFix:true,recycleLogicChanged:false,sharedMemoryLogicChanged:false};</script>
 
 
 
@@ -20619,7 +20903,7 @@ window.__V377_BE2_CORE_ACCURACY_FIX__={version:377,preCommitSettlement:true,post
 (function(){
 'use strict';
 const SCORE_KEY='bead-history-ai-v379-accuracy';
-const CFG={minPB:6,conf:0.58,edge:0.05,minSupport:2,windows:[16,14,12,10,8,7,6,5,4],rhythmWindows:[12,10,8,7,6,5,4],tieWindows:[12,10,8,6,5,4],baseWeights:{bead:0.70,roads:0.22,main:0.08}};
+const CFG={minPB:6,conf:0.55,edge:0.05,minSupport:2,windows:[16,14,12,10,8,7,6,5,4],rhythmWindows:[12,10,8,7,6,5,4],tieWindows:[12,10,8,6,5,4],baseWeights:{bead:0.70,roads:0.22,main:0.08}};
 const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
 const pb=s=>clean(s).replace(/T/g,'');
 const inv=s=>String(s||'').replace(/[PB]/g,c=>c==='P'?'B':'P');
@@ -20676,73 +20960,6 @@ function uniqueLibrary(force=false){
   const out=[],seen=new Set();for(const x of raw){const q=seqOf(x);if(!q||seen.has(q))continue;seen.add(q);out.push({sequence:q,pb:pb(q),rhythm:rhythm(q),shape:runShape(q),_roadPrefixCache:new Map()});}
   libCache={sig,rawCount:raw.length,unique:out};predictionCache.key=null;return out;
 }
-
-let trapMemoryCache={sig:null,full:new Map(),coarse:new Map(),contexts:0};
-function trailingSwitchCount(s){const r=rhythm(s);let n=0;for(let i=r.length-1;i>=0&&r[i]==='S';i--)n++;return n;}
-function tieDistance(raw){
-  raw=clean(raw);let n=0;
-  for(let i=raw.length-1;i>=0;i--){
-    if(raw[i]==='T')return n;
-    if(raw[i]==='P'||raw[i]==='B')n++;
-  }
-  return 99;
-}
-function trapContext(raw){
-  raw=clean(raw);const p=pb(raw);if(p.length<2)return null;
-  const rr=runs(p),runN=rr.length?Math.min(5,Number(rr[rr.length-1].slice(1))||1):1;
-  const sw=Math.min(5,trailingSwitchCount(p));
-  const rt=rhythm(p).slice(-6);
-  const td=tieDistance(raw),tb=td===0?'0':td===1?'1':td===2?'2':td<=4?'3-4':'5+';
-  const ph=p.length<18?'EARLY':p.length<36?'MID':'LATE';
-  return {
-    full:`${ph}|R${runN}|S${sw}|RT${rt}|T${tb}`,
-    coarse:`${ph}|R${runN}|S${sw}|T${tb}`,
-    runN,sw,rt,tieBucket:tb,phase:ph,current:p[p.length-1]
-  };
-}
-function addTrapVote(map,key,action){
-  let x=map.get(key);if(!x){x={r:0,s:0,support:0};map.set(key,x);}
-  if(action==='R')x.r++;else x.s++;x.support++;
-}
-function buildTrapMemory(lib){
-  if(trapMemoryCache.sig===libCache.sig)return trapMemoryCache;
-  const full=new Map(),coarse=new Map();let contexts=0;
-  for(const sh of lib){
-    const perFull=new Map(),perCoarse=new Map(),raw=clean(sh.sequence);
-    let pbSeen=0;
-    for(let i=0;i<raw.length;i++){
-      if(raw[i]!=='P'&&raw[i]!=='B')continue;
-      pbSeen++;if(pbSeen<6)continue;
-      let j=i+1;while(j<raw.length&&raw[j]==='T')j++;
-      if(j>=raw.length||!(raw[j]==='P'||raw[j]==='B'))continue;
-      const ctx=trapContext(raw.slice(0,i+1));if(!ctx)continue;
-      const action=raw[j]===raw[i]?'R':'S';
-      for(const [m,k] of [[perFull,ctx.full],[perCoarse,ctx.coarse]]){
-        let z=m.get(k);if(!z){z={r:0,s:0};m.set(k,z);}z[action.toLowerCase()]++;
-      }
-    }
-    for(const [k,z] of perFull){if(z.r===z.s)continue;addTrapVote(full,k,z.r>z.s?'R':'S');contexts++;}
-    for(const [k,z] of perCoarse){if(z.r===z.s)continue;addTrapVote(coarse,k,z.r>z.s?'R':'S');}
-  }
-  trapMemoryCache={sig:libCache.sig,full,coarse,contexts};return trapMemoryCache;
-}
-function trapMemoryLookup(raw,lib){
-  const ctx=trapContext(raw);if(!ctx)return {qualified:false,ctx:null};
-  const mem=buildTrapMemory(lib),cands=[];
-  const add=(kind,x,minSupport,minConf)=>{
-    if(!x||x.support<minSupport)return;
-    const total=x.r+x.s,conf=total?Math.max(x.r,x.s)/total:.5;
-    if(conf<minConf)return;
-    cands.push({kind,action:x.r>x.s?'R':'S',conf,support:x.support,r:x.r,s:x.s});
-  };
-  add('full',mem.full.get(ctx.full),6,.68);
-  add('coarse',mem.coarse.get(ctx.coarse),10,.72);
-  if(!cands.length)return {qualified:false,ctx,contexts:mem.contexts};
-  cands.sort((a,b)=>(b.conf+Math.min(12,b.support)*.008)-(a.conf+Math.min(12,a.support)*.008));
-  const best=cands[0],side=best.action==='R'?ctx.current:inv(ctx.current);
-  return {...best,side,qualified:true,ctx,contexts:mem.contexts};
-}
-
 function liveSequence(){try{return (Array.isArray(state?.hands)?state.hands:[]).map(h=>String(typeof h==='string'?h:(h?.r||h?.result||''))).join('');}catch(e){return '';}}
 const predictionCache={key:null,value:null};
 function invalidate(){predictionCache.key=null;}
@@ -20751,9 +20968,8 @@ function predict(seq){
   const cacheKey=`${libCache.sig}|${live}`;if(predictionCache.key===cacheKey&&predictionCache.value)return predictionCache.value;
   let result;
   if(lp.length<CFG.minPB){result={side:null,reason:`Need ${CFG.minPB-lp.length} more P/B result${CFG.minPB-lp.length===1?'':'s'}.`,stored:libCache.rawCount,library:lib.length};predictionCache.key=cacheKey;predictionCache.value=result;return result;}
-  const lt=rhythm(lp),cur=lp[lp.length-1],best=new Map(),behaviorBest=new Map(),liveRoads=buildLiveRoads(live);
+  const lt=rhythm(lp),cur=lp[lp.length-1],best=new Map(),liveRoads=buildLiveRoads(live);
   const add=(i,w,v,k,n,pbCount)=>{if(v!=='P'&&v!=='B')return;const old=best.get(i);if(!old||w>old.w)best.set(i,{w,v,k,n,pbCount:Number.isFinite(pbCount)?pbCount:null});};
-  const addBehavior=(i,w,v,k)=>{if(v!=='P'&&v!=='B')return;const old=behaviorBest.get(i);if(!old||w>old.w)behaviorBest.set(i,{w,v,k});};
   lib.forEach((sh,i)=>{
     const spbt=sh.sequence,sp=sh.pb,st=sh.rhythm;
     if(spbt.startsWith(live)&&spbt.length>live.length){let j=live.length;while(j<spbt.length&&spbt[j]==='T')j++;if(j<spbt.length)add(i,10+Math.min(lp.length,24)*0.16,spbt[j],'full-prefix',lp.length,lp.length);}
@@ -20764,16 +20980,12 @@ function predict(seq){
       while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0),sp[j],'suffix',n,j);pos=sp.indexOf(pat,pos+1);}
       const ip=inv(pat);pos=sp.indexOf(ip);while(pos!==-1){const j=pos+n;if(j<sp.length)add(i,1.2+n*0.34+(Math.abs(j-lp.length)<=8?0.5:0)-0.35,inv(sp[j]),'inverted',n,j);pos=sp.indexOf(ip,pos+1);}
     }
-    for(const n of CFG.rhythmWindows){if(lt.length<n||st.length<=n)continue;const pat=lt.slice(-n);let pos=st.indexOf(pat);while(pos!==-1){const j=pos+n;if(j<st.length){const v=st[j]==='R'?cur:inv(cur);addBehavior(i,.55+n*.10,v,'rhythm');}pos=st.indexOf(pat,pos+1);}}
-    const lr=runs(lp),sr=runs(sp);for(const k of [6,5,4,3]){if(lr.length<k||sr.length<=k)continue;const sig=lr.slice(-k).map(x=>x.slice(1)).join('-');for(let j=k;j<sr.length;j++){const ss=sr.slice(j-k,j).map(x=>x.slice(1)).join('-');if(ss!==sig)continue;const prev=sr[j-1][0],next=sr[j][0],v=next===prev?cur:inv(cur);addBehavior(i,.65+k*.12,v,'run-behavior');}};
+    for(const n of CFG.rhythmWindows){if(lt.length<n||st.length<=n)continue;const pat=lt.slice(-n);let pos=st.indexOf(pat);while(pos!==-1){const j=pos+n;if(j<st.length){const v=st[j]==='R'?cur:inv(cur);add(i,1+n*0.30,v,'rhythm',n,j+1);}pos=st.indexOf(pat,pos+1);}}
+    const lr=runs(lp),sr=runs(sp);for(const k of [6,5,4,3]){if(lr.length<k||sr.length<=k)continue;const sig=lr.slice(-k).map(x=>x.slice(1)).join('-');for(let j=k;j<sr.length;j++){const ss=sr.slice(j-k,j).map(x=>x.slice(1)).join('-');if(ss!==sig)continue;const prev=sr[j-1][0],next=sr[j][0],v=next===prev?cur:inv(cur);add(i,1.8+k*0.55,v,'run-behavior',k,j);}};
   });
-  if(!best.size){result={side:null,evidence:0,library:lib.length,stored:libCache.rawCount,reason:'WAIT • no saved Bead Plate continuation match.'};predictionCache.key=cacheKey;predictionCache.value=result;return result;}
-  let behaviorP=0,behaviorB=0,behaviorPN=0,behaviorBN=0;
-  for(const x of behaviorBest.values()){if(x.v==='P'){behaviorP+=x.w;behaviorPN++;}else{behaviorB+=x.w;behaviorBN++;}}
-  const behaviorZ=behaviorP+behaviorB,behaviorSide=behaviorP>behaviorB?'P':behaviorB>behaviorP?'B':null,behaviorConf=behaviorZ?Math.max(behaviorP,behaviorB)/behaviorZ:.5;
-  let pW=0,bW=0,pN=0,bN=0,rp=0,rb=0,rN=0,exactP=0,exactB=0;const kinds={};
-  for(const [i,x] of best){let w=x.w;const bx=behaviorBest.get(i);if(bx){if(bx.v===x.v)w*=1.04;else w*=.92;}const sh=lib[i];if(sh&&Number.isFinite(x.pbCount)){const rs=roadStateAt(liveRoads,sh,x.pbCount);x.roadState=rs;if(rs.all3)w*=1.34;else if(rs.matched===2)w*=1.16;else if(rs.matched===1)w*=1.06;if(rs.matched>=2){const rw=(rs.all3?1.35:0.75)*(0.7+Math.min(1,rs.total/24));if(x.v==='P')rp+=rw;else rb+=rw;rN++;}}
-    if(x.v==='P'){pW+=w;pN++;}else{bW+=w;bN++;}if(x.k==='full-prefix'||x.k==='pb-prefix'){if(x.v==='P')exactP++;else exactB++;}kinds[x.k]=(kinds[x.k]||0)+1;}
+  let pW=0,bW=0,pN=0,bN=0,rp=0,rb=0,rN=0;const kinds={};
+  for(const [i,x] of best){let w=x.w;const sh=lib[i];if(sh&&Number.isFinite(x.pbCount)){const rs=roadStateAt(liveRoads,sh,x.pbCount);x.roadState=rs;if(rs.all3)w*=1.34;else if(rs.matched===2)w*=1.16;else if(rs.matched===1)w*=1.06;if(rs.matched>=2){const rw=(rs.all3?1.35:0.75)*(0.7+Math.min(1,rs.total/24));if(x.v==='P')rp+=rw;else rb+=rw;rN++;}}
+    if(x.v==='P'){pW+=w;pN++;}else{bW+=w;bN++;}kinds[x.k]=(kinds[x.k]||0)+1;}
   const beadTotal=pW+bW;
   if(!beadTotal||pW===bW){result={side:null,evidence:best.size,library:lib.length,stored:libCache.rawCount,reason:'Saved-history evidence is tied.'};predictionCache.key=cacheKey;predictionCache.value=result;return result;}
   const beadP=pW/beadTotal,beadB=bW/beadTotal,roadZ=rp+rb,road={p:rp,b:rb,total:roadZ,side:rp>rb?'P':rb>rp?'B':null,conf:roadZ?Math.max(rp,rb)/roadZ:.5,evidence:rN};
@@ -20787,23 +20999,8 @@ function predict(seq){
   const finalSide=(strongBead&&side!==beadSide)?beadSide:side,finalConf=(finalSide===side?conf:Math.max(beadP,beadB));
   const roadConfirmed=road.side===beadSide&&road.evidence>=2,allRoadState=[...best.values()].some(x=>x.roadState?.all3);
   const localGate=allRoadState?Math.max(.535,CFG.conf-.015):CFG.conf;
-  const finalSupport=finalSide==='P'?pN:bN,exactSupport=finalSide==='P'?exactP:exactB,histConf=Math.max(beadP,beadB);
-  const liveRuns=runs(lp),runLen=liveRuns.length?Number(liveRuns[liveRuns.length-1].slice(1))||0:0;
-  let trailingSwitches=0;for(let i=lt.length-1;i>=0&&lt[i]==='S';i--)trailingSwitches++;
-  const trapMemory=trapMemoryLookup(live,lib);
-  const recentTie=tieDistance(live)<=1;
-  let trapGate='';
-  if(finalConf>=localGate&&edge>=CFG.edge&&finalSupport>=CFG.minSupport){
-    // Preserve the V397 trap guard first. Library trap memory is veto-only:
-    // it may stop a risky call, but it can never rescue or create one.
-    if(behaviorSide&&behaviorBest.size>=4&&behaviorConf>=.62&&behaviorSide!==finalSide&&exactSupport<2)trapGate='behavior conflict';
-    else if(runLen>=3&&finalSide!==cur&&(histConf<.64||finalSupport<3))trapGate='weak streak-break evidence';
-    else if(trailingSwitches>=3&&finalConf<.64)trapGate='mature chop requires 64% confidence';
-    else if(trapMemory.qualified&&trapMemory.side!==finalSide&&trapMemory.conf>=.70&&trapMemory.support>=6&&!(exactSupport>=2&&histConf>=.74))trapGate=`library trap-memory veto ${Math.round(trapMemory.conf*100)}%/${trapMemory.support}`;
-    else if(recentTie&&trapMemory.qualified&&trapMemory.side!==finalSide&&trapMemory.conf>=.70&&trapMemory.support>=6&&exactSupport<2)trapGate='after-tie trap-memory veto';
-  }
-  if(finalConf<localGate||edge<CFG.edge||finalSupport<CFG.minSupport||trapGate)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,behaviorSide,behaviorConf,trapMemory,trapGate,reason:`WAIT • bead ${beadSide} ${Math.round(histConf*100)}% • support P ${pN} / B ${bN}${trapGate?' • trap guard: '+trapGate:''}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
-  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,behaviorSide,behaviorConf,trapMemory,trapGuard:true,trapMemoryLearned:true,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • saved Bead history leads • library trap memory vetoes strong historical trap conflicts • run/chop confirmation only${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
+  if(finalConf<localGate||edge<CFG.edge||support<CFG.minSupport)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,reason:`WAIT • bead ${beadSide} ${Math.round(Math.max(beadP,beadB)*100)}% • support P ${pN} / B ${bN}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
+  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • adaptive bead-dominant history${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
   predictionCache.key=cacheKey;predictionCache.value=result;return result;
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
@@ -20819,8 +21016,8 @@ function bind(){
 }
 function clearPending(){acc.pending=null;invalidate();render();}
 function install(){bind();uniqueLibrary(true);invalidate();arm();[400,1400].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
-window.__BEAD_HISTORY_AI_V379__={version:398,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,runBehaviorConfirmationOnly:true,trapGuard:true,matureChopGuard:true,streakBreakGuard:true,libraryTrapMemory:true,independentShoeTrapVotes:true,trapMemoryConfirmationOnly:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
-window.__BEAD_HISTORY_AI_V385__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V386__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V387__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V398__=window.__BEAD_HISTORY_AI_V379__;
+window.__BEAD_HISTORY_AI_V379__={version:387,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
+window.__BEAD_HISTORY_AI_V385__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V386__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V387__=window.__BEAD_HISTORY_AI_V379__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 if(!window.__v387BeadHealthTimer)window.__v387BeadHealthTimer=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},12000);
 })();
@@ -20834,33 +21031,46 @@ if(!window.__v387BeadHealthTimer)window.__v387BeadHealthTimer=setInterval(()=>{i
 (function(){
 'use strict';
 if(window.__V379_MEMORY_ACCURACY__) return;
-const VERSION=393;
+const VERSION=379;
 const STORE='v379-memory-accuracy';
-function blank(){return {wins:0,losses:0,tiesSkipped:0,last:'',recent:[]};}
+function blank(){return {wins:0,losses:0,tiesSkipped:0,last:''};}
 function load(){
-  try{const x=JSON.parse(localStorage.getItem(STORE)||'{}');const r=Object.assign(blank(),x.recycle||{});if(!Array.isArray(r.recent))r.recent=[];r.recent=r.recent.slice(-12);return {recycle:r};}
-  catch(e){return {recycle:blank()};}
+  try{
+    const x=JSON.parse(localStorage.getItem(STORE)||'{}');
+    return {recycle:Object.assign(blank(),x.recycle||{}),memory:Object.assign(blank(),x.memory||{})};
+  }catch(e){return {recycle:blank(),memory:blank()};}
 }
 const score=load();
-let pending={recycle:null};
+let pending={recycle:null,memory:null};
 let lastHistoryKey='';
 function save(){try{localStorage.setItem(STORE,JSON.stringify(score));}catch(e){}}
 function rawSeq(){
   try{return (Array.isArray(state?.hands)?state.hands:[]).map(h=>String(typeof h==='string'?h:(h?.r||h?.result||''))).join('').toUpperCase().replace(/PLAYER/g,'P').replace(/BANKER/g,'B').replace(/TIE/g,'T').replace(/[^PBT]/g,'');}catch(e){return '';}
 }
-function call(){
-  try{const r=window.__V365_SEGMENT_RECYCLE__?.signal?.();if(r?.qualified&&(r.side==='P'||r.side==='B'))return {side:r.side,confidence:Number(r.confidence)||0};}catch(e){}
-  return null;
+function calls(){
+  let recycle=null,memory=null;
+  try{const r=window.__V365_SEGMENT_RECYCLE__?.signal?.();if(r?.qualified&&(r.side==='P'||r.side==='B'))recycle={side:r.side,confidence:Number(r.confidence)||0};}catch(e){}
+  try{const m=window.__V369_SHARED_MEMORY__?.memory?.();if(m?.qualified&&(m.side==='P'||m.side==='B'))memory={side:m.side,confidence:Number(m.score)||0};}catch(e){}
+  return {recycle,memory};
 }
-function arm(){const c=call(),n=rawSeq().length;pending.recycle=c?{...c,armedAt:n}:null;lastHistoryKey=rawSeq();paint();}
-function settle(actual){
-  const p=pending.recycle;if(!p)return;actual=String(actual||'').toUpperCase();
-  if(actual==='T'){score.recycle.tiesSkipped++;score.recycle.last=`${p.side==='P'?'PLAYER':'BANKER'} held through TIE — not graded`;save();paint();return;}
+function arm(){
+  const c=calls(),n=rawSeq().length;
+  pending.recycle=c.recycle?{...c.recycle,armedAt:n}:null;
+  pending.memory=c.memory?{...c.memory,armedAt:n}:null;
+  lastHistoryKey=rawSeq();
+  paint();
+}
+function settleOne(key,actual){
+  const p=pending[key];if(!p)return;
+  if(actual==='T'){score[key].tiesSkipped++;score[key].last=`${p.side==='P'?'PLAYER':'BANKER'} held through TIE — not graded`;return;}
   if(actual!=='P'&&actual!=='B')return;
-  if(p.side===actual){score.recycle.wins++;score.recycle.last=`WIN — ${p.side==='P'?'PLAYER':'BANKER'} → ${actual==='P'?'PLAYER':'BANKER'}`;score.recycle.recent.push(1);}
-  else{score.recycle.losses++;score.recycle.last=`LOSS — ${p.side==='P'?'PLAYER':'BANKER'} → ${actual==='P'?'PLAYER':'BANKER'}`;score.recycle.recent.push(0);}
-  score.recycle.recent=score.recycle.recent.slice(-12);
-  pending.recycle=null;save();paint();
+  if(p.side===actual){score[key].wins++;score[key].last=`WIN — ${p.side==='P'?'PLAYER':'BANKER'} → ${actual==='P'?'PLAYER':'BANKER'}`;}
+  else{score[key].losses++;score[key].last=`LOSS — ${p.side==='P'?'PLAYER':'BANKER'} → ${actual==='P'?'PLAYER':'BANKER'}`;}
+  pending[key]=null;
+}
+function settle(actual){
+  actual=String(actual||'').toUpperCase();
+  settleOne('recycle',actual);settleOne('memory',actual);save();paint();
 }
 function pct(a){const n=a.wins+a.losses;return n?`${(100*a.wins/n).toFixed(1)}%`:'—';}
 function card(id,label){return `<div class="analyzer-card"><span>${label}</span><strong id="${id}">—</strong></div>`;}
@@ -20872,33 +21082,65 @@ function ensure(){
     const b=document.createElement('button');b.id='v379ResetRecycle';b.type='button';b.className='tiny-btn';b.style.cssText='margin-top:7px;width:100%';b.textContent='Reset Recycle Engine Accuracy';
     const note=document.getElementById('v365SegNote');if(note){note.before(row);note.before(b);}else r.append(row,b);
   }
+  const m=document.getElementById('v369MemoryPanel');
+  if(m&&!document.getElementById('v379MemoryAccuracyRow')){
+    const row=document.createElement('div');row.id='v379MemoryAccuracyRow';row.className='analyzer-grid';row.style.marginTop='8px';
+    row.innerHTML=card('v379MemoryAcc','Verified accuracy')+card('v379MemoryWL','W / L')+card('v379MemoryN','Graded')+card('v379MemoryTies','Ties skipped');
+    const b=document.createElement('button');b.id='v379ResetMemory';b.type='button';b.className='tiny-btn';b.style.cssText='margin-top:7px;width:100%';b.textContent='Reset Historical Memory Accuracy';
+    const note=document.getElementById('v369MemNote');if(note){note.before(row);note.before(b);}else m.append(row,b);
+  }
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
-function paint(){ensure();const a=score.recycle,n=a.wins+a.losses;set('v379RecycleAcc',pct(a));set('v379RecycleWL',`${a.wins}W-${a.losses}L`);set('v379RecycleN',`N ${n}`);set('v379RecycleTies',String(a.tiesSkipped));}
-function reset(){score.recycle=blank();pending.recycle=null;save();arm();}
-function bind(){
-  document.querySelectorAll('[data-result]').forEach(el=>{if(el.__v379MemGrade)return;el.__v379MemGrade=true;el.addEventListener('click',()=>{settle(el.dataset.result);setTimeout(arm,260);setTimeout(paint,520);},true);});
-  for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){const el=document.getElementById(id);if(!el||el.__v379MemHistory)continue;el.__v379MemHistory=true;el.addEventListener('click',()=>{pending={recycle:null};setTimeout(arm,300);},false);}
-  const rr=document.getElementById('v379ResetRecycle');if(rr&&!rr.__v379Reset){rr.__v379Reset=true;rr.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset();},true);}
+function paint(){
+  ensure();
+  for(const [key,prefix] of [['recycle','v379Recycle'],['memory','v379Memory']]){
+    const a=score[key],n=a.wins+a.losses;
+    set(prefix+'Acc',pct(a));set(prefix+'WL',`${a.wins}W-${a.losses}L`);set(prefix+'N',`N ${n}`);set(prefix+'Ties',String(a.tiesSkipped));
+  }
 }
-function watch(){const k=rawSeq();if(k!==lastHistoryKey){if(lastHistoryKey&&k.length===lastHistoryKey.length+1&&k.startsWith(lastHistoryKey))settle(k.slice(-1));setTimeout(arm,80);}}
+function reset(key){score[key]=blank();pending[key]=null;save();arm();}
+function bind(){
+  document.querySelectorAll('[data-result]').forEach(el=>{
+    if(el.__v379MemGrade)return;el.__v379MemGrade=true;
+    // Capture phase: settle the call that was armed for THIS result before state.hands changes.
+    el.addEventListener('click',()=>{settle(el.dataset.result);setTimeout(arm,260);setTimeout(paint,520);},true);
+  });
+  for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){
+    const el=document.getElementById(id);
+    if(!el||el.__v379MemHistory) continue;
+    el.__v379MemHistory=true;
+    el.addEventListener('click',()=>{pending={recycle:null,memory:null};setTimeout(arm,300);},false);
+  }
+  const rr=document.getElementById('v379ResetRecycle');if(rr&&!rr.__v379Reset){rr.__v379Reset=true;rr.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('recycle');},true);}
+  const rm=document.getElementById('v379ResetMemory');if(rm&&!rm.__v379Reset){rm.__v379Reset=true;rm.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();reset('memory');},true);}
+}
+function watch(){
+  const k=rawSeq();
+  if(k!==lastHistoryKey){
+    // Recovery for history changes that did not come through the normal result buttons.
+    if(lastHistoryKey && k.length===lastHistoryKey.length+1 && k.startsWith(lastHistoryKey)){
+      const actual=k.slice(-1);settle(actual);
+    }
+    setTimeout(arm,80);
+  }
+}
 function install(){ensure();bind();arm();[400,1200,2200].forEach(ms=>setTimeout(()=>{ensure();bind();paint();},ms));}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 setInterval(()=>{if(document.visibilityState!=='hidden'){ensure();bind();watch();paint();}},700);
-window.__V379_MEMORY_ACCURACY__={version:VERSION,score,pending,arm,settle,paint,reset,predictionLogicChanged:false,authoritativePendingLedger:true,historicalMemoryRemoved:true};
+window.__V379_MEMORY_ACCURACY__={version:VERSION,score,pending,arm,settle,paint,reset,predictionLogicChanged:false,authoritativePendingLedger:true};
 })();
 </script>
-<script id="v379-build-marker">window.__V379_BUILD__={version:395,beadHistoryAI:true,beadPlacedUnderDeepLearning:true,recycleAccuracyRebuilt:true,historicalMemoryRemoved:true,predictionLogicChanged:false};</script>
+<script id="v379-build-marker">window.__V379_BUILD__={version:379,beadHistoryAI:true,beadPlacedUnderDeepLearning:true,recycleAccuracyRebuilt:true,memoryAccuracyRebuilt:true,predictionLogicChanged:false};</script>
 
 <script id="v380-build-marker">
 window.__V380_BUILD__={
   version:380,
-  base:'V393 Bead History AI + Recycle accuracy',
+  base:'V379 Bead History AI + Recycle/Memory accuracy',
   removedObsoleteV372AccuracyGrader:true,
   fixedControlBindingEarlyReturn:true,
   beadHistoryPredictionLogicChanged:false,
   recyclePredictionLogicChanged:false,
-  historicalMemoryRemoved:true
+  memoryPredictionLogicChanged:false
 };
 </script>
 <script id="v381-build-marker">
@@ -20938,395 +21180,5 @@ window.__V384_BUILD__={
   predictionLogicChanged:false
 };
 </script>
-
-
-
-<!-- V393: Removed Shared Historical Memory Brain V370 (UI + runtime wrappers + separate accuracy ledger). Shared Hierarchical Partial-Shoe Recycle Engine remains authoritative. Sequence AI V2, Main Future Road, Best Estimate, and 6-Step Resolver logic otherwise unchanged. -->
-<script id="v393-remove-memory-marker">window.__V393_REMOVE_HISTORICAL_MEMORY__={version:393,removed:true,removedPanel:'Shared Historical Memory Brain — V370',kept:'Shared Hierarchical Partial-Shoe Recycle Engine — Tie Aware',removedRuntimeWrappers:true,removedMemoryAccuracyLedger:true};</script>
-<!-- V388 SCREEN STABILITY FIX — 2026-10-06
-     Prevents vertical page bounce after live result entry on iPhone/iPad/Chrome/Safari.
-     UI-only: preserves viewport + horizontal road positions while delayed AI panels repaint.
-     Prediction engines, thresholds, libraries, grading, and result logic are unchanged. -->
-<style id="v388-screen-stability-css">
-html{scroll-behavior:auto!important;overflow-anchor:none}
-body,.app{overflow-anchor:none}
-button,[data-result],#undoBtn,#clearBtn,#previewP,#previewB{
-  touch-action:manipulation;
-  -webkit-user-select:none;
-  user-select:none;
-}
-/* V400: result entry must not trigger browser focus scrolling. */
-.main-buttons [data-result],#undoBtn,#clearBtn,#previewP,#previewB{scroll-margin:0!important}
-</style>
-<script id="v388-screen-stability-fix">
-(function(){
-'use strict';
-/*
- V400 SCREEN BOUNCE FIX
- - Replaces the old absolute scrollY restore, which could visibly jump when the
-   document temporarily became shorter/taller during delayed AI repaints.
- - Locks the tapped result/control to the same viewport position instead.
- - Captures only on pointerdown (not pointerdown + click), preventing double
-   competing restore cycles.
- - Cancels immediately when the user intentionally scrolls.
- - UI only. No prediction, library, grading, or AI thresholds are changed.
-*/
-try{delete window.__V388_SCREEN_STABILITY_FIX__;}catch(e){}
-if(window.__V400_SCREEN_ANCHOR_LOCK__)return;
-
-let cycle=0;
-let userMovedAt=0;
-let adjusting=false;
-let active=null;
-
-function markUserMove(){
-  if(!adjusting) userMovedAt=Date.now();
-}
-window.addEventListener('touchmove',markUserMove,{passive:true,capture:true});
-window.addEventListener('wheel',markUserMove,{passive:true,capture:true});
-window.addEventListener('scroll',markUserMove,{passive:true});
-
-function isLiveControl(t){
-  return !!(t&&t.closest&&t.closest('[data-result],#undoBtn,#clearBtn,#previewP,#previewB'));
-}
-function stableAnchor(t){
-  if(!t||!t.closest)return null;
-  return t.closest('.main-buttons') ||
-         t.closest('.controls') ||
-         t.closest('.future-test') ||
-         t.closest('button') ||
-         t;
-}
-function roadPositions(){
-  const out=[];
-  document.querySelectorAll('.road-wrap,.derived-grid').forEach(el=>{
-    out.push([el,el.scrollLeft,el.scrollTop]);
-  });
-  return out;
-}
-function restoreRoads(a){
-  for(const x of a){
-    try{
-      if(x[0]&&x[0].isConnected){
-        if(Math.abs(x[0].scrollLeft-x[1])>1)x[0].scrollLeft=x[1];
-        if(Math.abs(x[0].scrollTop-x[2])>1)x[0].scrollTop=x[2];
-      }
-    }catch(e){}
-  }
-}
-function adjust(token){
-  const a=active;
-  if(!a||a.token!==token||token!==cycle)return;
-  if(userMovedAt>a.started+35){active=null;return;}
-  if(!a.anchor||!a.anchor.isConnected){active=null;return;}
-  try{
-    const now=a.anchor.getBoundingClientRect().top;
-    const delta=now-a.top;
-    /*
-      Keep the control at the same visual Y-position. Unlike scrollTo(oldY),
-      this does not oscillate when document.scrollHeight temporarily shrinks.
-    */
-    if(Math.abs(delta)>0.75){
-      adjusting=true;
-      window.scrollBy(0,delta);
-      requestAnimationFrame(()=>{adjusting=false;});
-    }
-    restoreRoads(a.roads);
-  }catch(e){adjusting=false;}
-}
-function begin(t){
-  const anchor=stableAnchor(t);
-  if(!anchor)return;
-  const token=++cycle;
-  const started=Date.now();
-  active={
-    token,
-    started,
-    anchor,
-    top:anchor.getBoundingClientRect().top,
-    roads:roadPositions()
-  };
-
-  // Remove transient focus before the app starts its many delayed repaints.
-  try{
-    const ae=document.activeElement;
-    if(ae&&ae!==document.body&&typeof ae.blur==='function')ae.blur();
-  }catch(e){}
-
-  /*
-    The app has delayed refreshes around 80–620ms. Follow the anchor through
-    that window, then stop. No second capture is made on click.
-  */
-  [0,16,45,90,140,205,285,380,485,620,760].forEach(ms=>{
-    setTimeout(()=>adjust(token),ms);
-  });
-
-  // A short RAF chain catches same-frame DOM replacements without long polling.
-  let frames=0;
-  function raf(){
-    if(token!==cycle||!active)return;
-    adjust(token);
-    if(++frames<10)requestAnimationFrame(raf);
-  }
-  requestAnimationFrame(raf);
-
-  setTimeout(()=>{
-    if(active&&active.token===token)active=null;
-  },820);
-}
-
-// Capture before any legacy click handler mutates/reorders panels.
-document.addEventListener('pointerdown',e=>{
-  if(isLiveControl(e.target))begin(e.target);
-},true);
-
-// Keyboard/accessibility activation has no pointerdown, so capture on keydown.
-document.addEventListener('keydown',e=>{
-  if((e.key==='Enter'||e.key===' ')&&isLiveControl(e.target))begin(e.target);
-},true);
-
-window.__V400_SCREEN_ANCHOR_LOCK__={
-  version:400,
-  enabled:true,
-  anchorViewportLock:true,
-  doubleCaptureRemoved:true,
-  absoluteScrollRestoreRemoved:true,
-  horizontalRoadLock:true,
-  cancelsOnUserScroll:true,
-  predictionLogicChanged:false,
-  libraryChanged:false
-};
-window.__V388_SCREEN_STABILITY_FIX__=window.__V400_SCREEN_ANCHOR_LOCK__;
-})();
-</script>
-
-
-<!-- V388: 6-Step Context Resolver AI — independent historical continuation resolver. Does not modify Sequence V2 or Main Future Road. -->
-<style id="v388-context-resolver-style">
-#v388ContextResolver{border-color:#5d7292;margin-top:8px}
-#v388ContextResolver .v388-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px}
-#v388ContextResolver .v388-stepgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:7px}
-#v388ContextResolver .v388-step{background:var(--panel2);border-radius:9px;padding:6px;text-align:center;font-size:9px;color:var(--muted)}
-#v388ContextResolver .v388-step b{display:block;color:var(--text);font-size:11px;margin-top:2px}
-@media(max-width:560px){#v388ContextResolver .v388-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#v388ContextResolver .v388-stepgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-</style>
-<!-- V400: 6-Step Context Resolver fallback repair. Strong exact saved-shoe matches still get first priority, but after 12 P/B hands an unknown/weak exact-prefix match no longer hard-locks the AI to WAIT when independent continuation support and the six context steps are strong enough. WAIT is retained for weak/conflicting evidence. Accuracy still arms only on actual PLAYER/BANKER calls. Sequence AI V2 and Main Future Road unchanged. -->
-<script id="v400-six-step-context-resolver">
-(function(){
-'use strict';
-if(window.__V400_CONTEXT_RESOLVER__)return;
-const SCORE_KEY='v388-six-step-context-resolver-accuracy';
-const MIN_PB=8, MIN_KNOWN_PB=12, MIN_SCORE=.63, MIN_MARGIN=.10, MIN_SUPPORT=4, MIN_SUPPORT_RATIO=.58, MIN_EXACT_CONSENSUS=.60;
-const FALLBACK_MIN_SCORE=.58, FALLBACK_MIN_MARGIN=.08, FALLBACK_MIN_SUPPORT=5, FALLBACK_MIN_SUPPORT_RATIO=.58, FALLBACK_MIN_CONTEXT=.72;
-const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
-const pb=s=>clean(s).replace(/T/g,'');
-function live(){try{return clean((state?.hands||[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
-function seqOf(x){return clean(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||''))}
-function runs(s){s=pb(s);if(!s)return[];const a=[];let c=s[0],n=1;for(let i=1;i<s.length;i++){if(s[i]===c)n++;else{a.push({side:c,n});c=s[i];n=1}}a.push({side:c,n});return a}
-function rhythm(s){s=pb(s);let r='';for(let i=1;i<s.length;i++)r+=s[i]===s[i-1]?'R':'S';return r}
-function rhythmSim(a,b,max=10){a=rhythm(a);b=rhythm(b);let n=Math.min(max,a.length,b.length),m=0;for(let i=1;i<=n;i++)if(a[a.length-i]===b[b.length-i])m++;return n?m/n:0}
-function phaseScore(curLen,pos){
-  const d=Math.abs(curLen-pos),dist=Math.max(0,1-d/22);
-  const bucket=x=>x<20?0:(x<40?1:2),gap=Math.abs(bucket(curLen)-bucket(pos));
-  const stage=gap===0?1:(gap===1?.72:.35);
-  return .65*dist+.35*stage;
-}
-function tieBreakStreakScore(a,b){
-  const A=clean(a),B=clean(b),n=Math.min(14,A.length,B.length);if(!n)return .5;
-  const x=A.slice(-n),y=B.slice(-n);let tieMatch=0;
-  for(let i=0;i<n;i++)if((x[i]==='T')===(y[i]==='T'))tieMatch++;
-  tieMatch/=n;
-  const ra=runs(A),rb=runs(B),q=Math.min(3,ra.length,rb.length);let run=.5,side=.5;
-  if(q){let d=0,m=0;for(let i=1;i<=q;i++){d+=Math.abs(ra[ra.length-i].n-rb[rb.length-i].n);if(ra[ra.length-i].side===rb[rb.length-i].side)m++}run=Math.max(0,1-d/(q*4));side=m/q}
-  const afterTie=(A.endsWith('T')===B.endsWith('T'))?1:0;
-  return Math.min(1,.45*tieMatch+.35*run+.15*side+.05*afterTie);
-}
-function pbMap(s){const raw=clean(s),idx=[],chars=[];for(let i=0;i<raw.length;i++)if(raw[i]==='P'||raw[i]==='B'){idx.push(i);chars.push(raw[i])}return{raw,pb:chars.join(''),idx}}
-
-// V391 cache: unique saved shoes keep both full P/B/T placement and P/B mapping.
-let libCache={sig:'',rows:[]};
-const roadCache=new Map();
-let predCache={key:'',value:null};
-function rawLib(){let a=[];try{a=(typeof activePatternLibrary==='function'?activePatternLibrary():[])||[]}catch(e){}return a}
-function library(){
-  const a=rawLib();let h=2166136261>>>0;const tmp=[];
-  for(const x of a){const q=seqOf(x);if(q.length<5)continue;for(let i=0;i<q.length;i++){h^=q.charCodeAt(i);h=Math.imul(h,16777619)>>>0}h^=124;h=Math.imul(h,16777619)>>>0;tmp.push(q)}
-  const sig=a.length+':'+h;if(sig===libCache.sig)return libCache.rows;
-  const seen=new Set(),rows=[];for(const q of tmp){if(seen.has(q))continue;seen.add(q);const m=pbMap(q);rows.push({seq:q,pb:m.pb,pbIdx:m.idx,len:m.pb.length})}
-  libCache={sig,rows};roadCache.clear();predCache.key='';predCache.value=null;return rows;
-}
-function roadSig(seq){
-  const q=clean(seq);if(roadCache.has(q))return roadCache.get(q);
-  let out=['','',''];try{const hs=q.split('').map(r=>({r}));out=[1,2,3].map(o=>{const r=deriveRoad(hs,o)||[];return r.slice(-10).join('')})}catch(e){}
-  roadCache.set(q,out);if(roadCache.size>1800){let n=0;for(const k of roadCache.keys()){roadCache.delete(k);if(++n>=450)break}}
-  return out;
-}
-function roadAgreementFrom(A,b){const B=roadSig(b);let sum=0,n=0;for(let k=0;k<3;k++){const x=A[k],y=B[k],q=Math.min(x.length,y.length,8);if(!q)continue;let m=0;for(let i=1;i<=q;i++)if(x[x.length-i]===y[y.length-i])m++;sum+=m/q;n++}return n?sum/n:.5}
-function candidates(row,liveSeq){
-  const lm=pbMap(liveSeq),LP=lm.pb,SP=row.pb;if(SP.length<=LP.length)return[];const out=[],seen=new Set();
-  function add(i,w){const j=i+w;if(j>=SP.length)return;const rawEnd=row.pbIdx[j-1],prefix=row.seq.slice(0,rawEnd+1),next=SP[j];const exactStart=i===0&&j===LP.length&&row.seq.startsWith(lm.raw);const key=j+':'+next;if(seen.has(key))return;seen.add(key);out.push({prefix,next,w,pos:j,exactStart})}
-  if(LP.length&&SP.startsWith(LP))add(0,LP.length);
-  for(const w of [14,12,10,8,6,5,4]){if(LP.length<w)continue;const pat=LP.slice(-w);let i=SP.indexOf(pat);while(i>=0){add(i,w);i=SP.indexOf(pat,i+1)}}
-  return out;
-}
-function bestCandidate(row,L,liveRoad){
-  const LP=pb(L),cc=candidates(row,L);let best=null;
-  for(const c of cc){
-    let s1=Math.min(1,c.w/14);if(c.exactStart&&row.seq.startsWith(L))s1=1;
-    const s2=rhythmSim(L,c.prefix),s3=roadAgreementFrom(liveRoad,c.prefix),s4=phaseScore(LP.length,c.pos),s5=tieBreakStreakScore(L,c.prefix);
-    let score=.56*s1+.08*s2+.09*s3+.12*s4+.15*s5;
-    if(c.exactStart&&LP.length>=12)score=Math.min(1,score+.08);
-    const z={...c,score,s1,s2,s3,s4,s5,shoe:row.seq,exact:c.exactStart&&LP.length>=12};if(!best||z.score>best.score)best=z;
-  }
-  return best;
-}
-function decide(seq){
-  const L=clean(seq),LP=pb(L),lib=library(),key=libCache.sig+'|'+L;if(predCache.key===key&&predCache.value)return predCache.value;
-  if(LP.length<MIN_PB){const z={side:null,reason:`Need ${MIN_PB-LP.length} more P/B results.`,n:0,lib:lib.length};predCache={key,value:z};return z}
-  const liveRoad=roadSig(L),rows=[];for(const sh of lib){const z=bestCandidate(sh,L,liveRoad);if(z)rows.push(z)}
-  if(!rows.length){const z={side:null,reason:'No comparable saved continuation.',n:0,lib:lib.length};predCache={key,value:z};return z}
-  rows.sort((a,b)=>b.score-a.score);const uniq=rows.slice(0,12);let p=0,b=0,pn=0,bn=0;
-  for(const r of uniq){let w=r.score*r.score;if(r.exact)w*=1.35;if(r.next==='P'){p+=w;pn++}else if(r.next==='B'){b+=w;bn++}}
-  const tot=p+b;if(!tot){const z={side:null,mode:'UNKNOWN',reason:'UNKNOWN / WEAK LIBRARY MATCH — historical continuations do not resolve to P/B.',n:uniq.length,lib:lib.length};predCache={key,value:z};return z}
-  const pp=p/tot,bp=b/tot,side=pp>bp?'P':'B',rawConf=Math.max(pp,bp),margin=Math.abs(pp-bp),support=side==='P'?pn:bn,supportRatio=support/Math.max(1,uniq.length),resolverConf=.82*rawConf+.18*supportRatio,top=uniq[0];
-
-  // V392 KNOWN-LIBRARY gate: only a genuine beginning-to-current-hand saved-shoe match may arm a live prediction.
-  // Exact rows are candidates whose saved shoe begins with the complete current live P/B/T prefix.
-  const exactRows=rows.filter(r=>r.exact);
-  let ep=0,eb=0,epn=0,ebn=0;
-  for(const r of exactRows){const w=Math.max(.01,r.score*r.score);if(r.next==='P'){ep+=w;epn++}else if(r.next==='B'){eb+=w;ebn++}}
-  const et=ep+eb, exactSide=et?(ep>=eb?'P':'B'):null, exactConf=et?Math.max(ep,eb)/et:0;
-  const exactSupport=exactSide==='P'?epn:(exactSide==='B'?ebn:0);
-  const exactBest=exactRows.length?exactRows[0].score:0;
-  const knownStrong=LP.length>=MIN_KNOWN_PB&&exactRows.length>0&&exactSide===side&&exactConf>=MIN_EXACT_CONSENSUS&&exactBest>=.68;
-  const contextQualified=resolverConf>=MIN_SCORE&&margin>=MIN_MARGIN&&support>=MIN_SUPPORT&&supportRatio>=MIN_SUPPORT_RATIO;
-  const contextMean=((top?.s1||0)+(top?.s2||0)+(top?.s3||0)+(top?.s4||0)+(top?.s5||0))/5;
-  const fallbackQualified=LP.length>=MIN_KNOWN_PB&&!knownStrong&&resolverConf>=FALLBACK_MIN_SCORE&&margin>=FALLBACK_MIN_MARGIN&&support>=FALLBACK_MIN_SUPPORT&&supportRatio>=FALLBACK_MIN_SUPPORT_RATIO&&contextMean>=FALLBACK_MIN_CONTEXT;
-  const qualified=(knownStrong&&contextQualified)||fallbackQualified;
-  const mode=knownStrong?'KNOWN':(fallbackQualified?'CONTEXT':'UNKNOWN');
-  let reason;
-  if(knownStrong&&contextQualified){
-    reason=`KNOWN / STRONG LIBRARY MATCH • ${side==='P'?'PLAYER':'BANKER'} • exact-prefix ${(exactConf*100).toFixed(1)}% (${exactSupport}/${exactRows.length}) • resolver ${(resolverConf*100).toFixed(1)}%`;
-  }else if(fallbackQualified){
-    reason=`CONTEXT FALLBACK • ${side==='P'?'PLAYER':'BANKER'} • no strong exact-prefix match, but independent continuation + 6-step context qualify • resolver ${(resolverConf*100).toFixed(1)}% • context ${(contextMean*100).toFixed(1)}% • support ${support}/${uniq.length}`;
-  }else if(!knownStrong){
-    reason=`UNKNOWN / WEAK LIBRARY MATCH — WAIT • exact-prefix match is weak and fallback context has not qualified${LP.length<MIN_KNOWN_PB?` (need ${MIN_KNOWN_PB-LP.length} more P/B hands before fallback arming)`:''} • resolver ${(resolverConf*100).toFixed(1)}% • context ${(contextMean*100).toFixed(1)}%`;
-  }else{
-    reason=`KNOWN shoe candidate, but context is not strong enough — WAIT • resolver ${(resolverConf*100).toFixed(1)}% • support ${support}/${uniq.length} • margin ${(margin*100).toFixed(1)}pp`;
-  }
-  const z={side:qualified?side:null,rawSide:side,mode,knownStrong,fallbackQualified,contextMean,exactMatches:exactRows.length,exactSide,exactConf,exactSupport,conf:resolverConf,rawConf,margin,support,supportRatio,n:uniq.length,lib:lib.length,pn,bn,steps:{sequence:top?.s1||0,rhythm:top?.s2||0,roads:top?.s3||0,phase:top?.s4||0,context:top?.s5||0,independent:supportRatio},reason};
-  predCache={key,value:z};return z;
-}
-function load(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'{}');return{w:+x.w||0,l:+x.l||0,last:x.last||'',pending:null,lastSettledKey:''}}catch(e){return{w:0,l:0,last:'',pending:null,lastSettledKey:''}}}
-const acc=load();function save(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l,last:acc.last}))}catch(e){}}
-function panel(){let d=document.getElementById('v388ContextResolver');if(d)return d;const anchor=document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return null;d=document.createElement('div');d.className='analyzer';d.id='v388ContextResolver';d.innerHTML=`<div class="analyzer-title">🧭 6-Step Context Resolver AI</div><div class="analyzer-sub">V400: strong saved-shoe matches stay first priority. If no strong exact-prefix match exists after 12 P/B hands, strong independent continuation + six-step context can still produce a qualified P/B call instead of being hard-locked to WAIT.</div><div class="v388-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v388Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v388Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v388Matches">0</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v388Acc">—</strong></div></div><div class="v388-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px"><div class="analyzer-card"><span>W / L COUNT</span><strong id="v388WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v388N">N 0</strong></div><div class="analyzer-card"><span>LAST GRADE</span><strong id="v388Last" style="font-size:12px">—</strong></div></div><div class="v388-stepgrid"><div class="v388-step">1 Sequence<b id="v388S1">—</b></div><div class="v388-step">2 Run/Chop<b id="v388S2">—</b></div><div class="v388-step">3 Three Roads<b id="v388S3">—</b></div><div class="v388-step">4 Shoe Phase<b id="v388S4">—</b></div><div class="v388-step">5 Tie/Break/Streak<b id="v388S5">—</b></div><div class="v388-step">6 Independent Support<b id="v388S6">—</b></div></div><div class="analyzer-sub" id="v388Reason" style="margin-top:7px">Waiting for enough live history.</div><button class="tiny-btn" id="v388Reset" type="button" style="margin-top:7px;width:100%">Reset 6-Step Resolver Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);return d}
-const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v},pct=x=>Number.isFinite(x)?Math.round(x*100)+'%':'—';
-function paintAccuracy(){const n=acc.w+acc.l;set('v388Acc',n?((100*acc.w/n).toFixed(1)+'%'):'—');set('v388WL',`${acc.w}W-${acc.l}L`);set('v388N',`N ${n}`);set('v388Last',acc.last||'—')}
-function paint(x){panel();set('v388Side',x?.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v388Conf',x?.conf?pct(x.conf):'—');set('v388Matches',String(x?.n||0));paintAccuracy();set('v388Reason',x?.reason||'Waiting for enough live history.');const q=x?.steps||{};set('v388S1',pct(q.sequence));set('v388S2',pct(q.rhythm));set('v388S3',pct(q.roads));set('v388S4',pct(q.phase));set('v388S5',pct(q.context));set('v388S6',pct(q.independent))}
-function render(){const x=decide(live());paint(x);window.__V400_CONTEXT_RESOLVER__.last=x;return x}
-function arm(){const x=render(),n=pb(live()).length;acc.pending=x.side?{side:x.side,armedAt:n}:null;return acc.pending}
-function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T'||actual!=='P'&&actual!=='B'||!acc.pending)return;const handLen=Array.isArray(state?.hands)?state.hands.length:0,key=handLen+':'+actual+':'+acc.pending.armedAt;if(acc.lastSettledKey===key)return;acc.lastSettledKey=key;const p=acc.pending,ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;save();paintAccuracy()}
-function invalidate(){predCache.key='';predCache.value=null}
-function historyChanged(){acc.pending=null;invalidate();setTimeout(arm,160)}
-function bind(){panel();const r=document.getElementById('v388Reset');if(r&&!r.__v400){r.__v400=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.last='';acc.pending=null;acc.lastSettledKey='';save();paintAccuracy();invalidate();setTimeout(arm,80)},true)}for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){const el=document.getElementById(id);if(el&&!el.__v400){el.__v400=true;el.addEventListener('click',historyChanged,false)}}}
-function install(){panel();bind();library();invalidate();setTimeout(arm,120)}
-window.__V400_CONTEXT_RESOLVER__={version:400,decide,render,arm,settle,invalidate,accuracy:acc,sixSteps:true,knownLibraryPriority:true,knownLibraryOnly:false,contextFallback:true,minKnownPB:MIN_KNOWN_PB,minExactConsensus:MIN_EXACT_CONSENSUS,fallbackMinScore:FALLBACK_MIN_SCORE,fallbackMinContext:FALLBACK_MIN_CONTEXT,sequenceAnchored:true,correlationLimited:true,trueTieContext:true,truePhaseMatch:true,independentSupportGate:true,authoritativeCoreAccuracy:true,cachedLibrary:true,cachedRoads:true,eventDrivenOnly:true,noPolling:true,sharedMemoryWrapped:false,changesSequenceV2:false,changesMainFutureRoad:false,last:null};
-window.__V392_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
-window.__V391_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
-window.__V390_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
-window.__V388_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-})();
-
-</script>
-
-
-
-<!-- V389: 6-Step Resolver accuracy UI verified: separate Accuracy, W/L Count, Graded N, Last Grade, and isolated Reset. Prediction logic unchanged. -->
-<!-- V388 USER CLEANUP: remove Pattern Resume + Sequence V2 AI and Best-Estimate Analyzer 2 from active UI. Core Sequence V2, original Best Estimate, Main Future Road and 6-Step Context Resolver are untouched. -->
-<style id="v388-remove-two-ai-panels">
-#patternResumeAiPanel,
-#v331BestEstimate2 { display:none !important; }
-</style>
-<script id="v388-remove-two-ai-runtime">
-(function(){
-'use strict';
-if(window.__V388_REMOVE_TWO_AIS__) return;
-window.__V388_REMOVE_TWO_AIS__={version:388,removed:['Pattern Resume + Sequence V2 AI','Best-Estimate Analyzer 2'],corePredictionLogicChanged:false};
-function removePanels(){
-  try{document.getElementById('patternResumeAiPanel')?.remove();}catch(e){}
-  try{document.getElementById('v331BestEstimate2')?.remove();}catch(e){}
-  // Remove their rows/cards from any generic audit UI if present.
-  try{
-    document.querySelectorAll('*').forEach(el=>{
-      const t=(el.textContent||'').trim();
-      if(!t)return;
-      if((t==='Pattern Resume + Sequence V2 AI' || t==='Best-Estimate Analyzer 2') && el.closest('.analyzer-card,.v285-audit-row,.accuracy-row')){
-        el.closest('.analyzer-card,.v285-audit-row,.accuracy-row')?.remove();
-      }
-    });
-  }catch(e){}
-}
-function disablePublicAPIs(){
-  // Keep harmless no-op objects so older settlement hooks do not throw.
-  try{
-    window.__V332_BEST_ESTIMATE_2__={
-      version:388,removed:true,
-      decide:()=>({side:null,qualified:false,confidence:0,mode:'REMOVED',reason:'Best-Estimate Analyzer 2 removed.'}),
-      cycle:()=>null,settle:()=>null,arm:()=>null,historyChanged:()=>null,paint:()=>null,
-      accuracy:{wins:0,losses:0,pending:null}
-    };
-  }catch(e){}
-  try{
-    window.__V337_PATTERN_RESUME_SEQUENCE_V2_AI__={
-      version:388,removed:true,
-      detect:()=>({side:null,reason:'Pattern Resume + Sequence V2 AI removed.'}),
-      buildStats:()=>({}),settleAndArm:()=>null
-    };
-  }catch(e){}
-}
-function apply(){removePanels();disablePublicAPIs();}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
-[50,250,700,1500,3000].forEach(ms=>setTimeout(apply,ms));
-const mo=new MutationObserver(()=>removePanels());
-try{mo.observe(document.documentElement,{childList:true,subtree:true});}catch(e){}
-})();
-</script>
-
-<script id="v390-build-marker">window.__V390_BUILD__={version:390,sixStepAccuracyAuthoritative:true,sixStepCached:true,sixStepPollingRemoved:true,freezeFix:true};</script>
-
-<!-- V394 UI-ONLY: Compact Shared Hierarchical Partial-Shoe Recycle Engine. Prediction logic and accuracy logic unchanged. -->
-<style id="v394-compact-recycle-engine">
-#v365SegmentRecyclePanel{padding:7px!important;margin-top:6px!important}
-#v365SegmentRecyclePanel .analyzer-title{font-size:12px!important;line-height:1.1!important;margin:0!important}
-/* Hide only the long static explanation directly under the title; keep the live status note. */
-#v365SegmentRecyclePanel > .analyzer-sub:first-of-type{display:none!important}
-#v365SegmentRecyclePanel .analyzer-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important;margin-top:5px!important}
-#v365SegmentRecyclePanel .analyzer-card{padding:5px 3px!important;border-radius:8px!important;min-width:0!important}
-#v365SegmentRecyclePanel .analyzer-card span{font-size:7px!important;line-height:1.05!important;white-space:normal!important}
-#v365SegmentRecyclePanel .analyzer-card strong{font-size:13px!important;line-height:1.05!important;margin-top:1px!important;word-break:break-word!important}
-#v365SegmentRecyclePanel #v379RecycleAccuracyRow{margin-top:4px!important}
-#v365SegmentRecyclePanel #v379ResetRecycle{margin-top:4px!important;padding:5px 7px!important;font-size:9px!important;min-height:28px!important}
-#v365SegmentRecyclePanel #v365SegNote{margin-top:4px!important;font-size:9px!important;line-height:1.15!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
-@media(max-width:430px){
-  #v365SegmentRecyclePanel .analyzer-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}
-  #v365SegmentRecyclePanel .analyzer-card{padding:4px 2px!important}
-  #v365SegmentRecyclePanel .analyzer-card strong{font-size:12px!important}
-}
-</style>
-<script id="v394-build-marker">window.__V394_COMPACT_RECYCLE__={version:394,uiOnly:true,compactRecycleEngine:true,predictionLogicChanged:false,accuracyLogicChanged:false,historicalMemoryRemoved:true};</script>
-
-<!-- V395 LIVE SELECTIVE RECYCLE GUARD: exact/direct evidence leads; approximate/inverted evidence confirmation-only; rolling 12-call live guard raises thresholds after poor live performance. UI remains compact. -->
-<script id="v395-recycle-live-selective-marker">window.__V395_RECYCLE_LIVE_SELECTIVE__={version:395,exactDirectPrimary:true,approxInvertedConfirmationOnly:true,rollingLiveGuard:12,sequenceV2Touched:false,mainFutureRoadTouched:false,historicalMemoryRemoved:true};</script>
 </body>
 </html>
-
-<!-- V397 BEAD TRAP GUARD: run/chop/rhythm confirmation-only; 58% base gate; mature chop and streak-break guards. -->
-
-<!-- V398 TRAP MEMORY: independent-shoe saved-library learning for streak/chop/tie/break-resume contexts; confirmation/gating only. -->
-
-<!-- V398.1 CONSERVATIVE TRAP MEMORY: learned memory is veto-only; V397 guard remains authoritative; full-context 68%/6-shoe and coarse 72%/10-shoe qualification. -->
-
-<!-- V399 PATTERN RECOGNIZER: one vote per historical shoe and per Bead shoe, 4-shoe minimum support, 55% history floor, confidence recalibration, streak/chop library trap veto. -->
-
-<!-- V400 SCREEN BOUNCE ANCHOR LOCK: UI-only; replaces absolute scrollY restoration with tapped-control viewport anchoring. -->
