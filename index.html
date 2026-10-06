@@ -44,6 +44,7 @@
 -->
 <!-- V368: AI Pattern Recognizer restrictions loosened further; history anchor retained. Derived Road, Sequence V2, BE2, and recycle engine unchanged. -->
 <!-- V374: Pattern Resume practical-frequency fix: allows 3/4 motif returns, reduces minimum distinct-shoe support 5->4, exact historical floor 75%->70% (near-return floor 72%). Genuine 1-3 step break and Sequence V2 conflict-to-WAIT are preserved. -->
+<!-- V401: Bead Plate History AI practical-frequency fix. Large independent-library support can now emit a low-confidence P/B lean instead of WAIT when the original strong gate narrowly misses; trap-memory/behavior/streak/chop vetoes remain active. -->
 <!DOCTYPE html>
 <!-- V341: Test 2 selective qualification loosening retained. Test 3 was later removed. -->
 
@@ -20793,7 +20794,14 @@ function predict(seq){
   const trapMemory=trapMemoryLookup(live,lib);
   const recentTie=tieDistance(live)<=1;
   let trapGate='';
-  if(finalConf>=localGate&&edge>=CFG.edge&&finalSupport>=CFG.minSupport){
+  // V401 practical-frequency fallback: when dozens of independent saved shoes agree only
+  // modestly, emit the low-confidence Bead lean instead of staying WAIT forever. Strong
+  // qualification still uses the original gate. Fallback never bypasses trap protection.
+  const primaryQualified=finalConf>=localGate&&edge>=CFG.edge&&finalSupport>=CFG.minSupport;
+  const broadSupport=best.size>=40&&pN>=12&&bN>=12;
+  const fallbackQualified=broadSupport&&finalConf>=.515&&edge>=.025&&finalSupport>=12;
+  const candidateQualified=primaryQualified||fallbackQualified;
+  if(candidateQualified){
     // Preserve the V397 trap guard first. Library trap memory is veto-only:
     // it may stop a risky call, but it can never rescue or create one.
     if(behaviorSide&&behaviorBest.size>=4&&behaviorConf>=.62&&behaviorSide!==finalSide&&exactSupport<2)trapGate='behavior conflict';
@@ -20802,8 +20810,8 @@ function predict(seq){
     else if(trapMemory.qualified&&trapMemory.side!==finalSide&&trapMemory.conf>=.70&&trapMemory.support>=6&&!(exactSupport>=2&&histConf>=.74))trapGate=`library trap-memory veto ${Math.round(trapMemory.conf*100)}%/${trapMemory.support}`;
     else if(recentTie&&trapMemory.qualified&&trapMemory.side!==finalSide&&trapMemory.conf>=.70&&trapMemory.support>=6&&exactSupport<2)trapGate='after-tie trap-memory veto';
   }
-  if(finalConf<localGate||edge<CFG.edge||finalSupport<CFG.minSupport||trapGate)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,behaviorSide,behaviorConf,trapMemory,trapGate,reason:`WAIT • bead ${beadSide} ${Math.round(histConf*100)}% • support P ${pN} / B ${bN}${trapGate?' • trap guard: '+trapGate:''}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
-  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,behaviorSide,behaviorConf,trapMemory,trapGuard:true,trapMemoryLearned:true,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • saved Bead history leads • library trap memory vetoes strong historical trap conflicts • run/chop confirmation only${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
+  if(!candidateQualified||trapGate)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,behaviorSide,behaviorConf,trapMemory,trapGate,reason:`WAIT • bead ${beadSide} ${Math.round(histConf*100)}% • support P ${pN} / B ${bN}${trapGate?' • trap guard: '+trapGate:''}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
+  else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,behaviorSide,behaviorConf,trapMemory,trapGuard:true,trapMemoryLearned:true,fallbackQualified:!primaryQualified,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • ${primaryQualified?'saved Bead history leads':'broad saved-history lean'} • library trap memory vetoes strong historical trap conflicts${!primaryQualified?' • low-confidence call from large independent support':''}${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
   predictionCache.key=cacheKey;predictionCache.value=result;return result;
 }
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
@@ -20819,7 +20827,7 @@ function bind(){
 }
 function clearPending(){acc.pending=null;invalidate();render();}
 function install(){bind();uniqueLibrary(true);invalidate();arm();[400,1400].forEach(ms=>setTimeout(()=>{bind();render();},ms));}
-window.__BEAD_HISTORY_AI_V379__={version:398,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,runBehaviorConfirmationOnly:true,trapGuard:true,matureChopGuard:true,streakBreakGuard:true,libraryTrapMemory:true,independentShoeTrapVotes:true,trapMemoryConfirmationOnly:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
+window.__BEAD_HISTORY_AI_V379__={version:401,config:CFG,predict,render,arm,settle,clearPending,uniqueLibrary,invalidate,last:null,accuracy:acc,authoritativeCoreAccuracy:true,beadDominant:true,sameStateThreeRoadConfirmation:true,mainRoadMinorInfluence:true,mainRoadOneVotePerShoe:true,adaptiveWeights:true,tieAware:true,runBehaviorAware:true,runBehaviorConfirmationOnly:true,trapGuard:true,matureChopGuard:true,streakBreakGuard:true,libraryTrapMemory:true,independentShoeTrapVotes:true,trapMemoryConfirmationOnly:true,cachedLibrary:true,cachedPredictions:true,eventDrivenArming:true,settleDoesNotRearm:true};
 window.__BEAD_HISTORY_AI_V385__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V386__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V387__=window.__BEAD_HISTORY_AI_V379__;window.__BEAD_HISTORY_AI_V398__=window.__BEAD_HISTORY_AI_V379__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 if(!window.__v387BeadHealthTimer)window.__v387BeadHealthTimer=setInterval(()=>{if(document.visibilityState!=='hidden'){bind();render();}},12000);
@@ -21110,13 +21118,14 @@ window.__V388_SCREEN_STABILITY_FIX__=window.__V400_SCREEN_ANCHOR_LOCK__;
 #v388ContextResolver .v388-step b{display:block;color:var(--text);font-size:11px;margin-top:2px}
 @media(max-width:560px){#v388ContextResolver .v388-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#v388ContextResolver .v388-stepgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
-<!-- V392: 6-Step Context Resolver KNOWN-LIBRARY gate. The resolver now predicts only when the live shoe has a strong beginning-to-current-hand match in the saved library; weak/unknown shoes are forced to WAIT. Exact-prefix continuations are resolved first, with the six context steps used as confirmation. Sequence AI V2 and Main Future Road unchanged. -->
-<script id="v392-six-step-context-resolver">
+<!-- V400: 6-Step Context Resolver fallback repair. Strong exact saved-shoe matches still get first priority, but after 12 P/B hands an unknown/weak exact-prefix match no longer hard-locks the AI to WAIT when independent continuation support and the six context steps are strong enough. WAIT is retained for weak/conflicting evidence. Accuracy still arms only on actual PLAYER/BANKER calls. Sequence AI V2 and Main Future Road unchanged. -->
+<script id="v400-six-step-context-resolver">
 (function(){
 'use strict';
-if(window.__V392_CONTEXT_RESOLVER__)return;
+if(window.__V400_CONTEXT_RESOLVER__)return;
 const SCORE_KEY='v388-six-step-context-resolver-accuracy';
 const MIN_PB=8, MIN_KNOWN_PB=12, MIN_SCORE=.63, MIN_MARGIN=.10, MIN_SUPPORT=4, MIN_SUPPORT_RATIO=.58, MIN_EXACT_CONSENSUS=.60;
+const FALLBACK_MIN_SCORE=.58, FALLBACK_MIN_MARGIN=.08, FALLBACK_MIN_SUPPORT=5, FALLBACK_MIN_SUPPORT_RATIO=.58, FALLBACK_MIN_CONTEXT=.72;
 const clean=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
 const pb=s=>clean(s).replace(/T/g,'');
 function live(){try{return clean((state?.hands||[]).map(h=>typeof h==='string'?h:(h?.r||h?.result||'')).join(''))}catch(e){return''}}
@@ -21199,36 +21208,41 @@ function decide(seq){
   const exactBest=exactRows.length?exactRows[0].score:0;
   const knownStrong=LP.length>=MIN_KNOWN_PB&&exactRows.length>0&&exactSide===side&&exactConf>=MIN_EXACT_CONSENSUS&&exactBest>=.68;
   const contextQualified=resolverConf>=MIN_SCORE&&margin>=MIN_MARGIN&&support>=MIN_SUPPORT&&supportRatio>=MIN_SUPPORT_RATIO;
-  const qualified=knownStrong&&contextQualified;
-  const mode=knownStrong?'KNOWN':'UNKNOWN';
+  const contextMean=((top?.s1||0)+(top?.s2||0)+(top?.s3||0)+(top?.s4||0)+(top?.s5||0))/5;
+  const fallbackQualified=LP.length>=MIN_KNOWN_PB&&!knownStrong&&resolverConf>=FALLBACK_MIN_SCORE&&margin>=FALLBACK_MIN_MARGIN&&support>=FALLBACK_MIN_SUPPORT&&supportRatio>=FALLBACK_MIN_SUPPORT_RATIO&&contextMean>=FALLBACK_MIN_CONTEXT;
+  const qualified=(knownStrong&&contextQualified)||fallbackQualified;
+  const mode=knownStrong?'KNOWN':(fallbackQualified?'CONTEXT':'UNKNOWN');
   let reason;
-  if(qualified){
+  if(knownStrong&&contextQualified){
     reason=`KNOWN / STRONG LIBRARY MATCH • ${side==='P'?'PLAYER':'BANKER'} • exact-prefix ${(exactConf*100).toFixed(1)}% (${exactSupport}/${exactRows.length}) • resolver ${(resolverConf*100).toFixed(1)}%`;
+  }else if(fallbackQualified){
+    reason=`CONTEXT FALLBACK • ${side==='P'?'PLAYER':'BANKER'} • no strong exact-prefix match, but independent continuation + 6-step context qualify • resolver ${(resolverConf*100).toFixed(1)}% • context ${(contextMean*100).toFixed(1)}% • support ${support}/${uniq.length}`;
   }else if(!knownStrong){
-    reason=`UNKNOWN / WEAK LIBRARY MATCH — WAIT • no strong beginning-to-current-hand saved-shoe match${LP.length<MIN_KNOWN_PB?` (need ${MIN_KNOWN_PB-LP.length} more P/B hands before known-shoe arming)`:''}`;
+    reason=`UNKNOWN / WEAK LIBRARY MATCH — WAIT • exact-prefix match is weak and fallback context has not qualified${LP.length<MIN_KNOWN_PB?` (need ${MIN_KNOWN_PB-LP.length} more P/B hands before fallback arming)`:''} • resolver ${(resolverConf*100).toFixed(1)}% • context ${(contextMean*100).toFixed(1)}%`;
   }else{
     reason=`KNOWN shoe candidate, but context is not strong enough — WAIT • resolver ${(resolverConf*100).toFixed(1)}% • support ${support}/${uniq.length} • margin ${(margin*100).toFixed(1)}pp`;
   }
-  const z={side:qualified?side:null,rawSide:side,mode,knownStrong,exactMatches:exactRows.length,exactSide,exactConf,exactSupport,conf:resolverConf,rawConf,margin,support,supportRatio,n:uniq.length,lib:lib.length,pn,bn,steps:{sequence:top?.s1||0,rhythm:top?.s2||0,roads:top?.s3||0,phase:top?.s4||0,context:top?.s5||0,independent:supportRatio},reason};
+  const z={side:qualified?side:null,rawSide:side,mode,knownStrong,fallbackQualified,contextMean,exactMatches:exactRows.length,exactSide,exactConf,exactSupport,conf:resolverConf,rawConf,margin,support,supportRatio,n:uniq.length,lib:lib.length,pn,bn,steps:{sequence:top?.s1||0,rhythm:top?.s2||0,roads:top?.s3||0,phase:top?.s4||0,context:top?.s5||0,independent:supportRatio},reason};
   predCache={key,value:z};return z;
 }
 function load(){try{const x=JSON.parse(localStorage.getItem(SCORE_KEY)||'{}');return{w:+x.w||0,l:+x.l||0,last:x.last||'',pending:null,lastSettledKey:''}}catch(e){return{w:0,l:0,last:'',pending:null,lastSettledKey:''}}}
 const acc=load();function save(){try{localStorage.setItem(SCORE_KEY,JSON.stringify({w:acc.w,l:acc.l,last:acc.last}))}catch(e){}}
-function panel(){let d=document.getElementById('v388ContextResolver');if(d)return d;const anchor=document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return null;d=document.createElement('div');d.className='analyzer';d.id='v388ContextResolver';d.innerHTML=`<div class="analyzer-title">🧭 6-Step Context Resolver AI</div><div class="analyzer-sub">V392: KNOWN / STRONG saved-shoe match can predict. UNKNOWN / WEAK library match is forced to WAIT. Six-step context confirms known-shoe continuations.</div><div class="v388-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v388Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v388Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v388Matches">0</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v388Acc">—</strong></div></div><div class="v388-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px"><div class="analyzer-card"><span>W / L COUNT</span><strong id="v388WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v388N">N 0</strong></div><div class="analyzer-card"><span>LAST GRADE</span><strong id="v388Last" style="font-size:12px">—</strong></div></div><div class="v388-stepgrid"><div class="v388-step">1 Sequence<b id="v388S1">—</b></div><div class="v388-step">2 Run/Chop<b id="v388S2">—</b></div><div class="v388-step">3 Three Roads<b id="v388S3">—</b></div><div class="v388-step">4 Shoe Phase<b id="v388S4">—</b></div><div class="v388-step">5 Tie/Break/Streak<b id="v388S5">—</b></div><div class="v388-step">6 Independent Support<b id="v388S6">—</b></div></div><div class="analyzer-sub" id="v388Reason" style="margin-top:7px">Waiting for enough live history.</div><button class="tiny-btn" id="v388Reset" type="button" style="margin-top:7px;width:100%">Reset 6-Step Resolver Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);return d}
+function panel(){let d=document.getElementById('v388ContextResolver');if(d)return d;const anchor=document.getElementById('sequenceAiPanel');if(!anchor?.parentNode)return null;d=document.createElement('div');d.className='analyzer';d.id='v388ContextResolver';d.innerHTML=`<div class="analyzer-title">🧭 6-Step Context Resolver AI</div><div class="analyzer-sub">V400: strong saved-shoe matches stay first priority. If no strong exact-prefix match exists after 12 P/B hands, strong independent continuation + six-step context can still produce a qualified P/B call instead of being hard-locked to WAIT.</div><div class="v388-grid"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="v388Side">WAIT</strong></div><div class="analyzer-card"><span>CONFIDENCE</span><strong id="v388Conf">—</strong></div><div class="analyzer-card"><span>INDEPENDENT MATCHES</span><strong id="v388Matches">0</strong></div><div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="v388Acc">—</strong></div></div><div class="v388-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px"><div class="analyzer-card"><span>W / L COUNT</span><strong id="v388WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="v388N">N 0</strong></div><div class="analyzer-card"><span>LAST GRADE</span><strong id="v388Last" style="font-size:12px">—</strong></div></div><div class="v388-stepgrid"><div class="v388-step">1 Sequence<b id="v388S1">—</b></div><div class="v388-step">2 Run/Chop<b id="v388S2">—</b></div><div class="v388-step">3 Three Roads<b id="v388S3">—</b></div><div class="v388-step">4 Shoe Phase<b id="v388S4">—</b></div><div class="v388-step">5 Tie/Break/Streak<b id="v388S5">—</b></div><div class="v388-step">6 Independent Support<b id="v388S6">—</b></div></div><div class="analyzer-sub" id="v388Reason" style="margin-top:7px">Waiting for enough live history.</div><button class="tiny-btn" id="v388Reset" type="button" style="margin-top:7px;width:100%">Reset 6-Step Resolver Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);return d}
 const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v},pct=x=>Number.isFinite(x)?Math.round(x*100)+'%':'—';
 function paintAccuracy(){const n=acc.w+acc.l;set('v388Acc',n?((100*acc.w/n).toFixed(1)+'%'):'—');set('v388WL',`${acc.w}W-${acc.l}L`);set('v388N',`N ${n}`);set('v388Last',acc.last||'—')}
 function paint(x){panel();set('v388Side',x?.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v388Conf',x?.conf?pct(x.conf):'—');set('v388Matches',String(x?.n||0));paintAccuracy();set('v388Reason',x?.reason||'Waiting for enough live history.');const q=x?.steps||{};set('v388S1',pct(q.sequence));set('v388S2',pct(q.rhythm));set('v388S3',pct(q.roads));set('v388S4',pct(q.phase));set('v388S5',pct(q.context));set('v388S6',pct(q.independent))}
-function render(){const x=decide(live());paint(x);window.__V392_CONTEXT_RESOLVER__.last=x;return x}
+function render(){const x=decide(live());paint(x);window.__V400_CONTEXT_RESOLVER__.last=x;return x}
 function arm(){const x=render(),n=pb(live()).length;acc.pending=x.side?{side:x.side,armedAt:n}:null;return acc.pending}
 function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T'||actual!=='P'&&actual!=='B'||!acc.pending)return;const handLen=Array.isArray(state?.hands)?state.hands.length:0,key=handLen+':'+actual+':'+acc.pending.armedAt;if(acc.lastSettledKey===key)return;acc.lastSettledKey=key;const p=acc.pending,ok=p.side===actual;if(ok)acc.w++;else acc.l++;acc.last=`${ok?'WIN':'LOSS'} • ${p.side} vs ${actual}`;acc.pending=null;save();paintAccuracy()}
 function invalidate(){predCache.key='';predCache.value=null}
 function historyChanged(){acc.pending=null;invalidate();setTimeout(arm,160)}
-function bind(){panel();const r=document.getElementById('v388Reset');if(r&&!r.__v392){r.__v392=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.last='';acc.pending=null;acc.lastSettledKey='';save();paintAccuracy();invalidate();setTimeout(arm,80)},true)}for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){const el=document.getElementById(id);if(el&&!el.__v392){el.__v392=true;el.addEventListener('click',historyChanged,false)}}}
+function bind(){panel();const r=document.getElementById('v388Reset');if(r&&!r.__v400){r.__v400=true;r.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();acc.w=0;acc.l=0;acc.last='';acc.pending=null;acc.lastSettledKey='';save();paintAccuracy();invalidate();setTimeout(arm,80)},true)}for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){const el=document.getElementById(id);if(el&&!el.__v400){el.__v400=true;el.addEventListener('click',historyChanged,false)}}}
 function install(){panel();bind();library();invalidate();setTimeout(arm,120)}
-window.__V392_CONTEXT_RESOLVER__={version:392,decide,render,arm,settle,invalidate,accuracy:acc,sixSteps:true,knownLibraryOnly:true,minKnownPB:MIN_KNOWN_PB,minExactConsensus:MIN_EXACT_CONSENSUS,sequenceAnchored:true,correlationLimited:true,trueTieContext:true,truePhaseMatch:true,independentSupportGate:true,authoritativeCoreAccuracy:true,cachedLibrary:true,cachedRoads:true,eventDrivenOnly:true,noPolling:true,sharedMemoryWrapped:false,changesSequenceV2:false,changesMainFutureRoad:false,last:null};
-window.__V391_CONTEXT_RESOLVER__=window.__V392_CONTEXT_RESOLVER__;
-window.__V390_CONTEXT_RESOLVER__=window.__V392_CONTEXT_RESOLVER__;
-window.__V388_CONTEXT_RESOLVER__=window.__V392_CONTEXT_RESOLVER__;
+window.__V400_CONTEXT_RESOLVER__={version:400,decide,render,arm,settle,invalidate,accuracy:acc,sixSteps:true,knownLibraryPriority:true,knownLibraryOnly:false,contextFallback:true,minKnownPB:MIN_KNOWN_PB,minExactConsensus:MIN_EXACT_CONSENSUS,fallbackMinScore:FALLBACK_MIN_SCORE,fallbackMinContext:FALLBACK_MIN_CONTEXT,sequenceAnchored:true,correlationLimited:true,trueTieContext:true,truePhaseMatch:true,independentSupportGate:true,authoritativeCoreAccuracy:true,cachedLibrary:true,cachedRoads:true,eventDrivenOnly:true,noPolling:true,sharedMemoryWrapped:false,changesSequenceV2:false,changesMainFutureRoad:false,last:null};
+window.__V392_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
+window.__V391_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
+window.__V390_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
+window.__V388_CONTEXT_RESOLVER__=window.__V400_CONTEXT_RESOLVER__;
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 
