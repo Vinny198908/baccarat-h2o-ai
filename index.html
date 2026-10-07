@@ -1,5 +1,5 @@
 <!-- CLEANED 2026-10-07: Removed Shared Historical Memory Brain, Pattern Resume + Sequence V2 AI, and Automatic Historical Match AI. Other modules preserved. -->
-<!-- V393: Adds independent ML Trainer 2 — Bayesian Variable-Memory Context Learner; fixed 59% gate, own accuracy/reset, existing V309 and all other AI logic unchanged. -->
+<!-- V393.1: ML Trainer 2 dynamic qualification gate: 54.5% strong memory / 56.5% normal supported memory / 59% weak-conflict; own accuracy/reset; all other AI logic unchanged. -->
 <!-- V387 STABILITY FIX: cached Bead/road library, event-driven next-call arming, no settle->render re-arm race, Main Road one vote per independent shoe, dead V386 roadAssist removed. Prediction hierarchy retained (~70% Bead / ~22% 3-road / ~8% Main). -->
 <!-- V386: Adaptive Bead History state matcher: Bead Plate dominant (~70%), same-state 3-road confirmation (~22%), Main Road minor influence (~8%); adaptive evidence weighting, ties/traps/break-resume retained. Accuracy plumbing from V384 preserved. -->
 <!-- V384: Bead History accuracy moved into the actual V135 authoritative result queue; accidental V51 contamination removed. Prediction logic unchanged. -->
@@ -20895,12 +20895,12 @@ window.__V384_BUILD__={
 
 <!-- V393: Adds independent ML Trainer 2 — Bayesian Variable-Memory Context Learner.
      Uses unique saved-shoe P/B history, variable suffix lengths 1-6, Bayesian smoothing,
-     modest live-shoe adaptation, and a fixed 59% qualification gate. Existing V309 and
+     modest live-shoe adaptation, and a dynamic evidence-aware qualification gate. Existing V309 and
      all other AI decision logic remain unchanged. -->
 <script id="v393-variable-memory-ml2">
 (function(){
 'use strict';
-const VERSION=393, WARMUP=6, CUTOFF=.59, STORE='v393-variable-memory-ml2-accuracy';
+const VERSION=393.1, WARMUP=6, CUTOFF_STRONG=.545, CUTOFF_NORMAL=.565, CUTOFF_WEAK=.59, STORE='v393-variable-memory-ml2-accuracy';
 let pending=null, lastSeqKey='';
 
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -21018,16 +21018,27 @@ function signal(){
   p=clamp(p,.22,.78);
 
   const side=p>=.5?'P':'B', conf=Math.max(p,1-p);
-  const qualified=conf>=CUTOFF && used.length>=2 && maxInd>=4;
   const strongest=[...used].sort((a,b)=>(b.k*b.w)-(a.k*a.w))[0];
+
+  // Dynamic qualification gate: lower the threshold only when the stored library
+  // produces broad, same-side agreement and a longer remembered context is present.
+  // Weak or conflicting memory keeps the original conservative 59% requirement.
+  const agreeCount=used.filter(z=>(z.p>=.5?'P':'B')===side).length;
+  const agreement=used.length?agreeCount/used.length:0;
+  const longSupported=used.some(z=>z.k>=4 && z.ind>=4);
+  const strongMemory=used.length>=3 && maxInd>=5 && longSupported && agreement>=.75;
+  const normalMemory=!strongMemory && used.length>=2 && maxInd>=4 && agreement>=.67;
+  const gate=strongMemory?CUTOFF_STRONG:(normalMemory?CUTOFF_NORMAL:CUTOFF_WEAK);
+  const tier=strongMemory?'STRONG MEMORY':(normalMemory?'SUPPORTED MEMORY':'WEAK / CONFLICTING MEMORY');
+  const qualified=conf>=gate && used.length>=2 && maxInd>=4;
 
   return {
     qualified, side, rawSide:side, confidence:conf*100, p,
     contexts:used.length, independent:maxInd, totalIndependent:totalInd,
-    strongest:strongest?.k||0, library:lib.length,
+    strongest:strongest?.k||0, library:lib.length, gate:gate*100, tier, agreement:agreement*100,
     reason:qualified
-      ? `QUALIFIED: ${used.length} context lengths agree strongly enough; strongest memory is ${strongest?.k||0} hands.`
-      : `RAW LEAN: ${used.length} context lengths active; waiting for 59% confidence and independent-shoe support.`
+      ? `QUALIFIED • ${tier}: ${(conf*100).toFixed(1)}% ≥ ${(gate*100).toFixed(1)}% gate; ${used.length} context lengths active, ${Math.round(agreement*100)}% same-side agreement, strongest memory ${strongest?.k||0} hands.`
+      : `RAW LEAN • ${tier}: ${(conf*100).toFixed(1)}% confidence; needs ${(gate*100).toFixed(1)}%. ${used.length} context lengths active, ${Math.round(agreement*100)}% same-side agreement.`
   };
 }
 function ensure(){
@@ -21040,7 +21051,7 @@ function ensure(){
   d.style.borderColor='#7a6aa8';
   d.innerHTML=`
     <div class="analyzer-title">🧠 ML Trainer 2 — Bayesian Variable Memory</div>
-    <div class="analyzer-sub">Independent experimental trainer. Learns 1–6 hand P/B contexts from unique saved shoes, Bayesian-smooths each independent shoe, adapts modestly to repeated contexts already observed in the live shoe, and uses a fixed 59% qualification gate. It does not control V309 or any other AI.</div>
+    <div class="analyzer-sub">Independent experimental trainer. Learns 1–6 hand P/B contexts from unique saved shoes, Bayesian-smooths each independent shoe, adapts modestly to repeated contexts already observed in the live shoe, and uses a dynamic evidence-aware gate: 54.5% for strong remembered-library support, 56.5% for normal supported memory, and 59% when memory is weak or conflicting. It does not control V309 or any other AI.</div>
     <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
       <div class="analyzer-card"><span>NEXT RESULT</span><strong id="v393Side">WAIT</strong></div>
       <div class="analyzer-card"><span>CONFIDENCE</span><strong id="v393Conf">—</strong></div>
@@ -21121,14 +21132,126 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setInterval(()=>{if(document.visibilityState!=='hidden'){watch();paint();}},1200);
 
 window.__V393_VARIABLE_MEMORY_ML2__={
-  version:VERSION, cutoff:CUTOFF, warmup:WARMUP,
+  version:VERSION, cutoffStrong:CUTOFF_STRONG, cutoffNormal:CUTOFF_NORMAL, cutoffWeak:CUTOFF_WEAK, warmup:WARMUP,
   signal,arm,settle,reset:resetScore,render:paint,
   controlsExistingAI:false, uniqueShoeLearning:true,
-  contextLengths:[1,2,3,4,5,6], bayesianSmoothing:true, liveAdaptive:true
+  contextLengths:[1,2,3,4,5,6], bayesianSmoothing:true, liveAdaptive:true, dynamicGate:true
 };
 })();
 </script>
-<script id="v393-build-marker">window.__V393_BUILD__={version:393,variableMemoryML2:true,cutoff:0.59,contexts:[1,2,3,4,5,6],existingV309Changed:false,existingAIsChanged:false,independentAccuracy:true};</script>
+<script id="v393-build-marker">window.__V393_BUILD__={version:393.1,variableMemoryML2:true,dynamicGate:true,cutoffs:{strong:0.545,normal:0.565,weak:0.59},contexts:[1,2,3,4,5,6],existingV309Changed:false,existingAIsChanged:false,independentAccuracy:true};</script>
+
+
+<!-- V394: Adaptive Library Intelligence AI. Independent meta-intelligence layer; existing AI logic unchanged. -->
+<script id="v394-adaptive-library-intelligence-ai">
+(function(){
+'use strict';
+const V=394, STORE='v394-ali-accuracy', WARMUP=8, QUAL=.585;
+let pending=null,lastKey='';
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const pb=x=>String(x||'').toUpperCase().replace(/[^PB]/g,'');
+const sideText=x=>x==='P'?'PLAYER':x==='B'?'BANKER':'WAIT';
+function seq(){try{return pb((typeof currentSequence==='function'?currentSequence():[]).join(''))}catch(e){return ''}}
+function uniqueLibrary(){
+  let a=[];try{a=typeof activePatternLibrary==='function'?activePatternLibrary():[]}catch(e){}
+  const seen=new Set(),out=[];
+  for(const r of Array.isArray(a)?a:[]){const q=pb(r?.sequence||r?.seq||r?.results||'');if(q.length<10||seen.has(q))continue;seen.add(q);out.push({q,roads:r?.derivedRoadHistory||null});}
+  return out;
+}
+function regime(q){
+  q=pb(q).slice(-10);if(q.length<3)return 'EARLY';
+  let sw=0;for(let i=1;i<q.length;i++)if(q[i]!==q[i-1])sw++;
+  let run=1;for(let i=q.length-1;i>0&&q[i]===q[i-1];i--)run++;
+  const rate=sw/(q.length-1);
+  if(run>=4)return 'RUN';if(rate>=.72)return 'CHOP';if(rate<=.32)return 'STREAKY';return 'MIXED';
+}
+function rs(q){q=pb(q);let z='';for(let i=1;i<q.length;i++)z+=q[i]===q[i-1]?'R':'S';return z;}
+function inv(q){return pb(q).replace(/[PB]/g,c=>c==='P'?'B':'P')}
+function motifSignal(live,lib){
+  const lens=[12,10,8,6,4], rg=regime(live);let p=0,b=0,w=0,shoes=0,best=0;
+  for(const L of lens){if(live.length<L)continue;const ctx=live.slice(-L),ictx=inv(ctx),shape=rs(ctx);let lp=0,lb=0,lshoe=0;
+    for(const rec of lib){let vp=0,vb=0,found=false;
+      const q=rec.q;
+      for(let i=L;i<q.length;i++){
+        const pre=q.slice(i-L,i),n=q[i];if(n!=='P'&&n!=='B')continue;
+        let wt=0;
+        if(pre===ctx)wt=1;
+        else if(pre===ictx)wt=.58;
+        else if(L>=6&&rs(pre)===shape)wt=.26;
+        if(!wt)continue;
+        const rr=regime(pre);if(rr===rg)wt*=1.18;
+        if(n==='P')vp+=wt;else vb+=wt;found=true;
+      }
+      if(found){const t=vp+vb;if(t){lp+=vp/t;lb+=vb/t;lshoe++;}}
+    }
+    if(lshoe){const strength=Math.min(1,lshoe/18);const lw=(L/12)*strength; p+=lw*(lp+1.5)/(lshoe+3);b+=lw*(lb+1.5)/(lshoe+3);w+=lw;shoes+=lshoe;best=Math.max(best,lshoe);}
+  }
+  if(!w)return {side:null,conf:.5,evidence:0,regime:rg,detail:'No qualified historical motifs'};
+  const pp=p/(p+b||1), conf=Math.max(pp,1-pp),side=pp>=.5?'P':'B';
+  return {side,conf,evidence:best,regime:rg,detail:`${best} independent-shoe motif votes • ${rg}`};
+}
+function variableMemory(live,lib){
+  let lp=0,lb=0,wt=0,ev=0;
+  for(let L=1;L<=8;L++){
+    if(live.length<L)continue;const c=live.slice(-L);let P=0,B=0,n=0;
+    for(const rec of lib){let rp=0,rb=0;
+      for(let i=L;i<rec.q.length;i++)if(rec.q.slice(i-L,i)===c){if(rec.q[i]==='P')rp++;else rb++;}
+      if(rp+rb){P+=rp/(rp+rb);B+=rb/(rp+rb);n++;}
+    }
+    if(n){const post=(P+1.5)/(n+3),q=Math.min(1,n/14)*(L/8);lp+=post*q;lb+=(1-post)*q;wt+=q;ev=Math.max(ev,n);}
+  }
+  if(!wt)return {side:null,conf:.5,evidence:0};const pp=lp/(lp+lb||1);return {side:pp>=.5?'P':'B',conf:Math.max(pp,1-pp),evidence:ev};
+}
+function readSide(id){const e=document.getElementById(id);if(!e)return null;const t=(e.textContent||'').toUpperCase();if(/PLAYER|\bP\b/.test(t)&&!t.includes('BANKER'))return 'P';if(/BANKER|\bB\b/.test(t))return 'B';return null;}
+function existingVotes(){
+ const ids=['seqAiSide','futureFinal','bestSide','v360T2Pick','mlv307Pick','beadHistSide','beadHist3Side'];
+ const v=[];for(const id of ids){const side=readSide(id);if(side)v.push({id,side});}return v;
+}
+function signal(){
+ const live=seq(),lib=uniqueLibrary();if(live.length<WARMUP||lib.length<5)return {side:null,conf:0,evidence:0,reason:`Warm-up ${live.length}/${WARMUP} • ${lib.length} library shoes`,regime:regime(live)};
+ const m=motifSignal(live,lib),vm=variableMemory(live,lib),votes=existingVotes();
+ // V394 selective qualification: the two independent historical engines must agree.
+ // This rule was chosen on an earlier-shoe split, then checked on a later held-out block.
+ const agree=!!(m.side&&vm.side&&m.side===vm.side);
+ const nonStreaky=m.regime!=='STREAKY';
+ const qualified=agree&&nonStreaky&&m.conf>=.50&&vm.conf>=.56&&(m.evidence>=3||vm.evidence>=5);
+ const side=agree?m.side:null;
+ const sameVotes=votes.filter(z=>z.side===side).length, oppVotes=votes.filter(z=>side&&z.side!==side).length;
+ // Existing AIs are confirmation-only: they can nudge displayed confidence but cannot reverse the historical call.
+ const base=agree?(.45*m.conf+.55*vm.conf):Math.max(m.conf||.5,vm.conf||.5);
+ const routerNudge=votes.length?clamp((sameVotes-oppVotes)/votes.length,-1,1)*.015:0;
+ const conf=clamp(base+routerNudge,.50,.75);
+ let why='WAIT';
+ if(!agree)why='WAIT • motif and variable-memory disagree';
+ else if(!nonStreaky)why='WAIT • streaky regime was weak in strict replay';
+ else if(vm.conf<.56)why=`WAIT • variable-memory ${(vm.conf*100).toFixed(1)}% below 56% gate`;
+ else why=qualified?`${m.detail} • variable-memory ${(vm.conf*100).toFixed(1)}% • router ${sameVotes}-${oppVotes}`:`WAIT • historical evidence below qualification`;
+ return {side:qualified?side:null,rawSide:side,conf,evidence:Math.max(m.evidence,vm.evidence),regime:m.regime,reason:why};
+}
+function load(){try{return Object.assign({w:0,l:0,n:0},JSON.parse(localStorage.getItem(STORE)||'{}'))}catch(e){return {w:0,l:0,n:0}}}
+function save(a){try{localStorage.setItem(STORE,JSON.stringify(a))}catch(e){}}
+function settle(actual){actual=pb(actual).slice(0,1);if(!pending||!/[PB]/.test(actual))return;const a=load();a.n++;if(pending===actual)a.w++;else a.l++;save(a);pending=null;}
+function arm(){const q=seq(),key=q;if(key===lastKey)return;lastKey=key;const z=signal();pending=z.side||null;paint(z);}
+function reset(){if(!confirm('Reset Adaptive Library Intelligence AI accuracy?'))return;save({w:0,l:0,n:0});pending=null;lastKey='';setTimeout(arm,0);}
+function paint(z){z=z||signal();const a=load(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+ set('aliSide',sideText(z.side));set('aliConf',z.conf?`${(z.conf*100).toFixed(1)}%`:'—');set('aliRegime',z.regime||'—');set('aliEvidence',z.evidence||0);
+ set('aliAcc',a.n?`${Math.round(100*a.w/a.n)}%`:'—');set('aliWL',`${a.w}W-${a.l}L`);set('aliN',`N=${a.n}`);set('aliReason',z.reason||'Waiting');
+}
+function install(){if(document.getElementById('adaptiveLibraryIntelligenceAI'))return;
+ const anchor=document.getElementById('v393VariableMemoryML2')||document.getElementById('sequenceAiPanel')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;
+ const d=document.createElement('div');d.className='analyzer';d.id='adaptiveLibraryIntelligenceAI';d.style.borderColor='#4d9c7a';
+ d.innerHTML=`<div class="analyzer-title">🧠 Adaptive Library Intelligence AI</div><div class="analyzer-sub">Experimental meta-AI: deep historical motif matching + variable-order memory + live regime detection + small independent vote from existing AIs. It never rewrites their logic.</div><div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="aliSide">WAIT</strong></div><div class="analyzer-card"><span>CALIBRATED</span><strong id="aliConf">—</strong></div><div class="analyzer-card"><span>REGIME</span><strong id="aliRegime">—</strong></div><div class="analyzer-card"><span>MOTIF EVIDENCE</span><strong id="aliEvidence">0</strong></div></div><div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px"><div class="analyzer-card"><span>ACCURACY</span><strong id="aliAcc">—</strong></div><div class="analyzer-card"><span>W / L</span><strong id="aliWL">0W-0L</strong></div><div class="analyzer-card"><span>COUNT</span><strong id="aliN">N=0</strong></div></div><div id="aliReason" class="analyzer-sub" style="margin-top:6px">Waiting</div><button class="tiny-btn" id="aliReset" style="margin-top:6px">Reset Accuracy</button>`;
+ anchor.parentNode.insertBefore(d,anchor);document.getElementById('aliReset')?.addEventListener('click',reset);
+ document.addEventListener('click',e=>{const t=e.target?.closest?.('[data-result],#previewP,#previewB');if(t){let a=t.dataset?.result;if(!a&&t.id==='previewP')a='P';if(!a&&t.id==='previewB')a='B';try{settle(a)}catch(_){}setTimeout(()=>{lastKey='';arm()},40)}},true);
+ document.getElementById('undoBtn')?.addEventListener('click',()=>setTimeout(()=>{pending=null;lastKey='';arm()},60));
+ document.getElementById('clearBtn')?.addEventListener('click',()=>setTimeout(()=>{pending=null;lastKey='';arm()},60));
+ arm();
+}
+window.__ADAPTIVE_LIBRARY_INTELLIGENCE_AI__={version:V,signal,motifSignal,variableMemory,existingVotes,arm,settle,reset,doesNotModifyExistingAIs:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
+<script id="v394-build-marker">window.__V394_BUILD__={version:394,adaptiveLibraryIntelligenceAI:true,existingAILogicChanged:false,motifMatcher:true,variableOrderMemory:true,regimeDetector:true,metaRouter:true,independentAccuracy:true};</script>
 
 </body>
 </html>
