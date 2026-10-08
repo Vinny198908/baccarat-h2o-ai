@@ -1,3 +1,4 @@
+<!-- V393.5: Bayesian ML2 accuracy graded in authoritative real-hand commit paths; removes delayed-click race. No other prediction logic changed. -->
 <!-- V393.4: Main Future Road Test 2 primary weight 40/60; comparison includes 70/30 baseline. Other AIs unchanged. -->
 <!-- V393.3: Main Future Test 2 weight comparison lab. 70/30 original preserved; five experimental variants have independent ledgers. -->
 <!-- V393.2: Bayesian ML2 displays supported directional leans, preserves stricter QUALIFIED label; only actual committed P/B hands are scored; preview taps ignored. Other AI engines unchanged. -->
@@ -1254,10 +1255,12 @@ document.querySelectorAll('[data-result]').forEach(btn=>{
     try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
     try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
 
+    try{ window.__V393_VARIABLE_MEMORY_ML2__?.settle(actual); }catch(e){}
     settlePendingPrediction(actual);
     settleGPTMirrorPrediction(actual);
 
     state.hands.push({r:actual,pp:state.pp,bp:state.bp,special:state.special,ts:Date.now()});
+    try{ window.__V393_VARIABLE_MEMORY_ML2__?.arm(); }catch(e){}
     state.scanSnapshot=null;
     state.pp=state.bp=state.special=false;
     document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
@@ -1289,10 +1292,12 @@ function commitPreviewResult(actual){
   try{ window.__settleVerifiedPredictions?.(actual); }catch(e){}
   try{ window.__settleAdaptiveDerivedRoads?.(actual); }catch(e){}
   try{ window.__settleAdaptiveOriginalDerivedRoads?.(actual); }catch(e){}
+  try{ window.__V393_VARIABLE_MEMORY_ML2__?.settle(actual); }catch(e){}
   settlePendingPrediction(actual);
   settleBotPrediction(actual);
   settleGPTMirrorPrediction(actual);
   state.hands.push({r:actual,pp:false,bp:false,special:false,ts:Date.now()});
+  try{ window.__V393_VARIABLE_MEMORY_ML2__?.arm(); }catch(e){}
   state.scanSnapshot=null;
   armNextPrediction();
   armBotPrediction();
@@ -21120,8 +21125,10 @@ function arm(){
 }
 function settle(actual){
   actual=String(actual||'').toUpperCase();
-  if(actual!=='P'&&actual!=='B')return;
-  if(pending&&pending.side){
+  // Called BEFORE the authoritative hand commit, not from delayed click timers.
+  // A frozen prediction is graded at most once and only for its exact shoe prefix.
+  const before=currentPB();
+  if((actual==='P'||actual==='B') && pending && pending.side && pending.seq===before){
     const s=loadScore();
     if(pending.side===actual)s.w++;else s.l++;
     saveScore(s);
@@ -21129,32 +21136,9 @@ function settle(actual){
   pending=null;
   paint();
 }
-function bind(){
-  if(document.__v393Bound)return;
-  document.__v393Bound=true;
-  document.addEventListener('click',e=>{
-    const b=e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn');
-    if(!b)return; // Hypothetical Road Preview must never settle a prediction.
-    if(b.matches('[data-result]')){
-      const actual=String(b.dataset.result||'').toUpperCase();
-      const before=currentPB(), frozen=pending;
-      setTimeout(()=>{
-        const after=currentPB();
-        // Settle only one actual appended non-tie hand. No score for an uncommitted click.
-        if((actual==='P'||actual==='B') && after===before+actual && frozen && frozen.seq===before){
-          const score=loadScore();
-          if(frozen.side===actual)score.w++;else score.l++;
-          saveScore(score);
-        }
-        pending=null;
-        arm();
-      },90);
-    }else{
-      pending=null;
-      setTimeout(arm,140);
-    }
-  },true);
-}
+// Score on the authoritative result commit instead of a document click.
+// The primary commit handlers call settle() before state.hands.push(),
+// and arm() afterward. No delayed timer or preview-only click can grade a hand.
 function watch(){
   const k=currentPB();
   if(k!==lastSeqKey){
@@ -21163,7 +21147,7 @@ function watch(){
   }
 }
 function install(){
-  ensure(); bind(); arm();
+  ensure(); arm();
   [500,1400,2800].forEach(ms=>setTimeout(()=>{ensure();paint();},ms));
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
