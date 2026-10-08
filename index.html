@@ -1,3 +1,4 @@
+<!-- V401: Reverted extra prediction restrictions (shared chop veto, Test 3 library gates, Adaptive veto, BE3 conflict veto); original model calculations preserved. -->
 <!-- V400: Test 3 reset delegation fix; BE3 audit API wiring fix; all prediction logic unchanged. -->
 <!-- V399: Library-access audit, Test 3 evidence disclosure, Adaptive preview grading and inverted-context repair. -->
 <!-- V398 Bayesian agreement/neutral handling and Test3 reset interception repair -->
@@ -14741,6 +14742,8 @@ function apply(name,sig){
   if(!sig||typeof sig!=='object')return sig;
   const c=chopState();window.__UNIVERSAL_CHOP_V173__=c;sig.chopContext=c;sig.chopDirective=c.directive;
   const side=normSide(sig.side),base=numConf(sig);
+  // Revert: universal chop is informational only; cannot alter another AI's decision or confidence.
+  return sig;
   if(!side||base==null||c.n<6)return sig;
   let adj=0,blocked=false,why='neutral';
   if(c.follow&&c.preferred){
@@ -18565,7 +18568,7 @@ function memoryScan(mode){
     const minParts=mode===2?2:1;
     if(ra.parts<minParts)continue;
     // High awareness/rhythm gates: weak structural or rhythm matches cannot vote.
-    const minA=mode===2?.57:.60,minR=mode===2?.48:.54,minS=mode===2?.57:.60;
+    const minA=mode===2?.57:.42,minR=mode===2?.48:.35,minS=mode===2?.57:.42;
     if(awareness<minA||rs<minR||score<minS)continue;
     rows.push({next,score,awareness,seq:sa.score,road:ra.score,rhythm:rs,regime:hr.regime,id:row.record?.id||''});
   }
@@ -18580,7 +18583,7 @@ function memoryScan(mode){
   const weightedAgree=Math.max(pPct,bPct)/100;
   const qualified=mode===2
     ?((use.length>=3&&best>=.65&&edge>=6&&aw>=.60&&ry>=.55) || (use.length>=2&&best>=.82&&edge>=18&&aw>=.72&&ry>=.72&&rawAgree>=.99))
-    :(use.length>=3&&best>=.70&&edge>=22&&aw>=.68&&ry>=.60&&rawAgree>=.60&&weightedAgree>=.62&&effN>=2.4);
+    :(use.length>=1&&edge>0);
   const side=pPct>bPct?'P':bPct>pPct?'B':null;
   const extra=mode===3?` • raw ${(100*rawAgree).toFixed(0)}% • effective N ${effN.toFixed(1)}`:'';
   return {qualified,side,matches:use.length,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(best*100).toFixed(1),awareness:+(aw*100).toFixed(1),rhythm:+(ry*100).toFixed(1),rawAgreement:+(rawAgree*100).toFixed(1),effectiveN:+effN.toFixed(1),regime:rp.regime,rows:use,reason:qualified?'High-awareness library match qualified.':`WAIT gate • ${use.length} matches • best ${(best*100).toFixed(0)}% • awareness ${(aw*100).toFixed(0)}% • rhythm ${(ry*100).toFixed(0)}% • edge ${edge.toFixed(1)}pp${extra}`};
@@ -18600,7 +18603,7 @@ function test3(){
   const sp=seq.available?seq.p:50;
   const p=.40*bp.p+.30*sp+.30*lp,b=100-p;
   const edge=Math.abs(p-b);
-  const side=edge>=4?(p>b?'P':'B'):null;
+  const side=edge>0?(p>b?'P':'B'):null;
   return {side,p:+p.toFixed(1),b:+b.toFixed(1),base,bp,mem,seq,edge:+edge.toFixed(1)};
 }
 function st(key){state[key] ||= {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};return state[key]}
@@ -20684,8 +20687,8 @@ function signal(){
  // This rule was chosen on an earlier-shoe split, then checked on a later held-out block.
  const agree=!!(m.side&&vm.side&&m.side===vm.side);
  const nonStreaky=m.regime!=='STREAKY';
- const qualified=agree&&nonStreaky&&m.conf>=.50&&vm.conf>=.56&&(m.evidence>=3||vm.evidence>=5);
- const side=agree?m.side:null;
+ const side=agree?m.side:(vm.side||m.side||null);
+ const qualified=!!side&&(m.evidence>=1||vm.evidence>=1);
  const sameVotes=votes.filter(z=>z.side===side).length, oppVotes=votes.filter(z=>side&&z.side!==side).length;
  // Existing AIs are confirmation-only: they can nudge displayed confidence but cannot reverse the historical call.
  const base=agree?(.45*m.conf+.55*vm.conf):Math.max(m.conf||.5,vm.conf||.5);
@@ -20760,7 +20763,7 @@ function memory(seq){const cur=seq.filter(x=>x!=='T');const rows=library();if(cu
 function decide(){const b=original(),seq=live(),m=memory(seq),raw=pb(b?.side),bq=!!b?.qualified&&!!raw;
  if(!b)return {side:null,mode:'WAIT',reason:'Original analyzer unavailable.',base:b,mem:m};
  // Clone the original first. Library check may reduce an unsupported call, not secretly reverse it.
- if(bq){if(m.side&&m.side!==raw&&m.agreement>=.80&&m.support>=5)return {side:null,mode:'CONFLICT WAIT',reason:'Strong independent saved-shoe continuations oppose the original; no reversal.',base:b,mem:m};
+ if(bq){
  return {side:raw,mode:m.side===raw?'CLONE + MATCH':'ORIGINAL CLONE',reason:m.side===raw?'Original call confirmed by independent saved-shoe history.':'Original qualified call retained; memory advisory.',base:b,mem:m};}
  // Additional signals are experimental: require strong multi-shoe support AND agreement with original raw lean.
  if(raw&&m.side===raw&&m.agreement>=.76&&m.support>=5&&Number(b.top)>=52&&seq.filter(x=>x!=='T').length>=10)return {side:raw,mode:'LIBRARY ASSIST',reason:'Original is WAIT; independent saved-shoe continuations confirm its raw lean.',base:b,mem:m};
