@@ -1,3 +1,5 @@
+<!-- V393.7: Bayesian W/L now caches graded results in memory if localStorage is unavailable; source-tested with real click replay. -->
+<!-- V393.6: Bayesian W/L repair: recover a pre-commit directional prediction when pending is lost; score before actual hand is added; refresh display. -->
 <!-- V393.5: Bayesian ML2 accuracy graded in authoritative real-hand commit paths; removes delayed-click race. No other prediction logic changed. -->
 <!-- V393.4: Main Future Road Test 2 primary weight 40/60; comparison includes 70/30 baseline. Other AIs unchanged. -->
 <!-- V393.3: Main Future Test 2 weight comparison lab. 70/30 original preserved; five experimental variants have independent ledgers. -->
@@ -20969,14 +20971,26 @@ function library(){
   }
   return out;
 }
+// Keep the authoritative W/L ledger in memory as well as persistent storage.
+// Some local HTML/mobile browser contexts deny localStorage. Never silently
+// discard a recorded win/loss when that happens.
+let scoreMemory=null, scoreStorageAvailable=true;
 function loadScore(){
+  if(scoreMemory)return {w:scoreMemory.w,l:scoreMemory.l};
   try{
     const x=JSON.parse(localStorage.getItem(STORE)||'null');
-    if(x&&Number.isFinite(x.w)&&Number.isFinite(x.l))return {w:x.w,l:x.l};
-  }catch(e){}
+    if(x&&Number.isFinite(x.w)&&Number.isFinite(x.l)){
+      scoreMemory={w:x.w,l:x.l}; return {w:x.w,l:x.l};
+    }
+  }catch(e){scoreStorageAvailable=false;}
+  scoreMemory={w:0,l:0};
   return {w:0,l:0};
 }
-function saveScore(s){try{localStorage.setItem(STORE,JSON.stringify(s))}catch(e){}}
+function saveScore(s){
+  scoreMemory={w:s.w,l:s.l};
+  try{localStorage.setItem(STORE,JSON.stringify(scoreMemory));scoreStorageAvailable=true}
+  catch(e){scoreStorageAvailable=false;}
+}
 function resetScore(){
   saveScore({w:0,l:0}); pending=null; paint();
 }
@@ -21115,6 +21129,7 @@ function paint(){
   set('v393Accuracy',n?(100*s.w/n).toFixed(1)+'%':'—');
   set('v393WL',`${s.w}W-${s.l}L`);
   set('v393N',`N ${n}`);
+  if(!scoreStorageAvailable) set('v393Accuracy',(n?(100*s.w/n).toFixed(1)+'%':'—')+' *');
   set('v393Reason',z.reason||'Waiting.');
 }
 function arm(){
@@ -21125,15 +21140,32 @@ function arm(){
 }
 function settle(actual){
   actual=String(actual||'').toUpperCase();
-  // Called BEFORE the authoritative hand commit, not from delayed click timers.
-  // A frozen prediction is graded at most once and only for its exact shoe prefix.
+  if(actual!=='P' && actual!=='B')return;
+  // This callback runs before the actual hand is committed. Reconstruct the
+  // pre-hand directional forecast if a timer/render invalidated pending.
   const before=currentPB();
-  if((actual==='P'||actual==='B') && pending && pending.side && pending.seq===before){
+  let frozen=(pending && pending.seq===before && /^[PB]$/.test(pending.side)) ? pending.side : null;
+  if(!frozen){
+    const z=signal();
+    if(z.hasDirectionalEvidence && /^[PB]$/.test(z.side||''))frozen=z.side;
+  }
+  // The panel may already show a pre-hand call even if its pending cache went
+  // missing; only accept this when sufficient pre-hand evidence exists.
+  if(!frozen){
+    try{
+      const shown=(document.getElementById('v393Side')?.textContent||'').trim().toUpperCase();
+      const z=signal();
+      if(z.hasDirectionalEvidence && (shown==='PLAYER'||shown==='BANKER'))
+        frozen=shown==='PLAYER'?'P':'B';
+    }catch(e){}
+  }
+  if(frozen){
     const s=loadScore();
-    if(pending.side===actual)s.w++;else s.l++;
+    if(frozen===actual)s.w++;else s.l++;
     saveScore(s);
   }
   pending=null;
+  // Refresh immediately so the W/L and N values cannot remain visually stale.
   paint();
 }
 // Score on the authoritative result commit instead of a document click.
