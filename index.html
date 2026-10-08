@@ -1,3 +1,4 @@
+<!-- V397: Main Future Road Test 3 weights updated to 40/30/30; other AI logic unchanged. -->
 <!-- V393.8: Bayesian settlement and arming wired to active V135 central transaction queue. -->
 <!-- V393.7: Bayesian W/L now caches graded results in memory if localStorage is unavailable; source-tested with real click replay. -->
 <!-- V393.6: Bayesian W/L repair: recover a pre-commit directional prediction when pending is lost; score before actual hand is added; refresh display. -->
@@ -18489,7 +18490,7 @@ window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:tru
 
 
 
-<!-- V360: Main Future Road Test 2 current-version port + High Awareness/Rhythm upgrade; Test 3 = 100% library-only. -->
+<!-- V360: V396 replaces Test 2 with Test 3; 50% Road / 25% Sequence V2 / 25% library. -->
 <style id="v360-main-future-23-style">
 #v360MainFutureTest2{margin-top:8px;border:1px solid #42536a;box-shadow:0 0 0 1px rgba(82,132,196,.10) inset}
 #v360MainFutureTest2 .v360-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:8px}
@@ -18498,7 +18499,7 @@ window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:tru
 #v360MainFutureTest2 .v360-card strong{display:block;font-size:16px;margin-top:2px;overflow-wrap:anywhere}
 @media(max-width:620px){#v360MainFutureTest2 .v360-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
-<!-- V356: Main Future Road Tests 3, 4, and 5 fully removed; Test 2 retained. -->
+<!-- V356: V396 Test 3 replaces Test 2. -->
 <script id="v360-main-future-tests-2-3">
 (function(){
 'use strict';
@@ -18581,30 +18582,32 @@ function memoryScan(mode){
   const extra=mode===3?` • raw ${(100*rawAgree).toFixed(0)}% • effective N ${effN.toFixed(1)}`:'';
   return {qualified,side,matches:use.length,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(best*100).toFixed(1),awareness:+(aw*100).toFixed(1),rhythm:+(ry*100).toFixed(1),rawAgreement:+(rawAgree*100).toFixed(1),effectiveN:+effN.toFixed(1),regime:rp.regime,rows:use,reason:qualified?'High-awareness library match qualified.':`WAIT gate • ${use.length} matches • best ${(best*100).toFixed(0)}% • awareness ${(aw*100).toFixed(0)}% • rhythm ${(ry*100).toFixed(0)}% • edge ${edge.toFixed(1)}pp${extra}`};
 }
-function test2(libraryWeight=.60){const base=baseTest(),bp=basePB(base),mem=memoryScan(2);let p=bp.p,b=bp.b,used=false;if(mem.qualified){p=(1-libraryWeight)*bp.p+libraryWeight*mem.pPct;b=(1-libraryWeight)*bp.b+libraryWeight*mem.bPct;used=true}const t=p+b||100;p=100*p/t;b=100*b/t;const side=p>b?'P':b>p?'B':null;return {side,p:+p.toFixed(1),b:+b.toFixed(1),base,baseP:+bp.p.toFixed(1),baseB:+bp.b.toFixed(1),mem,used,edge:+Math.abs(p-b).toFixed(1)}}
+function sequenceVote(){
+  // Read Sequence V2's calculated continuation percentages, not its display-only directional label.
+  const P=parseFloat(document.getElementById('seqAiP')?.textContent||''),B=parseFloat(document.getElementById('seqAiB')?.textContent||'');
+  const label=String(document.getElementById('seqAiSide')?.textContent||'').toUpperCase();
+  if(!Number.isFinite(P)||!Number.isFinite(B)||P+B<=0||!['PLAYER','BANKER'].includes(label))return {available:false,p:50,b:50};
+  return {available:true,p:100*P/(P+B),b:100*B/(P+B)};
+}
+function test3(){
+  const base=baseTest(),bp=basePB(base),mem=memoryScan(2),seq=sequenceVote();
+  // Exactly 40% main road, 30% Sequence V2, 30% unique saved-library history.
+  // Neutral 50/50 rather than phantom agreement when a supporting source is unqualified.
+  const lp=mem.qualified?mem.pPct:50;
+  const sp=seq.available?seq.p:50;
+  const p=.40*bp.p+.30*sp+.30*lp,b=100-p;
+  const edge=Math.abs(p-b);
+  const side=edge>=4?(p>b?'P':'B'):null;
+  return {side,p:+p.toFixed(1),b:+b.toFixed(1),base,bp,mem,seq,edge:+edge.toFixed(1)};
+}
 function st(key){state[key] ||= {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};return state[key]}
 function ensure(){
   const anchor=document.getElementById('mainRoadFutureTest');if(!anchor?.parentNode)return;
-  if(!document.getElementById('v360MainFutureTest2')){const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest2';d.innerHTML=`<div class="analyzer-title">📚 Main Future Road Test 2 — Road History + High Rhythm/Regime Awareness</div><div class="analyzer-sub">Current-version Test 2 design: 40% current Main Future engine + 30% unique saved-library road memory. High-awareness matching now requires the live shoe to fit saved road shape and live rhythm/regime before library memory can influence the call. Exact duplicate shoes get no extra vote.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T2Pick">WAIT</strong></div><div class="v360-card"><span>CONFIDENCE</span><strong id="v360T2Conf">—</strong></div><div class="v360-card"><span>LIVE MATCH AWARENESS</span><strong id="v360T2Aware">BUILDING</strong></div><div class="v360-card"><span>RHYTHM / REGIME FIT</span><strong id="v360T2Rhythm">BUILDING</strong></div><div class="v360-card"><span>LIBRARY MATCHES</span><strong id="v360T2Matches">0</strong></div><div class="v360-card"><span>BASE / LIBRARY MIX</span><strong id="v360T2Mix">70 / 30</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T2Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T2Wait">0</strong></div></div><div class="analyzer-sub" id="v360T2Note" style="margin-top:8px">Building live awareness.</div><button class="tiny-btn" id="v360T2Reset" style="width:100%;margin-top:8px">Reset Test 2 Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#v360T2Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 2 accuracy?')){state.v360Test2Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}}}
-  // Independent, non-invasive weight comparison; Main Test 2 uses 40/60, with 70/30 available in the comparison lab.
-  if(!document.getElementById('v360WeightLab')){
-    const lab=document.createElement('div');lab.id='v360WeightLab';lab.className='analyzer';
-    lab.innerHTML='<div class="analyzer-title">🧪 Main Future Test 2 — Weight Comparison Lab</div><div class="analyzer-sub">Experimental copies of Test 2. Each uses identical base road and qualified memory evidence, with independent accuracy accounting. Main Test 2 now uses 40/60; 70/30 is retained as an experimental comparator. These are research signals, not guaranteed winning probabilities.</div><div id="v360WeightLabRows" style="display:grid;gap:6px;margin-top:8px"></div><button class="tiny-btn" type="button" id="v360WeightLabReset" style="width:100%;margin-top:8px">Reset Weight Comparison Only</button>';
-    const orig=document.getElementById('v360MainFutureTest2');orig.parentNode.insertBefore(lab,orig.nextSibling);
-    const rows=lab.querySelector('#v360WeightLabRows');
-    for(const [base,mem] of [[90,10],[80,20],[70,30],[60,40],[50,50]]){
-      const d=document.createElement('div');d.style.cssText='background:#22262d;border-radius:9px;padding:9px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;font-size:12px';
-      d.innerHTML=`<strong>${base}/${mem}</strong><span id="mixPick${mem}">WAIT</span><span id="mixAcc${mem}">0W-0L • N=0</span><small id="mixUse${mem}">Base only</small>`;rows.appendChild(d);
-    }
-    lab.querySelector('#v360WeightLabReset').addEventListener('click',()=>{
-      if(!confirm('Reset only five experimental mixes?'))return;
-      for(const mem of [10,20,30,40,50])state['v360Mix'+mem]={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};
-      try{persist()}catch(e){};paintMixes();
-    });
-  }
-  // Main Future Road Tests 3, 4, and 5 are fully removed.
-
-
+  if(document.getElementById('v360MainFutureTest2'))return;
+  const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest2';
+  d.innerHTML=`<div class="analyzer-title">📚 Main Future Road Test 3 — 40/30/30</div><div class="analyzer-sub">40% original Main Future Road Test, 30% Sequence AI V2, 30% distinct saved-library history. An unqualified supporting source contributes a neutral 50/50 vote; no future hands are read from the live shoe.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T2Pick">WAIT</strong></div><div class="v360-card"><span>COMBINED SCORE</span><strong id="v360T2Conf">—</strong></div><div class="v360-card"><span>SEQUENCE V2</span><strong id="v360T2Aware">WAIT</strong></div><div class="v360-card"><span>LIBRARY EVIDENCE</span><strong id="v360T2Rhythm">WAIT</strong></div><div class="v360-card"><span>LIBRARY MATCHES</span><strong id="v360T2Matches">0</strong></div><div class="v360-card"><span>ROAD / SEQ / LIBRARY</span><strong id="v360T2Mix">40 / 30 / 30</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T2Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T2Wait">0</strong></div></div><div class="analyzer-sub" id="v360T2Note" style="margin-top:8px">Building evidence.</div><button class="tiny-btn" id="v360T2Reset" style="width:100%;margin-top:8px">Reset Test 3 Accuracy</button>`;
+  anchor.parentNode.insertBefore(d,anchor.nextSibling);
+  d.querySelector('#v360T2Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 3 accuracy?')){state.v396Test3Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}};
 }
 function settle(key,testFn){const A=st(key),seq=live(),hn=seq.length,actual=seq.at(-1);
   // V342 rewind/new-shoe guard: never carry a future prediction backward into an older hand state.
@@ -18612,31 +18615,25 @@ function settle(key,testFn){const A=st(key),seq=live(),hn=seq.length,actual=seq.
   if(A.pending&&hn>A.pending.handN){if(actual==='T'){A.ties++;A.pending.handN=hn}else if(actual==='P'||actual==='B'){if(actual===A.pending.side)A.wins++;else A.losses++;A.pending=null}}
   const x=testFn();if(!A.pending&&x.side){A.pending={side:x.side,handN:hn,at:Date.now()}}else if(!A.pending&&!x.side&&A.lastWaitHand!==hn){A.waits++;A.lastWaitHand=hn}A.lastSeenHand=hn;try{persist()}catch(e){}return x}
 function fmtAcc(A){const n=A.wins+A.losses;return n?`${(100*A.wins/n).toFixed(1)}% • ${A.wins}W-${A.losses}L • N=${n}`:`— • 0W-0L • N=0`}
-function paint(){ensure();const x2=test2(),a2=st('v360Test2Accuracy');
-  set('v360T2Pick',x2.side==='P'?'PLAYER':x2.side==='B'?'BANKER':'WAIT');set('v360T2Conf',x2.side?Math.max(x2.p,x2.b).toFixed(1)+'%':'—');set('v360T2Aware',(x2.mem.awareness||0).toFixed(1)+'%');set('v360T2Rhythm',`${x2.mem.regime||'BUILDING'} • ${(x2.mem.rhythm||0).toFixed(1)}%`);set('v360T2Matches',`${x2.mem.matches} • best ${x2.mem.best||0}%`);set('v360T2Acc',fmtAcc(a2));set('v360T2Wait',String(a2.waits||0));set('v360T2Note',x2.mem.qualified?`HIGH AWARENESS ACTIVE • live ${x2.mem.regime} • ${x2.mem.awareness}% match awareness • ${x2.mem.rhythm}% rhythm fit. Base ${x2.baseP}/${x2.baseB} + library ${x2.mem.pPct}/${x2.mem.bPct} → final ${x2.p}/${x2.b}.`:`Library memory has not passed the high-awareness gate yet. ${x2.mem.reason}`);
-
+function paint(){ensure();const t=test3(),a=st('v396Test3Accuracy');
+ set('v360T2Pick',t.side==='P'?'PLAYER':t.side==='B'?'BANKER':'WAIT');
+ set('v360T2Conf',t.side?Math.max(t.p,t.b).toFixed(1)+'%':'—');
+ set('v360T2Aware',t.seq.available?`${t.seq.p.toFixed(0)}% P / ${t.seq.b.toFixed(0)}% B`:'WAIT');
+ set('v360T2Rhythm',t.mem.qualified?`${t.mem.pPct}% P / ${t.mem.bPct}% B`:'WAIT');
+ set('v360T2Matches',`${t.mem.matches} • best ${t.mem.best||0}%`);
+ set('v360T2Acc',fmtAcc(a));set('v360T2Wait',String(a.waits||0));
+ set('v360T2Note',`Main Road ${t.bp.p.toFixed(1)}% P • Sequence ${t.seq.available?'qualified':'neutral'} • Library ${t.mem.qualified?'qualified':'neutral'} • combined ${t.p}% P / ${t.b}% B. Confidence is a weighted signal score, not a validated probability.`);
 }
-function paintMixes(){
-  for(const mem of [10,20,30,40,50]){
-    const x=test2(mem/100),a=st('v360Mix'+mem);
-    set('mixPick'+mem,x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');
-    set('mixAcc'+mem,fmtAcc(a));set('mixUse'+mem,x.used?'Library qualified':'Base only');
-  }
-}
-function cycle(){try{
-  settle('v360Test2Accuracy',test2);
-  for(const mem of [10,20,30,40,50])settle('v360Mix'+mem,()=>test2(mem/100));
-  paint();paintMixes();
-}catch(e){console.warn('V360 Main Future Test 2',e)}}
+function cycle(){try{settle('v396Test3Accuracy',test3);paint()}catch(e){console.warn('V396 Main Future Test 3',e)}}
 // V311 stability: do not wrap global render or repeatedly scan the full library during startup.
 function lightBoot(){
-  ensure();paintMixes();
+  ensure();paint();
   // Run the expensive library scan only after a real shoe-changing action.
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn'))setTimeout(cycle,160)},false);
   const n=live().length;
   if(n>=7)setTimeout(cycle,1800); // restored in-progress shoe: one delayed sync only.
 }
-window.__V360_MAIN_FUTURE_TESTS_23__={version:VERSION,test2,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,tests345Removed:true,test2Weights:{base:.40,library:.60},startupScanReduced:true};
+window.__V360_MAIN_FUTURE_TESTS_23__={version:396,test3,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,test3Weights:{road:.40,sequence:.30,library:.30},startupScanReduced:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',lightBoot,{once:true});else lightBoot();
 })();
 </script>
@@ -18672,7 +18669,7 @@ function move(){
 
     window.__V361_USER_LAYOUT_LOCK__={
       version:VERSION,
-      top:['Main Future Road Test 2'],
+      top:['Main Future Road Test 3'],
       bottom:[],
       logicChanged:false
     };
@@ -18970,7 +18967,7 @@ function move(){
 
     window.__V314_USER_LAYOUT__={
       version:VERSION,
-      top:['Best-Estimate Analyzer','AI Pattern Recognizer','Main Future Road Test 2'],
+      top:['Best-Estimate Analyzer','AI Pattern Recognizer','Main Future Road Test 3'],
       bottom:[],
       logicChanged:false
     };
@@ -19358,173 +19355,7 @@ window.__V330_ACCURACY_REPAIR__={version:VERSION,registerDerived,paintDerived,re
 </script>
 
 
-<script id="v331-best-estimate-2-continuous-road-logic">
-(function(){
-'use strict';
-const VERSION=332;
-function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
-function live(){try{return currentSequence().map(x=>String((x?.r??x)||'').toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
-function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1}}
-function acc(){try{state.v331BestEstimate2Accuracy=Object.assign(blank(),state.v331BestEstimate2Accuracy||{});return state.v331BestEstimate2Accuracy}catch(e){return blank()}}
-function save(){try{persist()}catch(e){}}
-function base(){try{return typeof computeCombinedAnalyzer==='function'?computeCombinedAnalyzer():null}catch(e){return null}}
-function roadLib(){
-  let rows=[];
-  try{if(typeof uniqueActivePatternLibrary==='function'){const a=uniqueActivePatternLibrary(false);if(Array.isArray(a)&&a.length)rows.push(...a)}}catch(e){}
-  if(!rows.length){try{if(typeof activePatternLibrary==='function'){const a=activePatternLibrary();if(Array.isArray(a)&&a.length)rows.push(...a)}}catch(e){}}
-  if(!rows.length){try{rows=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])]}catch(e){rows=[]}}
-  const seen=new Set(),out=[];
-  for(const x of rows){
-    const q=String(typeof x==='string'?x:(x?.sequence||x?.seq||x?.results||'')).toUpperCase().replace(/[^PBT]/g,'');
-    if(q.length<10||seen.has(q))continue;seen.add(q);out.push(q);
-  }
-  return out;
-}
-function roadDerived(seq,off){try{return deriveRoad(seq.map(r=>({r})),off)||[]}catch(e){return []}}
-function roadPB(seq){return (seq||[]).filter(x=>x==='P'||x==='B')}
-function roadTailScore(a,b,k=12){
-  a=Array.isArray(a)?a:[];b=Array.isArray(b)?b:[];
-  const n=Math.min(k,a.length,b.length);if(n<3)return null;
-  let hit=0,tot=0;for(let i=0;i<n;i++){const w=.65+1.35*(i+1)/n;tot+=w;if(a[a.length-n+i]===b[b.length-n+i])hit+=w}
-  return tot?hit/tot:null;
-}
-function road(){
-  const cur=live(),n=cur.length;
-  const curPB=roadPB(cur);
-  const dcur=[1,2,3].map(off=>roadDerived(cur,off));
-  const readyParts=dcur.filter(a=>a.length>=4).length;
-  const evidence={ready:curPB.length>=8&&readyParts>=2,mainN:curPB.length,readyParts};
-  if(!evidence.ready)return {side:null,p:50,b:50,mem:{qualified:false,leaderTrack:0,agreement:0,evidence,reason:`WAIT • building live roads (${readyParts}/3 derived roads ready).`}};
-  const candidates=[];
-  for(const q0 of roadLib()){
-    const q=q0.split('');if(q.length<=n)continue;const next=q[n];if(next!=='P'&&next!=='B')continue;
-    const hist=q.slice(0,n),histPB=roadPB(hist);
-    const main=roadTailScore(curPB,histPB,12);
-    const roadScores=[];for(let i=0;i<3;i++){const h=roadDerived(hist,i+1),s=roadTailScore(dcur[i],h,12);if(s!=null)roadScores.push(s)}
-    if(main==null||roadScores.length<2)continue;
-    const rmean=roadScores.reduce((a,x)=>a+x,0)/roadScores.length;
-    const track=.42*main+.58*rmean;
-    const awareness=.35*main+.65*rmean;
-    if(track<.52)continue;
-    candidates.push({next,track,awareness,parts:roadScores.length+1});
-  }
-  candidates.sort((a,b)=>(b.track+.12*b.awareness)-(a.track+.12*a.awareness));
-  const ranked=candidates.slice(0,3);
-  if(!ranked.length)return {side:null,p:50,b:50,mem:{qualified:false,leaderTrack:0,agreement:0,evidence,reason:'WAIT • roads are ready, but no saved continuation is tracking the live shoe strongly enough.'}};
-  const leader=ranked[0],second=ranked[1]||null,same=ranked.filter(x=>x.next===leader.next).length,agreement=same/ranked.length,gap=second?leader.track-second.track:leader.track;
-  const avgAware=ranked.reduce((a,x)=>a+x.awareness,0)/ranked.length;
-  const multiAgree=ranked.length>=2&&same>=2&&leader.track>=.80&&(second?.track||0)>=.72&&avgAware>=.62;
-  const exceptional=leader.track>=.92&&gap>=.09&&leader.parts>=3&&avgAware>=.64;
-  const qualified=multiAgree||exceptional;
-  let conf=50;if(qualified)conf=Math.min(88,50+25*leader.track+7*agreement+6*Math.max(0,gap));
-  const side=qualified?leader.next:null,p=leader.next==='P'?conf:100-conf,b=100-p;
-  return {side,p:+p.toFixed(1),b:+b.toFixed(1),mem:{qualified,leaderTrack:+(leader.track*100).toFixed(1),agreement:+(agreement*100).toFixed(1),gap:+(gap*100).toFixed(1),matches:ranked.length,evidence,reason:qualified?`INTERNAL LIVE-ROAD assist qualified • leader ${(leader.track*100).toFixed(0)}% • ${same}/${ranked.length} continuation agreement.`:`WAIT • internal road scan active • leader ${(leader.track*100).toFixed(0)}% • ${same}/${ranked.length} same next side • gap ${(gap*100).toFixed(0)}pp.`}};
-}
-function decide(){
-  const b=base(),r=road();
-  if(!b)return {side:null,qualified:false,reason:'WAIT — Best Estimate base unavailable.',base:null,road:r};
-  const rawSide=norm(b.side),baseQ=!!b.qualified&&!!rawSide;
-  const roadSide=norm(r?.side),roadQ=!!roadSide;
-  let side=null,mode='WAIT',reason='';
-  if(baseQ&&roadQ&&rawSide===roadSide){side=rawSide;mode='AGREE';reason='Best Estimate and continuous live-road tracking agree.'}
-  else if(baseQ&&roadQ&&rawSide!==roadSide){side=rawSide;mode='BASE-PROTECTED';reason='Original Best Estimate qualified; conflicting live-road evidence is advisory only and cannot veto or reverse the base call.'}
-  else if(baseQ&&!roadQ){side=rawSide;mode='BASE';reason='Original Best Estimate qualified; live-road tracker has not qualified strongly enough to override it.'}
-  else if(!baseQ&&roadQ&&rawSide===roadSide&&Number(b.top||0)>=52){side=roadSide;mode='ROAD-ASSIST';reason='Continuous live-road tracking qualified and confirms the Best Estimate raw lean, adding an extra selective call.'}
-  else {reason=roadQ?'WAIT — road tracker qualified but Best Estimate raw lean does not confirm it.':(b.gateReason||'WAIT — evidence not strong enough.')}
-  let conf=0;
-  if(side){
-    const bc=Math.max(50,Number(b.top||50));
-    const rc=Math.max(50,Number(r?Math.max(r.p||50,r.b||50):50));
-    conf=mode==='AGREE'?Math.min(92,.62*bc+.38*rc+3):mode==='ROAD-ASSIST'?Math.min(86,.45*bc+.55*rc):bc;
-  }
-  // V332 hard safety invariant: road logic may veto to WAIT, but can never reverse a qualified Best Estimate side.
-  if(baseQ && side && side!==rawSide){side=null;mode='VETO';reason='WAIT — no-reversal lock blocked an opposite-side override.';conf=0;}
-  return {side,qualified:!!side,confidence:+conf.toFixed(1),mode,reason,base:b,road:r,rawSide,roadSide};
-}
-function fmt(A){const n=A.wins+A.losses;return n?`${(100*A.wins/n).toFixed(1)}% • ${A.wins}W-${A.losses}L • N=${n}`:`— • 0W-0L • N=0`}
-function ensure(){
-  if(document.getElementById('v331BestEstimate2'))return;
-  const original=document.getElementById('bestEstimateAccuracy')?.closest('.analyzer');
-  if(!original?.parentNode)return;
-  const d=document.createElement('div');d.className='analyzer';d.id='v331BestEstimate2';
-  d.innerHTML=`<div class="analyzer-title">Best-Estimate Analyzer 2 — Independent Live-Road Assist (No-Reversal Lock)</div>
-  <div class="analyzer-sub"><b>ORIGINAL BEST ESTIMATE CLONE + INTERNAL ROAD ASSIST + NO-REVERSAL LOCK.</b> The original Best-Estimate Analyzer is untouched. This copy continuously checks the live-road tracking engine throughout the shoe. The road layer may CONFIRM a Best Estimate call or add a selective call when it matches the Best Estimate raw lean. A qualified original Best Estimate call is preserved even when the road disagrees; the road is advisory and can never reverse the side.</div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>Next result</span><strong id="v331BE2Side">WAIT</strong></div>
-    <div class="analyzer-card"><span>Hybrid confidence</span><strong id="v331BE2Conf">—</strong></div>
-    <div class="analyzer-card"><span>Decision mode</span><strong id="v331BE2Mode">WAIT</strong></div>
-    <div class="analyzer-card"><span>Verified accuracy</span><strong id="v331BE2Acc">— • 0W-0L • N=0</strong></div>
-  </div>
-  <div class="analyzer-grid">
-    <div class="analyzer-card"><span>Original Best Estimate</span><strong id="v331BE2Base">WAIT</strong></div>
-    <div class="analyzer-card"><span>Internal live-road signal</span><strong id="v331BE2Road">WAIT</strong></div>
-    <div class="analyzer-card"><span>Best live-road track</span><strong id="v331BE2Track">BUILDING</strong></div>
-    <div class="analyzer-card"><span>Road agreement</span><strong id="v331BE2Agree">—</strong></div>
-  </div>
-  <div class="analyzer-sub" id="v331BE2Note" style="margin-top:8px">Waiting for evidence.</div>
-  <button class="tiny-btn" id="v331BE2Reset" type="button" style="width:100%;margin-top:8px">Reset Best-Estimate Analyzer 2 Accuracy</button>`;
-  original.parentNode.insertBefore(d,original.nextSibling);
-  d.querySelector('#v331BE2Reset').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();state.v331BestEstimate2Accuracy=blank();save();paint()},true);
-}
-function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function paint(){
-  ensure();const x=decide(),A=acc(),b=x.base,r=x.road;
-  set('v331BE2Side',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');
-  set('v331BE2Conf',x.side?x.confidence.toFixed(1)+'%':'—');
-  set('v331BE2Mode',x.mode);
-  set('v331BE2Acc',fmt(A));
-  set('v331BE2Base',b?.qualified?(norm(b.side)==='P'?'PLAYER':'BANKER'):`WAIT (${Number(b?.top||0)}%)`);
-  set('v331BE2Road',norm(r?.side)==='P'?'PLAYER':norm(r?.side)==='B'?'BANKER':'WAIT');
-  set('v331BE2Track',r?.mem?.leaderTrack?Number(r.mem.leaderTrack).toFixed(1)+'%':'BUILDING');
-  set('v331BE2Agree',r?.mem?.agreement?Number(r.mem.agreement).toFixed(1)+'%':'—');
-  set('v331BE2Note',x.reason+(r?.mem?.reason?` • Road: ${r.mem.reason}`:''));
-}
-// V339 authoritative accuracy settlement repair.
-function settle(actual){
-  ensure();actual=String(actual||'').toUpperCase();const A=acc();
-  if(!A.pending){paint();return false;}
-  if(actual==='T'){
-    A.ties++;A.pending.handN=live().length+1;A.lastSeenHand=live().length+1;save();paint();return false;
-  }
-  if(actual!=='P'&&actual!=='B'){paint();return false;}
-  const p=A.pending;
-  if(p.side===actual)A.wins++;else A.losses++;
-  A.pending=null;A.lastSettled={side:p.side,actual,handN:live().length+1,at:Date.now()};
-  save();paint();return true;
-}
-function arm(){
-  ensure();const A=acc(),hn=live().length;
-  if(A.pending){A.lastSeenHand=hn;save();paint();return {side:A.pending.side,qualified:true,carried:true};}
-  const x=decide();
-  if(x.side)A.pending={side:x.side,handN:hn,mode:x.mode,at:Date.now()};
-  else if(A.lastWaitHand!==hn){A.waits++;A.lastWaitHand=hn;}
-  A.lastSeenHand=hn;save();paint();return x;
-}
-function cycle(){
-  ensure();const A=acc(),seq=live(),hn=seq.length,actual=seq.at(-1);
-  if(A.pending&&hn>A.pending.handN){
-    if(actual==='T'){A.ties++;A.pending.handN=hn;A.lastSeenHand=hn;save();paint();return A.pending;}
-    if(actual==='P'||actual==='B'){
-      const p=A.pending;actual===p.side?A.wins++:A.losses++;A.pending=null;
-      A.lastSettled={side:p.side,actual,handN:hn,at:Date.now(),recovered:true};
-    }
-  }
-  return arm();
-}
-function historyChanged(){
-  const A=acc();A.pending=null;A.lastSeenHand=live().length;A.lastWaitHand=-1;save();paint();setTimeout(arm,0);
-}
-function install(){
-  ensure();paint();
-  const u=document.getElementById('undoBtn'),c=document.getElementById('clearBtn');
-  if(u&&!u.__be2HistoryBound){u.__be2HistoryBound=true;u.addEventListener('click',()=>setTimeout(historyChanged,0),false)}
-  if(c&&!c.__be2HistoryBound){c.__be2HistoryBound=true;c.addEventListener('click',()=>setTimeout(historyChanged,0),false)}
-  const n=live().length;if(n>=7)setTimeout(arm,2100);
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.__V332_BEST_ESTIMATE_2__={version:339,decide,cycle,settle,arm,historyChanged,paint,originalBestEstimateUnchanged:true,otherAILogicChanged:false,continuousTest5Assist:false,internalRoadAssist:true,noReversalLock:true,authoritativeSettlement:true};
-})();
-</script>
+<!-- Replaced by Best Estimate Analyzer 3: v331-best-estimate-2-continuous-road-logic -->
 
 
 <script id="v333-remove-unused-ai-panels">
@@ -19648,212 +19479,12 @@ window.__V358_DERIVED_RESULT_PANEL__={version:358,paint,logicChanged:false};
 
 
 <!-- V360 TARGETED FIX: Derived Road restored exactly to V358 behavior. This patch touches ONLY Best-Estimate Analyzer 2 runtime/ledger. -->
-<script id="v360-be2-targeted-runtime-fix">
-(function(){
-'use strict';
-if(window.__V360_BE2_TARGETED_FIX__) return;
-const VERSION=360;
-function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
-function seq(){try{return currentSequence().map(x=>String((x?.r??x)||'').toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
-function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1}}
-function A(){try{state.v331BestEstimate2Accuracy=Object.assign(blank(),state.v331BestEstimate2Accuracy||{});return state.v331BestEstimate2Accuracy}catch(e){return blank()}}
-function save(){try{persist()}catch(e){}}
-function originalBase(){try{return typeof computeCombinedAnalyzer==='function'?computeCombinedAnalyzer():null}catch(e){return null}}
-function old(){return window.__V332_BEST_ESTIMATE_2_ORIGINAL_API__||null}
-function decision(){
-  const b=originalBase();
-  const bs=norm(b?.side), bq=!!b?.qualified&&!!bs;
-  let ext=null;try{ext=old()?.decide?.()||null}catch(e){ext=null}
-  // Core invariant: this clone must never fail to emit a call that the original Best Estimate has already qualified.
-  if(bq){
-    const road=ext?.road||null, rs=norm(road?.side);
-    const agree=rs&&rs===bs;
-    return {side:bs,qualified:true,confidence:Number(b?.top)||Number(ext?.confidence)||50,
-      mode:agree?'BASE+ROAD':'BASE',reason:agree?'Original Best Estimate qualified and the internal road assist agrees.':'Original Best Estimate qualified; Analyzer 2 preserves the same call.',
-      base:b,road,rawSide:bs,roadSide:rs};
-  }
-  // When the original is WAIT, retain the existing selective road-assist behavior if it genuinely qualifies.
-  if(ext?.side){return ext}
-  return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:b?.gateReason||ext?.reason||'WAIT — evidence not strong enough.',base:b,road:ext?.road||null,rawSide:bs,roadSide:norm(ext?.road?.side)};
-}
-function fmt(a){const n=(Number(a.wins)||0)+(Number(a.losses)||0);return n?`${(100*(Number(a.wins)||0)/n).toFixed(1)}% • ${Number(a.wins)||0}W-${Number(a.losses)||0}L • N=${n}`:`— • 0W-0L • N=0`}
-function ensure(){try{old()?.paint?.()}catch(e){}}
-function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function paint(){
-  ensure();const x=decision(),a=A(),b=x.base,r=x.road;
-  set('v331BE2Side',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');
-  set('v331BE2Conf',x.side?(Number(x.confidence)||0).toFixed(1)+'%':'—');
-  set('v331BE2Mode',x.mode||'WAIT');set('v331BE2Acc',fmt(a));
-  set('v331BE2Base',b?.qualified?(norm(b.side)==='P'?'PLAYER':'BANKER'):`WAIT (${Number(b?.top||0)}%)`);
-  const rs=norm(r?.side);set('v331BE2Road',rs==='P'?'PLAYER':rs==='B'?'BANKER':'WAIT');
-  set('v331BE2Track',r?.mem?.leaderTrack?Number(r.mem.leaderTrack).toFixed(1)+'%':'BUILDING');
-  set('v331BE2Agree',r?.mem?.agreement?Number(r.mem.agreement).toFixed(1)+'%':'—');
-  set('v331BE2Note',x.reason||'Waiting for evidence.');
-}
-function settle(actual){
-  actual=String(actual||'').toUpperCase();const a=A();
-  if(!a.pending){paint();return false}
-  if(actual==='T'){a.ties=(Number(a.ties)||0)+1;a.pending.handN=seq().length+1;a.lastSeenHand=seq().length+1;save();paint();return false}
-  if(actual!=='P'&&actual!=='B'){paint();return false}
-  const p=a.pending;if(p.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;
-  a.pending=null;a.lastSettled={side:p.side,actual,handN:seq().length+1,at:Date.now(),v360:true};save();paint();return true;
-}
-function arm(){
-  const a=A(),hn=seq().length;
-  if(a.pending){a.lastSeenHand=hn;save();paint();return {side:a.pending.side,qualified:true,carried:true}}
-  const x=decision();
-  if(x.side)a.pending={side:x.side,handN:hn,mode:x.mode,at:Date.now(),v360:true};
-  else if(a.lastWaitHand!==hn){a.waits=(Number(a.waits)||0)+1;a.lastWaitHand=hn}
-  a.lastSeenHand=hn;save();paint();return x;
-}
-function cycle(){
-  const a=A(),s=seq(),hn=s.length,actual=s.at(-1);
-  if(a.pending&&hn>a.pending.handN){
-    if(actual==='T'){a.ties=(Number(a.ties)||0)+1;a.pending.handN=hn;a.lastSeenHand=hn;save();paint();return a.pending}
-    if(actual==='P'||actual==='B'){const p=a.pending;actual===p.side?a.wins=(Number(a.wins)||0)+1:a.losses=(Number(a.losses)||0)+1;a.pending=null;a.lastSettled={side:p.side,actual,handN:hn,at:Date.now(),recovered:true,v360:true}}
-  }
-  save();return arm();
-}
-function historyChanged(){const a=A();a.pending=null;a.lastSeenHand=seq().length;a.lastWaitHand=-1;save();paint();setTimeout(arm,0)}
-function install(){
-  const prior=window.__V332_BEST_ESTIMATE_2__;
-  if(prior&&!window.__V332_BEST_ESTIMATE_2_ORIGINAL_API__)window.__V332_BEST_ESTIMATE_2_ORIGINAL_API__=prior;
-  window.__V332_BEST_ESTIMATE_2__={version:VERSION,decide:decision,cycle,settle,arm,historyChanged,paint,originalBestEstimatePreserved:true,derivedRoadTouched:false,targetedRepair:true};
-  // Recovery passes are BE2-only. No global verified/Derived Road arming is called here.
-  [80,240,700].forEach(ms=>setTimeout(()=>{try{cycle()}catch(e){console.warn('V360 BE2 cycle',e)}},ms));
-}
-function boot(){install();
-  document.addEventListener('click',e=>{
-    if(e.target?.closest?.('.main-buttons [data-result],#previewP,#previewB')) setTimeout(()=>{try{window.__V332_BEST_ESTIMATE_2__?.cycle?.()}catch(x){}},220);
-    else if(e.target?.closest?.('#undoBtn,#clearBtn')) setTimeout(()=>{try{window.__V332_BEST_ESTIMATE_2__?.historyChanged?.()}catch(x){}},180);
-  },false);
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-window.__V360_BE2_TARGETED_FIX__={version:VERSION,derivedRoadRestoredToV358:true,globalAccuracyArmUntouched:true};
-})();
-</script>
+<!-- Replaced by Best Estimate Analyzer 3: v360-be2-targeted-runtime-fix -->
 
 
 
 <!-- V362: Best-Estimate Analyzer 2 authoritative targeted repair. No Derived Road / Pattern Resume / Sequence V2 logic changed. -->
-<script id="v362-be2-authoritative-fix">
-(function(){
-'use strict';
-if(window.__V362_BE2_FIX__) return;
-const VERSION=362;
-function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
-function seq(){try{return currentSequence().map(x=>String((x?.r??x)||'').toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
-function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1}}
-function ledger(){try{state.v331BestEstimate2Accuracy=Object.assign(blank(),state.v331BestEstimate2Accuracy||{});return state.v331BestEstimate2Accuracy}catch(e){return blank()}}
-function save(){try{persist()}catch(e){}}
-function base(){try{return typeof window.computeCombinedAnalyzer==='function'?window.computeCombinedAnalyzer():null}catch(e){return null}}
-const prior=window.__V332_BEST_ESTIMATE_2__;
-if(prior&&!window.__V362_BE2_PRIOR__) window.__V362_BE2_PRIOR__=prior;
-function roadSnapshot(){
-  try{
-    const x=window.__V362_BE2_PRIOR__?.decide?.();
-    return x?.road||null;
-  }catch(e){return null}
-}
-function roadLean(r){
-  const s=norm(r?.side); if(s)return s;
-  const p=Number(r?.p),b=Number(r?.b);
-  if(Number.isFinite(p)&&Number.isFinite(b)&&p!==b)return p>b?'P':'B';
-  return null;
-}
-function decide(){
-  const b=base(), r=roadSnapshot();
-  if(!b)return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:'WAIT — original Best Estimate is unavailable.',base:null,road:r};
-  const raw=norm(b.side), bq=!!b.qualified&&!!raw;
-  const rl=roadLean(r), mem=r?.mem||{};
-  const track=Number(mem.leaderTrack)||0, agree=Number(mem.agreement)||0, matches=Number(mem.matches)||0;
-  const ready=!!mem?.evidence?.ready;
-
-  // Hard invariant: whenever the ORIGINAL Best Estimate qualifies, Analyzer 2 must emit the same side.
-  if(bq){
-    const roadAgrees=rl&&rl===raw;
-    const conf=Math.max(50,Number(b.top)||50);
-    return {side:raw,qualified:true,confidence:+conf.toFixed(1),mode:roadAgrees?'BASE+ROAD':'BASE-MIRROR',
-      reason:roadAgrees?'Original Best Estimate qualified; internal live-road lean agrees.':'Original Best Estimate qualified; Analyzer 2 mirrors the call. Road evidence cannot veto or reverse it.',
-      base:b,road:r,rawSide:raw,roadSide:rl};
-  }
-
-  // Extra-call path while original is WAIT. Use the INTERNAL road lean before its old ultra-strong final gate,
-  // but still require mature live-road evidence, at least two saved continuations, two-thirds agreement,
-  // and agreement with the original Best Estimate raw lean. This makes the added feature usable without reversal.
-  const top=Number(b.top)||50;
-  const roadAssist=ready && matches>=2 && track>=65 && agree>=66 && !!raw && rl===raw && top>=52;
-  if(roadAssist){
-    const conf=Math.min(84,Math.max(52,0.48*top+0.34*track+0.18*agree));
-    return {side:raw,qualified:true,confidence:+conf.toFixed(1),mode:'ROAD-ASSIST',
-      reason:`Original Best Estimate is WAIT, but its ${raw==='P'?'PLAYER':'BANKER'} raw lean is confirmed by mature live-road memory (${track.toFixed(0)}% track • ${agree.toFixed(0)}% agreement • ${matches} matches).`,
-      base:b,road:r,rawSide:raw,roadSide:rl};
-  }
-
-  let why=b.gateReason||'Original Best Estimate is WAIT.';
-  if(!ready) why+=' Road assist is still building.';
-  else if(matches<2) why+=` Road assist has only ${matches} saved continuation match${matches===1?'':'es'} (needs 2).`;
-  else if(track<65) why+=` Road track ${track.toFixed(0)}% is below 65%.`;
-  else if(agree<66) why+=` Road agreement ${agree.toFixed(0)}% is below 66%.`;
-  else if(!raw) why+=' Best Estimate has no usable raw side.';
-  else if(rl!==raw) why+=' Road lean conflicts with the Best Estimate raw lean.';
-  else if(top<52) why+=` Best Estimate raw lean ${top.toFixed(0)}% is below 52%.`;
-  return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:why,base:b,road:r,rawSide:raw,roadSide:rl};
-}
-function fmt(a){const w=Number(a.wins)||0,l=Number(a.losses)||0,n=w+l;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N=${n}`:'— • 0W-0L • N=0'}
-function ensurePanel(){try{window.__V362_BE2_PRIOR__?.paint?.()}catch(e){}}
-function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function paint(){
-  ensurePanel(); const x=decide(),a=ledger(),b=x.base,r=x.road,mem=r?.mem||{};
-  set('v331BE2Side',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');
-  set('v331BE2Conf',x.side?(Number(x.confidence)||0).toFixed(1)+'%':'—');
-  set('v331BE2Mode',x.mode||'WAIT'); set('v331BE2Acc',fmt(a));
-  set('v331BE2Base',b?.qualified?(norm(b.side)==='P'?'PLAYER':'BANKER'):`WAIT (${Number(b?.top||0)}%)`);
-  const rl=roadLean(r); set('v331BE2Road',rl==='P'?'PLAYER':rl==='B'?'BANKER':'WAIT');
-  set('v331BE2Track',mem.leaderTrack?Number(mem.leaderTrack).toFixed(1)+'%':'BUILDING');
-  set('v331BE2Agree',mem.agreement?Number(mem.agreement).toFixed(1)+'%':'—');
-  set('v331BE2Note',x.reason||'Waiting for evidence.');
-}
-function settle(actual){
-  actual=String(actual||'').toUpperCase();const a=ledger();
-  if(!a.pending){paint();return false}
-  if(actual==='T'){a.ties=(Number(a.ties)||0)+1;a.pending.handN=seq().length+1;a.lastSeenHand=seq().length+1;save();paint();return false}
-  if(actual!=='P'&&actual!=='B'){paint();return false}
-  const p=a.pending; if(p.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;
-  a.pending=null;a.lastSettled={side:p.side,actual,handN:seq().length+1,at:Date.now(),v362:true};save();paint();return true;
-}
-function arm(){
-  const a=ledger(),hn=seq().length;
-  if(a.pending){a.lastSeenHand=hn;save();paint();return {side:a.pending.side,qualified:true,carried:true}}
-  const x=decide();
-  if(x.side)a.pending={side:x.side,handN:hn,mode:x.mode,at:Date.now(),v362:true};
-  else if(a.lastWaitHand!==hn){a.waits=(Number(a.waits)||0)+1;a.lastWaitHand=hn}
-  a.lastSeenHand=hn;save();paint();return x;
-}
-function cycle(){
-  const a=ledger(),s=seq(),hn=s.length,actual=s.at(-1);
-  if(a.pending&&hn>a.pending.handN){
-    if(actual==='T'){a.ties=(Number(a.ties)||0)+1;a.pending.handN=hn;a.lastSeenHand=hn;save();paint();return a.pending}
-    if(actual==='P'||actual==='B'){const p=a.pending;actual===p.side?a.wins=(Number(a.wins)||0)+1:a.losses=(Number(a.losses)||0)+1;a.pending=null;a.lastSettled={side:p.side,actual,handN:hn,at:Date.now(),recovered:true,v362:true}}
-  }
-  save();return arm();
-}
-function historyChanged(){const a=ledger();a.pending=null;a.lastSeenHand=seq().length;a.lastWaitHand=-1;save();paint();setTimeout(arm,0)}
-function bindReset(){
-  const old=document.getElementById('v331BE2Reset'); if(!old||old.dataset.v362Bound)return;
-  const b=old.cloneNode(true);b.dataset.v362Bound='1';old.replaceWith(b);
-  b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();state.v331BestEstimate2Accuracy=blank();save();paint()},true);
-}
-function install(){
-  ensurePanel();bindReset();
-  window.__V332_BEST_ESTIMATE_2__={version:VERSION,decide,cycle,settle,arm,historyChanged,paint,authoritative:true,baseMirrorInvariant:true,roadAssistUsable:true,derivedRoadTouched:false,patternResumeTouched:false};
-  // Arm only after the full page has loaded and again after delayed library/render initialization.
-  [0,180,700,1800].forEach(ms=>setTimeout(()=>{try{bindReset();cycle()}catch(e){console.warn('V362 BE2',e)}},ms));
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-window.__V362_BE2_FIX__={version:VERSION,derivedRoadTouched:false,patternResumeTouched:false,sequenceV2Touched:false};
-})();
-</script>
+<!-- Replaced by Best Estimate Analyzer 3: v362-be2-authoritative-fix -->
 
 
 
@@ -20143,120 +19774,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
      - the panel could keep showing the prior hand because no final post-commit repaint/re-arm won the render race.
      Settlement now grades the call actually visible immediately before the real P/B result is committed,
      then the post-commit arm recomputes from the new history. WAIT is never graded; Ties are skipped. -->
-<script id="v373-be2-live-refresh-accuracy-fix">
-(function(){
-'use strict';
-if(window.__V373_BE2_FIX__) return;
-const VERSION=373;
-const prior=window.__V332_BEST_ESTIMATE_2__;
-if(!prior || typeof prior.decide!=='function') return;
-
-function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
-function seq(){try{return currentSequence().map(x=>String((x?.r??x)||'').toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
-function blank(){return {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1,lastSettled:null,lastArmed:null}}
-function ledger(){
-  try{
-    state.v331BestEstimate2Accuracy=Object.assign(blank(),state.v331BestEstimate2Accuracy||{});
-    return state.v331BestEstimate2Accuracy;
-  }catch(e){return blank()}
-}
-function save(){try{persist()}catch(e){}}
-function decision(){try{return prior.decide()}catch(e){return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:'WAIT — Analyzer 2 decision unavailable.'}}}
-function fmt(a){const w=Number(a.wins)||0,l=Number(a.losses)||0,n=w+l;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N=${n}`:'— • 0W-0L • N=0'}
-function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-function roadLean(r){const s=norm(r?.side);if(s)return s;const p=Number(r?.p),b=Number(r?.b);if(Number.isFinite(p)&&Number.isFinite(b)&&p!==b)return p>b?'P':'B';return null}
-
-function paint(){
-  // Let the existing authoritative painter populate the full panel first, then overwrite the ledger/live call.
-  try{prior.paint?.()}catch(e){}
-  const x=decision(),a=ledger(),b=x?.base,r=x?.road,mem=r?.mem||{};
-  set('v331BE2Side',x?.side==='P'?'PLAYER':x?.side==='B'?'BANKER':'WAIT');
-  set('v331BE2Conf',x?.side?(Number(x.confidence)||0).toFixed(1)+'%':'—');
-  set('v331BE2Mode',x?.mode||'WAIT');
-  set('v331BE2Acc',fmt(a));
-  if(b) set('v331BE2Base',b?.qualified?(norm(b.side)==='P'?'PLAYER':'BANKER'):`WAIT (${Number(b?.top||0)}%)`);
-  if(r){const rl=roadLean(r);set('v331BE2Road',rl==='P'?'PLAYER':rl==='B'?'BANKER':'WAIT');set('v331BE2Track',mem.leaderTrack?Number(mem.leaderTrack).toFixed(1)+'%':'BUILDING');set('v331BE2Agree',mem.agreement?Number(mem.agreement).toFixed(1)+'%':'—')}
-  const hn=seq().length;
-  let note=x?.reason||'Waiting for evidence.';
-  note += ` • LIVE REFRESH: hand ${hn}`;
-  if(a.pending) note += ` • armed ${a.pending.side==='P'?'PLAYER':'BANKER'} for next hand`;
-  set('v331BE2Note',note);
-}
-
-function visibleCall(){
-  // The pre-commit decision is the call the player actually saw for the hand being entered.
-  const x=decision(),s=norm(x?.side);
-  return s?{side:s,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0}:null;
-}
-
-function settle(actual){
-  actual=String(actual||'').toUpperCase();
-  const a=ledger(),hn=seq().length;
-  let p=a.pending && norm(a.pending.side) ? a.pending : null;
-  // Critical repair: if UI has a live qualified call but the old ledger failed to arm it, recover it now.
-  if(!p){const live=visibleCall();if(live)p={...live,handN:hn,at:Date.now(),recoveredVisible:true}}
-  if(!p){paint();return false}
-  if(actual==='T'){
-    a.ties=(Number(a.ties)||0)+1;
-    // Preserve the same call across a tie; baccarat P/B prediction is still for the next non-tie outcome.
-    a.pending={...p,handN:hn+1,afterTie:true};a.lastSeenHand=hn+1;save();paint();return false;
-  }
-  if(actual!=='P'&&actual!=='B'){paint();return false}
-  if(p.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;
-  a.pending=null;a.lastSeenHand=hn+1;a.lastSettled={side:p.side,actual,handN:hn+1,mode:p.mode||'',at:Date.now(),v373:true,recoveredVisible:!!p.recoveredVisible};
-  save();paint();return true;
-}
-
-function arm(){
-  const a=ledger(),hn=seq().length,x=decision(),s=norm(x?.side);
-  // Always replace the prior hand's call with a freshly computed call for the CURRENT history.
-  if(s){a.pending={side:s,handN:hn,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0,at:Date.now(),v373:true};a.lastArmed={side:s,handN:hn,at:Date.now()}}
-  else {a.pending=null;if(a.lastWaitHand!==hn){a.waits=(Number(a.waits)||0)+1;a.lastWaitHand=hn}}
-  a.lastSeenHand=hn;save();paint();
-  // iOS/Chrome can perform a late base render; repaint after it so the panel cannot remain stale.
-  clearTimeout(window.__v373be2t1);clearTimeout(window.__v373be2t2);
-  window.__v373be2t1=setTimeout(paint,180);window.__v373be2t2=setTimeout(paint,460);
-  return x;
-}
-
-function cycle(){
-  const a=ledger(),s=seq(),hn=s.length,actual=s.at(-1);
-  if(a.pending && hn>a.pending.handN && (actual==='P'||actual==='B'||actual==='T')){
-    // Recovery path for a hand committed somewhere outside the normal core click path.
-    if(actual==='T'){a.ties=(Number(a.ties)||0)+1;a.pending.handN=hn;save();paint();return a.pending}
-    const p=a.pending;p.side===actual?a.wins=(Number(a.wins)||0)+1:a.losses=(Number(a.losses)||0)+1;
-    a.pending=null;a.lastSettled={side:p.side,actual,handN:hn,at:Date.now(),recoveredCycle:true,v373:true};save();
-  }
-  return arm();
-}
-
-function historyChanged(){
-  const a=ledger();a.pending=null;a.lastSeenHand=seq().length;a.lastWaitHand=-1;save();paint();setTimeout(arm,0);
-}
-function bindReset(){
-  const old=document.getElementById('v331BE2Reset');if(!old||old.dataset.v373Bound)return;
-  const b=old.cloneNode(true);b.dataset.v373Bound='1';old.replaceWith(b);
-  b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();state.v331BestEstimate2Accuracy=blank();save();arm()},true);
-}
-function bindRefresh(){
-  document.querySelectorAll('.main-buttons [data-result],#previewP,#previewB').forEach(el=>{
-    if(!el||el.__v373BE2Refresh)return;el.__v373BE2Refresh=true;
-    el.addEventListener('click',()=>{setTimeout(()=>{try{arm()}catch(e){}},300);setTimeout(()=>{try{paint()}catch(e){}},650)},false);
-  });
-  document.querySelectorAll('#undoBtn,#clearBtn,#sampleBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn').forEach(el=>{
-    if(!el||el.__v373BE2History)return;el.__v373BE2History=true;el.addEventListener('click',()=>setTimeout(historyChanged,260),false);
-  });
-}
-function install(){
-  window.__V332_BEST_ESTIMATE_2__={version:VERSION,decide:prior.decide,cycle,settle,arm,historyChanged,paint,authoritative:true,liveRefreshFix:true,visibleCallRecovery:true,decisionLogicChanged:false};
-  bindReset();bindRefresh();arm();
-  [180,700,1800].forEach(ms=>setTimeout(()=>{bindReset();bindRefresh();paint()},ms));
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRefresh()}},2500);
-window.__V373_BE2_FIX__={version:VERSION,accuracyFixed:true,liveRefreshFixed:true,visibleCallRecovery:true,decisionLogicChanged:false};
-})();
-</script>
+<!-- Replaced by Best Estimate Analyzer 3: v373-be2-live-refresh-accuracy-fix -->
 <script id="v373-build-marker">window.__V373_BUILD__={version:373,base:'V372 memory accuracy build',bestEstimate2AccuracyFix:true,bestEstimate2LiveRefreshFix:true,decisionLogicChanged:false};</script>
 
 
@@ -20326,122 +19844,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
      Accuracy-only repair. BE2 decision logic is unchanged.
      Root cause repaired: legacy V373 delayed refresh listeners can repaint the old v331 ledger after a valid grade.
      V376 owns a new independent ledger and repaints after all known legacy refresh delays. -->
-<script id="v376-be2-fresh-accuracy-ledger">
-(function(){
-'use strict';
-if(window.__V376_BE2_FRESH_ACCURACY__) return;
-const VERSION=376;
-const prior=window.__V332_BEST_ESTIMATE_2__;
-if(!prior || typeof prior.decide!=='function') return;
-
-function norm(v){v=String(v||'').trim().toUpperCase();if(v==='P'||v==='PLAYER'||v.includes('PLAYER'))return 'P';if(v==='B'||v==='BANKER'||v.includes('BANKER'))return 'B';return null}
-function seq(){try{return currentSequence().map(x=>String((x?.r??x)||'').toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return []}}
-function blank(){return {version:VERSION,wins:0,losses:0,ties:0,waits:0,pending:null,lastWaitHand:-1,lastSettled:null,lastSettleToken:null,lastArmed:null}}
-function ledger(){
-  try{
-    if(!state.v376BestEstimate2Accuracy || state.v376BestEstimate2Accuracy.version!==VERSION) state.v376BestEstimate2Accuracy=blank();
-    return state.v376BestEstimate2Accuracy;
-  }catch(e){return blank()}
-}
-function save(){try{persist()}catch(e){}}
-function decision(){try{return prior.decide()}catch(e){return {side:null,qualified:false,confidence:0,mode:'WAIT',reason:'WAIT — Analyzer 2 decision unavailable.'}}}
-function fmt(a){const w=Number(a.wins)||0,l=Number(a.losses)||0,n=w+l;return n?`${(100*w/n).toFixed(1)}% • ${w}W-${l}L • N=${n}`:'— • 0W-0L • N=0'}
-function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
-
-function paint(){
-  // Keep all existing BE2 decision fields, but V376 is the sole owner of the visible accuracy value.
-  try{prior.paint?.()}catch(e){}
-  const a=ledger(),x=decision(),hn=seq().length;
-  set('v331BE2Acc',fmt(a));
-  const note=document.getElementById('v331BE2Note');
-  if(note){
-    let base=String(x?.reason||note.textContent||'Waiting for evidence.').replace(/\s*•\s*V376 ACCURACY:.*$/,'');
-    const armed=a.pending?`${a.pending.side==='P'?'PLAYER':'BANKER'} armed`:'no graded call armed';
-    note.textContent=`${base} • V376 ACCURACY: hand ${hn} • ${armed}`;
-  }
-}
-function latePaint(){
-  // V373 has delayed 300/650 ms refreshes. Repaint after both so stale v331 data cannot win the display race.
-  [0,360,760,1100].forEach(ms=>setTimeout(()=>{try{paint()}catch(e){}},ms));
-}
-function liveCall(){
-  const x=decision(),s=norm(x?.side);
-  return s?{side:s,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0}:null;
-}
-function settle(actual){
-  actual=String(actual||'').trim().toUpperCase();
-  const a=ledger(),hn=seq().length;
-  let p=a.pending&&norm(a.pending.side)?a.pending:null;
-  // Recovery is limited to the decision that exists immediately before commit.
-  if(!p){const live=liveCall();if(live)p={...live,handN:hn,armedAt:Date.now(),recovered:true}}
-  if(!p){latePaint();return false}
-  const token=`${hn}|${actual}|${p.side}|${p.handN}`;
-  if(a.lastSettleToken===token){latePaint();return false}
-  a.lastSettleToken=token;
-  if(actual==='T'){
-    a.ties=(Number(a.ties)||0)+1;
-    a.pending={...p,handN:hn+1,afterTie:true};
-    save();latePaint();return false;
-  }
-  if(actual!=='P'&&actual!=='B'){latePaint();return false}
-  if(p.side===actual)a.wins=(Number(a.wins)||0)+1;else a.losses=(Number(a.losses)||0)+1;
-  a.lastSettled={predicted:p.side,actual,handN:hn+1,mode:p.mode||'',at:Date.now(),recovered:!!p.recovered};
-  a.pending=null;
-  save();latePaint();return true;
-}
-function arm(){
-  const a=ledger(),hn=seq().length,x=decision(),s=norm(x?.side);
-  if(s){
-    a.pending={side:s,handN:hn,mode:x?.mode||'LIVE',confidence:Number(x?.confidence)||0,armedAt:Date.now()};
-    a.lastArmed={side:s,handN:hn,at:Date.now()};
-  }else{
-    a.pending=null;
-    if(a.lastWaitHand!==hn){a.waits=(Number(a.waits)||0)+1;a.lastWaitHand=hn}
-  }
-  // A new arm belongs to a new pre-result state, so a prior settle token must not block the next hand.
-  a.lastSettleToken=null;
-  save();latePaint();return x;
-}
-function cycle(){return arm()}
-function historyChanged(){const a=ledger();a.pending=null;a.lastSettleToken=null;a.lastWaitHand=-1;save();setTimeout(arm,0);latePaint()}
-function reset(){
-  try{state.v376BestEstimate2Accuracy=blank();save()}catch(e){}
-  arm();latePaint();
-}
-function bindReset(){
-  const old=document.getElementById('v331BE2Reset');if(!old||old.dataset.v376Bound)return;
-  const b=old.cloneNode(true);b.dataset.v376Bound='1';old.replaceWith(b);
-  b.textContent='Reset Best-Estimate Analyzer 2 Accuracy';
-  b.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();reset()},true);
-}
-function bindRepaint(){
-  document.querySelectorAll('.main-buttons [data-result],#previewP,#previewB').forEach(el=>{
-    if(!el||el.__v376BE2Repaint)return;el.__v376BE2Repaint=true;
-    el.addEventListener('click',latePaint,false);
-  });
-  document.querySelectorAll('#undoBtn,#clearBtn,#sampleBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn').forEach(el=>{
-    if(!el||el.__v376BE2History)return;el.__v376BE2History=true;
-    el.addEventListener('click',()=>setTimeout(historyChanged,140),false);
-  });
-}
-function install(){
-  window.__V332_BEST_ESTIMATE_2__={...prior,version:VERSION,decide:prior.decide,settle,arm,cycle,historyChanged,paint,accuracy:ledger,resetAccuracy:reset,freshAccuracyLedger:true,decisionLogicChanged:false};
-  bindReset();bindRepaint();arm();latePaint();
-  [250,800,1800].forEach(ms=>setTimeout(()=>{bindReset();bindRepaint();latePaint()},ms));
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-setInterval(()=>{if(document.visibilityState!=='hidden'){bindReset();bindRepaint();paint()}},2200);
-window.__V376_BE2_FRESH_ACCURACY__={version:VERSION,newLedger:'state.v376BestEstimate2Accuracy',oldLedgerIgnoredForDisplay:true,lateRefreshRaceFixed:true,decisionLogicChanged:false};
-})();
-</script>
+<!-- Replaced by Best Estimate Analyzer 3: v376-be2-fresh-accuracy-ledger -->
 
 <!-- V377 BE2 CORE TRANSACTION ACCURACY ROOT FIX (2026-10-01)
      Root cause: BE2 was absent from V135's authoritative pre-commit settlement queue.
      Fix: settle BE2 before state.hands.push(), then arm BE2 after the committed hand is visible.
      This changes accuracy plumbing only; BE2 decision thresholds/side logic are unchanged. -->
-<script id="v377-be2-core-accuracy-marker">
-window.__V377_BE2_CORE_ACCURACY_FIX__={version:377,preCommitSettlement:true,postCommitArm:true,queuedArm:true,resyncOnUndoNewShoe:true,decisionLogicChanged:false};
-</script>
+<!-- Replaced by Best Estimate Analyzer 3: v377-be2-core-accuracy-marker -->
 
 
 <script id="v387-bead-history-adaptive-state-ai">
@@ -21311,5 +20720,80 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 </script>
 <script id="v394-build-marker">window.__V394_BUILD__={version:394,adaptiveLibraryIntelligenceAI:true,existingAILogicChanged:false,motifMatcher:true,variableOrderMemory:true,regimeDetector:true,metaRouter:true,independentAccuracy:true};</script>
 
+<script id="v395-best-estimate-3-independent">
+(function(){
+'use strict';
+const KEY='v395BestEstimate3Accuracy';
+const empty=()=>({wins:0,losses:0,ties:0,waits:0,pending:null,gradedHand:-1,lastWaitHand:-1});
+const pb=x=>{x=String(x||'').toUpperCase();return x==='P'||x==='PLAYER'?'P':x==='B'||x==='BANKER'?'B':null};
+const live=()=>{try{return currentSequence().map(x=>String(x?.r??x).toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>/[PBT]/.test(x)&&x.length===1)}catch(_){return []}};
+function ledger(){if(!state[KEY])state[KEY]=empty();return state[KEY]}
+function save(){try{persist()}catch(_){}}
+function original(){try{return computeCombinedAnalyzer()}catch(e){return null}}
+function library(){let arr=[];try{arr=uniqueActivePatternLibrary(false)||[]}catch(_){try{arr=activePatternLibrary()||[]}catch(_){}}
+ const seen=new Set(),out=[];for(const o of arr){const s=String(typeof o==='string'?o:(o?.sequence||o?.seq||o?.results||'')).toUpperCase().replace(/[^PBT]/g,'');if(s.length<8||seen.has(s))continue;seen.add(s);out.push(s)}return out;
+}
+// Independent shoe votes; only past windows used for alignment, each historical continuation strictly follows its matched window.
+function memory(seq){const cur=seq.filter(x=>x!=='T');const rows=library();if(cur.length<7)return {side:null,quality:0,support:0,agreement:0,scanned:rows.length,reason:'Building live sequence (7 P/B hands minimum).'};
+ const votes=[];let exact=0,inverted=0;
+ for(const raw of rows){const hist=raw.replace(/T/g,'');let best=null;
+ for(let end=7;end<hist.length;end++){
+  for(let k of [16,12,9,7]){if(k>cur.length||k>end)continue;let hit=0,flip=0;for(let j=0;j<k;j++){const a=cur[cur.length-k+j],b=hist[end-k+j];if(a===b)hit++;else flip++}
+   const sim=Math.max(hit,flip)/k;const inv=flip>hit;if(sim<.78)continue;
+   const next=hist[end];const predicted=inv?(next==='P'?'B':'P'):next;
+   const quality=(sim-.78)*2+ k/100 + (sim===1?.20:0);
+   if(!best||quality>best.quality)best={side:predicted,quality,sim,k,inv};
+  }
+ }
+ if(best){votes.push(best);if(best.sim===1){if(best.inv)inverted++;else exact++}}
+ }
+ if(votes.length<3)return {side:null,quality:0,support:votes.length,agreement:0,scanned:rows.length,reason:'Too few independent matching shoes (need 3).'};
+ const weighted={P:0,B:0};for(const v of votes)weighted[v.side]+=Math.max(.2,v.quality);
+ const side=weighted.P>=weighted.B?'P':'B';const agree=Math.max(weighted.P,weighted.B)/(weighted.P+weighted.B);
+ const support=votes.filter(v=>v.side===side).length;
+ const qualified=agree>=.68&&support>=3;
+ return {side:qualified?side:null,lean:side,quality:Math.round(agree*100),agreement:agree,support,scanned:rows.length,exact,inverted,reason:qualified?`${support} independent shoes support ${side==='P'?'PLAYER':'BANKER'}; ${(agree*100).toFixed(0)}% weighted continuation agreement.`:'Saved-shoe continuations disagree; memory signal not qualified.'};
+}
+function decide(){const b=original(),seq=live(),m=memory(seq),raw=pb(b?.side),bq=!!b?.qualified&&!!raw;
+ if(!b)return {side:null,mode:'WAIT',reason:'Original analyzer unavailable.',base:b,mem:m};
+ // Clone the original first. Library check may reduce an unsupported call, not secretly reverse it.
+ if(bq){if(m.side&&m.side!==raw&&m.agreement>=.80&&m.support>=5)return {side:null,mode:'CONFLICT WAIT',reason:'Strong independent saved-shoe continuations oppose the original; no reversal.',base:b,mem:m};
+ return {side:raw,mode:m.side===raw?'CLONE + MATCH':'ORIGINAL CLONE',reason:m.side===raw?'Original call confirmed by independent saved-shoe history.':'Original qualified call retained; memory advisory.',base:b,mem:m};}
+ // Additional signals are experimental: require strong multi-shoe support AND agreement with original raw lean.
+ if(raw&&m.side===raw&&m.agreement>=.76&&m.support>=5&&Number(b.top)>=52&&seq.filter(x=>x!=='T').length>=10)return {side:raw,mode:'LIBRARY ASSIST',reason:'Original is WAIT; independent saved-shoe continuations confirm its raw lean.',base:b,mem:m};
+ return {side:null,mode:'WAIT',reason:b.gateReason||m.reason,base:b,mem:m};
+}
+function ensure(){let d=document.getElementById('v395BestEstimate3');if(d)return d;
+ const originalPanel=document.getElementById('bestEstimateAccuracy')?.closest('.analyzer');if(!originalPanel?.parentNode)return null;
+ d=document.createElement('div');d.className='analyzer';d.id='v395BestEstimate3';d.style.borderColor='#6288ac';
+ d.innerHTML=`<div class="analyzer-title">Best-Estimate Analyzer 3 — Adaptive Library Clone</div><div class="analyzer-sub">Independent experimental clone of the original Best-Estimate Analyzer, with de-duplicated saved-shoe continuation matching, partial/inverted patterns and conflict checks. Does not alter the original or other AIs. Historical similarities are not guaranteed predictions.</div>
+ <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="analyzer-card"><span>NEXT RESULT</span><strong id="be3Side">WAIT</strong></div><div class="analyzer-card"><span>BASE SCORE</span><strong id="be3Conf">—</strong></div><div class="analyzer-card"><span>MODE</span><strong id="be3Mode">WAIT</strong></div><div class="analyzer-card"><span>ACCURACY</span><strong id="be3Acc">—</strong></div></div>
+ <div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))"><div class="analyzer-card"><span>W / L</span><strong id="be3WL">0W-0L</strong></div><div class="analyzer-card"><span>GRADED</span><strong id="be3N">N=0</strong></div><div class="analyzer-card"><span>MATCHING SHOES</span><strong id="be3Matches">0</strong></div></div>
+ <div class="analyzer-sub" id="be3Reason">Waiting for evidence.</div><button class="tiny-btn" id="be3Reset" type="button" style="width:100%;margin-top:8px">Reset Best-Estimate Analyzer 3 Accuracy</button>`;
+ originalPanel.parentNode.insertBefore(d,originalPanel.nextSibling);
+ d.querySelector('#be3Reset').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();state[KEY]=empty();save();paint();arm()},true);
+ return d;
+}
+function show(id,v){const el=document.getElementById(id);if(el)el.textContent=v}
+function paint(){if(!ensure())return;const a=ledger(),x=decide(),n=a.wins+a.losses;show('be3Side',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');show('be3Conf',Number(x.base?.top||0).toFixed(0)+'%');show('be3Mode',x.mode);show('be3Acc',n?(100*a.wins/n).toFixed(1)+'%':'—');show('be3WL',`${a.wins}W-${a.losses}L`);show('be3N',`N=${n}`);show('be3Matches',String(x.mem?.support||0));show('be3Reason',x.reason+' • Library: '+(x.mem?.scanned||0)+' unique shoes scanned. '+(x.mem?.reason||''));}
+function settle(actual){actual=pb(actual)|| (String(actual).toUpperCase()==='T'?'T':null);if(!actual)return false;const a=ledger(),hn=live().length,p=a.pending;
+ if(!p||p.handN!==hn)return false; // pre-commit only; one settlement per armed hand
+ if(actual==='T'){a.ties++;a.pending={...p,handN:hn+1};save();return false}
+ if(a.gradedHand===hn+1)return false;
+ if(actual===p.side)a.wins++;else a.losses++;a.gradedHand=hn+1;a.pending=null;save();return true;
+}
+function arm(){const a=ledger(),hn=live().length;if(a.pending){if(a.pending.handN===hn){paint();return a.pending;}a.pending=null;}
+ const x=decide();if(x.side)a.pending={side:x.side,handN:hn};else if(a.lastWaitHand!==hn){a.waits++;a.lastWaitHand=hn;}
+ save();paint();return x;
+}
+function cycle(){return arm()}
+function historyChanged(){const a=ledger();a.pending=null;a.gradedHand=-1;a.lastWaitHand=-1;save();setTimeout(arm,0)}
+function install(){ensure();arm();}
+// Existing central result queue invokes these hooks at pre-commit and post-commit.
+window.__V332_BEST_ESTIMATE_2__={version:395,decide,settle,arm,cycle,historyChanged,paint,accuracy:ledger,analyzer3:true};
+window.__BEST_ESTIMATE_3__=window.__V332_BEST_ESTIMATE_2__;
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
 </body>
 </html>
