@@ -2420,13 +2420,17 @@ function shoeMatcherScanCore(beadInput,mainInput){
       if(!best||x.score>best.score)best={...x,pos};
     }
     if(best){
-      // Follow Mode continuity bonus: if the previously selected shoe still aligns at the expected next hand,
-      // prefer staying on it. A wrong live result removes this advantage automatically on the next scan.
+      // Verified-only continuity tie-breaker; a mismatch gets no preference.
       if(shoeMatcherFollowMode && bead.length>=20 && shoeMatcherLastResult && shoeMatcherLastResult.best){
         const prev=shoeMatcherLastResult.best;
         const sameSaved=(prev.shoe && shoe && (prev.shoe.id&&shoe.id?prev.shoe.id===shoe.id:prev.sequence===hist));
         const expectedPos=prev.pos + Math.max(0,bead.length-shoeMatcherLastResult.bead.length);
-        if(sameSaved && Math.abs(best.pos-expectedPos)<=1)best.score=Math.min(1,best.score*1.08);
+        // Do not reward an old shoe merely because its alignment position advanced.
+        // Verify the entire newly observed sequence against what it predicted.
+        const added=bead.slice(shoeMatcherLastResult.bead.length);
+        const predicted=prev.continuation.slice(0,added.length);
+        const verified=added.length>0 && added===predicted;
+        if(sameSaved && verified && Math.abs(best.pos-expectedPos)<=1)best.score=Math.min(1,best.score*1.02);
       }
       const continuation=hist.slice(best.pos);
       const next=continuation[0]||null;
@@ -18360,5 +18364,25 @@ window.__V393_VARIABLE_MEMORY_ML2__={
 </script>
 <script id="v393-build-marker">window.__V393_BUILD__={version:393.1,variableMemoryML2:true,dynamicGate:true,cutoffs:{strong:0.545,normal:0.565,weak:0.59},contexts:[1,2,3,4,5,6],existingV309Changed:false,existingAIsChanged:false,independentAccuracy:true};</script>
 <!-- V394: Adaptive Library Intelligence AI. Independent meta-intelligence layer; existing AI logic unchanged. -->
+<script id="v412-dragon-background-diagnostic">
+(function(){
+'use strict';
+// Independent observation only: never returns a P/B betting signal or modifies AI functions.
+const ID='dragonTailDiagnosticV412';
+let lastKey='', cached=[];
+function pb(s){return String(s||'').replace(/[^PBT]/g,'');}
+function prefix(){try{return state.hands.map(h=>h.r).filter(x=>/[PBT]/.test(x)).join('')}catch(e){return ''}}
+function library(){try{return activePatternLibrary().map(x=>pb(typeof x==='string'?x:x.sequence)).filter(Boolean)}catch(e){return []}}
+function streak(s){let a=s.replace(/T/g,''),n=0,c=a.slice(-1);for(let i=a.length-1;i>=0&&a[i]===c;i--)n++;return {side:c,len:n}}
+function structure(s){let a=s.replace(/T/g,''),cs=[];for(const c of a){if(!cs.length||cs[cs.length-1].side!==c)cs.push({side:c,n:1});else cs[cs.length-1].n++}let roads=[];for(let off=1;off<=3;off++){let out=[];for(let c=off;c<cs.length;c++){for(let r=c===off?1:0;r<cs[c].n;r++){let red;if(r===0)red=cs[c-1].n===(cs[c-1-off]?.n||0);else{let z=cs[c-off].n;red=(z>=r+1)===(z>=r)}out.push(red?'R':'B')}}roads.push(out)}return {cols:cs,roads}}
+function analysis(){const live=prefix(),lib=library(), st=streak(live),liveRoad=structure(live);let compared=0,match=0,continued=0,full=0,partial=0;const suffix=live.replace(/T/g,'').slice(-5);if(suffix.length>=3){for(const shoe of lib){let a=shoe.replace(/T/g,'');for(let i=Math.max(5,suffix.length);i<a.length;i++){if(a.slice(i-suffix.length,i)!==suffix)continue;compared++;let x=streak(a.slice(0,i)); if(x.side!==st.side||x.len!==st.len)continue;let hist=structure(a.slice(0,i)),same=0,ready=0;for(let j=0;j<3;j++){let p=liveRoad.roads[j].slice(-3).join(''),q=hist.roads[j].slice(-3).join('');if(p.length===3&&q.length===3){ready++;if(p===q)same++}}if(ready>=2 && same>=2){match++;if(a[i]===st.side){continued++;let n=st.len;while(i+n-st.len<a.length&&a[i+n-st.len]===st.side)n++;if(n>=3)partial++;if(n>=6)full++}}}}}
+return {hands:live.length,unique:lib.length,st,compared,match,continued,partial,full}}
+function ensure(){if(document.getElementById(ID))return;let anchor=document.getElementById('dragonAlert')||document.getElementById('bigRoad');if(!anchor||!anchor.parentNode)return;const el=document.createElement('div');el.id=ID;el.setAttribute('role','status');el.style.cssText='border:1px solid #425469;border-radius:10px;padding:8px 11px;margin:8px 0;background:#18212a;color:#e5eef5;font-size:12px;line-height:1.5';el.innerHTML='<strong>🐉 Dragon Tail Tracker · Diagnostic only</strong><div id="dragonV412Note">Analyzing library…</div>';anchor.parentNode.insertBefore(el,anchor.nextSibling)}
+function paint(){ensure();const e=document.getElementById('dragonV412Note');if(!e)return;const k=prefix()+'|'+library().length+'|'+(state.currentShoeColor||'')+'|'+(state.predictionLibraryMode||'');if(k===lastKey)return;lastKey=k;let z=analysis();window.__DRAGON_TAIL_V412__={version:412,diagnosticOnly:true,latest:z,refresh:paint,analyze:analysis};const s=z.st;if(z.hands<6){e.textContent=`${z.unique} unique library shoes available. Requires 6 observed hands; no betting signal.`;return;}let stage=s.len>=6?'FULL DRAGON (6+)':s.len>=3?'PARTIAL DRAGON (3–5)':'No active dragon';let explanation=z.match>=15?`${z.match} structurally similar historical moments; ${z.continued} continued one hand, ${z.full} reached six total.`:`${z.match} matching historical moments (insufficient examples for a meaningful estimate).`;e.textContent=`${stage} · ${s.side==='P'?'PLAYER':s.side==='B'?'BANKER':'—'} ${s.len} consecutive non-tie · ${explanation} Observational only; no AI predictions changed.`}
+function attach(){ensure();paint();document.addEventListener('click',()=>setTimeout(paint,80),true);document.addEventListener('change',()=>setTimeout(paint,80),true);window.addEventListener('pageshow',paint);try{let old=render;if(typeof old==='function'&&!old.__dragonDiag){const wrap=function(){const r=old.apply(this,arguments);try{paint()}catch(e){}return r};wrap.__dragonDiag=true;render=wrap}}catch(e){}}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',attach,{once:true});else attach();
+})();
+</script>
+
 </body>
 </html>
