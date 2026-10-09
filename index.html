@@ -400,10 +400,10 @@ body{padding-bottom:max(230px,env(safe-area-inset-bottom))!important}
 #v409-experiment-readout{bottom:235px!important;right:10px!important;z-index:9990!important}
 </style>
 <style id="v411-advisor-style">
-#v411Advisor{margin:8px 0 10px;background:#171a1f;border:1px solid #596574;border-radius:14px;padding:10px;color:#f4f6f8;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#v411Advisor{position:sticky;top:0;z-index:9000;margin:8px 0 10px;background:#251d0b;border:3px solid #ffbd2e;box-shadow:0 3px 18px #000a;border-radius:14px;padding:12px;color:#f4f6f8;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 #v411Advisor .head{display:flex;justify-content:space-between;align-items:center;gap:7px;font-weight:900;font-size:14px}
-#v411Advisor .pill{font-size:10px;background:#313942;border-radius:18px;padding:5px 8px}
-#v411Advisor .lead{font-size:19px;font-weight:900;margin-top:9px;word-wrap:break-word}
+#v411Advisor .pill{font-size:11px;background:#795218;color:white;border-radius:18px;padding:5px 8px}
+#v411Advisor .lead{color:#ffdb78;font-size:24px;font-weight:950;margin-top:9px;word-wrap:break-word}
 #v411Advisor .reason{font-size:11px;line-height:1.45;margin-top:5px;color:#adb9c6}
 #v411Advisor .stats{background:#22272e;margin-top:8px;padding:8px;border-radius:9px}
 #v411Advisor .list{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
@@ -421,6 +421,7 @@ body{padding-bottom:max(230px,env(safe-area-inset-bottom))!important}
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
 </div>
+<section id="v411Advisor" aria-live="polite"><div class="head"><span>🔥 HOT AI SIGNAL — WHO IS ON FIRE?</span><span class="pill" id="v411Status">COLLECTING DATA</span></div><div class="lead" id="v411Leader">⏳ WATCHING AI PERFORMANCE</div><div class="reason" id="v411Reason">Comparing independent AIs using recorded live-hand results.</div><div class="stats" id="v411Summary">Waiting for enough graded observations.</div><div class="reason" id="v412HotLine" style="font-weight:900;color:#ffd878;font-size:13px">🔥 Hot streak: not established yet</div><div class="list" id="v411Ranking"></div><button type="button" id="v411Reset">Reset advisor history only</button><div class="reason">Advisory ranking only. Does not modify AI logic, place bets, or imply guaranteed results.</div></section>
 <div class="analyzer" id="sequenceAiPanel">
 <div class="analyzer-title">Sequence AI V2 Analyzer</div>
 <div class="analyzer-sub">Early saved-shoe P/B/T rolling-window engine restored. Uses short, medium, and long historical sequence windows, normalized per-shoe continuation votes, and the original moderate qualification gate: 55% similarity, 58% window agreement, 6-point P/B edge, plus either 3 matches or an 8-hand best match. Sequence AI V2 uses saved P/B/T shoe history only.</div>
@@ -447,7 +448,7 @@ body{padding-bottom:max(230px,env(safe-area-inset-bottom))!important}
 <div class="analyzer-sub" id="seqV2AccuracyLast" style="margin-top:5px">Accuracy results ready.</div>
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
-<section id="v411Advisor" aria-live="polite"><div class="head"><span>📡 Live AI Advisor</span><span class="pill" id="v411Status">COLLECTING DATA</span></div><div class="lead" id="v411Leader">NO CLEAR LEADER</div><div class="reason" id="v411Reason">Comparing independent AIs using recorded live-hand results.</div><div class="stats" id="v411Summary">Waiting for enough graded observations.</div><div class="list" id="v411Ranking"></div><button type="button" id="v411Reset">Reset advisor history only</button><div class="reason">Advisory ranking only. Does not modify AI logic, place bets, or imply guaranteed results.</div></section>
+
 <div class="scoreboard">
 <div class="road-wrap"><div class="road" id="bigRoad"></div></div>
 </div>
@@ -18542,15 +18543,26 @@ function paint(){
   return {m,n,w,pn,pw,score,call:picks[m.id]||null};
  }).filter(x=>el(x.m.side)&&getComputedStyle(el(x.m.side).closest('.analyzer,.future-test')||el(x.m.side)).display!=='none').sort((a,b)=>b.score-a.score);
  // Meaningful evidence threshold applies only to the advisor; does not gate original AIs.
- const eligible=ranking.filter(x=>x.call&&x.n>=12&&x.pn>=5);
- const best=eligible[0],runner=eligible[1];
- const lead=el('v411Leader'),status=el('v411Status'),reason=el('v411Reason'),summary=el('v411Summary'),out=el('v411Ranking');
- if(!best||best.score<.54||(runner&&best.score-runner.score<.035)){
-  lead.textContent='NO CLEAR LEADER';status.textContent='INSUFFICIENT EDGE';
-  reason.textContent=best?'Top-ranked AIs are too close or their recent evidence is weak.':'Need at least 12 previous graded picks and 5 in this shoe phase before ranking an AI as a leader.';
+ // A visible short-window signal: at least six *graded directional* predictions.
+ // Require five wins in the last six, and at least two ahead of losses in the last eight.
+ // This is a descriptive HOT streak, NOT a claim of a predictive edge.
+ const hotCandidates=ranking.map(x=>{
+   const r=a.rows.filter(y=>(y.actual==='P'||y.actual==='B')&&y.picks&&y.picks[x.m.id]).slice(-8);
+   const last6=r.slice(-6), hit=last6.filter(y=>y.picks[x.m.id]===y.actual).length;
+   return {...x,hotN:last6.length,hotW:hit,hot8W:r.filter(y=>y.picks[x.m.id]===y.actual).length,hot8N:r.length};
+ }).filter(x=>x.call&&x.hotN>=6&&x.hotW>=5&&x.hot8W>=x.hot8N-2)
+ .sort((a,b)=>(b.hotW/b.hotN)-(a.hotW/a.hotN)||b.hot8W-a.hot8W||b.n-a.n);
+ const best=hotCandidates[0];
+ const lead=el('v411Leader'),status=el('v411Status'),reason=el('v411Reason'),summary=el('v411Summary'),out=el('v411Ranking'),hotLine=el('v412HotLine');
+ if(!best){
+   lead.textContent='⚪ NO AI ON FIRE RIGHT NOW';status.textContent='MONITORING';
+   reason.textContent='No AI with a current P/B prediction has won at least 5 of its last 6 graded calls. This signal does not restrict any AI.';
+   if(hotLine)hotLine.textContent='🔥 Hot streak: none qualified yet (minimum 6 graded calls)';
  }else{
-  lead.textContent=best.m.name+' · '+(best.call==='P'?'PLAYER':'BANKER');status.textContent='CURRENT LEADER';
-  reason.textContent='Based on last '+best.n+' graded calls and '+best.pn+' in the '+current.toLowerCase()+' phase. This is a relative performance ranking, not a verified prediction advantage.';
+   lead.textContent='🔥 '+best.m.name+'  →  '+(best.call==='P'?'PLAYER 🔵':'BANKER 🔴');
+   status.textContent='🔥 HOT RIGHT NOW';
+   reason.textContent='Recent streak: '+best.hotW+' wins in its last '+best.hotN+' graded directional calls. Current prediction shown above; streaks can reverse at any time.';
+   if(hotLine)hotLine.textContent='🔥 LAST 6: '+best.hotW+'W–'+(best.hotN-best.hotW)+'L  |  LAST '+best.hot8N+': '+best.hot8W+'W–'+(best.hot8N-best.hot8W)+'L';
  }
  summary.textContent='Shoe phase: '+current+' · P/B hands: '+count+' · Advisor graded hands: '+a.rows.filter(x=>x.actual==='P'||x.actual==='B').length+' · Directional calls only';
  out.replaceChildren();ranking.filter(x=>x.n>0||x.call).slice(0,9).forEach(x=>{let b=document.createElement('span');b.className='item';b.textContent=x.m.name+': '+(x.call==='P'?'P':x.call==='B'?'B':'WAIT')+' · '+x.w+'W-'+(x.n-x.w)+'L (last '+x.n+')';out.appendChild(b)});
