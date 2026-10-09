@@ -1,5 +1,5 @@
-<!-- V410: Removed DeepSeek network request, parsing, scoring and consensus vote; neutral legacy hooks only. -->
-<!-- V409: Full eligible library scan for reuse, derived-road reconstruction and DeepSeek payload; prediction weights/gates unchanged. -->
+<!-- V409: Experimental adaptive library-evidence comparison. Original AI predictions unchanged. -->
+<!-- V408: Cancellable up-to-10-second all-library evidence scan, nonblocking, no prediction or grading changes. -->
 <!-- V404 targeted library routing: selected mode preserved for Recycle and Best Estimate 3; no additional panels or prediction threshold edits. -->
 <!-- V402: Fix same-count stale library cache in Mirror V3; extend existing source audit to Recycle, Memory and Bead modules. Decision thresholds unchanged. -->
 <!-- V407: Selected-library tie learning, content-fingerprinted derived-road cache, and non-influencing recognition outcome telemetry. -->
@@ -381,38 +381,7 @@
   #roadPreviewAiPanel .match-pct{padding:4px 2px!important}
 }
 </style>
-<style id="removed-seven-legacy-visibility">#v277MainFutureAwareness,#v360MainFutureTest3,#v395BestEstimate3,#aliPanel,#adaptiveLibraryIntelligencePanel,#instantLibraryLearnPanel,#roadPreviewAiPanel,#beadHistoryAi2Panel{display:none!important}</style><style id="v408-persistent-pbt-dock">
-/* V408: Persistent entry dock. Move only the original visible P/B/T/Undo
-   controls into a viewport-fixed position; keep their event handlers and IDs. */
-html { scroll-padding-bottom: 110px; }
-body { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
-.controls .main-buttons {
-  position: fixed !important;
-  z-index: 2147483000 !important;
-  left: 50% !important;
-  right: auto !important;
-  bottom: 0 !important;
-  transform: translateX(-50%) !important;
-  width: min(100%, 760px) !important;
-  display: grid !important;
-  grid-template-columns: 1fr 1fr 1fr .75fr !important;
-  gap: 8px !important;
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom)) !important;
-  background: rgba(17,20,25,.97) !important;
-  border: 1px solid #46505c !important;
-  border-bottom: 0 !important;
-  border-radius: 14px 14px 0 0 !important;
-  box-shadow: 0 -5px 22px rgba(0,0,0,.45) !important;
-  box-sizing: border-box !important;
-  margin: 0 !important;
-}
-.controls .main-buttons .big { min-height: 53px !important; height: 53px !important; font-size: 23px !important; border-radius: 12px !important; touch-action: manipulation; }
-@media (max-width: 430px) {
-  .controls .main-buttons { gap: 6px !important; padding-left: 8px !important; padding-right: 8px !important; }
-}
-/* On iPad, do not let the old right-column sticky container control the dock. */
-@media (min-width: 700px) { .controls { position: static !important; } }
-</style></head>
+<style id="removed-seven-legacy-visibility">#v277MainFutureAwareness,#v360MainFutureTest3,#v395BestEstimate3,#aliPanel,#adaptiveLibraryIntelligencePanel,#instantLibraryLearnPanel,#roadPreviewAiPanel,#beadHistoryAi2Panel{display:none!important}</style></head>
 <body><div id="v407-clean-build-indicator" style="background:#143726;color:#e0ffe9;padding:6px 12px;text-align:center;font:600 12px system-ui,sans-serif;position:relative;z-index:1">V407 CLEAN • 11 REQUESTED SECTIONS REMOVED • OCT 9</div>
 <!-- V339: Best-Estimate Analyzer 2 accuracy now settles in the authoritative live P/B/T commit path before the hand is pushed, then arms the next call after commit. The delayed 210ms click-grading dependency was removed. Prediction logic unchanged. -->
 <div class="app">
@@ -749,6 +718,7 @@ body { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
 <div class="match-pct"><strong id="matchT">—</strong><span>Tie followed</span></div>
 </div>
 </div>
+<div class="match-box" id="v409ExperimentBox" style="border:1px solid #5974a0"><div class="match-head"><b>Experimental Library Evidence (V409)</b><span id="v409Status">READY</span></div><div class="match-line" id="v409Outcome">Enter a result to analyze historical matches. Existing AIs are unchanged.</div><div class="match-line" id="v409Details">Adaptive runtime: finishes as soon as the scan completes; 10-second maximum. Experimental signal only—not a guaranteed outcome.</div></div>
 <div class="match-box" id="currentShoeMatcherBox" style="border:1px solid #5b7ee5;background:#101522">
 <div class="match-head">
 <b>🔎 Current Shoe Matcher / Rest-of-Shoe Predictor</b>
@@ -1057,8 +1027,8 @@ function renderLibraryBackupStatus(){
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = ''; // V258: H2O retired; prevent legacy connector/network scoring from auto-activating
-const DEFAULT_DEEPSEEK_SCORE_URL = ''; // V410 neutral legacy constant
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, predictionLibraryMode:'combined', activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:false, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:false,kaggle:{last:null,error:''}, bot:{learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}}, ultimate:{last:null,pendingId:null,error:'',connected:false}};
+const DEFAULT_DEEPSEEK_SCORE_URL = ''; // DeepSeek removed; legacy compatibility only
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, predictionLibraryMode:'combined', activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:false, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:false,kaggle:{last:null,error:''}, bot:{learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}}, ultimate:{last:null,pendingId:null,error:'',connected:false}};
 
 // V364 Library Seed — protected copy of the user's 2026-09-30 full RED + BLACK backup (171 stored shoes).
 // Chrome cannot read Safari's private localStorage, so this seed is merged (never blindly replaces)
@@ -1202,7 +1172,80 @@ toggle('ppBtn','pp'); toggle('bpBtn','bp'); toggle('specialBtn','special');
 // V136: Chrome 70-hand freeze root fix.
 // Commit each live result synchronously, but coalesce expensive UI/storage/library work.
 let __v136RenderTimer=null, __v136PersistTimer=null, __v136KaggleTimer=null;
+// V408: bounded, cancellable 10-second library-analysis cycle.
+// Advisory evidence only: never mutates predictions, pending grades, thresholds, or histories.
+let __v408Cycle=null;
+function __v408StartAnalysis(){
+  if(__v408Cycle){__v408Cycle.cancelled=true;for(const t of __v408Cycle.timers)clearTimeout(t);}
+  const cycle={cancelled:false,timers:[],started:performance.now(),scanned:0,matches:0,status:'analyzing'};
+  const label=document.getElementById('v409Status'); if(label)label.textContent='ANALYZING';
+  __v408Cycle=cycle;
+  const live=currentSequence().filter(x=>x==='P'||x==='B');
+  const color=state.currentShoeColor||'combined';
+  const source=activePatternLibrary();
+  // Snapshot the source list once; process in small batches to keep iOS input responsive.
+  const candidates=source.map((v,i)=>({id:i,seq:(typeof v==='string'?v:v?.sequence||'').replace(/T/g,'')}))
+    .filter(x=>x.seq.length>=2);
+  const result=[];let index=0;
+  function chunk(){
+    if(cycle.cancelled)return;
+    const until=performance.now()+9;
+    while(index<candidates.length && performance.now()<until){
+      const x=candidates[index++], n=Math.min(live.length,x.seq.length-1);
+      // Evaluate every possible aligned history window; never assume one shoe stays a match.
+      let best=0, next=null, start=0;
+      for(let j=0;j<=x.seq.length-n-1 && n>0;j++){
+        let matched=0;
+        for(let k=0;k<n;k++)if(live[live.length-n+k]===x.seq[j+k])matched++;
+        if(matched>best){best=matched;next=x.seq[j+n];start=j;}
+      }
+      result.push({id:x.id,compared:n,matched:best,next,start});
+    }
+    cycle.scanned=index;
+    if(index<candidates.length && performance.now()-cycle.started<9800){
+      cycle.timers.push(setTimeout(chunk,20));
+    }else{
+      cycle.status=index===candidates.length?'complete':'time-limit';
+      cycle.matches=result.filter(x=>x.compared>=4&&x.matched/x.compared>=.75).length;
+      cycle.ranked=result.sort((a,b)=>(b.compared?b.matched/b.compared:0)-(a.compared?a.matched/a.compared:0)||b.compared-a.compared).slice(0,12);
+      __v409RenderEvidence(cycle,live,candidates);
+    }
+  }
+  cycle.timers.push(setTimeout(chunk,0));
+  cycle.timers.push(setTimeout(()=>{if(!cycle.cancelled&&cycle.status==='analyzing'){
+    cycle.status='time-limit';cycle.matches=result.filter(x=>x.compared>=4&&x.matched/x.compared>=.75).length;
+    cycle.ranked=result.sort((a,b)=>(b.compared?b.matched/b.compared:0)-(a.compared?a.matched/a.compared:0)).slice(0,12);
+    __v409RenderEvidence(cycle,live,candidates);
+  }},10000));
+  cycle.color=color;cycle.libraryCount=candidates.length;cycle.liveLength=live.length;
+}
+// Independent experimental match vote. Uses only revealed live hands, and never changes original AI calls.
+function __v409RenderEvidence(cycle,live,candidates){
+  if(cycle.cancelled)return;
+  const label=document.getElementById('v409Status'),out=document.getElementById('v409Outcome'),detail=document.getElementById('v409Details');
+  const score={P:0,B:0};let contributing=0;
+  for(const row of candidates.slice(0,cycle.scanned)){
+    const seq=row.seq; let chosen=null,depth=0;
+    // One strongest historical continuation per shoe; minimum four identical recent outcomes.
+    for(let n=Math.min(14,live.length,seq.length-1);n>=4;n--){
+      const suffix=live.slice(-n).join('');const at=seq.indexOf(suffix);
+      if(at>=0&&at+n<seq.length){chosen=seq[at+n];depth=n;break;}
+    }
+    if(chosen==='P'||chosen==='B'){score[chosen]+=(depth/14)**2;contributing++;}
+  }
+  const total=score.P+score.B,margin=total?Math.abs(score.P-score.B)/total:0;
+  const prediction=contributing>=3&&margin>=.15?(score.P>score.B?'PLAYER':'BANKER'):'NO RELIABLE MATCH';
+  cycle.experimental={prediction,contributing,playerWeight:score.P,bankerWeight:score.B};
+  if(label)label.textContent=cycle.status==='complete'?'COMPLETE':'TIME LIMIT';
+  if(out)out.textContent='Experimental signal: '+prediction+' · '+contributing+' matching shoes';
+  if(detail)detail.textContent='Analysis '+Math.round(performance.now()-cycle.started)+' ms · '+cycle.scanned+'/'+candidates.length+' shoes checked · original AI calls unchanged · 10-second ceiling, not mandatory.';
+}
+window.__V408_ANALYSIS__={status(){if(!__v408Cycle)return {status:'not-started'};
+  const {status,scanned,matches,color,libraryCount,liveLength,ranked,started}=__v408Cycle;
+  return {status,scanned,matches,color,libraryCount,liveLength,ranked,experimental:__v408Cycle.experimental,elapsedMs:Math.round(performance.now()-started)};
+},restart:__v408StartAnalysis};
 function __v136SchedulePostHandMaintenance(){
+  try{ __v408StartAnalysis(); }catch(e){console.warn("V408 analysis",e);}
   if(__v136RenderTimer) clearTimeout(__v136RenderTimer);
   __v136RenderTimer=setTimeout(()=>{
     __v136RenderTimer=null;
@@ -2117,10 +2160,10 @@ function librarySignal(){
 function sameColorReuseCandidates(){
   const cur=currentSequence().join('');
   const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=4);
-  // Scan every eligible selected-library shoe, newest first. If an identical copy of the live shoe was
+  // Newest saved same-color shoe first. If an identical copy of the live shoe was
   // accidentally saved mid-shoe, ignore that exact current snapshot.
   const usable=lib.filter(x=>x.sequence!==cur);
-  return usable.slice().reverse();
+  return usable.slice(-2).reverse();
 }
 function bestShiftSimilarity(cur, hist){
   if(!cur || !hist) return {score:0,offset:0,compared:0};
@@ -2208,7 +2251,7 @@ function scanSameColorReuse(){
     next=`${side} ${pct}%`;
   }
   nextEl.textContent=next;
-  const label=`saved shoe ${cand.length-best.idx} of ${cand.length} scanned`;
+  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
   const offset=best.shift.offset===0?'near the same positions':`best aligned about ${Math.abs(best.shift.offset)} hand${Math.abs(best.shift.offset)===1?'':'s'} ${best.shift.offset>0?'later':'earlier'}`;
   const level=best.score>=75?'STRONG':best.score>=60?'MODERATE':best.score>=45?'WEAK':'LOW';
   status.textContent=level+' MATCH';
@@ -2300,7 +2343,7 @@ function scanPreviousRoads(){
     next=`${side==='R'?'RED':'BLUE'} ${pct}%`;
   }
   nextEl.textContent=next;
-  const label=`saved shoe ${cand.length-best.idx} of ${cand.length} scanned`;
+  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
   const level=best.overall>=75?'STRONG':best.overall>=60?'MODERATE':best.overall>=45?'WEAK':'LOW';
   status.textContent=level+' ROAD MATCH';
   text.textContent=`Best road-structure match: ${label} at ${best.overall}%. Big Eye ${best.eye.total?best.eye.score+'%':'N/A'}, Small ${best.small.total?best.small.score+'%':'N/A'}, Cockroach ${best.roach.total?best.roach.score+'%':'N/A'}. ${total?`Matched historical road blocks most often continued with ${next}.`:'There are not enough historical continuations yet.'} RED/BLUE here are derived-road colors, not Banker/Player bets.`;
@@ -2420,17 +2463,13 @@ function shoeMatcherScanCore(beadInput,mainInput){
       if(!best||x.score>best.score)best={...x,pos};
     }
     if(best){
-      // Verified-only continuity tie-breaker; a mismatch gets no preference.
+      // Follow Mode continuity bonus: if the previously selected shoe still aligns at the expected next hand,
+      // prefer staying on it. A wrong live result removes this advantage automatically on the next scan.
       if(shoeMatcherFollowMode && bead.length>=20 && shoeMatcherLastResult && shoeMatcherLastResult.best){
         const prev=shoeMatcherLastResult.best;
         const sameSaved=(prev.shoe && shoe && (prev.shoe.id&&shoe.id?prev.shoe.id===shoe.id:prev.sequence===hist));
         const expectedPos=prev.pos + Math.max(0,bead.length-shoeMatcherLastResult.bead.length);
-        // Do not reward an old shoe merely because its alignment position advanced.
-        // Verify the entire newly observed sequence against what it predicted.
-        const added=bead.slice(shoeMatcherLastResult.bead.length);
-        const predicted=prev.continuation.slice(0,added.length);
-        const verified=added.length>0 && added===predicted;
-        if(sameSaved && verified && Math.abs(best.pos-expectedPos)<=1)best.score=Math.min(1,best.score*1.02);
+        if(sameSaved && Math.abs(best.pos-expectedPos)<=1)best.score=Math.min(1,best.score*1.08);
       }
       const continuation=hist.slice(best.pos);
       const next=continuation[0]||null;
@@ -3167,11 +3206,63 @@ function renderH2O(){
 }
 
 
-// V410: DeepSeek external integration removed. Neutral compatibility functions prevent
-// older analyzer calls from failing; no request, inference, or voting is possible.
-async function scoreWithDeepSeek(){return null;}
-function currentDeepSeekSignal(){return {side:null,strength:0,p:null,b:null,t:null,confidence:0};}
-function renderDeepSeek(){}
+function normalizeDeepSeekResponse(data){
+  let p=Number(data?.p), b=Number(data?.b), t=Number(data?.t ?? 0);
+  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('DeepSeek response did not include P/B scores.');
+  if(p<=1.0001&&b<=1.0001&&t<=1.0001){p*=100;b*=100;t*=100;}
+  p=Math.max(0,p);b=Math.max(0,b);t=Math.max(0,t); const sum=p+b+t||1;
+  p=p/sum*100;b=b/sum*100;t=t/sum*100;
+  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
+  const side=pr>=br?'P':'B';
+  const rawConfidence=Number(data?.confidence);
+  const conf=Number.isFinite(rawConfidence)?Math.max(0,Math.min(100,Math.round(rawConfidence))):50;
+  // Restrain LLM influence: confidence is not treated as a calibrated probability.
+  const strength=Math.round(50+Math.min(20,Math.abs(pr-br)/2)*Math.min(1,conf/70));
+  return {p:pr,b:br,t:tr,side,strength,confidence:conf,pattern:String(data?.pattern||''),rationale:String(data?.rationale||''),model:String(data?.model||''),sequence:currentSequence().join(''),at:new Date().toISOString()};
+}
+async function scoreWithDeepSeek(showAlert=false){
+  if(!state.deepseek?.url){if(showAlert)alert('DeepSeek endpoint is not available. Host this HTML with the upgraded Python server.');return null;}
+  const st=document.getElementById('deepseekStatus');
+  if(st){st.textContent='🟡 DEEPSEEK ANALYZING…';st.className='h2o-status';}
+  try{
+    const headers={'Content-Type':'application/json'};
+    if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
+    const payload={features:h2oFeatures(),shoes:activePatternLibrary().slice(-120)};
+    const data=await h2oRequestJson(state.deepseek.url,{method:'POST',headers,body:JSON.stringify(payload)});
+    const out=normalizeDeepSeekResponse(data);
+    state.deepseek.last=out;state.deepseek.connected=true;state.deepseek.error='';persist();renderAnalyzer();renderDeepSeek();
+    return out;
+  }catch(err){
+    const msg=String(err.message||err);
+    state.deepseek.connected=false;state.deepseek.error=msg;persist();renderDeepSeek();
+    if(showAlert) alert('DeepSeek analysis failed: '+msg+'\n\nMake sure DEEPSEEK_API_KEY is set in Render.');
+    return null;
+  }
+}
+function currentDeepSeekSignal(){
+  const x=state.deepseek?.last;
+  if(!x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null,confidence:0};
+  return x;
+}
+function renderDeepSeek(){
+  const d=state.deepseek||{}, x=currentDeepSeekSignal();
+  const st=document.getElementById('deepseekStatus');
+  if(st){
+    if(d.error){st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
+    else if(d.connected){st.textContent='🟢 DEEPSEEK CONNECTED';st.className='h2o-status on';}
+    else {st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
+  }
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('deepseekP',x.p==null?'—':x.p+'%');set('deepseekB',x.b==null?'—':x.b+'%');set('deepseekT',x.t==null?'—':x.t+'%');
+  set('deepseekPattern',x.pattern||'—');set('deepseekConfidence',x.side?x.confidence+'%':'—');set('deepseekModel',x.model||'—');
+  const note=document.getElementById('deepseekNote');
+  if(note){
+    if(d.error) note.textContent='Last error: '+d.error;
+    else if(x.side) note.textContent=(x.rationale||'DeepSeek analysis ready.')+' This is an analysis signal, not a guaranteed probability.';
+  }
+}
+
+
 
 function analyzeRoadRegime(marks){
   // Interpret CURRENT derived-road behavior only. Red/blue are structural marks,
@@ -3844,7 +3935,8 @@ function independentEvidenceFamilies(){
   const roads=combineEvidenceFamily('Road Intelligence',[
     {sig:roadAI,weight:.72},{sig:road,weight:.28}
   ]);
-  return [historical,roads].filter(x=>x.side && x.strength>50);
+  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
+  return [historical,roads,external].filter(x=>x.side && x.strength>50);
 }
 
 function consensusSignal(){
@@ -3908,7 +4000,7 @@ function computeCombinedAnalyzer(){
   const roadFamily=combineEvidenceFamily('Road Intelligence',[
     {sig:roadAI,weight:.74},{sig:road,weight:.26}
   ]);
-  const external={side:null,strength:0}; // V410 removed external model voting
+  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
 
   const histQuality=historical.side ? Math.min(.52,.28+Math.max(0,historical.strength-50)/90) : 0;
   const roadQuality=roadFamily.side ? Math.min(.34,.18+Math.max(0,roadFamily.strength-50)/95) : 0;
@@ -3978,7 +4070,7 @@ function roadMarkLabel(mark){
 function derivedRoadSequencePatternSignal(offset){
   const key=offset===1?'bigEye':offset===2?'small':'roach';
   const cur=deriveRoad(state.hands,offset);
-  const lib=activePatternLibrary().map(x=>({shoe:x,roads:roadHistoryForShoe(x)})).filter(x=>Array.isArray(x.roads[key]));
+  const lib=activePatternLibrary().filter(x=>x && x.derivedRoadHistory && Array.isArray(x.derivedRoadHistory[key]));
   const pMark=previewDerivedMark(state.hands,'P',offset);
   const bMark=previewDerivedMark(state.hands,'B',offset);
 
@@ -4005,7 +4097,7 @@ function derivedRoadSequencePatternSignal(offset){
     const shoeVotes=[];
 
     for(let shoeIndex=0;shoeIndex<lib.length;shoeIndex++){
-      const ss=lib[shoeIndex].roads[key]||[];
+      const ss=lib[shoeIndex].derivedRoadHistory[key]||[];
       if(ss.length<=k) continue;
 
       let best=null;
@@ -18364,25 +18456,5 @@ window.__V393_VARIABLE_MEMORY_ML2__={
 </script>
 <script id="v393-build-marker">window.__V393_BUILD__={version:393.1,variableMemoryML2:true,dynamicGate:true,cutoffs:{strong:0.545,normal:0.565,weak:0.59},contexts:[1,2,3,4,5,6],existingV309Changed:false,existingAIsChanged:false,independentAccuracy:true};</script>
 <!-- V394: Adaptive Library Intelligence AI. Independent meta-intelligence layer; existing AI logic unchanged. -->
-<script id="v412-dragon-background-diagnostic">
-(function(){
-'use strict';
-// Independent observation only: never returns a P/B betting signal or modifies AI functions.
-const ID='dragonTailDiagnosticV412';
-let lastKey='', cached=[];
-function pb(s){return String(s||'').replace(/[^PBT]/g,'');}
-function prefix(){try{return state.hands.map(h=>h.r).filter(x=>/[PBT]/.test(x)).join('')}catch(e){return ''}}
-function library(){try{return activePatternLibrary().map(x=>pb(typeof x==='string'?x:x.sequence)).filter(Boolean)}catch(e){return []}}
-function streak(s){let a=s.replace(/T/g,''),n=0,c=a.slice(-1);for(let i=a.length-1;i>=0&&a[i]===c;i--)n++;return {side:c,len:n}}
-function structure(s){let a=s.replace(/T/g,''),cs=[];for(const c of a){if(!cs.length||cs[cs.length-1].side!==c)cs.push({side:c,n:1});else cs[cs.length-1].n++}let roads=[];for(let off=1;off<=3;off++){let out=[];for(let c=off;c<cs.length;c++){for(let r=c===off?1:0;r<cs[c].n;r++){let red;if(r===0)red=cs[c-1].n===(cs[c-1-off]?.n||0);else{let z=cs[c-off].n;red=(z>=r+1)===(z>=r)}out.push(red?'R':'B')}}roads.push(out)}return {cols:cs,roads}}
-function analysis(){const live=prefix(),lib=library(), st=streak(live),liveRoad=structure(live);let compared=0,match=0,continued=0,full=0,partial=0;const suffix=live.replace(/T/g,'').slice(-5);if(suffix.length>=3){for(const shoe of lib){let a=shoe.replace(/T/g,'');for(let i=Math.max(5,suffix.length);i<a.length;i++){if(a.slice(i-suffix.length,i)!==suffix)continue;compared++;let x=streak(a.slice(0,i)); if(x.side!==st.side||x.len!==st.len)continue;let hist=structure(a.slice(0,i)),same=0,ready=0;for(let j=0;j<3;j++){let p=liveRoad.roads[j].slice(-3).join(''),q=hist.roads[j].slice(-3).join('');if(p.length===3&&q.length===3){ready++;if(p===q)same++}}if(ready>=2 && same>=2){match++;if(a[i]===st.side){continued++;let n=st.len;while(i+n-st.len<a.length&&a[i+n-st.len]===st.side)n++;if(n>=3)partial++;if(n>=6)full++}}}}}
-return {hands:live.length,unique:lib.length,st,compared,match,continued,partial,full}}
-function ensure(){if(document.getElementById(ID))return;let anchor=document.getElementById('dragonAlert')||document.getElementById('bigRoad');if(!anchor||!anchor.parentNode)return;const el=document.createElement('div');el.id=ID;el.setAttribute('role','status');el.style.cssText='border:1px solid #425469;border-radius:10px;padding:8px 11px;margin:8px 0;background:#18212a;color:#e5eef5;font-size:12px;line-height:1.5';el.innerHTML='<strong>🐉 Dragon Tail Tracker · Diagnostic only</strong><div id="dragonV412Note">Analyzing library…</div>';anchor.parentNode.insertBefore(el,anchor.nextSibling)}
-function paint(){ensure();const e=document.getElementById('dragonV412Note');if(!e)return;const k=prefix()+'|'+library().length+'|'+(state.currentShoeColor||'')+'|'+(state.predictionLibraryMode||'');if(k===lastKey)return;lastKey=k;let z=analysis();window.__DRAGON_TAIL_V412__={version:412,diagnosticOnly:true,latest:z,refresh:paint,analyze:analysis};const s=z.st;if(z.hands<6){e.textContent=`${z.unique} unique library shoes available. Requires 6 observed hands; no betting signal.`;return;}let stage=s.len>=6?'FULL DRAGON (6+)':s.len>=3?'PARTIAL DRAGON (3–5)':'No active dragon';let explanation=z.match>=15?`${z.match} structurally similar historical moments; ${z.continued} continued one hand, ${z.full} reached six total.`:`${z.match} matching historical moments (insufficient examples for a meaningful estimate).`;e.textContent=`${stage} · ${s.side==='P'?'PLAYER':s.side==='B'?'BANKER':'—'} ${s.len} consecutive non-tie · ${explanation} Observational only; no AI predictions changed.`}
-function attach(){ensure();paint();document.addEventListener('click',()=>setTimeout(paint,80),true);document.addEventListener('change',()=>setTimeout(paint,80),true);window.addEventListener('pageshow',paint);try{let old=render;if(typeof old==='function'&&!old.__dragonDiag){const wrap=function(){const r=old.apply(this,arguments);try{paint()}catch(e){}return r};wrap.__dragonDiag=true;render=wrap}}catch(e){}}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',attach,{once:true});else attach();
-})();
-</script>
-
 </body>
 </html>
