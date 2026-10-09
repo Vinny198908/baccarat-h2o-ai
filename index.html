@@ -1,3 +1,5 @@
+<!-- V410: Removed DeepSeek network request, parsing, scoring and consensus vote; neutral legacy hooks only. -->
+<!-- V409: Full eligible library scan for reuse, derived-road reconstruction and DeepSeek payload; prediction weights/gates unchanged. -->
 <!-- V404 targeted library routing: selected mode preserved for Recycle and Best Estimate 3; no additional panels or prediction threshold edits. -->
 <!-- V402: Fix same-count stale library cache in Mirror V3; extend existing source audit to Recycle, Memory and Bead modules. Decision thresholds unchanged. -->
 <!-- V407: Selected-library tie learning, content-fingerprinted derived-road cache, and non-influencing recognition outcome telemetry. -->
@@ -379,7 +381,38 @@
   #roadPreviewAiPanel .match-pct{padding:4px 2px!important}
 }
 </style>
-<style id="removed-seven-legacy-visibility">#v277MainFutureAwareness,#v360MainFutureTest3,#v395BestEstimate3,#aliPanel,#adaptiveLibraryIntelligencePanel,#instantLibraryLearnPanel,#roadPreviewAiPanel,#beadHistoryAi2Panel{display:none!important}</style></head>
+<style id="removed-seven-legacy-visibility">#v277MainFutureAwareness,#v360MainFutureTest3,#v395BestEstimate3,#aliPanel,#adaptiveLibraryIntelligencePanel,#instantLibraryLearnPanel,#roadPreviewAiPanel,#beadHistoryAi2Panel{display:none!important}</style><style id="v408-persistent-pbt-dock">
+/* V408: Persistent entry dock. Move only the original visible P/B/T/Undo
+   controls into a viewport-fixed position; keep their event handlers and IDs. */
+html { scroll-padding-bottom: 110px; }
+body { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
+.controls .main-buttons {
+  position: fixed !important;
+  z-index: 2147483000 !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: 0 !important;
+  transform: translateX(-50%) !important;
+  width: min(100%, 760px) !important;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr .75fr !important;
+  gap: 8px !important;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom)) !important;
+  background: rgba(17,20,25,.97) !important;
+  border: 1px solid #46505c !important;
+  border-bottom: 0 !important;
+  border-radius: 14px 14px 0 0 !important;
+  box-shadow: 0 -5px 22px rgba(0,0,0,.45) !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+.controls .main-buttons .big { min-height: 53px !important; height: 53px !important; font-size: 23px !important; border-radius: 12px !important; touch-action: manipulation; }
+@media (max-width: 430px) {
+  .controls .main-buttons { gap: 6px !important; padding-left: 8px !important; padding-right: 8px !important; }
+}
+/* On iPad, do not let the old right-column sticky container control the dock. */
+@media (min-width: 700px) { .controls { position: static !important; } }
+</style></head>
 <body><div id="v407-clean-build-indicator" style="background:#143726;color:#e0ffe9;padding:6px 12px;text-align:center;font:600 12px system-ui,sans-serif;position:relative;z-index:1">V407 CLEAN • 11 REQUESTED SECTIONS REMOVED • OCT 9</div>
 <!-- V339: Best-Estimate Analyzer 2 accuracy now settles in the authoritative live P/B/T commit path before the hand is pushed, then arms the next call after commit. The delayed 210ms click-grading dependency was removed. Prediction logic unchanged. -->
 <div class="app">
@@ -1024,8 +1057,8 @@ function renderLibraryBackupStatus(){
 // Shared H2O connector: when this app is hosted on the same HTTPS server as the API,
 // both iPhone and iPad automatically use https://that-server/score with no re-entry.
 const DEFAULT_H2O_SCORE_URL = ''; // V258: H2O retired; prevent legacy connector/network scoring from auto-activating
-const DEFAULT_DEEPSEEK_SCORE_URL = ''; // DeepSeek removed; legacy compatibility only
-let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, predictionLibraryMode:'combined', activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:false, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, deepseek:{url:DEFAULT_DEEPSEEK_SCORE_URL,connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:false,kaggle:{last:null,error:''}, bot:{learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}}, ultimate:{last:null,pendingId:null,error:'',connected:false}};
+const DEFAULT_DEEPSEEK_SCORE_URL = ''; // V410 neutral legacy constant
+let state={hands:[], pp:false, bp:false, special:false, cards:[], redShoeCards:[], blackShoeCards:[], redShoeLibrary:[], blackShoeLibrary:[], redPatternLibrary:[], blackPatternLibrary:[], currentShoeColor:null, predictionLibraryMode:'combined', activeCardShoe:'red', backtest:{predictions:0,wins:0,currentRun:0,rows:[],pending:null}, patternLibrary:[], autoSaveLibrary:false, h2o:{url:DEFAULT_H2O_SCORE_URL,key:'',connected:false,last:null,error:''}, dragon:{sound:true,popup:true,lastAlertKey:''}, scanSnapshot:null,kaggleLibraryEnabled:false,kaggle:{last:null,error:''}, bot:{learning:true,pending:null,predictions:0,wins:0,rows:[],phaseStats:{}}, ultimate:{last:null,pendingId:null,error:'',connected:false}};
 
 // V364 Library Seed — protected copy of the user's 2026-09-30 full RED + BLACK backup (171 stored shoes).
 // Chrome cannot read Safari's private localStorage, so this seed is merged (never blindly replaces)
@@ -2084,10 +2117,10 @@ function librarySignal(){
 function sameColorReuseCandidates(){
   const cur=currentSequence().join('');
   const lib=activePatternLibrary().filter(x=>x && typeof x.sequence==='string' && x.sequence.length>=4);
-  // Newest saved same-color shoe first. If an identical copy of the live shoe was
+  // Scan every eligible selected-library shoe, newest first. If an identical copy of the live shoe was
   // accidentally saved mid-shoe, ignore that exact current snapshot.
   const usable=lib.filter(x=>x.sequence!==cur);
-  return usable.slice(-2).reverse();
+  return usable.slice().reverse();
 }
 function bestShiftSimilarity(cur, hist){
   if(!cur || !hist) return {score:0,offset:0,compared:0};
@@ -2175,7 +2208,7 @@ function scanSameColorReuse(){
     next=`${side} ${pct}%`;
   }
   nextEl.textContent=next;
-  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
+  const label=`saved shoe ${cand.length-best.idx} of ${cand.length} scanned`;
   const offset=best.shift.offset===0?'near the same positions':`best aligned about ${Math.abs(best.shift.offset)} hand${Math.abs(best.shift.offset)===1?'':'s'} ${best.shift.offset>0?'later':'earlier'}`;
   const level=best.score>=75?'STRONG':best.score>=60?'MODERATE':best.score>=45?'WEAK':'LOW';
   status.textContent=level+' MATCH';
@@ -2267,7 +2300,7 @@ function scanPreviousRoads(){
     next=`${side==='R'?'RED':'BLUE'} ${pct}%`;
   }
   nextEl.textContent=next;
-  const label=best.idx===0?'previous same-color shoe':'same-color shoe from 2 shoes back';
+  const label=`saved shoe ${cand.length-best.idx} of ${cand.length} scanned`;
   const level=best.overall>=75?'STRONG':best.overall>=60?'MODERATE':best.overall>=45?'WEAK':'LOW';
   status.textContent=level+' ROAD MATCH';
   text.textContent=`Best road-structure match: ${label} at ${best.overall}%. Big Eye ${best.eye.total?best.eye.score+'%':'N/A'}, Small ${best.small.total?best.small.score+'%':'N/A'}, Cockroach ${best.roach.total?best.roach.score+'%':'N/A'}. ${total?`Matched historical road blocks most often continued with ${next}.`:'There are not enough historical continuations yet.'} RED/BLUE here are derived-road colors, not Banker/Player bets.`;
@@ -3130,63 +3163,11 @@ function renderH2O(){
 }
 
 
-function normalizeDeepSeekResponse(data){
-  let p=Number(data?.p), b=Number(data?.b), t=Number(data?.t ?? 0);
-  if(!Number.isFinite(p)||!Number.isFinite(b)) throw new Error('DeepSeek response did not include P/B scores.');
-  if(p<=1.0001&&b<=1.0001&&t<=1.0001){p*=100;b*=100;t*=100;}
-  p=Math.max(0,p);b=Math.max(0,b);t=Math.max(0,t); const sum=p+b+t||1;
-  p=p/sum*100;b=b/sum*100;t=t/sum*100;
-  const pr=Math.round(p),br=Math.round(b),tr=Math.max(0,100-pr-br);
-  const side=pr>=br?'P':'B';
-  const rawConfidence=Number(data?.confidence);
-  const conf=Number.isFinite(rawConfidence)?Math.max(0,Math.min(100,Math.round(rawConfidence))):50;
-  // Restrain LLM influence: confidence is not treated as a calibrated probability.
-  const strength=Math.round(50+Math.min(20,Math.abs(pr-br)/2)*Math.min(1,conf/70));
-  return {p:pr,b:br,t:tr,side,strength,confidence:conf,pattern:String(data?.pattern||''),rationale:String(data?.rationale||''),model:String(data?.model||''),sequence:currentSequence().join(''),at:new Date().toISOString()};
-}
-async function scoreWithDeepSeek(showAlert=false){
-  if(!state.deepseek?.url){if(showAlert)alert('DeepSeek endpoint is not available. Host this HTML with the upgraded Python server.');return null;}
-  const st=document.getElementById('deepseekStatus');
-  if(st){st.textContent='🟡 DEEPSEEK ANALYZING…';st.className='h2o-status';}
-  try{
-    const headers={'Content-Type':'application/json'};
-    if(state.h2o?.key) headers['Authorization']='Bearer '+state.h2o.key;
-    const payload={features:h2oFeatures(),shoes:activePatternLibrary().slice(-120)};
-    const data=await h2oRequestJson(state.deepseek.url,{method:'POST',headers,body:JSON.stringify(payload)});
-    const out=normalizeDeepSeekResponse(data);
-    state.deepseek.last=out;state.deepseek.connected=true;state.deepseek.error='';persist();renderAnalyzer();renderDeepSeek();
-    return out;
-  }catch(err){
-    const msg=String(err.message||err);
-    state.deepseek.connected=false;state.deepseek.error=msg;persist();renderDeepSeek();
-    if(showAlert) alert('DeepSeek analysis failed: '+msg+'\n\nMake sure DEEPSEEK_API_KEY is set in Render.');
-    return null;
-  }
-}
-function currentDeepSeekSignal(){
-  const x=state.deepseek?.last;
-  if(!x || x.sequence!==currentSequence().join('')) return {side:null,strength:0,p:null,b:null,t:null,confidence:0};
-  return x;
-}
-function renderDeepSeek(){
-  const d=state.deepseek||{}, x=currentDeepSeekSignal();
-  const st=document.getElementById('deepseekStatus');
-  if(st){
-    if(d.error){st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
-    else if(d.connected){st.textContent='🟢 DEEPSEEK CONNECTED';st.className='h2o-status on';}
-    else {st.textContent='🔴 DEEPSEEK OFFLINE';st.className='h2o-status err';}
-  }
-  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  set('deepseekP',x.p==null?'—':x.p+'%');set('deepseekB',x.b==null?'—':x.b+'%');set('deepseekT',x.t==null?'—':x.t+'%');
-  set('deepseekPattern',x.pattern||'—');set('deepseekConfidence',x.side?x.confidence+'%':'—');set('deepseekModel',x.model||'—');
-  const note=document.getElementById('deepseekNote');
-  if(note){
-    if(d.error) note.textContent='Last error: '+d.error;
-    else if(x.side) note.textContent=(x.rationale||'DeepSeek analysis ready.')+' This is an analysis signal, not a guaranteed probability.';
-  }
-}
-
-
+// V410: DeepSeek external integration removed. Neutral compatibility functions prevent
+// older analyzer calls from failing; no request, inference, or voting is possible.
+async function scoreWithDeepSeek(){return null;}
+function currentDeepSeekSignal(){return {side:null,strength:0,p:null,b:null,t:null,confidence:0};}
+function renderDeepSeek(){}
 
 function analyzeRoadRegime(marks){
   // Interpret CURRENT derived-road behavior only. Red/blue are structural marks,
@@ -3859,8 +3840,7 @@ function independentEvidenceFamilies(){
   const roads=combineEvidenceFamily('Road Intelligence',[
     {sig:roadAI,weight:.72},{sig:road,weight:.28}
   ]);
-  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
-  return [historical,roads,external].filter(x=>x.side && x.strength>50);
+  return [historical,roads].filter(x=>x.side && x.strength>50);
 }
 
 function consensusSignal(){
@@ -3924,7 +3904,7 @@ function computeCombinedAnalyzer(){
   const roadFamily=combineEvidenceFamily('Road Intelligence',[
     {sig:roadAI,weight:.74},{sig:road,weight:.26}
   ]);
-  const external=combineEvidenceFamily('DeepSeek AI',[{sig:deepseek,weight:1}]);
+  const external={side:null,strength:0}; // V410 removed external model voting
 
   const histQuality=historical.side ? Math.min(.52,.28+Math.max(0,historical.strength-50)/90) : 0;
   const roadQuality=roadFamily.side ? Math.min(.34,.18+Math.max(0,roadFamily.strength-50)/95) : 0;
@@ -3994,7 +3974,7 @@ function roadMarkLabel(mark){
 function derivedRoadSequencePatternSignal(offset){
   const key=offset===1?'bigEye':offset===2?'small':'roach';
   const cur=deriveRoad(state.hands,offset);
-  const lib=activePatternLibrary().filter(x=>x && x.derivedRoadHistory && Array.isArray(x.derivedRoadHistory[key]));
+  const lib=activePatternLibrary().map(x=>({shoe:x,roads:roadHistoryForShoe(x)})).filter(x=>Array.isArray(x.roads[key]));
   const pMark=previewDerivedMark(state.hands,'P',offset);
   const bMark=previewDerivedMark(state.hands,'B',offset);
 
@@ -4021,7 +4001,7 @@ function derivedRoadSequencePatternSignal(offset){
     const shoeVotes=[];
 
     for(let shoeIndex=0;shoeIndex<lib.length;shoeIndex++){
-      const ss=lib[shoeIndex].derivedRoadHistory[key]||[];
+      const ss=lib[shoeIndex].roads[key]||[];
       if(ss.length<=k) continue;
 
       let best=null;
