@@ -1,3 +1,4 @@
+<!-- V411 Live AI Advisor: observational ranking; model logic unchanged -->
 <!-- V409: Experimental adaptive library-evidence comparison. Original AI predictions unchanged. -->
 <!-- V408: Cancellable up-to-10-second all-library evidence scan, nonblocking, no prediction or grading changes. -->
 <!-- V404 targeted library routing: selected mode preserved for Recycle and Best Estimate 3; no additional panels or prediction threshold edits. -->
@@ -398,6 +399,17 @@ body{padding-bottom:max(230px,env(safe-area-inset-bottom))!important}
 /* Keep experimental readout clear of PBT controls. */
 #v409-experiment-readout{bottom:235px!important;right:10px!important;z-index:9990!important}
 </style>
+<style id="v411-advisor-style">
+#v411Advisor{margin:8px 0 10px;background:#171a1f;border:1px solid #596574;border-radius:14px;padding:10px;color:#f4f6f8;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#v411Advisor .head{display:flex;justify-content:space-between;align-items:center;gap:7px;font-weight:900;font-size:14px}
+#v411Advisor .pill{font-size:10px;background:#313942;border-radius:18px;padding:5px 8px}
+#v411Advisor .lead{font-size:19px;font-weight:900;margin-top:9px;word-wrap:break-word}
+#v411Advisor .reason{font-size:11px;line-height:1.45;margin-top:5px;color:#adb9c6}
+#v411Advisor .stats{background:#22272e;margin-top:8px;padding:8px;border-radius:9px}
+#v411Advisor .list{margin-top:6px;display:flex;flex-wrap:wrap;gap:5px}
+#v411Advisor .item{font-size:11px;border:1px solid #39434d;border-radius:8px;padding:6px 8px}
+#v411Advisor button{border:1px solid #56616f;background:#252c35;color:white;border-radius:9px;padding:6px 9px;font-size:11px;margin-top:7px}
+</style>
 </head>
 <body><div id="v407-clean-build-indicator" style="background:#143726;color:#e0ffe9;padding:6px 12px;text-align:center;font:600 12px system-ui,sans-serif;position:relative;z-index:1">V407 CLEAN • 11 REQUESTED SECTIONS REMOVED • OCT 9</div>
 <!-- V339: Best-Estimate Analyzer 2 accuracy now settles in the authoritative live P/B/T commit path before the hand is pushed, then arms the next call after commit. The delayed 210ms click-grading dependency was removed. Prediction logic unchanged. -->
@@ -435,6 +447,7 @@ body{padding-bottom:max(230px,env(safe-area-inset-bottom))!important}
 <div class="analyzer-sub" id="seqV2AccuracyLast" style="margin-top:5px">Accuracy results ready.</div>
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
+<section id="v411Advisor" aria-live="polite"><div class="head"><span>📡 Live AI Advisor</span><span class="pill" id="v411Status">COLLECTING DATA</span></div><div class="lead" id="v411Leader">NO CLEAR LEADER</div><div class="reason" id="v411Reason">Comparing independent AIs using recorded live-hand results.</div><div class="stats" id="v411Summary">Waiting for enough graded observations.</div><div class="list" id="v411Ranking"></div><button type="button" id="v411Reset">Reset advisor history only</button><div class="reason">Advisory ranking only. Does not modify AI logic, place bets, or imply guaranteed results.</div></section>
 <div class="scoreboard">
 <div class="road-wrap"><div class="road" id="bigRoad"></div></div>
 </div>
@@ -12030,6 +12043,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     // as a time-sliced queue, then the hand commits once and the UI refresh is staged.
     settleAllQueued(actual,()=>{
       try{
+        try{window.__V411_LIVE_AI_ADVISOR__?.settle(actual,beforeLen);}catch(e){console.warn('Advisor settle',e);}
         state.hands.push({r:actual,pp:isPreview?false:!!state.pp,bp:isPreview?false:!!state.bp,special:isPreview?false:!!state.special,ts:Date.now()});
         state.scanSnapshot=null;
         if(!isPreview){
@@ -18473,5 +18487,79 @@ window.__V393_VARIABLE_MEMORY_ML2__={
 </script>
 <script id="v393-build-marker">window.__V393_BUILD__={version:393.1,variableMemoryML2:true,dynamicGate:true,cutoffs:{strong:0.545,normal:0.565,weak:0.59},contexts:[1,2,3,4,5,6],existingV309Changed:false,existingAIsChanged:false,independentAccuracy:true};</script>
 <!-- V394: Adaptive Library Intelligence AI. Independent meta-intelligence layer; existing AI logic unchanged. -->
+<script id="v411-live-ai-advisor">
+(()=>{'use strict';
+// All counters are advisory and independent from the original models' ledgers.
+const models=[
+ {id:'seq',name:'Sequence AI V2',side:'seqAiSide'},
+ {id:'best',name:'Best Estimate Analyzer',side:'bestSide'},
+ {id:'future',name:'Main Future Road Test',side:'futureFinal'},
+ {id:'derived',name:'Derived Road AI',side:'v358DerivedResult'},
+ {id:'bead',name:'Bead Plate History',side:'beadHistSide'},
+ {id:'bead3',name:'Bead Plate History 3',side:'beadHist3Side'},
+ {id:'mainonly',name:'Main Road Only Future',side:'v284Pick'},
+ {id:'bayes',name:'Bayesian ML2',side:'v393Side'},
+ {id:'ml',name:'ML Trainer',side:'mlv307Pick'}
+];
+const el=id=>document.getElementById(id);
+const pb=()=>{try{return state.hands.filter(h=>h.r==='P'||h.r==='B').length}catch(e){return 0}};
+const phase=n=>n<16?'EARLY':n<36?'MID':'LATE';
+function decode(id,raw){
+ raw=String(raw||'').trim().toUpperCase();
+ // The main future result contains prose; ignore its WAIT even if it mentions P/B later.
+ if(id==='future'){let m=raw.match(/^LIKELY ANSWER:\s*(PLAYER|BANKER|WAIT)\b/);return m?(m[1]==='PLAYER'?'P':m[1]==='BANKER'?'B':null):null}
+ if(/\bWAIT\b|NO RELIABLE|NOT READY|^—$|^-$/.test(raw))return null;
+ if(/^(PLAYER|P)$/.test(raw))return 'P';
+ if(/^(BANKER|B)$/.test(raw))return 'B';
+ return null;
+}
+function store(){
+ if(!state.v411Advisor||typeof state.v411Advisor!=='object')state.v411Advisor={rows:[],lastHand:-1};
+ let a=state.v411Advisor;if(!Array.isArray(a.rows))a.rows=[];return a;
+}
+function snapshot(){let o={};for(const m of models){const n=el(m.side);if(!n||n.closest('[style*="display:none"]'))continue;const panel=n.closest('.analyzer,.future-test');if(panel&&getComputedStyle(panel).display==='none')continue;const call=decode(m.id,n.textContent);if(call)o[m.id]=call;}return o;}
+function settle(actual,beforeLen){
+ if(actual!=='P'&&actual!=='B'&&actual!=='T')return;
+ const a=store();if(a.lastHand===beforeLen)return;
+ // Only grade directional calls that were visibly available before the committed hand.
+ let picks=snapshot();let phaseNow=phase(pb());
+ a.rows.push({hand:beforeLen,phase:phaseNow,picks,actual,at:Date.now()});
+ if(a.rows.length>250)a.rows=a.rows.slice(-250);
+ a.lastHand=beforeLen;
+ setTimeout(paint,220);
+}
+function paint(){
+ if(!el('v411Advisor'))return;
+ const a=store();const count=pb(),current=phase(count),picks=snapshot();
+ const ranking=models.map(m=>{
+  const rows=a.rows.filter(r=>(r.actual==='P'||r.actual==='B')&&r.picks&&r.picks[m.id]);
+  const recent=rows.slice(-20),specific=rows.filter(r=>r.phase===current).slice(-15);
+  const wins=r=>r.filter(x=>x.picks[m.id]===x.actual).length;
+  const n=recent.length,w=wins(recent),pn=specific.length,pw=wins(specific);
+  // Shrink small samples toward a neutral 50%; avoid claiming calibration.
+  const recentRate=(w+5)/(n+10),phaseRate=(pw+4)/(pn+8);
+  const score=.7*recentRate+.3*phaseRate;
+  return {m,n,w,pn,pw,score,call:picks[m.id]||null};
+ }).filter(x=>el(x.m.side)&&getComputedStyle(el(x.m.side).closest('.analyzer,.future-test')||el(x.m.side)).display!=='none').sort((a,b)=>b.score-a.score);
+ // Meaningful evidence threshold applies only to the advisor; does not gate original AIs.
+ const eligible=ranking.filter(x=>x.call&&x.n>=12&&x.pn>=5);
+ const best=eligible[0],runner=eligible[1];
+ const lead=el('v411Leader'),status=el('v411Status'),reason=el('v411Reason'),summary=el('v411Summary'),out=el('v411Ranking');
+ if(!best||best.score<.54||(runner&&best.score-runner.score<.035)){
+  lead.textContent='NO CLEAR LEADER';status.textContent='INSUFFICIENT EDGE';
+  reason.textContent=best?'Top-ranked AIs are too close or their recent evidence is weak.':'Need at least 12 previous graded picks and 5 in this shoe phase before ranking an AI as a leader.';
+ }else{
+  lead.textContent=best.m.name+' · '+(best.call==='P'?'PLAYER':'BANKER');status.textContent='CURRENT LEADER';
+  reason.textContent='Based on last '+best.n+' graded calls and '+best.pn+' in the '+current.toLowerCase()+' phase. This is a relative performance ranking, not a verified prediction advantage.';
+ }
+ summary.textContent='Shoe phase: '+current+' · P/B hands: '+count+' · Advisor graded hands: '+a.rows.filter(x=>x.actual==='P'||x.actual==='B').length+' · Directional calls only';
+ out.replaceChildren();ranking.filter(x=>x.n>0||x.call).slice(0,9).forEach(x=>{let b=document.createElement('span');b.className='item';b.textContent=x.m.name+': '+(x.call==='P'?'P':x.call==='B'?'B':'WAIT')+' · '+x.w+'W-'+(x.n-x.w)+'L (last '+x.n+')';out.appendChild(b)});
+}
+function init(){const reset=el('v411Reset');if(reset)reset.onclick=()=>{if(!confirm('Reset only the Live AI Advisor history?'))return;state.v411Advisor={rows:[],lastHand:-1};try{persist()}catch(e){}paint()};paint();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+setInterval(()=>{if(document.visibilityState!=='hidden')paint()},1600);
+window.__V411_LIVE_AI_ADVISOR__={settle,paint,snapshot,models,version:411};
+})();
+</script>
 </body>
 </html>
