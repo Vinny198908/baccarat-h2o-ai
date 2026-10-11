@@ -56,7 +56,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V290 • All-In Baccarat — AI Runtime Cleanup</title>
+<title>All-In Baccarat — Bead + Roads Accuracy Upgrade</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -405,6 +405,40 @@
 </div>
 
 
+
+<!-- Experimental independent historical sequence challenger; does not modify existing AI predictions -->
+<div class="analyzer" id="edge8Panel" style="border-color:#567b91">
+ <div class="analyzer-title">8-Hand Historical Edge AI — Experimental</div>
+ <div class="analyzer-sub">Matches the last 8 non-tie results against saved shoes. Separate from all other AIs. Historical accuracy does not establish a profitable live edge.</div>
+ <div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="analyzer-card"><span>NEXT RESULT</span><strong id="edge8Pick">WAIT</strong></div>
+  <div class="analyzer-card"><span>HISTORICAL RATE</span><strong id="edge8Confidence">—</strong></div>
+  <div class="analyzer-card"><span>MATCHES</span><strong id="edge8Matches">0</strong></div>
+ </div>
+ <div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="edge8Accuracy">—</strong></div>
+  <div class="analyzer-card"><span>W / L</span><strong id="edge8WL">0W-0L</strong></div>
+  <div class="analyzer-card"><span>GRADED CALLS</span><strong id="edge8N">N 0</strong></div>
+ </div>
+ <div id="edge8Reason" class="analyzer-sub" style="margin-top:7px">Waiting for 8 Player/Banker hands.</div>
+ <button id="edge8Reset" type="button" class="tiny-btn" style="margin-top:7px;width:100%">Reset 8-Hand AI Accuracy</button>
+</div>
+
+<div class="analyzer" id="beadRoadSignalPanel" style="border-color:#548ea4">
+ <div class="analyzer-title">Bead Plate + Big Eye / Cockroach — Experimental Match AI</div>
+ <div class="analyzer-sub">Independent historical matcher. Last 4 non-tie Bead Plate hands + latest Big Eye road mark; separately tests adding Cockroach. At least 5 matching samples, historical majority ≥60%. Never overrides other AIs. Historical success is not a guaranteed betting edge.</div>
+ <div class="analyzer-grid">
+  <div class="analyzer-card"><span>BEAD + BIG EYE</span><strong id="brEyePick">WAIT</strong></div>
+  <div class="analyzer-card"><span>BEAD + EYE + ROACH</span><strong id="brBothPick">WAIT</strong></div>
+  <div class="analyzer-card"><span>HISTORICAL MATCHES</span><strong id="brMatches">0 / 0</strong></div>
+ </div>
+ <div class="analyzer-grid">
+  <div class="analyzer-card"><span>BIG EYE ACCURACY</span><strong id="brEyeAcc">—</strong><small id="brEyeWL" style="display:block">0W-0L • N 0</small></div>
+  <div class="analyzer-card"><span>EYE + ROACH ACCURACY</span><strong id="brBothAcc">—</strong><small id="brBothWL" style="display:block">0W-0L • N 0</small></div>
+ </div>
+ <div id="brReason" class="analyzer-sub">Waiting for at least 8 hands and derived roads.</div>
+ <button class="tiny-btn" type="button" id="brReset" style="width:100%;margin-top:8px">Reset Bead + Road Accuracy</button>
+</div>
 <div class="scoreboard">
 <div class="road-wrap"><div class="road" id="bigRoad"></div></div>
 </div>
@@ -12725,6 +12759,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V384: Bead History must settle in this authoritative queue because V135
       // stops all legacy result listeners before they can run.
       ()=>{try{window.__BEAD_HISTORY_AI_V379__?.settle?.(actual)}catch(e){console.warn('V384 Bead History settle',e)}},
+      ()=>{try{window.__EDGE8_AI__?.settle?.(actual)}catch(e){}},
+      ()=>{try{window.__BEAD_ROAD_MATCH__?.settle?.(actual)}catch(e){}},
+      ()=>{try{window.__ALL_AI_SCOREBOARD__?.settle?.(actual)}catch(e){}},
       ()=>{try{window.__settleVerifiedPredictions?.(actual)}catch(e){}}, 
       // V168: direct Chart AI settlement in the authoritative pre-commit queue.
       // settle() is idempotent, so an older wrapper cannot double-count it.
@@ -12759,6 +12796,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V377: after a committed hand, arm BE2 from the NEW history only.
       try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 queued arm',e)}
       try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History queued arm',e)}
+      try{window.__EDGE8_AI__?.arm?.()}catch(e){}
+      try{window.__BEAD_ROAD_MATCH__?.arm?.()}catch(e){}
+      try{window.__ALL_AI_SCOREBOARD__?.arm?.()}catch(e){}
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       busy=false;
       const queued=pendingResults.shift();
@@ -12793,6 +12833,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         // V377: BE2 is armed only after the committed hand is visible.
         ()=>{try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 arm',e)}},
         ()=>{try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History arm',e)}},
+        ()=>{try{window.__EDGE8_AI__?.arm?.()}catch(e){}},
+        ()=>{try{window.__BEAD_ROAD_MATCH__?.arm?.()}catch(e){}},
 
         // Refresh live AI cards independently. A slow optional card can no longer
         // block every other panel because each job yields back to Chrome first.
@@ -12808,6 +12850,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         ()=>{try{window.__V84_MAIN_FUTURE_TUNE__?.render?.()}catch(e){}},
         // V168: direct live refresh; no dependency on the legacy full-render wrapper chain.
         ()=>{try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart live refresh',e)}},
+        ()=>{try{window.__ALL_AI_SCOREBOARD__?.arm?.()}catch(e){}},
       ];
       let j=0;
       const next=()=>{
@@ -12893,6 +12936,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.__armVerifiedPredictions?.()}catch(e){}
     try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
     armMainFuture();
+    try{window.__BEAD_ROAD_MATCH__?.invalidate?.();window.__ALL_AI_SCOREBOARD__?.invalidate?.()}catch(e){}
     try{window.__V332_BEST_ESTIMATE_2__?.historyChanged?.()}catch(e){try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(x){}}
     try{window.__BEAD_HISTORY_AI_V379__?.clearPending?.();window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){}
     try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.();window.__V332_BEST_ESTIMATE_2__?.paint?.()}catch(e){}
@@ -21179,6 +21223,118 @@ window.__V384_BUILD__={
   removedAccidentalV51Contamination:true,
   predictionLogicChanged:false
 };
+</script>
+
+<script id="edge8-independent-history-ai">
+(function(){
+'use strict';
+const KEY='edge8_verified_accuracy_v1';
+const cfg={window:8, prior:20, minMatches:20, minimumRate:0.58, minimumHands:8};
+const blank=()=>({w:0,l:0,pending:null,last:''});
+let score=blank();
+try{const v=JSON.parse(localStorage.getItem(KEY)||'null');if(v){score.w=Number(v.w)||0;score.l=Number(v.l)||0;score.last=v.last||'';}}catch(e){}
+let cacheSig='',counts=new Map(),uniqueCount=0;
+const set=(id,val)=>{const el=document.getElementById(id);if(el)el.textContent=val;};
+const pb=v=>String(v||'').toUpperCase().replace(/[^PB]/g,'');
+function live(){try{return (state.hands||[]).map(h=>typeof h==='string'?h:(h.r||h.result||'')).join('')}catch(e){return ''}}
+function history(){try{const a=activePatternLibrary();return Array.isArray(a)?a:[]}catch(e){return []}}
+function rebuild(){
+  const items=history(),seen=new Set(),shoes=[];let sig=2166136261;
+  for(const item of items){const seq=pb(typeof item==='string'?item:(item.sequence||item.seq||item.results||''));if(seq.length<9||seen.has(seq))continue;seen.add(seq);shoes.push(seq);
+    for(let i=0;i<seq.length;i++){sig=Math.imul(sig^seq.charCodeAt(i),16777619)>>>0;}sig=Math.imul(sig^124,16777619)>>>0;
+  }
+  const signature=shoes.length+':'+sig;if(signature===cacheSig)return;
+  const next=new Map();for(const seq of shoes){for(let i=8;i<seq.length;i++){const key=seq.slice(i-8,i),v=next.get(key)||[0,0];v[seq[i]==='B'?1:0]++;next.set(key,v);}}
+  counts=next;cacheSig=signature;uniqueCount=shoes.length;
+}
+function predict(){
+  const seq=pb(live());if(seq.length<8)return {side:null,reason:'Need '+(8-seq.length)+' more P/B hands.',matches:0};
+  rebuild();const pattern=seq.slice(-8),v=counts.get(pattern)||[0,0],n=v[0]+v[1];
+  if(n<cfg.minMatches)return {side:null,matches:n,reason:'WAIT — '+n+' matches; minimum '+cfg.minMatches+'. '+uniqueCount+' unique saved shoes.'};
+  const banker=(v[1]+cfg.prior/2)/(n+cfg.prior);const side=banker>.5?'B':'P',rate=Math.max(banker,1-banker);
+  if(rate<cfg.minimumRate)return {side:null,matches:n,rate,reason:'WAIT — smoothed historical rate '+(100*rate).toFixed(1)+'% is below 58%.'};
+  return {side,matches:n,rate,reason:'Last 8: '+pattern+' • P '+v[0]+' / B '+v[1]+' • '+uniqueCount+' unique shoes; multiple occurrences per shoe may count.'};
+}
+function paint(x){x=x||predict();set('edge8Pick',x.side?(x.side==='B'?'BANKER':'PLAYER'):'WAIT');set('edge8Confidence',x.rate?(100*x.rate).toFixed(1)+'%':'—');set('edge8Matches',String(x.matches||0));set('edge8Reason',x.reason);const n=score.w+score.l;set('edge8Accuracy',n?(100*score.w/n).toFixed(1)+'%':'—');set('edge8WL',score.w+'W-'+score.l+'L');set('edge8N','N '+n);}
+function arm(){const seq=pb(live()),x=predict();score.pending=x.side?{side:x.side,at:seq.length,signature:seq}:null;paint(x);return x;}
+function settle(actual){actual=String(actual||'').toUpperCase();if(actual==='T')return;if(actual!=='P'&&actual!=='B')return;const p=score.pending;if(!p||p.at!==pb(live()).length)return;const ok=actual===p.side;score[ok?'w':'l']++;score.last=(ok?'WIN':'LOSS')+' '+p.side+' vs '+actual;score.pending=null;try{localStorage.setItem(KEY,JSON.stringify({w:score.w,l:score.l,last:score.last}))}catch(e){}paint();}
+function invalidate(){score.pending=null;cacheSig='';arm();}
+function install(){const btn=document.getElementById('edge8Reset');if(btn)btn.addEventListener('click',()=>{score=blank();try{localStorage.removeItem(KEY)}catch(e){}arm()});for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){const el=document.getElementById(id);if(el)el.addEventListener('click',()=>setTimeout(invalidate,80));}arm();}
+window.__EDGE8_AI__={predict,arm,settle,render:()=>paint(),invalidate,config:cfg,score:()=>({...score})};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
+
+<script id="bead-road-match-and-unified-scoreboard">
+(function(){'use strict';
+const get=id=>document.getElementById(id),set=(id,v)=>{const e=get(id);if(e)e.textContent=v};
+const live=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:(h.r||h.result||'')).join('')}catch(e){return ''}};
+const pb=x=>String(x||'').toUpperCase().replace(/[^PB]/g,'');
+const road=(seq,off)=>{try{return deriveRoad(seq.split('').map(r=>({r})),off)||[]}catch(e){return []}};
+const key='bead_road_match_score_v1';
+let grades={eye:{w:0,l:0,pending:null},both:{w:0,l:0,pending:null}};
+try{const x=JSON.parse(localStorage.getItem(key)||'null');for(const k of ['eye','both']){grades[k].w=Math.max(0,+x?.[k]?.w||0);grades[k].l=Math.max(0,+x?.[k]?.l||0)}}catch(e){}
+let cache='',tableEye=new Map(),tableBoth=new Map(),shoesN=0;
+function train(){
+ let rows=[];try{rows=activePatternLibrary()||[]}catch(e){}
+ const uniq=new Set(),seqs=[];let hash=2166136261;
+ for(const row of rows){const seq=pb(typeof row==='string'?row:(row.sequence||row.seq||row.results||''));if(seq.length<10||uniq.has(seq))continue;uniq.add(seq);seqs.push(seq);for(let i=0;i<seq.length;i++)hash=Math.imul(hash^seq.charCodeAt(i),16777619)>>>0;hash=Math.imul(hash^123,16777619)>>>0}
+ const sig=seqs.length+':'+hash;if(sig===cache)return;cache=sig;shoesN=seqs.length;tableEye=new Map();tableBoth=new Map();
+ function record(map,k,c){let r=map.get(k);if(!r){r={p:0,b:0};map.set(k,r)}r[c==='P'?'p':'b']++}
+ for(const seq of seqs){ // training uses only prefixes that precede a result
+  for(let i=8;i<seq.length;i++){
+   const prefix=seq.slice(0,i),next=seq[i],eye=road(prefix,1),roach=road(prefix,3);
+   if(eye.length){const eKey=prefix.slice(-4)+'|'+eye[eye.length-1];record(tableEye,eKey,next);
+    if(roach.length)record(tableBoth,eKey+'|'+roach[roach.length-1],next);
+   }
+  }
+ }
+}
+function choose(v){const n=(v?.p||0)+(v?.b||0),rate=n?Math.max(v.p,v.b)/n:0;return {side:n>=5&&rate>=.60?(v.b>v.p?'B':'P'):null,n,rate}}
+function predict(){const seq=pb(live());if(seq.length<8)return {eye:choose(),both:choose(),reason:'Need 8 Player/Banker hands.'};train();const eye=road(seq,1),roach=road(seq,3),eKey=seq.slice(-4)+'|'+eye.at(-1);const a=choose(eye.length?tableEye.get(eKey):null),b=choose(eye.length&&roach.length?tableBoth.get(eKey+'|'+roach.at(-1)):null);return {eye:a,both:b,reason:shoesN+' distinct historical shoes • '+(eye.at(-1)||'—')+' Big Eye / '+(roach.at(-1)||'—')+' Cockroach • 5+ support, 60% cutoff.'}}
+function paint(x){x=x||predict();for(const [k,id] of [['eye','brEye'],['both','brBoth']]){const v=x[k],g=grades[k],n=g.w+g.l;set(id+'Pick',v.side?(v.side==='P'?'PLAYER':'BANKER')+' '+(100*v.rate).toFixed(1)+'%':'WAIT');set(id+'Acc',n?(100*g.w/n).toFixed(1)+'%':'—');set(id+'WL',g.w+'W-'+g.l+'L • N '+n)}set('brMatches',x.eye.n+' / '+x.both.n);set('brReason',x.reason)}
+function arm(){const x=predict(),seq=pb(live());for(const k of ['eye','both'])grades[k].pending=x[k].side?{side:x[k].side,n:seq.length,seq}:null;paint(x)}
+function settle(actual){if(actual==='T')return;if(actual!=='P'&&actual!=='B')return;const seq=pb(live());let dirty=false;for(const k of ['eye','both']){const g=grades[k],p=g.pending;if(p&&p.n===seq.length&&p.seq===seq){g[p.side===actual?'w':'l']++;dirty=true}g.pending=null}if(dirty){try{localStorage.setItem(key,JSON.stringify(grades))}catch(e){}paint()}}
+function invalidate(){cache='';for(const g of Object.values(grades))g.pending=null;arm()}
+window.__BEAD_ROAD_MATCH__={predict,arm,settle,invalidate,score:()=>grades};
+
+// Audit-only accuracy overlays for predictive panels without a complete visible W/L/N/reset strip.
+// Uses snapshot of a displayed next-result call immediately before each authoritative commit.
+const auditKey='all_ai_aux_accuracy_v1';let audit={};try{audit=JSON.parse(localStorage.getItem(auditKey)||'{}')||{}}catch(e){}
+const ignored=new Set(['beadRoadSignalPanel','edge8Panel']);
+const known=[
+ ['sequenceAiPanel','seqAiSide'],['mainRoadFutureTest','futureFinal'],['roadPreviewAiPanel','roadAiSide'],
+ ['beadHistoryAiPanel','beadHistSide'],['v358DerivedResultPanel','v358DerivedResult'],
+ ['derivedIndependentFinal','derivedIndependentPrediction'],['v284MainOnlyAI','v284Pick'],
+ ['v360MainFutureTest2','v360T2Pick'],['v369MemoryPanel','v369MemSide'],
+ ['v365SegmentRecyclePanel','v365SegSide'],['bestEstimate2Panel','bestEstimate2Side']
+];
+function sideOf(text){text=String(text||'').toUpperCase().trim();if(/\bWAIT\b|\bNONE\b|\bNO CALL\b|\bBUILDING\b|\bLEAN\b/.test(text))return null;const p=/\bPLAYER\b|^P$|^P\s/.test(text),b=/\bBANKER\b|^B$|^B\s/.test(text);return p&&!b?'P':b&&!p?'B':null}
+function discover(){
+ const result=[];
+ for(const [id,pick] of known){const e=get(id),p=get(pick);if(e&&p&&!ignored.has(id))result.push({id,el:e,pick:p})}
+ // Discover additional modules only where the explicit NEXT RESULT/PICK display exists.
+ for(const el of document.querySelectorAll('.analyzer,.future-test')){
+  if(!el.id||ignored.has(el.id)||result.some(x=>x.el===el))continue;
+  const cards=Array.from(el.querySelectorAll('.analyzer-card,.v360-card,.v360-grid>div,.v365-card'));
+  const card=cards.find(c=>/^(NEXT RESULT|AI PICK|NEXT PICK|FINAL PICK|PREDICTION)$/i.test((c.querySelector('span,small')?.textContent||'').trim()));
+  const p=card?.querySelector('strong');if(p)result.push({id:el.id,el,pick:p});
+ }
+ return result;
+}
+function ensure(){for(const m of discover()){
+ if(!audit[m.id])audit[m.id]={w:0,l:0,pending:null};
+ let ui=m.el.querySelector('[data-aux-score]');if(!ui){ui=document.createElement('div');ui.dataset.auxScore='1';ui.style.cssText='font-size:11px;margin-top:8px;padding:7px;border:1px solid #46505c;border-radius:9px;display:flex;justify-content:space-between;align-items:center;gap:7px;flex-wrap:wrap';ui.innerHTML='<span data-aux-n>Independent check: 0W-0L • N 0 • —</span><button type="button" class="tiny-btn" data-aux-reset>Reset accuracy</button>';m.el.appendChild(ui);ui.querySelector('button').addEventListener('click',()=>{audit[m.id]={w:0,l:0,pending:null};save();paintAudit()})}}
+ }
+function save(){try{const out={};for(const [k,v] of Object.entries(audit))out[k]={w:v.w,l:v.l};localStorage.setItem(auditKey,JSON.stringify(out))}catch(e){}}
+function paintAudit(){ensure();for(const m of discover()){const a=audit[m.id],n=a.w+a.l;const t=m.el.querySelector('[data-aux-n]');if(t)t.textContent='Independent check: '+a.w+'W-'+a.l+'L • N '+n+' • '+(n?(100*a.w/n).toFixed(1)+'%':'—')}}
+function auditArm(){ensure();const seq=pb(live());for(const m of discover()){const a=audit[m.id];a.pending=sideOf(m.pick.textContent)?{side:sideOf(m.pick.textContent),seq}:null}paintAudit()}
+function auditSettle(actual){if(actual==='T')return;if(actual!=='P'&&actual!=='B')return;const seq=pb(live());let changed=false;for(const a of Object.values(audit)){if(a.pending&&a.pending.seq===seq){a[a.pending.side===actual?'w':'l']++;changed=true}a.pending=null}if(changed){save();paintAudit()}}
+function auditInvalidate(){for(const a of Object.values(audit))a.pending=null;setTimeout(auditArm,100)}
+window.__ALL_AI_SCOREBOARD__={arm:auditArm,settle:auditSettle,invalidate:auditInvalidate,render:paintAudit};
+function init(){get('brReset')?.addEventListener('click',()=>{grades={eye:{w:0,l:0,pending:null},both:{w:0,l:0,pending:null}};try{localStorage.removeItem(key)}catch(e){}arm()});arm();setTimeout(auditArm,350);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
 </script>
 </body>
 </html>
