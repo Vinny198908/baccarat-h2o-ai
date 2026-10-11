@@ -1060,17 +1060,32 @@ function _mergeSeedLibrary(current,seed){
 }
 function applyChromeLibrarySeed(){
   try{
-    const beforeR=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary.length:0;
-    const beforeB=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary.length:0;
-    state.redPatternLibrary=_mergeSeedLibrary(state.redPatternLibrary,CHROME_LIBRARY_SEED.redPatternLibrary);
-    state.blackPatternLibrary=_mergeSeedLibrary(state.blackPatternLibrary,CHROME_LIBRARY_SEED.blackPatternLibrary);
-    const changed=state.redPatternLibrary.length!==beforeR || state.blackPatternLibrary.length!==beforeB;
-    if(changed){
+    const oldRed=Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[];
+    const oldBlack=Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[];
+    const beforeR=oldRed.length, beforeB=oldBlack.length;
+    // Respect existing live shoes first, then bring in embedded historical shoes.
+    // Sequence is the unique shoe identity, regardless of red/black labels or record IDs.
+    const seen=new Set(), nextRed=[], nextBlack=[];
+    let duplicatesRemoved=0;
+    const add=(shoe,color)=>{
+      const q=String(shoe?.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
+      if(!q)return;
+      if(seen.has(q)){duplicatesRemoved++;return;}
+      seen.add(q);
+      (color==='black'?nextBlack:nextRed).push(shoe);
+    };
+    oldRed.forEach(x=>add(x,'red'));
+    oldBlack.forEach(x=>add(x,'black'));
+    CHROME_LIBRARY_SEED.redPatternLibrary.forEach(x=>add(x,'red'));
+    CHROME_LIBRARY_SEED.blackPatternLibrary.forEach(x=>add(x,'black'));
+    state.redPatternLibrary=nextRed;
+    state.blackPatternLibrary=nextBlack;
+    if(beforeR!==nextRed.length || beforeB!==nextBlack.length){
       localStorage.setItem(KEY,JSON.stringify(state));
-      console.info('CHROME LIBRARY READY',{red:state.redPatternLibrary.length,black:state.blackPatternLibrary.length,seedCreatedAt:CHROME_LIBRARY_SEED.createdAt});
     }
-    window.__CHROME_LIBRARY_READY__={red:state.redPatternLibrary.length,black:state.blackPatternLibrary.length,seedCreatedAt:CHROME_LIBRARY_SEED.createdAt};
-  }catch(e){console.warn('Chrome library seed merge failed',e)}
+    window.__CHROME_LIBRARY_READY__={red:nextRed.length,black:nextBlack.length,total:seen.size,duplicatesRemoved,seedCreatedAt:CHROME_LIBRARY_SEED.createdAt};
+    console.info('CHROME LIBRARY DEDUP READY',window.__CHROME_LIBRARY_READY__);
+  }catch(e){console.warn('Chrome library seed dedup failed',e)}
 }
 
 function load(){
@@ -21210,7 +21225,12 @@ window.__V384_BUILD__={
  const blank=()=>({w:0,l:0,wait:0,pending:null,last:''});
  const ledgers={Tri:blank(),One:blank()};
  const STORE='v388_match_ai_scores';
+ const PENDING_STORE='v394_match_ai_pending';
+ let scoreRevision=0;
+ let latestResolvedHand=-1;
  const saveLedger=()=>{try{localStorage.setItem(STORE,JSON.stringify(Object.fromEntries(MODES.map(k=>[k,{w:ledgers[k].w,l:ledgers[k].l,wait:ledgers[k].wait}]))))}catch(e){}};
+ const savePending=()=>{try{localStorage.setItem(PENDING_STORE,JSON.stringify(Object.fromEntries(MODES.map(k=>[k,ledgers[k].pending]))))}catch(e){}};
+ try{const saved=JSON.parse(localStorage.getItem(PENDING_STORE)||'{}');for(const k of MODES)if(saved[k]&&['P','B','WAIT'].includes(saved[k].side)&&Number.isInteger(saved[k].at))ledgers[k].pending=saved[k]}catch(e){}
  try{const saved=JSON.parse(localStorage.getItem(STORE)||'{}');for(const k of MODES)for(const field of ['w','l','wait'])if(Number.isSafeInteger(saved[k]?.[field])&&saved[k][field]>=0)ledgers[k][field]=saved[k][field]}catch(e){}
  let cachedKey='',historical=[];
  const put=(id,v)=>{const e=document.getElementById('v388'+id);if(e)e.textContent=v};
@@ -21259,8 +21279,10 @@ window.__V384_BUILD__={
      note:best.support?`${best.support} independent shoes: ${best.p} Player / ${best.b} Banker continuations (${pct}% historical majority). ${qualified?'Qualified historical pattern; not a proven live edge.':'WAIT: evidence below minimum support or agreement.'}`:'No independent saved-shoe matches met the bead + road rules.'};
  }
  function compute(){try{const live=pb(state.hands.map(h=>h.r).join(''));const lib=library();return {Tri:vote('Tri',live,lib),One:vote('One',live,lib),length:state.hands.length,libraryCount:lib.length}}catch(e){const fallback={side:'WAIT',support:0,rate:0,road:'—',note:'Analysis temporarily unavailable: '+e.message};return {Tri:fallback,One:fallback,length:state.hands?.length||0,libraryCount:0}}}
- function paint(calls){calls=calls||compute();for(const k of MODES){const a=ledgers[k],v=calls[k];put(k+'Side',v.side==='P'?'PLAYER':v.side==='B'?'BANKER':'WAIT');put(k+'Support',v.support+' shoes');if(k==='Tri')put(k+'Confidence',v.support?v.rate+'%':'—');else put(k+'Road',v.road||'—');put(k+'Accuracy',a.w+a.l?Math.round(100*a.w/(a.w+a.l))+'%':'—');put(k+'WL',a.w+'W-'+a.l+'L');put(k+'Count',(a.w+a.l)+' / '+a.wait);put(k+'Note','Library scanned: '+(calls.libraryCount||0)+' unique shoes • '+v.note+(a.last?' • Last: '+a.last:''));}return calls}
- function arm(){const calls=paint();for(const k of MODES){const a=ledgers[k];a.pending={side:calls[k].side,at:calls.length}}}
+ function paint(calls){calls=calls||compute();for(const k of MODES){const a=ledgers[k],v=calls[k];put(k+'Side',v.side==='P'?'PLAYER':v.side==='B'?'BANKER':'WAIT');put(k+'Support',v.support+' shoes');if(k==='Tri')put(k+'Confidence',v.support?v.rate+'%':'—');else put(k+'Road',v.road||'—');put(k+'Accuracy',a.w+a.l?Math.round(100*a.w/(a.w+a.l))+'%':'—');put(k+'WL',a.w+'W-'+a.l+'L');put(k+'Count',(a.w+a.l)+' / '+a.wait);put(k+'Note','NEXT HAND '+(calls.length+1)+' • Library scanned: '+(calls.libraryCount||0)+' unique shoes • '+v.note+(a.last?' • Previous result: '+a.last:''));}return calls}
+ function arm(){const calls=paint();for(const k of MODES){const a=ledgers[k];a.pending={side:calls[k].side,at:calls.length};}savePending();
+  for(const k of MODES){const side=document.getElementById('v388'+k+'Side');if(side){side.dataset.predictionHand=String(calls.length+1);side.title='Prediction for hand '+(calls.length+1);}}
+ }
  // Grade against the PRE-COMMIT shoe state. Pending in memory can disappear after
  // iOS page restoration or a UI refresh; reconstruct the same deterministic call
  // rather than silently dropping a correctly displayed prediction.
@@ -21286,11 +21308,13 @@ window.__V384_BUILD__={
      else if(p.side==='P'||p.side==='B'){a.l++;a.last='LOSS';}
      a.pending=null;
    }
-   saveLedger();
-   // Paint the completed score immediately; subsequent arm will show the next pick.
-   try{paint(preCalls||compute())}catch(e){}
+   saveLedger();savePending();scoreRevision++;latestResolvedHand=n;
+   // A settled pick must be visibly retired, not left as the old prediction.
+   for(const k of MODES){put(k+'Side','RESOLVED');put(k+'Note','Hand '+(n+1)+' '+ledgers[k].last+' • recorded. New next-hand call will appear after the result is committed.');
+     const a=ledgers[k];put(k+'Accuracy',a.w+a.l?Math.round(100*a.w/(a.w+a.l))+'%':'—');put(k+'WL',a.w+'W-'+a.l+'L');put(k+'Count',(a.w+a.l)+' / '+a.wait);}
+ 
  }
- function clearPending(){for(const k of MODES)ledgers[k].pending=null}
+ function clearPending(){for(const k of MODES)ledgers[k].pending=null;savePending();lastCommitSignature=''}
  // All live result grading occurs in the authoritative commit path, never from click-capture listeners.
  // Undo and New Shoe can invalidate pending predictions without changing past graded results.
  document.addEventListener('click',e=>{
@@ -21298,9 +21322,9 @@ window.__V384_BUILD__={
      clearPending();setTimeout(arm,80);setTimeout(arm,320);
    }
  },false);
- for(const k of MODES){const btn=document.getElementById('v388'+k+'Reset');if(btn)btn.addEventListener('click',()=>{ledgers[k]=blank();saveLedger();arm()})}
+ for(const k of MODES){const btn=document.getElementById('v388'+k+'Reset');if(btn)btn.addEventListener('click',()=>{ledgers[k]=blank();saveLedger();savePending();arm()})}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm,{once:true});else arm();
- window.__V389_MATCH_AI__={compute,arm,settle,clearPending,ledgers,refresh:paint,trackingVersion:'V392-precommit-recovery-195-library'};
+ window.__V389_MATCH_AI__={compute,arm,settle,clearPending,ledgers,refresh:paint,trackingVersion:'V394-resolved-transition-persistent-pending'};
  // Refresh after restored browser storage becomes available (without altering predictions).
  window.addEventListener('pageshow',()=>{try{arm()}catch(e){}},false);
 })();
