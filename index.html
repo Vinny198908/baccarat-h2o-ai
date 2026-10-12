@@ -21489,7 +21489,7 @@ window.__V384_BUILD__={
 })();
 </script>
 
-<!-- V402: independently verified displayed-call ledger, not dependent on fragile pending rearm -->
+<!-- V403: compute PRE-COMMIT prediction directly, bypasses earlier capture listener that replaces displayed choice with RESOLVED. Independently verified displayed-call ledger, not dependent on fragile pending rearm -->
 <script id="v402-displayed-call-accuracy">
 (function(){'use strict';
 const names=['Tri','One'], key='v402_match_displayed_accuracy';
@@ -21499,7 +21499,7 @@ try{const x=JSON.parse(localStorage.getItem(key)||'{}');for(const k of names)if(
 const node=id=>document.getElementById('v388'+id);
 const save=()=>{try{localStorage.setItem(key,JSON.stringify(scores))}catch(e){}};
 const count=()=>Array.isArray(state.hands)?state.hands.length:0;
-const side=k=>{const s=(node(k+'Side')?.textContent||'').trim().toUpperCase();return s==='PLAYER'?'P':s==='BANKER'?'B':'WAIT'};
+const side=k=>{try{const v=window.__V389_MATCH_AI__?.compute?.()?.[k]?.side;if(['P','B','WAIT'].includes(v))return v;}catch(e){}const s=(node(k+'Side')?.textContent||'').trim().toUpperCase();return s==='PLAYER'?'P':s==='BANKER'?'B':'WAIT'};
 const repaint=()=>{for(const k of names){const a=scores[k],n=a.w+a.l;if(node(k+'WL'))node(k+'WL').textContent=a.w+'W-'+a.l+'L';if(node(k+'Accuracy'))node(k+'Accuracy').textContent=n?Math.round(100*a.w/n)+'%':'—';if(node(k+'Count'))node(k+'Count').textContent=n+' / '+a.wait;}};
 let before=null,handled='';
 function prepare(actual){
@@ -21533,7 +21533,7 @@ setInterval(repaint,300);
 for(const k of names){const btn=node(k+'Reset');if(btn)btn.addEventListener('click',()=>{scores[k]=fresh();save();repaint();},false)}
 // If the old module's paint runs late, overwrite just the scoring fields, never the prediction itself.
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',repaint,{once:true});else repaint();
-window.__V402_DISPLAY_GRADE__={scores,repaint,version:'V402'};
+window.__V402_DISPLAY_GRADE__={scores,repaint,version:'V403'};
 })();
 </script>
 </body>
