@@ -1,3 +1,4 @@
+<!-- V401: fix historical two-AI accuracy with pre-commit capture and post-commit history reconciliation, signature deduplication; retain original prediction logic. -->
 <!-- V398: repair two historical AIs: scan full 195-shoe combined library independent of color, ease overly strict match/WAIT restrictions, one vote per shoe; grade live picks distinctly from historical evidence. -->
 <!-- V395: improve historical matcher coverage using >=6/8 bead suffix + derived-road suffix, retain one vote per historical shoe, maintain authoritative grading, and resync live hand display. Historical percentage is descriptive, not a predictive guarantee. -->
 <!-- V396: Bead History exact full-prefix priority (one independent vote per shoe), P/B-prefix fallback, short-pattern fallback retained. Other AI logic unchanged. -->
@@ -21303,6 +21304,8 @@ window.__V384_BUILD__={
  const PENDING_STORE='v394_match_ai_pending';
  let scoreRevision=0;
  let latestResolvedHand=-1;
+ let observedSequence=null, observedPending=null;
+ const rawHistory=()=>Array.isArray(state.hands)?state.hands.map(h=>typeof h==='string'?h:h.r).join(''):'';
  const saveLedger=()=>{try{localStorage.setItem(STORE,JSON.stringify(Object.fromEntries(MODES.map(k=>[k,{w:ledgers[k].w,l:ledgers[k].l,wait:ledgers[k].wait}]))))}catch(e){}};
  const savePending=()=>{try{localStorage.setItem(PENDING_STORE,JSON.stringify(Object.fromEntries(MODES.map(k=>[k,ledgers[k].pending]))))}catch(e){}};
  try{const saved=JSON.parse(localStorage.getItem(PENDING_STORE)||'{}');for(const k of MODES)if(saved[k]&&['P','B','WAIT'].includes(saved[k].side)&&Number.isInteger(saved[k].at))ledgers[k].pending=saved[k]}catch(e){}
@@ -21365,6 +21368,7 @@ window.__V384_BUILD__={
  function compute(){try{const live=pb((Array.isArray(state.hands)?state.hands:[]).map(h=>typeof h==='string'?h:h.r).join(''));const lib=library();return {Tri:vote('Tri',live,lib),One:vote('One',live,lib),length:state.hands.length,libraryCount:lib.length}}catch(e){const fallback={side:'WAIT',support:0,rate:0,road:'—',note:'Analysis temporarily unavailable: '+e.message};return {Tri:fallback,One:fallback,length:state.hands?.length||0,libraryCount:0}}}
  function paint(calls){calls=calls||compute();for(const k of MODES){const a=ledgers[k],v=calls[k];put(k+'Side',v.side==='P'?'PLAYER':v.side==='B'?'BANKER':'WAIT');put(k+'Support',v.support+' shoes');if(k==='Tri')put(k+'Confidence',v.support?v.rate+'%':'—');else put(k+'Road',v.road||'—');put(k+'Accuracy',a.w+a.l?Math.round(100*a.w/(a.w+a.l))+'%':'—');put(k+'WL',a.w+'W-'+a.l+'L');put(k+'Count',(a.w+a.l)+' / '+a.wait);put(k+'Note','NEXT HAND '+(calls.length+1)+' • Library scanned: '+(calls.libraryCount||0)+' unique shoes • '+v.note+(a.last?' • Previous result: '+a.last:''));}return calls}
  function arm(){const calls=paint();for(const k of MODES){const a=ledgers[k];a.pending={side:calls[k].side,at:calls.length};}savePending();
+  observedSequence=rawHistory();observedPending=Object.fromEntries(MODES.map(k=>[k,{...ledgers[k].pending}]));
   for(const k of MODES){const side=document.getElementById('v388'+k+'Side');if(side){side.dataset.predictionHand=String(calls.length+1);side.title='Prediction for hand '+(calls.length+1);}}
  }
  // Grade against the PRE-COMMIT shoe state. Pending in memory can disappear after
@@ -21398,8 +21402,29 @@ window.__V384_BUILD__={
      const a=ledgers[k];put(k+'Accuracy',a.w+a.l?Math.round(100*a.w/(a.w+a.l))+'%':'—');put(k+'WL',a.w+'W-'+a.l+'L');put(k+'Count',(a.w+a.l)+' / '+a.wait);}
  
  }
- function clearPending(){for(const k of MODES)ledgers[k].pending=null;savePending();lastCommitSignature=''}
- // All live result grading occurs in the authoritative commit path, never from click-capture listeners.
+ function settleFromCommittedHistory(oldSeq,newSeq,stored){
+   if(typeof oldSeq!=='string'||newSeq.length!==oldSeq.length+1||!newSeq.startsWith(oldSeq))return false;
+   const actual=newSeq.slice(-1), n=oldSeq.length, signature=n+'|'+oldSeq+'|'+actual;
+   if(signature===lastCommitSignature)return false;
+   lastCommitSignature=signature;
+   for(const k of MODES){
+     const a=ledgers[k],p=stored?.[k];
+     if(actual==='T'){a.last='Tie skipped';continue;}
+     if(!p||p.at!==n){a.last='Untracked hand — not graded';continue;}
+     if(p.side==='WAIT'){a.wait++;a.last='WAIT';}
+     else if(p.side===actual){a.w++;a.last='WIN';}
+     else if(p.side==='P'||p.side==='B'){a.l++;a.last='LOSS';}
+   }
+   saveLedger();savePending();paint();return true;
+ }
+ function clearPending(){for(const k of MODES)ledgers[k].pending=null;savePending();lastCommitSignature='';observedSequence=null;observedPending=null;}
+ // Capture-phase backup grades against pre-commit history. Core settle() calls
+ // remain in place, and lastCommitSignature prevents duplicate grading.
+ document.addEventListener('click',e=>{
+   const btn=e.target.closest?.('[data-result]');
+   if(btn && ['P','B','T'].includes(btn.dataset.result))settle(btn.dataset.result);
+ },true);
+ // Core commit hooks remain authoritative; the capture backup prevents lost scores.
  // Undo and New Shoe can invalidate pending predictions without changing past graded results.
  document.addEventListener('click',e=>{
    if(e.target.closest?.('#undoBtn,#clearBtn,#sampleBtn,#currentRedShoeBtn,#currentBlackShoeBtn,#combinedShoeBtn')){
@@ -21408,10 +21433,17 @@ window.__V384_BUILD__={
  },false);
  for(const k of MODES){const btn=document.getElementById('v388'+k+'Reset');if(btn)btn.addEventListener('click',()=>{ledgers[k]=blank();saveLedger();savePending();arm()})}
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',arm,{once:true});else arm();
- window.__V389_MATCH_AI__={compute,arm,settle,clearPending,ledgers,refresh:paint,trackingVersion:'V398-full-library-lower-gate-visible-lean'};
+ window.__V389_MATCH_AI__={compute,arm,settle,clearPending,ledgers,refresh:paint,trackingVersion:'V401-dual-path-verified-grading'};
  // Refresh after restored browser storage becomes available (without altering predictions).
  window.addEventListener('pageshow',()=>{try{arm()}catch(e){}},false);
- let seenHand=-1;setInterval(()=>{try{const n=state.hands.length;if(n!==seenHand){seenHand=n;arm();}}catch(e){}},1200);
+ let seenHand=-1;setInterval(()=>{try{
+   const current=rawHistory();
+   if(observedSequence!==null&&current!==observedSequence){
+     settleFromCommittedHistory(observedSequence,current,observedPending);
+   }
+   const n=state.hands.length;
+   if(n!==seenHand||observedSequence!==current){seenHand=n;arm();}
+ }catch(e){console.error('V401 match ledger recovery',e)}},350);
 })();
 </script>
 <script id="v392-library-marker">window.__V392_LIBRARY_VERIFIED__={embeddedUnique:195,red:99,black:96,deduplicated:5,source:'unselected_baccarat_pattern_library.json'};</script>
@@ -21454,6 +21486,54 @@ window.__V384_BUILD__={
  window.__V399_SEVEN_SECOND_BUDGET__={start,cancel,maxMs:MAX_MS,version:'V399'};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
  for(const id of ['undoBtn','clearBtn'])document.getElementById(id)?.addEventListener('click',()=>{cancel();label('AI analysis: hand history changed • pending analysis canceled')},false);
+})();
+</script>
+
+<!-- V402: independently verified displayed-call ledger, not dependent on fragile pending rearm -->
+<script id="v402-displayed-call-accuracy">
+(function(){'use strict';
+const names=['Tri','One'], key='v402_match_displayed_accuracy';
+const fresh=()=>({w:0,l:0,wait:0,last:'',lastHand:-1});
+let scores={Tri:fresh(),One:fresh()};
+try{const x=JSON.parse(localStorage.getItem(key)||'{}');for(const k of names)if(x[k])for(const f of ['w','l','wait'])if(Number.isSafeInteger(x[k][f])&&x[k][f]>=0)scores[k][f]=x[k][f]}catch(e){}
+const node=id=>document.getElementById('v388'+id);
+const save=()=>{try{localStorage.setItem(key,JSON.stringify(scores))}catch(e){}};
+const count=()=>Array.isArray(state.hands)?state.hands.length:0;
+const side=k=>{const s=(node(k+'Side')?.textContent||'').trim().toUpperCase();return s==='PLAYER'?'P':s==='BANKER'?'B':'WAIT'};
+const repaint=()=>{for(const k of names){const a=scores[k],n=a.w+a.l;if(node(k+'WL'))node(k+'WL').textContent=a.w+'W-'+a.l+'L';if(node(k+'Accuracy'))node(k+'Accuracy').textContent=n?Math.round(100*a.w/n)+'%':'—';if(node(k+'Count'))node(k+'Count').textContent=n+' / '+a.wait;}};
+let before=null,handled='';
+function prepare(actual){
+  if(!['P','B','T'].includes(actual))return;
+  const n=count();const seq=state.hands.map(h=>typeof h==='string'?h:h.r).join('');
+  const signature=n+'|'+seq+'|'+actual;
+  if(handled===signature)return;
+  before={actual,n,seq,signature,picks:Object.fromEntries(names.map(k=>[k,side(k)]))};
+  // The displayed text can be altered by other rendering callbacks, so capture before input.
+  setTimeout(()=>verify(before),180);
+}
+function verify(snapshot){
+  if(!snapshot||snapshot.signature===handled)return;
+  const history=state.hands.map(h=>typeof h==='string'?h:h.r).join('');
+  // Only grade a confirmed new result, not a canceled click or preview.
+  if(history.length!==snapshot.seq.length+1||!history.startsWith(snapshot.seq)||history.slice(-1)!==snapshot.actual)return;
+  handled=snapshot.signature;
+  for(const k of names){const a=scores[k],pick=snapshot.picks[k];if(snapshot.actual==='T')continue;
+    if(pick==='WAIT')a.wait++;else if(pick===snapshot.actual)a.w++;else a.l++;
+    a.lastHand=snapshot.n+1;a.last=pick==='WAIT'?'WAIT':pick===snapshot.actual?'WIN':'LOSS';
+  }
+  save();repaint();
+}
+// Capture original displayed calls before the application's own click handler commits the hand.
+document.addEventListener('click',e=>{
+  const btn=e.target.closest?.('[data-result],#previewP,#previewB');if(!btn)return;
+  prepare(btn.dataset?.result|| (btn.id==='previewP'?'P':btn.id==='previewB'?'B':''));
+},true);
+// Keep our figures in the visible cards even if legacy paint routines rerender them.
+setInterval(repaint,300);
+for(const k of names){const btn=node(k+'Reset');if(btn)btn.addEventListener('click',()=>{scores[k]=fresh();save();repaint();},false)}
+// If the old module's paint runs late, overwrite just the scoring fields, never the prediction itself.
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',repaint,{once:true});else repaint();
+window.__V402_DISPLAY_GRADE__={scores,repaint,version:'V402'};
 })();
 </script>
 </body>
