@@ -21490,50 +21490,41 @@ window.__V384_BUILD__={
 </script>
 
 <!-- V403: compute PRE-COMMIT prediction directly, bypasses earlier capture listener that replaces displayed choice with RESOLVED. Independently verified displayed-call ledger, not dependent on fragile pending rearm -->
-<script id="v402-displayed-call-accuracy">
+<script id="v404-history-authoritative-accuracy">
 (function(){'use strict';
-const names=['Tri','One'], key='v402_match_displayed_accuracy';
+const modes=['Tri','One'], KEY='v402_match_displayed_accuracy';
 const fresh=()=>({w:0,l:0,wait:0,last:'',lastHand:-1});
 let scores={Tri:fresh(),One:fresh()};
-try{const x=JSON.parse(localStorage.getItem(key)||'{}');for(const k of names)if(x[k])for(const f of ['w','l','wait'])if(Number.isSafeInteger(x[k][f])&&x[k][f]>=0)scores[k][f]=x[k][f]}catch(e){}
-const node=id=>document.getElementById('v388'+id);
-const save=()=>{try{localStorage.setItem(key,JSON.stringify(scores))}catch(e){}};
-const count=()=>Array.isArray(state.hands)?state.hands.length:0;
-const side=k=>{try{const v=window.__V389_MATCH_AI__?.compute?.()?.[k]?.side;if(['P','B','WAIT'].includes(v))return v;}catch(e){}const s=(node(k+'Side')?.textContent||'').trim().toUpperCase();return s==='PLAYER'?'P':s==='BANKER'?'B':'WAIT'};
-const repaint=()=>{for(const k of names){const a=scores[k],n=a.w+a.l;if(node(k+'WL'))node(k+'WL').textContent=a.w+'W-'+a.l+'L';if(node(k+'Accuracy'))node(k+'Accuracy').textContent=n?Math.round(100*a.w/n)+'%':'—';if(node(k+'Count'))node(k+'Count').textContent=n+' / '+a.wait;}};
-let before=null,handled='';
-function prepare(actual){
-  if(!['P','B','T'].includes(actual))return;
-  const n=count();const seq=state.hands.map(h=>typeof h==='string'?h:h.r).join('');
-  const signature=n+'|'+seq+'|'+actual;
-  if(handled===signature)return;
-  before={actual,n,seq,signature,picks:Object.fromEntries(names.map(k=>[k,side(k)]))};
-  // The displayed text can be altered by other rendering callbacks, so capture before input.
-  setTimeout(()=>verify(before),180);
+try{const saved=JSON.parse(localStorage.getItem(KEY)||'{}');for(const k of modes)if(saved[k])for(const f of ['w','l','wait'])if(Number.isSafeInteger(saved[k][f])&&saved[k][f]>=0)scores[k][f]=saved[k][f]}catch(e){}
+const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(scores))}catch(e){}};
+const history=()=>Array.isArray(state.hands)?state.hands.map(h=>typeof h==='string'?h:h?.r||'').join(''):'';
+const elem=x=>document.getElementById('v388'+x);
+const getPicks=()=>{let calls=null;try{calls=window.__V389_MATCH_AI__?.compute?.()}catch(e){}return Object.fromEntries(modes.map(k=>{const c=calls?.[k]?.side;if(['P','B','WAIT'].includes(c))return [k,c];const v=(elem(k+'Side')?.textContent||'').trim().toUpperCase();return [k,v==='PLAYER'?'P':v==='BANKER'?'B':'WAIT'];}));};
+const repaint=()=>{for(const k of modes){const s=scores[k],n=s.w+s.l;if(elem(k+'WL'))elem(k+'WL').textContent=s.w+'W-'+s.l+'L';if(elem(k+'Accuracy'))elem(k+'Accuracy').textContent=n?Math.round(s.w*100/n)+'%':'—';if(elem(k+'Count'))elem(k+'Count').textContent=n+' / '+s.wait;}};
+let observed=history(), armed={seq:observed,picks:getPicks()}, clickSnap=null;
+let lastGradedSeq='';
+function grade(oldSeq,newSeq,picks){
+ if(newSeq.length!==oldSeq.length+1||!newSeq.startsWith(oldSeq))return false;
+ const actual=newSeq.slice(-1);if(!['P','B','T'].includes(actual))return false;
+ if(newSeq===lastGradedSeq)return true;lastGradedSeq=newSeq;
+ if(actual!=='T')for(const k of modes){const a=scores[k],p=picks?.[k];if(p==='WAIT')a.wait++;else if(p==='P'||p==='B'){if(p===actual)a.w++;else a.l++;}a.lastHand=newSeq.length;a.last=p==='WAIT'?'WAIT':p===actual?'WIN':'LOSS';}
+ persist();repaint();return true;
 }
-function verify(snapshot){
-  if(!snapshot||snapshot.signature===handled)return;
-  const history=state.hands.map(h=>typeof h==='string'?h:h.r).join('');
-  // Only grade a confirmed new result, not a canceled click or preview.
-  if(history.length!==snapshot.seq.length+1||!history.startsWith(snapshot.seq)||history.slice(-1)!==snapshot.actual)return;
-  handled=snapshot.signature;
-  for(const k of names){const a=scores[k],pick=snapshot.picks[k];if(snapshot.actual==='T')continue;
-    if(pick==='WAIT')a.wait++;else if(pick===snapshot.actual)a.w++;else a.l++;
-    a.lastHand=snapshot.n+1;a.last=pick==='WAIT'?'WAIT':pick===snapshot.actual?'WIN':'LOSS';
-  }
-  save();repaint();
-}
-// Capture original displayed calls before the application's own click handler commits the hand.
-document.addEventListener('click',e=>{
-  const btn=e.target.closest?.('[data-result],#previewP,#previewB');if(!btn)return;
-  prepare(btn.dataset?.result|| (btn.id==='previewP'?'P':btn.id==='previewB'?'B':''));
-},true);
-// Keep our figures in the visible cards even if legacy paint routines rerender them.
-setInterval(repaint,300);
-for(const k of names){const btn=node(k+'Reset');if(btn)btn.addEventListener('click',()=>{scores[k]=fresh();save();repaint();},false)}
-// If the old module's paint runs late, overwrite just the scoring fields, never the prediction itself.
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',repaint,{once:true});else repaint();
-window.__V402_DISPLAY_GRADE__={scores,repaint,version:'V403'};
+function scan(){try{const seq=history();if(seq===observed){repaint();return;}
+ const previous=observed;
+ if(seq.length===previous.length+1&&seq.startsWith(previous)){
+   const picks=clickSnap?.seq===previous?clickSnap.picks:armed?.seq===previous?armed.picks:null;
+   if(picks)grade(previous,seq,picks);
+ }
+ // No fabricated grades on undo, shoe replacement, or multiple unseen hands.
+ observed=seq;armed={seq,picks:getPicks()};clickSnap=null;repaint();
+ }catch(e){console.warn('V404 accuracy scan',e)}}
+document.addEventListener('click',e=>{const btn=e.target.closest?.('[data-result]');if(!btn||!['P','B','T'].includes(btn.dataset.result))return;scan();clickSnap={seq:history(),picks:getPicks()};setTimeout(scan,0);setTimeout(scan,75);setTimeout(scan,300)},true);
+// Covers touch, keyboard, externally dispatched results, and slow iOS updates.
+setInterval(scan,150);
+for(const k of modes){elem(k+'Reset')?.addEventListener('click',()=>{scores[k]=fresh();persist();repaint();},false)}
+window.addEventListener('pageshow',()=>{observed=history();armed={seq:observed,picks:getPicks()};clickSnap=null;repaint()});
+repaint();window.__V404_HISTORY_GRADE__={scores,scan,repaint,version:404};
 })();
 </script>
 </body>
