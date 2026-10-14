@@ -1,3 +1,6 @@
+<!-- V429: V160 strong matches receive 60% of Pattern Recognizer score; original ensemble 40%; fallback if not built, heuristic only. -->
+<!-- V427 TEST 2 C EXPERIMENT: sliding sampled historical windows plus mirrored P/B continuation; original Test 2 memoryScan retained; original Main Future untouched. Preliminary historical finding unverified in live play. -->
+<!-- V426 ML streak visibility: use qualified ML signal directly; show training/qualification status at zero grades. ML model and other prediction engines unchanged. -->
 <!-- V407: fixed boot ordering: load persisted live state before applying protected 195-shoe seed; preserve new shoes, AI controls and accuracy reset. -->
 <!-- V401: fix historical two-AI accuracy with pre-commit capture and post-commit history reconciliation, signature deduplication; retain original prediction logic. -->
 <!-- V398: repair two historical AIs: scan full 195-shoe combined library independent of color, ease overly strict match/WAIT restrictions, one vote per shoe; grade live picks distinctly from historical evidence. -->
@@ -62,7 +65,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V411 • All-In Baccarat — Protected Library Restore</title>
+<title>V427 • All-In Baccarat — Test 2 Version C</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -13894,7 +13897,7 @@ function row(shoe,i){
 function build(){const shoes=allShoes(),rows=[];shoes.forEach(s=>{for(let i=0;i<s.sequence.length;i++)rows.push(row(s,i))});return {shoes,rows}}
 function csv(rows){if(!rows.length)return '';const keys=Object.keys(rows[0]);const q=v=>'\"'+String(v??'').replaceAll('\"','\"\"')+'\"';return keys.map(q).join(',')+'\n'+rows.map(r=>keys.map(k=>q(r[k])).join(',')).join('\n')}
 function dl(name,text,type){const b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
-function refresh(){const x=build(), pb=x.rows.filter(r=>r.target_pb).length, ties=x.rows.length-pb;set('mlShoes',String(x.shoes.length));set('mlRows',String(x.rows.length));set('mlPB',String(pb));set('mlTies',String(ties));set('mlStatus',x.shoes.length?'READY — leakage-safe hand-by-hand dataset':'Load shoe library first');window.__mlDatasetV159=x}
+function refresh(){const x=build(), pb=x.rows.filter(r=>r.target_pb).length, ties=x.rows.length-pb;set('mlShoes',String(x.shoes.length));set('mlRows',String(x.rows.length));set('mlPB',String(pb));set('mlTies',String(ties));set('mlStatus',x.shoes.length?'READY — leakage-safe hand-by-hand dataset':'Load shoe library first');window.__mlDatasetV159=x;try{window.__v428PatternV160?.reset()}catch(e){}}
 function set(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
 function install(){if(document.getElementById('mlTrainingDatasetV159'))return;const anchor=document.getElementById('chartPatternRecognizerV156')||document.getElementById('mainRoadFutureTest')||document.querySelector('.analyzer');if(!anchor||!anchor.parentNode)return;const d=document.createElement('div');d.className='analyzer';d.id='mlTrainingDatasetV159';d.style.cssText='margin-top:12px;border:1px solid rgba(46,204,113,.55)';d.innerHTML=`<div class="analyzer-title">🧠 ML Training Dataset V160</div><div class="analyzer-sub">Builds one training row per hand using only information available <b>before</b> that hand. Primary: Bead Plate + Main Road. Big Eye, Small Road and Cockroach are supporting features. Duplicate shoe sequences are removed.</div><div class="analyzer-grid"><div class="analyzer-card"><span>UNIQUE SHOES</span><strong id="mlShoes">0</strong></div><div class="analyzer-card"><span>TRAINING ROWS</span><strong id="mlRows">0</strong></div><div class="analyzer-card"><span>P/B LABELS</span><strong id="mlPB">0</strong></div><div class="analyzer-card"><span>TIE LABELS</span><strong id="mlTies">0</strong></div></div><div class="analyzer-sub" id="mlStatus">READY TO BUILD — press Build / Refresh Dataset</div><button id="mlBuild" style="margin-top:8px">Build / Refresh Dataset</button> <button id="mlCsv" style="margin-top:8px">Export ML CSV</button> <button id="mlJson" style="margin-top:8px">Export ML JSON</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#mlBuild').onclick=refresh;d.querySelector('#mlCsv').onclick=()=>{refresh();dl('baccarat_ml_training_dataset_v160.csv',csv(window.__mlDatasetV159.rows),'text/csv')};d.querySelector('#mlJson').onclick=()=>{refresh();dl('baccarat_ml_training_dataset_v160.json',JSON.stringify({version:VERSION,rule:'features use prefix only; split train/test by shoe_id',rows:window.__mlDatasetV159.rows},null,2),'application/json')};set('mlStatus','READY TO BUILD — press Build / Refresh Dataset')}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(install,1100));else setTimeout(install,1100);
@@ -15964,6 +15967,44 @@ window.__V301_AUTO_MATCH_ADAPTIVE__={version:VERSION,multiWindow:[6,9,12,16,20],
      - A-tier allows selective history-anchored 2-source confirmation
      - TRANSITION may qualify only when live flow + history agree
      - Sequence V2, Main Future Road, ML, Auto Historical Match and Adaptive Library Intelligence unchanged -->
+<script id="v428-v160-pattern-assist">
+(function(){
+'use strict';
+let cachedKey='', cached=null;
+function match(seq){
+ const ds=window.__mlDatasetV159;
+ if(!ds || !Array.isArray(ds.rows) || !ds.rows.length)return null;
+ const pb=String(seq||'').replace(/[^PB]/g,'');
+ if(pb.length<6)return null;
+ const key=pb+'|'+ds.rows.length+'|'+(ds.shoes?.length||0);
+ if(key===cachedKey)return cached;
+ const best=new Map(), tail=pb.slice(-10);
+ for(const r of ds.rows){
+  if((r.target_pb!=='P'&&r.target_pb!=='B')||r.prior_non_tie_hands<6)continue;
+  const ref=String(r.pb_tail_10||'');
+  const k=Math.min(10,tail.length,ref.length);
+  if(k<6)continue;
+  let same=0;for(let i=1;i<=k;i++)if(tail.at(-i)===ref.at(-i))same++;
+  const similarity=same/k;
+  if(similarity<.8)continue;
+  const phaseDist=Math.abs(pb.length-(Number(r.prior_non_tie_hands)||0));
+  const score=similarity+.03*(r.current_streak_side===pb.at(-1))+.03*(r.regime==='CHOP' && /(?:PB){2}|(?:BP){2}/.test(tail))-.0005*phaseDist;
+  const id=String(r.shoe_id||r.shoe_color+'-'+r.hand_number);
+  const prev=best.get(id);if(!prev||score>prev.score)best.set(id,{score,side:r.target_pb});
+ }
+ let p=0,b=0;for(const v of best.values()){if(v.side==='P')p++;else b++}
+ const n=p+b;
+ cachedKey=key;cached=n>=5?{n,p,b,side:p>b?'P':b>p?'B':null,agreement:n?Math.round(100*Math.max(p,b)/n):0}:null;
+ return cached;
+}
+window.__v428PatternV160={match,reset(){cachedKey='';cached=null;},ready(){return !!window.__mlDatasetV159?.rows?.length}};
+function install(){const panel=document.getElementById('roadPreviewAiPanel');if(!panel||document.getElementById('v428V160Status'))return;
+ const el=document.createElement('div');el.id='v428V160Status';el.className='analyzer-sub';el.style.cssText='font-size:11px!important;line-height:1.4!important;max-height:none!important;overflow:visible!important;margin-top:7px;color:#c0d4e8';el.textContent='V160 assist: NOT BUILT — original Pattern Recognizer remains active.';panel.appendChild(el);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
+setTimeout(install,1200);
+})();
+</script>
 <script id="v217-adaptive-pattern-recognizer-scan-fix">
 (function(){
 'use strict';
@@ -16245,6 +16286,19 @@ function patternRecognizerSignal(){
                    reg.regime==='RUN/TREND' ? .22 : .20;
   use('LIVE SHOE FLOW',live,liveBase,'live');
 
+  // V429 experimental majority blending: 60% V160 historical-row vote,
+  // 40% existing pattern-ensemble score. No V160 => exact old score.
+  // This is a heuristic vote share, not a calibrated next-hand probability.
+  const v160=window.__v428PatternV160?.match(seq.join(''))||null;
+  const v160Strong=!!(v160?.side && v160.n>=8 && v160.agreement>=65);
+  if(v160Strong && w>0){
+    const oldP=p/w,oldB=b/w;
+    p=.40*oldP+.60*(v160.p/v160.n);
+    b=.40*oldB+.60*(v160.b/v160.n);
+    w=1;
+  }
+
+
   if(!liveRuntime.pending || liveRuntime.pending.handN!==seq.length){
     liveRuntime.pending={
       handN:seq.length,
@@ -16287,12 +16341,12 @@ function patternRecognizerSignal(){
 
   let waitReason='',tier='';
   if(!candidate)waitReason='WAIT: Player and Banker adaptive pattern scores are tied.';
-  else if(!hist.vote.n)waitReason='WAIT: saved-shoe history is not ready; live flow cannot qualify by itself.';
-  else if(histSide!==candidate)waitReason='WAIT: historical consensus does not support the combined candidate.';
+  else if(!hist.vote.n && !v160Strong)waitReason='WAIT: saved-shoe history is not ready; live flow cannot qualify by itself.';
+  else if(histSide!==candidate && !(v160Strong && v160.side===candidate))waitReason='WAIT: historical consensus does not support the combined candidate.';
   else if(ready.length<2)waitReason=`WAIT: only ${ready.length} of 4 pattern sources are ready; need at least 2.`;
   else if(oppose.length>=3)waitReason='WAIT: three independent pattern sources oppose the candidate.';
-  else if(support.length<2)waitReason='WAIT: fewer than two independent pattern sources support the candidate.';
-  else if(histStrength<.50)waitReason=`WAIT: saved-history consensus is below 50%.`;
+  else if(support.length<2 && !(v160Strong && v160.side===candidate && support.length>=1))waitReason='WAIT: insufficient independent confirmation for this candidate.';
+  else if(histStrength<.50 && !(v160Strong && v160.side===candidate))waitReason=`WAIT: saved-history consensus is below 50%.`;
   else {
     // Strong 3-of-4 confirmation is the preferred gate.
     if(support.length>=3){
@@ -16357,6 +16411,10 @@ function paint(){
   if(panel){
     const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 AI Pattern Recognizer — Live-Adaptive Consensus';
     const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>PATTERN ENGINE V416 — MORE ACTIVE CONSENSUS.</b> Uses saved-shoe history, Bead Plate, the 3 derived roads, and the current live-shoe pattern engine. Historical shoes get one consensus vote each. A+ prefers 3-of-4 agreement; further-loosened A-tier allows 2-source confirmation when saved history anchors the direction. TRANSITION can qualify with 2-source agreement when live flow and history agree.';
+  }
+  const v160note=document.getElementById('v428V160Status');
+  if(v160note){const m=window.__v428PatternV160?.match(livePB().join(''));
+    v160note.textContent=!window.__v428PatternV160?.ready()?'V160: NOT BUILT — original Pattern Recognizer active. Press Build / Refresh Dataset.':m?.side && m.n>=8 && m.agreement>=65?`V160: 60% SCORING INFLUENCE • ${m.n} matched shoes • ${m.side==='P'?'PLAYER':'BANKER'} ${m.agreement}% historical vote share • experimental, not calibrated.`:'V160: DATASET READY • no strong match (requires 8 distinct shoes and 65% agreement); original Pattern Recognizer active.';
   }
   const note=document.getElementById('roadAiNote');if(note){
     const hp=r.hist||{},bp=r.bead||{},rd=r.roads||{},lv=r.live||{};
@@ -18627,11 +18685,57 @@ function memoryScan(mode){
   const extra=mode===3?` • raw ${(100*rawAgree).toFixed(0)}% • effective N ${effN.toFixed(1)}`:'';
   return {qualified,side,matches:use.length,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(best*100).toFixed(1),awareness:+(aw*100).toFixed(1),rhythm:+(ry*100).toFixed(1),rawAgreement:+(rawAgree*100).toFixed(1),effectiveN:+effN.toFixed(1),regime:rp.regime,rows:use,reason:qualified?'High-awareness library match qualified.':`WAIT gate • ${use.length} matches • best ${(best*100).toFixed(0)}% • awareness ${(aw*100).toFixed(0)}% • rhythm ${(ry*100).toFixed(0)}% • edge ${edge.toFixed(1)}pp${extra}`};
 }
-function test2(){const base=baseTest(),bp=basePB(base),mem=memoryScan(2);let p=bp.p,b=bp.b,used=false;if(mem.qualified){p=.70*bp.p+.30*mem.pPct;b=.70*bp.b+.30*mem.bPct;used=true}const t=p+b||100;p=100*p/t;b=100*b/t;const side=p>b?'P':b>p?'B':null;return {side,p:+p.toFixed(1),b:+b.toFixed(1),base,baseP:+bp.p.toFixed(1),baseB:+bp.b.toFixed(1),mem,used,edge:+Math.abs(p-b).toFixed(1)}}
+// V427 experimental Version C: sliding positions + inverted P/B pattern matching.
+// Keep original memoryScan(2) available for verification. Only Test 2 uses C.
+let v427LastKey='',v427LastValue=null;
+function versionCMemory(){
+  const cur=live(), curPB=pb(cur), rp=rhythmProfile(cur);
+  const outEmpty=(reason)=>({qualified:false,matches:0,pPct:50,bPct:50,edge:0,best:0,awareness:0,rhythm:0,regime:rp.regime,reason,version:'C'});
+  if(curPB.length<7)return outEmpty('Version C waiting for at least seven non-tie hands.');
+  // Cache by full live sequence and unique-library count; avoid a second expensive scan in paint().
+  const library=uniqueLibrary();const key=cur.join('')+'|'+library.length;
+  if(key===v427LastKey && v427LastValue)return v427LastValue;
+  const invert=arr=>arr.map(x=>x==='P'?'B':x==='B'?'P':x);
+  const matches=[];
+  const c=cur.slice(-16);
+  for(const shoe of library){
+    const seq=shoe.seq.split('');let best=null;
+    // This is the same sampled position schedule used in the preliminary C comparison.
+    // One best continuation per historical shoe, never multiple correlated votes.
+    for(let pos=8;pos<seq.length;pos+=5){
+      const next=seq[pos];if(next!=='P'&&next!=='B')continue;
+      const h=seq.slice(Math.max(0,pos-16),pos);
+      if(h.length<8)continue;
+      for(const mirrored of [false,true]){
+        const hist=mirrored?invert(h):h;
+        const sa=seqAwareness(c,hist),ra=roadAwareness(c,hist);
+        if(ra.parts<2)continue;
+        const rs=rhythmSimilarity(rhythmProfile(c),rhythmProfile(hist));
+        const awareness=.58*ra.score+.42*sa.score;
+        const score=.55*ra.score+.15*sa.score+.30*rs;
+        if(awareness<.57||rs<.48||score<.57)continue;
+        const predicted=mirrored?(next==='P'?'B':'P'):next;
+        if(!best||score>best.score)best={next:predicted,score,awareness,rhythm:rs,mirrored};
+      }
+    }
+    if(best)matches.push(best);
+  }
+  matches.sort((a,b)=>b.score-a.score);
+  const use=matches.slice(0,24),W=use.reduce((a,x)=>a+Math.pow(x.score,3.2)*(.80+.20*x.rhythm),0);
+  const P=use.filter(x=>x.next==='P').reduce((a,x)=>a+Math.pow(x.score,3.2)*(.80+.20*x.rhythm),0);
+  const pPct=W?100*P/W:50,bPct=100-pPct,edge=Math.abs(pPct-bPct);
+  const best=use[0]?.score||0;
+  const aw=use.length?use.reduce((a,x)=>a+x.awareness,0)/use.length:0;
+  const ry=use.length?use.reduce((a,x)=>a+x.rhythm,0)/use.length:0;
+  const qualified=use.length>=3&&best>=.65&&edge>=6&&aw>=.60&&ry>=.55;
+  const result={qualified,side:pPct>bPct?'P':bPct>pPct?'B':null,matches:use.length,pPct:+pPct.toFixed(1),bPct:+bPct.toFixed(1),edge:+edge.toFixed(1),best:+(100*best).toFixed(1),awareness:+(100*aw).toFixed(1),rhythm:+(100*ry).toFixed(1),regime:rp.regime,mirrored:use.filter(x=>x.mirrored).length,version:'C',reason:qualified?'Version C sliding + inverted library evidence qualified.':`Version C not qualified • ${use.length} distinct shoes • best ${(100*best).toFixed(0)}% • edge ${edge.toFixed(1)}pp`};
+  v427LastKey=key;v427LastValue=result;return result;
+}
+function test2(){const base=baseTest(),bp=basePB(base),mem=versionCMemory();let p=bp.p,b=bp.b,used=false;if(mem.qualified){p=.70*bp.p+.30*mem.pPct;b=.70*bp.b+.30*mem.bPct;used=true}const t=p+b||100;p=100*p/t;b=100*b/t;const side=p>b?'P':b>p?'B':null;return {side,p:+p.toFixed(1),b:+b.toFixed(1),base,baseP:+bp.p.toFixed(1),baseB:+bp.b.toFixed(1),mem,used,edge:+Math.abs(p-b).toFixed(1)}}
 function st(key){state[key] ||= {wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};return state[key]}
 function ensure(){
   const anchor=document.getElementById('mainRoadFutureTest');if(!anchor?.parentNode)return;
-  if(!document.getElementById('v360MainFutureTest2')){const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest2';d.innerHTML=`<div class="analyzer-title">📚 Main Future Road Test 2 — Road History + High Rhythm/Regime Awareness</div><div class="analyzer-sub">Current-version Test 2 design: 70% current Main Future engine + 30% unique saved-library road memory. High-awareness matching now requires the live shoe to fit saved road shape and live rhythm/regime before library memory can influence the call. Exact duplicate shoes get no extra vote.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T2Pick">WAIT</strong></div><div class="v360-card"><span>CONFIDENCE</span><strong id="v360T2Conf">—</strong></div><div class="v360-card"><span>LIVE MATCH AWARENESS</span><strong id="v360T2Aware">BUILDING</strong></div><div class="v360-card"><span>RHYTHM / REGIME FIT</span><strong id="v360T2Rhythm">BUILDING</strong></div><div class="v360-card"><span>LIBRARY MATCHES</span><strong id="v360T2Matches">0</strong></div><div class="v360-card"><span>BASE / LIBRARY MIX</span><strong id="v360T2Mix">70 / 30</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T2Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T2Wait">0</strong></div></div><div class="analyzer-sub" id="v360T2Note" style="margin-top:8px">Building live awareness.</div><button class="tiny-btn" id="v360T2Reset" style="width:100%;margin-top:8px">Reset Test 2 Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#v360T2Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 2 accuracy?')){state.v360Test2Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}}}
+  if(!document.getElementById('v360MainFutureTest2')){const d=document.createElement('div');d.className='analyzer';d.id='v360MainFutureTest2';d.innerHTML=`<div class="analyzer-title">📚 Main Future Road Test 2 — Version C (Sliding + Inverted)</div><div class="analyzer-sub">Experimental Version C: 70% original Main Future engine + up to 30% sliding-window direct/inverted historical matching when qualified. Best match per distinct saved shoe; unqualified library evidence has no influence. Not a verified probability advantage.</div><div class="v360-grid"><div class="v360-card"><span>NEXT RESULT</span><strong id="v360T2Pick">WAIT</strong></div><div class="v360-card"><span>CONFIDENCE</span><strong id="v360T2Conf">—</strong></div><div class="v360-card"><span>LIVE MATCH AWARENESS</span><strong id="v360T2Aware">BUILDING</strong></div><div class="v360-card"><span>RHYTHM / REGIME FIT</span><strong id="v360T2Rhythm">BUILDING</strong></div><div class="v360-card"><span>LIBRARY MATCHES</span><strong id="v360T2Matches">0</strong></div><div class="v360-card"><span>BASE / LIBRARY MIX</span><strong id="v360T2Mix">70 / 30</strong></div><div class="v360-card"><span>VERIFIED ACCURACY</span><strong id="v360T2Acc">—</strong></div><div class="v360-card"><span>WAIT COUNT</span><strong id="v360T2Wait">0</strong></div></div><div class="analyzer-sub" id="v360T2Note" style="margin-top:8px">Building live awareness.</div><button class="tiny-btn" id="v360T2Reset" style="width:100%;margin-top:8px">Reset Test 2 Accuracy</button>`;anchor.parentNode.insertBefore(d,anchor.nextSibling);d.querySelector('#v360T2Reset').onclick=()=>{if(confirm('Reset only Main Future Road Test 2 accuracy?')){state.v360Test2Accuracy={wins:0,losses:0,waits:0,ties:0,pending:null,lastSeenHand:-1,lastWaitHand:-1};try{persist()}catch(e){}paint()}}}
   // Main Future Road Tests 3, 4, and 5 are fully removed.
 
 
@@ -18655,7 +18759,7 @@ function lightBoot(){
   const n=live().length;
   if(n>=7)setTimeout(cycle,1800); // restored in-progress shoe: one delayed sync only.
 }
-window.__V360_MAIN_FUTURE_TESTS_23__={version:VERSION,test2,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,tests345Removed:true,test2Weights:{base:.70,library:.30},startupScanReduced:true};
+window.__V360_MAIN_FUTURE_TESTS_23__={version:427,test2,versionCMemory,memoryScan,rhythmProfile,rhythmSimilarity,uniqueLibrary,cycle,tests345Removed:true,test2Weights:{base:.70,library:.30},startupScanReduced:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',lightBoot,{once:true});else lightBoot();
 })();
 </script>
@@ -21241,7 +21345,14 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   if(t==='B'||t==='BANKER'||t.startsWith('BANKER —')||t.startsWith('BANKER •')||/^LIKELY ANSWER:\s*BANKER\b/.test(t))return 'B';
   return null;
  }
- function capture(){const o={};for(const [name,id] of models)o[name]=side($(id)?.textContent);return o}
+ function capture(){const o={};for(const [name,id] of models){
+   if(name==='ML Trainer'){
+     try{const z=(window.__mlRoadTrainerV3||window.__mlRoadTrainerV2)?.signal?.()||{};
+       const v=z.side||z.displaySide||z.rawSide;
+       o[name]=z.qualified&&(v==='P'||v==='B')?v:null;
+     }catch(e){o[name]=null}
+   }else o[name]=side($(id)?.textContent);
+  }return o}
  function paint(){const root=$('v422StreakRows');if(!root)return;root.textContent='';let alt=0,hot=0;
   for(const [name,id] of models){if(!$(id))continue;const a=journal[name]||[],last6=a.slice(-6).join('');const alternating=last6.length===6&&(last6==='WLWLWL'||last6==='LWLWLW');
    let wins=0;for(let i=a.length-1;i>=0&&a[i]==='W';i--)wins++;const burning=wins>=3;
@@ -21250,6 +21361,16 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    const left=document.createElement('div');let letters=a.slice(-6).map(v=>'<span class="'+v.toLowerCase()+'">'+v+'</span>').join('')||'—';
    left.innerHTML='<div class="v422name"></div><div class="v422letters">'+letters+'</div><div class="v422sub"></div>';
    left.querySelector('.v422name').textContent=name;left.querySelector('.v422sub').textContent=a.length+' graded calls tracked'+(wins?' • '+wins+' consecutive win'+(wins===1?'':'s'):'');
+   if(name==='ML Trainer' && a.length===0){
+     let mlStatus='No qualified ML predictions graded yet';
+     try{const ml=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2; const sig=ml?.signal?.()||{};
+       if(!ml)mlStatus='ML engine unavailable';
+       else if(/training not complete|train|build/i.test(String(sig.reason||'')) && !sig.qualified)mlStatus='ML needs training — use ML Train/Build button';
+       else if(sig.qualified)mlStatus='Qualified ML call detected — awaiting next result';
+       else mlStatus='ML running but not qualified: '+String(sig.reason||'insufficient validated evidence').slice(0,130);
+     }catch(e){mlStatus='ML status unavailable';}
+     left.querySelector('.v422sub').textContent=mlStatus+' • 0 graded calls';
+   }
    const flags=document.createElement('div');flags.className='v422flags';
    if(alternating){const x=document.createElement('span');x.className='v422flag alt';x.textContent='6 ALTERNATING';flags.appendChild(x)}
    if(burning){const x=document.createElement('span');x.className='v422flag hot';x.textContent=wins+' WIN STREAK';flags.appendChild(x)}
