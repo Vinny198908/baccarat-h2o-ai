@@ -442,6 +442,16 @@ body { overscroll-behavior-y: none; }
 @media (max-width:650px){#sequenceAiPanel .analyzer-grid, #v331BestEstimate2 .analyzer-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}}
 </style>
 <!-- V418: Restored September 20 Best Estimate Analyzer qualification pathway by disabling V365/V369 combined-score wrappers; other panels retained. -->
+<style id="v419-recognition-style">
+#v419Recognition{border:2px solid #2bb6c9;margin:12px 0;padding:12px;background:#101c28;border-radius:12px;color:#f2fbff}
+#v419Recognition .v419grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+#v419Recognition .v419tile{background:#182c3e;padding:9px 5px;text-align:center;border-radius:8px;min-width:0}
+#v419Recognition .v419tile b{display:block;font-size:23px;overflow-wrap:anywhere}
+#v419Recognition .v419tile span{font-size:11px;color:#c4dbe6}
+#v419Recognition button{padding:9px;border-radius:8px;background:#223d54;color:white;border:1px solid #50a8be;width:100%;margin-top:10px;font-weight:bold}
+#v419Recognition .v419note{font-size:12px;line-height:1.5;margin-top:9px;color:#b6dae5;overflow-wrap:anywhere}
+@media(max-width:470px){#v419Recognition .v419grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
 </head>
 <body>
 <!-- V339: Best-Estimate Analyzer 2 accuracy now settles in the authoritative live P/B/T commit path before the hand is pushed, then arms the next call after commit. The delayed 210ms click-grading dependency was removed. Prediction logic unchanged. -->
@@ -453,6 +463,21 @@ body { overscroll-behavior-y: none; }
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
 </div>
+
+<section id="v419Recognition" aria-label="Saved Shoe Recognition AI">
+<div style="font-size:20px;font-weight:900">NEW AI — Saved Shoe Recognition V419</div>
+<div class="v419note">Independent partial-shoe memory matching. Compares the current Bead Plate sequence and all three derived roads with prefixes from your selected RED/BLACK saved-shoe library. This does not override other AIs.</div>
+<div class="v419grid">
+<div class="v419tile"><span>NEXT P / B</span><b id="v419Pick">WAIT</b></div>
+<div class="v419tile"><span>MATCH EVIDENCE</span><b id="v419Match">—</b></div>
+<div class="v419tile"><span>SHOES SCANNED</span><b id="v419Library">0</b></div>
+<div class="v419tile"><span>ACCURACY</span><b id="v419Accuracy">—</b></div>
+<div class="v419tile"><span>WINS / LOSSES</span><b id="v419WL">0W-0L</b></div>
+<div class="v419tile"><span>GRADED BETS</span><b id="v419N">0</b></div>
+</div>
+<div class="v419note" id="v419Reason" aria-live="polite">Waiting for saved shoes and at least 8 hands.</div>
+<button id="v419Reset" type="button">Reset This AI's Accuracy</button>
+</section>
 
 <div class="analyzer" id="sequenceAiPanel">
 <div class="analyzer-title">Sequence AI V2 Analyzer</div>
@@ -20917,6 +20942,7 @@ function resetAll(){
    // Older standalone ledgers are managed by their own reset controls above.
    if(r?.resetAccuracy)r.resetAccuracy();
  });
+ tryIt('V419 Saved Shoe Recognition',()=>window.__V419_SHOE_RECOGNITION__?.resetAccuracy?.());
  tryIt('persist',()=>{if(typeof persist==='function')persist()});
  tryIt('display',()=>{window.__V404_HISTORY_GRADE__?.repaint?.();window.__V379_MEMORY_ACCURACY__?.paint?.();window.__V325_ACCURACY_REPAIR__?.paintSequence?.();window.renderVerifiedAccuracy?.();window.__V73_INDIVIDUAL_ACCURACY__?.refresh?.();});
  if(status)status.textContent=errors.length?'Reset requested for '+controls+' AI controls; '+errors.length+' module(s) reported an error.':'All AI accuracy resets sent ('+controls+' controls). Shoe history and library preserved.';
@@ -20926,5 +20952,78 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
 })();
 </script>
 
+<script id="v419-saved-shoe-recognition">
+(function(){'use strict';
+ const LEDGER='baccarat-v419-recognition-ledger';
+ const $=id=>document.getElementById(id);
+ let ledger={w:0,l:0,n:0},armed=null,lastHands=null,lastSeq='',cachedKey=null,cachedPrediction=null;
+ try{const v=JSON.parse(localStorage.getItem(LEDGER)||'null');if(v&&Number.isFinite(v.n))ledger={w:+v.w||0,l:+v.l||0,n:+v.n||0}}catch(e){}
+ const seqOf=()=>typeof state!=='undefined'&&Array.isArray(state.hands)?state.hands.map(h=>h.r).filter(x=>x==='P'||x==='B'||x==='T').join(''):'';
+ const save=()=>{try{localStorage.setItem(LEDGER,JSON.stringify(ledger))}catch(e){}};
+ function paint(out){
+  $('v419Pick').textContent=out?.side==='P'?'PLAYER':out?.side==='B'?'BANKER':'WAIT';
+  $('v419Match').textContent=out?.evidence||'—';
+  $('v419Library').textContent=String(out?.count||0);
+  $('v419Reason').textContent=out?.reason||'Waiting for saved shoes and at least 8 hands.';
+  $('v419Accuracy').textContent=ledger.n?Math.round(100*ledger.w/ledger.n)+'%':'—';
+  $('v419WL').textContent=ledger.w+'W-'+ledger.l+'L'; $('v419N').textContent=String(ledger.n);
+ }
+ function shoeseq(x){let s=x?.sequence||x?.seq||x?.hands||'';if(Array.isArray(s))s=s.map(y=>typeof y==='string'?y:y?.r||'').join('');return typeof s==='string'?s.toUpperCase().replace(/[^PBT]/g,''):''}
+ function normalizedRoad(seq){try{return typeof currentDerivedRoadSetFromSeq==='function'?currentDerivedRoadSetFromSeq(seq):null}catch(e){return null}}
+ function similarity(a,b){if(!a?.length||!b?.length)return null;const n=Math.min(12,a.length,b.length);if(n<3)return null;let equal=0;for(let i=0;i<n;i++)if(a[a.length-n+i]===b[b.length-n+i])equal++;return equal/n}
+ function predict(cur){
+  const raw=typeof activePatternLibrary==='function'?activePatternLibrary():[];
+  const unique=new Map();for(const x of raw){const q=shoeseq(x);if(q.length>=9&&!unique.has(q))unique.set(q,q)}
+  const shoes=[...unique.values()];if(cur.length<8)return {count:shoes.length,reason:'Enter at least 8 hands before searching partial-shoe continuations.'};
+  if(!shoes.length)return {count:0,reason:'No saved shoes in the active library. Import or restore your saved-shoe backup.'};
+  const cr=normalizedRoad(cur),scores={P:0,B:0};let candidates=0,best=null;
+  for(const shoe of shoes){
+   // Every plausible continuation is examined, including shifted occurrences within a shoe.
+   for(let pos=8;pos<shoe.length;pos++){
+    const hist=shoe.slice(0,pos), n=Math.min(16,cur.length,hist.length);
+    let eq=0;for(let i=0;i<n;i++)if(cur[cur.length-n+i]===hist[hist.length-n+i])eq++;
+    const bead=eq/n;if(bead<0.69)continue;
+    const hr=normalizedRoad(hist);let roadSum=0,roadN=0;
+    if(cr&&hr)for(const key of ['bigEye','small','roach']){const v=similarity(cr[key],hr[key]);if(v!==null){roadSum+=v;roadN++}}
+    // Require three comparable roads; missing derived-road history is not proof of a match.
+    if(roadN!==3)continue;
+    const road=roadSum/3,score=0.62*bead+0.38*road;
+    if(road<0.60||score<0.77)continue;
+    const next=shoe[pos];if(next!=='P'&&next!=='B')continue;
+    const weight=Math.pow(score,5)*(0.55+0.45*Math.min(1,n/16));
+    scores[next]+=weight;candidates++;
+    if(!best||score>best.score)best={score,bead,road,pos};
+   }
+  }
+  const total=scores.P+scores.B,edge=total?Math.abs(scores.P-scores.B)/total:0;
+  const info=best?`${Math.round(best.score*100)}% · ${candidates} matches`:'None';
+  if(!best)return {count:shoes.length,evidence:info,reason:'No qualified partial Bead + three-road match. Waiting, rather than inventing a signal.'};
+  if(candidates<2||edge<0.16)return {count:shoes.length,evidence:info,reason:`${candidates} continuation(s) found; Player/Banker vote not sufficiently separated.`};
+  const side=scores.P>scores.B?'P':'B';
+  return {side,count:shoes.length,evidence:info,reason:`Historical continuation vote: P ${Math.round(100*scores.P/total)}% / B ${Math.round(100*scores.B/total)}%. Match confidence is not a guaranteed win probability.`};
+ }
+ function tick(){
+  try{
+   const cur=seqOf(),length=cur.length;
+   if(lastHands===null){lastHands=length;lastSeq=cur;armed=null}
+   if(cur!==lastSeq){
+    if(length===lastHands+1&&cur.startsWith(lastSeq)){
+      const actual=cur[cur.length-1];if(armed&&(actual==='P'||actual==='B')){ledger.n++;if(actual===armed)ledger.w++;else ledger.l++;save()}
+    }
+    // Never score an undo, new shoe, bulk import, screenshot, or multi-hand replay as a live prediction.
+    armed=null;lastHands=length;lastSeq=cur;
+   }
+   const libKey=String(state?.predictionLibraryMode||'')+'|'+String(state?.currentShoeColor||'')+'|'+(state?.redPatternLibrary?.length||0)+'|'+(state?.blackPatternLibrary?.length||0);
+   const key=cur+'|'+libKey;
+   if(key!==cachedKey){cachedPrediction=predict(cur);cachedKey=key}
+   const out=cachedPrediction;paint(out);if(!armed&&out.side)armed=out.side;
+   if(!out.side)armed=null;
+  }catch(e){const n=$('v419Reason');if(n)n.textContent='Recognition diagnostic: '+String(e.message||e)}
+ }
+ $('v419Reset')?.addEventListener('click',()=>{ledger={w:0,l:0,n:0};save();tick()});
+ window.__V419_SHOE_RECOGNITION__={tick,resetAccuracy(){ledger={w:0,l:0,n:0};armed=null;save();tick()}};
+ setInterval(tick,900);tick();
+})();
+</script>
 </body>
 </html>
