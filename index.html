@@ -62,7 +62,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V408 • All-In Baccarat — Protected Library Restore</title>
+<title>V411 • All-In Baccarat — Protected Library Restore</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -21624,7 +21624,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
 })();
 </script>
-<!-- V408: independent full-library shoe recognition. Observation only; no changes to AI decisions or grading. -->
+<!-- V409: improved position-aware full-library shoe recognition. Observation only; no changes to AI decisions or grading. -->
 <style id="v408-match-style">
 #v408MatchPanel{margin:9px 0;padding:11px;background:#151f28;border:1px solid #5482a4;border-radius:12px;color:#eff5fa}
 #v408MatchPanel .v408title{font-weight:900;font-size:14px;margin-bottom:6px}
@@ -21632,44 +21632,39 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
 #v408MatchPanel .v408entry{font-size:12px;border-top:1px solid #344555;padding:8px 0;line-height:1.45;overflow-wrap:anywhere}
 #v408MatchPanel .v408entry b{color:#bfe2ff}
 </style>
-<script id="v408-match-engine">
+<script id="v410-match-engine">
 (function(){'use strict';
- const MAX_ROWS=5;
- function seq(x){let s=Array.isArray(x)?x.map(y=>typeof y==='string'?y:(y?.r||'' )).join(''):String(x||'');return s.toUpperCase().replace(/[^PBT]/g,'')}
- function library(){const all=[...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])];const seen=new Set();return all.filter(sh=>{let s=seq(sh?.sequence);if(!s||seen.has(s))return false;seen.add(s);return true})}
- function suffixCount(a,b,limit){let n=0;while(n<limit&&n<a.length&&n<b.length&&a[a.length-1-n]===b[b.length-1-n])n++;return n}
- function roadMarks(s){try{return [1,2,3].map(offset=>deriveRoad([...s].map(r=>({r})),offset).join(''))}catch(e){return ['','','']}}
- function compare(live,shoes){live=seq(live);const livePB=live.replace(/T/g,'');const lr=roadMarks(live);
- const entries=shoes.map((sh,i)=>{const saved=seq(sh.sequence),savedPB=saved.replace(/T/g,'');const exact=saved.startsWith(live)&&live.length>0;
- const prefix=(()=>{let k=0;while(k<live.length&&k<saved.length&&live[k]===saved[k])k++;return k})();
- const suffix=suffixCount(live,saved,live.length);
- // Longest repeated contiguous segment ending at the current hand, anywhere in a saved shoe.
- let windowLen=0,windowAt=-1;for(let size=Math.min(live.length,saved.length);size>=4;size--){const at=saved.lastIndexOf(live.slice(-size));if(at>=0){windowLen=size;windowAt=at;break}}
- const pbSuffix=suffixCount(livePB,savedPB,livePB.length);
- const savedRoads=(sh.derivedRoadHistory&&['bigEye','small','roach'].map(k=>{const r=sh.derivedRoadHistory[k];return Array.isArray(r)?r.join(''):String(r||'')}));
- const sr=(savedRoads&&savedRoads.every(v=>v))?savedRoads:roadMarks(saved);
- const roads=lr.map((r,k)=>({matchingEndingMarks:suffixCount(r,sr[k],r.length),liveMarks:r.length,savedMarks:sr[k].length}));
- return {id:String(sh.id||'shoe_'+(i+1)),color:sh.shoeColor||sh.__color||'unknown',savedLength:saved.length,exact,exactHands:exact?live.length:0,prefix,suffix,windowLen,windowAt,pbSuffix,roads,historicalNext:windowAt>=0&&windowAt+windowLen<saved.length?saved[windowAt+windowLen]:null};
- });
- entries.sort((a,b)=>Number(b.exact)-Number(a.exact)||b.exactHands-a.exactHands||b.windowLen-a.windowLen||b.pbSuffix-a.pbSuffix||b.prefix-a.prefix);
- return {searched:shoes.length,liveHands:live.length,exactCount:entries.filter(x=>x.exact).length,entries};}
- function analyze(live){return compare(live,library())}
- function el(tag,cls,txt){const x=document.createElement(tag);if(cls)x.className=cls;if(txt!=null)x.textContent=txt;return x}
- function render(){const panel=document.getElementById('v408MatchPanel');if(!panel)return;
- const live=seq(state?.hands||[]);const key=live+'|'+(state?.redPatternLibrary?.length||0)+'|'+(state?.blackPatternLibrary?.length||0);if(render.lastKey===key)return;render.lastKey=key;
- const result=analyze(live);window.__V408_LIBRARY_MATCH_CACHE__=result;
- panel.replaceChildren(el('div','v408title','SAVED SHOE RECOGNITION — FULL LIBRARY'));
- panel.appendChild(el('div','v408note',`Searching ${result.searched} unique saved shoes across RED + BLACK • Live ${live.length} hands (ties included) • ${result.exactCount} exact prefix candidates`));
- if(!live){panel.appendChild(el('div','v408note','Enter a hand to begin exact shoe recognition. This operates even when an AI displays WAIT.'));return}
- const shortlist=[...result.entries.filter(x=>x.exact),...result.entries.filter(x=>!x.exact&&x.windowLen>=4)].slice(0,MAX_ROWS);
- if(!shortlist.length){panel.appendChild(el('div','v408note','No matching 4+ hand ending sequence in library. Shorter patterns are not treated as verified matches.'));return}
- shortlist.forEach((m,i)=>{const item=el('div','v408entry');const heading=el('b','',m.exact?`EXACT PREFIX — ${m.exactHands} hands`:`PARTIAL — ${m.windowLen} ending hands (saved position ${m.windowAt+1})`);item.appendChild(heading);item.appendChild(el('div','',`Shoe ${m.id} • ${String(m.color).toUpperCase()} • ${m.savedLength} saved hands • P/B ending ${m.pbSuffix}`));item.appendChild(el('div','',`Road suffix matches (Big Eye / Small / Cockroach): ${m.roads.map(r=>r.matchingEndingMarks+'/'+r.liveMarks).join(' • ')}`));item.appendChild(el('div','',`Historical next hand: ${m.historicalNext||'not available at that matched position'}`));panel.appendChild(item)});
- panel.appendChild(el('div','v408note','Exact prefix means the live P/B/T sequence matches saved history from hand 1. Road counts are independent descriptive checks. A historical next result is NOT a guaranteed future prediction. Library recognition does not override existing AI logic.'));
- }
- function install(){if(document.getElementById('v408MatchPanel'))return;const target=document.getElementById('sequenceAiPanel')||document.querySelector('.app');if(!target)return;const panel=el('section');panel.id='v408MatchPanel';target.parentNode.insertBefore(panel,target);render()}
- if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
- setInterval(()=>{try{install();render()}catch(e){console.warn('V408 shoe recognition error',e)}},450);
- window.__V408_SHOE_RECOGNITION__={analyze,compare,library,render,version:408};
+const seq=x=>Array.isArray(x)?x.map(y=>typeof y==='string'?y:(y?.r||y?.result||y?.side||'')).join('').toUpperCase().replace(/[^PBT]/g,''):String(x||'').toUpperCase().replace(/[^PBT]/g,'');
+const pb=x=>seq(x).replace(/T/g,'');
+const shoes=()=>{let a=[...(state?.redPatternLibrary||[]),...(state?.blackPatternLibrary||[])];let seen=new Set();return a.filter(x=>{let q=seq(x?.sequence);if(!q||seen.has(q))return false;seen.add(q);return true})};
+const nextPB=(s,i)=>{for(;i<s.length;i++)if(s[i]==='P'||s[i]==='B')return s[i];return null};
+const suffix=(a,b)=>{let n=0;while(n<a.length&&n<b.length&&a[a.length-1-n]===b[b.length-1-n])n++;return n};
+const roads=s=>{try{return [1,2,3].map(k=>(deriveRoad([...s].map(r=>({r})),k)||[]).join(''))}catch(e){return ['','','']}};
+// At most one substitution, insertion or deletion. Never inspect a historical next hand when measuring match quality.
+function edit(a,b){if(Math.abs(a.length-b.length)>1)return 2;if(a.length===b.length){let e=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i]&&++e>1)return 2;return e}
+ let longer=a.length>b.length?a:b,shorter=a.length>b.length?b:a,i=0,j=0,e=0;while(i<longer.length&&j<shorter.length){if(longer[i]===shorter[j]){i++;j++}else{if(++e>1)return 2;i++}}return 1}
+function matchWindow(saved,live){let best=null;const max=Math.min(20,live.length);for(let n=max;n>=6;n--){let needle=live.slice(-n);for(let sz of [n,n-1,n+1]){if(sz<5)continue;for(let at=0;at+sz<saved.length;at++){const d=edit(needle,saved.slice(at,at+sz));if(d>1)continue;const score=n-(d?3:0)-(sz===n?0:1);if(!best||score>best.score||(score===best.score&&n>best.length))best={position:at,end:at+sz,length:n,difference:d,score,kind:d?(sz===n?'SUBSTITUTION':'INSERT/DELETE'):'EXACT WINDOW'};}}}return best}
+function analyze(raw){const live=seq(raw),lp=pb(live),lib=shoes(),currentRoad=roads(live);let out=[];
+for(let i=0;i<lib.length;i++){let shoe=lib[i],saved=seq(shoe.sequence),sp=pb(saved),full=!!live&&saved.startsWith(live),pbPrefix=!!lp&&sp.startsWith(lp);let a=full?{position:0,end:live.length,length:live.length,difference:0,score:live.length+100,kind:'EXACT FULL PREFIX'}:null;
+if(!a&&pbPrefix)a={position:0,end:-1,length:lp.length,difference:0,score:lp.length+70,kind:'EXACT P/B PREFIX'};
+if(!a&&live.length>=6)a=matchWindow(saved,live);
+if(!a&&lp.length>=6){let m=matchWindow(sp,lp);if(m)a={...m,kind:'P/B '+m.kind,score:m.score-4,end:-1}}
+if(!a)continue;
+let cut=a.end>=0?a.end:null,rr=null;if(cut!==null){if(a.position===0 && a.difference===0 && cut===live.length){let hist=roads(saved.slice(0,cut));rr=hist.map((r,j)=>({equalEnding:suffix(currentRoad[j],r),liveLength:currentRoad[j].length}));}}
+let next=a.kind==='EXACT P/B PREFIX'||a.kind.startsWith('P/B ')?nextPB(sp,a.position+a.length):nextPB(saved,a.end);
+out.push({id:shoe.id||'shoe_'+(i+1),color:shoe.shoeColor||shoe.__color||'unknown',savedLength:saved.length,kind:a.kind,position:a.position,length:a.length,difference:a.difference,score:a.score,next,roadMatch:rr,exact:full});}
+out.sort((a,b)=>b.score-a.score||b.length-a.length||a.difference-b.difference);
+let lead=out.length?out.filter(x=>x.score===out[0].score):[];return {searched:lib.length,liveHands:live.length,exactCount:out.filter(x=>x.exact).length,entries:out,topTies:lead.length,topContinuations:[...new Set(lead.map(x=>x.next).filter(Boolean))]};}
+const el=(tag,cl,t)=>{const x=document.createElement(tag);if(cl)x.className=cl;if(t!==undefined)x.textContent=t;return x};
+function render(){let panel=document.getElementById('v408MatchPanel');if(!panel)return;let live=seq(state?.hands||[]),lib=shoes(),key=live+'|'+lib.map(x=>seq(x.sequence)).join('|');if(render.key===key)return;render.key=key;let r=analyze(live);window.__V410_LIBRARY_MATCH_CACHE__=r;panel.replaceChildren(el('div','v408title','SAVED SHOE RECOGNITION — V411 VERIFIED PREFIX / SHIFT SCAN'));panel.appendChild(el('div','v408note',`${r.searched} unique RED + BLACK shoes • ${r.liveHands} live hands • ${r.exactCount} exact complete-prefix matches`));
+if(!live){panel.appendChild(el('div','v408note','Enter results to scan historical shoe prefixes and shifted fragments.'));return}
+if(!r.entries.length){panel.appendChild(el('div','v408note','No qualifying fragment matches.'));return}
+if(r.topTies>1)panel.appendChild(el('div','v408note',`AMBIGUOUS: ${r.topTies} equal-ranking historical matches; ${r.topContinuations.length>1?'their next results disagree':'continuation agreement does not prove predictive accuracy'}.`));
+for(const a of r.entries.slice(0,5)){let box=el('div','v408entry');box.appendChild(el('b','',`${a.kind} • ${a.length} live results • ${a.difference} edit(s)`));box.appendChild(el('div','',`Shoe ${a.id} • ${String(a.color).toUpperCase()} • begins at saved hand ${a.position+1} • total ${a.savedLength} hands`));box.appendChild(el('div','',`Observed road-ending agreement: ${a.roadMatch?a.roadMatch.map(z=>z.equalEnding+'/'+z.liveLength).join(' • '):'not a comparable full-prefix road position (shifted/edited match)'}`));box.appendChild(el('div','',`Saved next non-tie: ${a.next||'unknown'} (KNOWN FUTURE in library; recognition check only)`));panel.appendChild(box)}
+panel.appendChild(el('div','v408note','Observation-only search. Original AI signals and accuracy calculations are unchanged. A previously saved shoe contains its future results: this is a recognition diagnostic, not evidence of a gambling edge.'));}
+function install(){let target=document.getElementById('sequenceAiPanel');if(!target)return;let p=document.getElementById('v408MatchPanel');if(!p){p=el('section');p.id='v408MatchPanel';target.before(p)}render()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();setInterval(()=>{try{install();render()}catch(e){console.warn('V410 match error',e)}},1000);
+window.__V410_SHOE_RECOGNITION__={analyze,shoes,render,version:411};
 })();
 </script>
 </body>
