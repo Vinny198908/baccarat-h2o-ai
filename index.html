@@ -1,5 +1,6 @@
-<!-- V429: V160 strong matches receive 60% of Pattern Recognizer score; original ensemble 40%; fallback if not built, heuristic only. -->
+<!-- V428: optional V160 historical-row vote assist for AI Pattern Recognizer; limited auxiliary score influence, original gates preserved; requires Build/Refresh. -->
 <!-- V427 TEST 2 C EXPERIMENT: sliding sampled historical windows plus mirrored P/B continuation; original Test 2 memoryScan retained; original Main Future untouched. Preliminary historical finding unverified in live play. -->
+<!-- V431 ML RAW STREAK TRACKING: grades ML raw leans separately, official qualification unchanged. -->
 <!-- V426 ML streak visibility: use qualified ML signal directly; show training/qualification status at zero grades. ML model and other prediction engines unchanged. -->
 <!-- V407: fixed boot ordering: load persisted live state before applying protected 195-shoe seed; preserve new shoes, AI controls and accuracy reset. -->
 <!-- V401: fix historical two-AI accuracy with pre-commit capture and post-commit history reconciliation, signature deduplication; retain original prediction logic. -->
@@ -529,6 +530,13 @@ body { overscroll-behavior-y: none; }
   <div class="analyzer-card"><span>Historical hit rate</span><strong id="v420Rate">—</strong></div>
   <div class="analyzer-card"><span>Shoes with matches</span><strong id="v420Coverage">—</strong></div>
  </div>
+ <div class="analyzer-sub" style="margin-top:10px"><strong>Live research readout (not a verified betting signal)</strong> — reads the current eight P/B results and distinct saved shoes. Historical audit statistics above remain separate.</div>
+ <div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <div class="analyzer-card"><span>Next research lean</span><strong id="v420LivePick">WAIT</strong></div>
+  <div class="analyzer-card"><span>Independent matches</span><strong id="v420LiveMatches">0</strong></div>
+  <div class="analyzer-card"><span>Majority of matches</span><strong id="v420LiveShare">—</strong></div>
+ </div>
+ <div class="analyzer-sub" id="v420LiveNote" aria-live="polite">Enter at least 8 Player/Banker results.</div>
  <div class="analyzer-sub" id="v420Note" style="margin-top:8px">Press Run Audit to evaluate the library currently loaded on this device. No AI prediction logic, bets, or accuracy counts will be changed.</div>
  <button class="tiny-btn" type="button" id="v420Run" style="margin-top:8px;width:100%;font-size:13px">Run Four-Signal Historical Audit</button>
 </section>
@@ -539,7 +547,7 @@ body { overscroll-behavior-y: none; }
  <div id="v423TrustTable"></div>
 </section>
 <section id="v422StreakPanel" aria-label="AI Streak Signals">
- <div class="streak-title">AI Streak Signals V422</div>
+ <div class="streak-title">AI Streak Signals V431</div>
  <div class="streak-note">ALTERNATING = six consecutive graded calls W-L-W-L-W-L or L-W-L-W-L-W. HOT = 3 or more consecutive graded wins. Tracked separately for every AI below; these are performance alerts, not next-hand win probabilities.</div>
  <div id="v422Summary" class="streak-note" aria-live="polite">Monitoring upcoming graded predictions.</div>
  <div id="v422StreakRows"></div>
@@ -16286,16 +16294,16 @@ function patternRecognizerSignal(){
                    reg.regime==='RUN/TREND' ? .22 : .20;
   use('LIVE SHOE FLOW',live,liveBase,'live');
 
-  // V429 experimental majority blending: 60% V160 historical-row vote,
-  // 40% existing pattern-ensemble score. No V160 => exact old score.
-  // This is a heuristic vote share, not a calibrated next-hand probability.
+  // V428: Optional V160 historical-row confirmation. Existing 4-source gates
+  // remain unchanged: V160 cannot qualify a WAIT on its own.
   const v160=window.__v428PatternV160?.match(seq.join(''))||null;
-  const v160Strong=!!(v160?.side && v160.n>=8 && v160.agreement>=65);
-  if(v160Strong && w>0){
-    const oldP=p/w,oldB=b/w;
-    p=.40*oldP+.60*(v160.p/v160.n);
-    b=.40*oldB+.60*(v160.b/v160.n);
-    w=1;
+  if(v160?.side && v160.n>=5){
+    const voteWeight=Math.min(.10,.045+.0025*v160.n);
+    const agreement=v160.agreement/100;
+    p+=voteWeight*(v160.p/v160.n);
+    b+=voteWeight*(v160.b/v160.n);
+    w+=voteWeight;
+    // Not appended to sources: V160 is correlated with saved-shoe history.
   }
 
 
@@ -16341,12 +16349,12 @@ function patternRecognizerSignal(){
 
   let waitReason='',tier='';
   if(!candidate)waitReason='WAIT: Player and Banker adaptive pattern scores are tied.';
-  else if(!hist.vote.n && !v160Strong)waitReason='WAIT: saved-shoe history is not ready; live flow cannot qualify by itself.';
-  else if(histSide!==candidate && !(v160Strong && v160.side===candidate))waitReason='WAIT: historical consensus does not support the combined candidate.';
+  else if(!hist.vote.n)waitReason='WAIT: saved-shoe history is not ready; live flow cannot qualify by itself.';
+  else if(histSide!==candidate)waitReason='WAIT: historical consensus does not support the combined candidate.';
   else if(ready.length<2)waitReason=`WAIT: only ${ready.length} of 4 pattern sources are ready; need at least 2.`;
   else if(oppose.length>=3)waitReason='WAIT: three independent pattern sources oppose the candidate.';
-  else if(support.length<2 && !(v160Strong && v160.side===candidate && support.length>=1))waitReason='WAIT: insufficient independent confirmation for this candidate.';
-  else if(histStrength<.50 && !(v160Strong && v160.side===candidate))waitReason=`WAIT: saved-history consensus is below 50%.`;
+  else if(support.length<2)waitReason='WAIT: fewer than two independent pattern sources support the candidate.';
+  else if(histStrength<.50)waitReason=`WAIT: saved-history consensus is below 50%.`;
   else {
     // Strong 3-of-4 confirmation is the preferred gate.
     if(support.length>=3){
@@ -16414,7 +16422,7 @@ function paint(){
   }
   const v160note=document.getElementById('v428V160Status');
   if(v160note){const m=window.__v428PatternV160?.match(livePB().join(''));
-    v160note.textContent=!window.__v428PatternV160?.ready()?'V160: NOT BUILT — original Pattern Recognizer active. Press Build / Refresh Dataset.':m?.side && m.n>=8 && m.agreement>=65?`V160: 60% SCORING INFLUENCE • ${m.n} matched shoes • ${m.side==='P'?'PLAYER':'BANKER'} ${m.agreement}% historical vote share • experimental, not calibrated.`:'V160: DATASET READY • no strong match (requires 8 distinct shoes and 65% agreement); original Pattern Recognizer active.';
+    v160note.textContent=!window.__v428PatternV160?.ready()?'V160 assist: NOT BUILT — original Pattern Recognizer active. Press Build / Refresh Dataset V160 to enable optional matching.':m?.side?`V160 assist: ACTIVE • ${m.n} distinct historical shoes • ${m.side==='P'?'PLAYER':'BANKER'} ${m.agreement}% vote share • small auxiliary scoring weight • original qualification gates retained.`:'V160 assist: DATASET READY • no qualified historical similarity yet; original Pattern Recognizer active.';
   }
   const note=document.getElementById('roadAiNote');if(note){
     const hp=r.hist||{},bp=r.bead||{},rd=r.roads||{},lv=r.live||{};
@@ -21253,6 +21261,42 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    finally{button.disabled=false}
   },30);
  }
+ // Live research readout uses the same bead-suffix, color separation, independent-shoe
+ // vote count, and 35-point vote-gap conditions as the historical audit.
+ // Ties are omitted from the bead sequence; raw results are not modified.
+ let lastKey='';
+ function liveTick(){
+  try{
+   const seq=(Array.isArray(state?.hands)?state.hands:[]).map(h=>h?.r).filter(x=>x==='P'||x==='B').join('');
+   const mode=String(state?.predictionLibraryMode||'').toLowerCase();
+   const color=String(state?.currentShoeColor||'').toLowerCase();
+   const library=data();
+   const key=seq+'|'+mode+'|'+color+'|'+library.length;
+   if(key===lastKey)return;lastKey=key;
+   const pick=$('v420LivePick'),matches=$('v420LiveMatches'),share=$('v420LiveShare'),note=$('v420LiveNote');
+   pick.textContent='WAIT';matches.textContent='0';share.textContent='—';
+   if(seq.length<8){note.textContent='Enter at least 8 Player/Banker results to search the saved-shoe library.';return}
+   const suffix=seq.slice(-8),votes=[];
+   for(const shoe of library){
+    if((mode==='red'||mode==='black')&&shoe.color!==mode)continue;
+    if(mode!=='combined'&&mode!=='all'&&mode!=='both'&&(color==='red'||color==='black')&&shoe.color!==color)continue;
+    // One vote per distinct shoe, never multiple observations from the same shoe.
+    for(let i=8;i<shoe.seq.length;i++){
+     if(shoe.seq.slice(i-8,i)===suffix&&(shoe.seq[i]==='P'||shoe.seq[i]==='B')){
+      votes.push(shoe.seq[i]);break;
+     }
+    }
+   }
+   const n=votes.length,p=votes.filter(v=>v==='P').length,b=n-p;
+   const majority=n?Math.max(p,b)/n:0,edge=n?Math.abs(p-b)/n:0;
+   matches.textContent=String(n);share.textContent=n?(majority*100).toFixed(0)+'%':'—';
+   if(n<4){note.textContent=`Only ${n} distinct saved-shoe matches; requires at least 4. Showing WAIT.`;return}
+   if(edge<.35||p===b){note.textContent=`Historical votes disagree (${p} Player, ${b} Banker); requires at least 35-point vote gap. Showing WAIT.`;return}
+   pick.textContent=p>b?'PLAYER':'BANKER';
+   note.textContent=`Research lean from ${n} distinct reference shoes (${p} Player / ${b} Banker). This is historical agreement, not a measured probability or validated edge.`;
+  }catch(e){const n=$('v420LiveNote');if(n)n.textContent='Live readout error: '+String(e.message||e)}
+ }
+ setInterval(liveTick,900);liveTick();
  $('v420Run')?.addEventListener('click',run);
  window.__V420_PRECISION_AUDIT__={run};
 })();
@@ -21330,11 +21374,12 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  ['Sequence AI V2','seqAiSide'],['Best Estimate','bestSide'],['Best Estimate 2','v331BE2Side'],
  ['Main Future Road','futureFinal'],['Main Future Test 2','v360T2Pick'],
  ['Derived Road AI','v358DerivedResult'],['AI Pattern Recognizer','roadAiSide'],
- ['Bead History AI','beadHistSide'],['Historical Three-Road','v388TriSide'],
- ['Historical Single-Road','v388OneSide'],['Saved Shoe Recognition','v419Pick'],
+ ['Bead History AI','beadHistSide'],['8-Hand Bead + 3-Road','v388TriSide'],
+ ['Historical Single-Road','v388OneSide'],['Main Future Awareness','v277Action'],['Saved Shoe Recognition','v419Pick'],
  ['Four-Signal Precision','v421Pick'],['Main Road Only','v284Pick'],
  ['ML Trainer','mlv307Pick']
  ];
+ const streakExcluded=new Set(['Historical Three-Road','Historical Single-Road']);
  const KEY='baccarat-v422-streak-history';let journal={}, last=null, snapshots={};
  for(const [name] of models)journal[name]=[];
  try{const v=JSON.parse(localStorage.getItem(KEY)||'{}');for(const [name] of models)if(Array.isArray(v[name]))journal[name]=v[name].filter(x=>x==='W'||x==='L').slice(-20)}catch(e){}
@@ -21348,26 +21393,31 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  function capture(){const o={};for(const [name,id] of models){
    if(name==='ML Trainer'){
      try{const z=(window.__mlRoadTrainerV3||window.__mlRoadTrainerV2)?.signal?.()||{};
-       const v=z.side||z.displaySide||z.rawSide;
-       o[name]=z.qualified&&(v==='P'||v==='B')?v:null;
+       const v=z.rawSide||z.displaySide||z.side;
+       // Track observable raw ML leans separately from the official qualified ML call.
+       o[name]=(v==='P'||v==='B')?v:null;
      }catch(e){o[name]=null}
    }else o[name]=side($(id)?.textContent);
   }return o}
  function paint(){const root=$('v422StreakRows');if(!root)return;root.textContent='';let alt=0,hot=0;
-  for(const [name,id] of models){if(!$(id))continue;const a=journal[name]||[],last6=a.slice(-6).join('');const alternating=last6.length===6&&(last6==='WLWLWL'||last6==='LWLWLW');
+  for(const [name,id] of models){if(streakExcluded.has(name)||(!$(id)&&name!=='ML Trainer'))continue;const a=journal[name]||[],last6=a.slice(-6).join('');const alternating=last6.length===6&&(last6==='WLWLWL'||last6==='LWLWLW');
    let wins=0;for(let i=a.length-1;i>=0&&a[i]==='W';i--)wins++;const burning=wins>=3;
    if(alternating)alt++;if(burning)hot++;
    const row=document.createElement('div');row.className='v422row';
    const left=document.createElement('div');let letters=a.slice(-6).map(v=>'<span class="'+v.toLowerCase()+'">'+v+'</span>').join('')||'—';
    left.innerHTML='<div class="v422name"></div><div class="v422letters">'+letters+'</div><div class="v422sub"></div>';
    left.querySelector('.v422name').textContent=name;left.querySelector('.v422sub').textContent=a.length+' graded calls tracked'+(wins?' • '+wins+' consecutive win'+(wins===1?'':'s'):'');
+   if(name==='ML Trainer'){
+     const original=left.querySelector('.v422sub').textContent;
+     left.querySelector('.v422sub').textContent=original+' • RAW ML leans (not necessarily qualified)';
+   }
    if(name==='ML Trainer' && a.length===0){
-     let mlStatus='No qualified ML predictions graded yet';
+     let mlStatus='No raw ML leans graded yet';
      try{const ml=window.__mlRoadTrainerV3||window.__mlRoadTrainerV2; const sig=ml?.signal?.()||{};
        if(!ml)mlStatus='ML engine unavailable';
        else if(/training not complete|train|build/i.test(String(sig.reason||'')) && !sig.qualified)mlStatus='ML needs training — use ML Train/Build button';
-       else if(sig.qualified)mlStatus='Qualified ML call detected — awaiting next result';
-       else mlStatus='ML running but not qualified: '+String(sig.reason||'insufficient validated evidence').slice(0,130);
+       else if(sig.qualified)mlStatus='ML call detected — awaiting next result';
+       else mlStatus='No raw call: '+String(sig.reason||'training or warmup required').slice(0,130);
      }catch(e){mlStatus='ML status unavailable';}
      left.querySelector('.v422sub').textContent=mlStatus+' • 0 graded calls';
    }
@@ -21380,14 +21430,14 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   $('v422Summary').textContent=hot+' AI(s) on 3+ win streak • '+alt+' AI(s) alternating over last 6 graded calls. Ties and WAIT are ignored; undo and bulk shoe changes are not graded.';
   // Research-only ranking: sample floor, actual graded outcomes, and CURRENT prediction availability.
   // Streaks do not boost the ranking and a good historical rank is not a validated predictive edge.
-  const ranked=models.filter(([name,id])=>$(id)).map(([name,id])=>{
+  const ranked=models.filter(([name,id])=>!streakExcluded.has(name)&&($(id)||name==='ML Trainer')).map(([name,id])=>{
    const a=(journal[name]||[]).slice(-20),n=a.length,w=a.filter(v=>v==='W').length;
-   const pick=side($(id)?.textContent);
+   const pick=name==='ML Trainer'?(snapshots[name]||null):side($(id)?.textContent);
    // Wilson 95% lower bound prevents a tiny or lucky sample from dominating.
    const z=1.96,p=n?w/n:0,den=1+z*z/n;
    const lb=n?(p+z*z/(2*n)-z*Math.sqrt((p*(1-p)+z*z/(4*n))/n))/den:0;
    return {name,n,w,pick,rate:n?w/n:0,lb};
-  }).filter(x=>x.n>=12).sort((a,b)=>b.lb-a.lb||b.n-a.n);
+  }).filter(x=>x.n>=12&&x.name!=='ML Trainer').sort((a,b)=>b.lb-a.lb||b.n-a.n);
   const top=ranked.filter(x=>x.pick).slice(0,3);
   const choice=$('v423TrustChoice'), detail=$('v423TrustDetail'), table=$('v423TrustTable');
   if(choice&&detail&&table){
@@ -21424,7 +21474,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  $('v422Reset')?.addEventListener('click',reset);
  function reset(){for(const [name] of models)journal[name]=[];persist();paint()}
  $('v406ResetAllAccuracy')?.addEventListener('click',reset);
- window.__V422_STREAK__={reset,scan};
+ window.__V422_STREAK__={reset,scan,version:431,mlRawTracking:true};
  setInterval(scan,160);scan();
 })();
 </script>
