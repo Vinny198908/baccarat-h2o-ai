@@ -476,6 +476,13 @@ body { overscroll-behavior-y: none; }
 #v423TrustDetail{font-size:12px;line-height:1.5;color:#c3d8dd}
 #v423TrustTable{font-size:12px;margin-top:9px;display:grid;gap:4px}
 #v423TrustTable .rank{display:flex;justify-content:space-between;gap:6px;padding:6px;border-radius:6px;background:#223740}
+#v434WatchAccuracy{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:9px 0}
+#v434WatchAccuracy .cell{width:auto;height:auto;min-width:0;display:block;text-align:center;background:#223740;border-radius:8px;padding:7px 3px}
+#v434WatchAccuracy .cell b{display:block;font-size:19px;overflow-wrap:anywhere}
+#v434WatchAccuracy .cell span{font-size:9px;color:#bcd2d6}
+#v423TrustTable .rank{align-items:center}
+#v423TrustTable .rank strong{text-align:right;white-space:nowrap}
+#v434WatchCaption{font-size:10px;color:#bcd2d6;margin-top:5px}
 </style>
 </head>
 <body>
@@ -548,6 +555,8 @@ body { overscroll-behavior-y: none; }
  <div class="headline">AI Reliability Watch V423</div>
  <div id="v423TrustChoice" aria-live="polite">NO VERIFIED LEADER</div>
  <div id="v423TrustDetail">Awaiting at least 12 graded Player/Banker predictions per AI. Rankings describe recent recorded accuracy, not the chance the next hand will win.</div>
+ <div id="v434WatchAccuracy" aria-live="polite"><div class="cell"><b id="v434WatchWins">0</b><span>LEADER WINS</span></div><div class="cell"><b id="v434WatchLosses">0</b><span>LEADER LOSSES</span></div><div class="cell"><b id="v434WatchTotal">0</b><span>GRADED CALLS</span></div><div class="cell"><b id="v434WatchRate">—</b><span>ACCURACY</span></div></div>
+ <div id="v434WatchCaption">Live counters use the same graded results as AI Streak Signals. Ties, WAIT and undo are not counted.</div>
  <div id="v423TrustTable"></div>
 </section>
 <section id="v422StreakPanel" aria-label="AI Streak Signals">
@@ -21510,17 +21519,29 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   const choice=$('v423TrustChoice'), detail=$('v423TrustDetail'), table=$('v423TrustTable');
   if(choice&&detail&&table){
    table.replaceChildren();
-   if(top.length){const leader=top[0];
+   const leader=top[0]||null;
+   const set=(id,value)=>{const el=$(id);if(el)el.textContent=value};
+   set('v434WatchWins',leader?String(leader.w):'0');
+   set('v434WatchLosses',leader?String(leader.n-leader.w):'0');
+   set('v434WatchTotal',leader?String(leader.n):'0');
+   set('v434WatchRate',leader?(100*leader.rate).toFixed(1)+'%':'—');
+   set('v434WatchCaption',leader?'Counters above belong to '+leader.name+' (latest '+leader.n+' graded P/B calls). Each AI’s counts appear below.':'No eligible leader yet. Individual AI counts are displayed below, including fewer than 12 calls.');
+   if(leader){
     choice.textContent='RECENT LEADER: '+leader.name+' ('+(leader.pick==='P'?'PLAYER':'BANKER')+')';
-    detail.textContent='Recorded '+leader.w+'/'+leader.n+' correct ('+(leader.rate*100).toFixed(1)+'%) over the most recent '+leader.n+' graded predictions. PROVISIONAL ranking only; NO VERIFIED BETTING EDGE. A win streak or alternating pattern does not improve next-hand odds.';
-    for(const x of top){const r=document.createElement('div');r.className='rank';
-     const left=document.createElement('span');left.textContent=x.name+' • '+(x.pick==='P'?'P':'B');
-     const right=document.createElement('strong');right.textContent=x.w+'/'+x.n+' • '+(x.rate*100).toFixed(1)+'%';
-     r.append(left,right);table.appendChild(r)}
+    detail.textContent='Recorded '+leader.w+' wins and '+(leader.n-leader.w)+' losses over the last '+leader.n+' graded predictions. PROVISIONAL ranking only; NO VERIFIED BETTING EDGE. Past results do not establish next-hand odds.';
    }else{
     choice.textContent='NO VERIFIED LEADER';
-    detail.textContent='No AI with a current Player/Banker call has at least 12 graded predictions in this monitor. WAIT for more evidence. Even after 12 calls, any ranking remains provisional.';
+    detail.textContent='No AI with a current Player/Banker call has at least 12 graded predictions. Individual counts are shown below; rankings remain provisional even after 12 calls.';
    }
+   // Report each monitored AI’s own recent actual grades, including WAIT / small samples.
+   const allRows=models.filter(([name,id])=>!streakExcluded.has(name)&&($(id)||name==='ML Trainer'))
+    .map(([name,id])=>{const a=(journal[name]||[]).slice(-20),n=a.length,w=a.filter(v=>v==='W').length;
+     return {name,n,w,l:n-w,rate:n?(100*w/n).toFixed(1)+'%':'—',pick:name==='ML Trainer'?'RAW':side($(id)?.textContent)};});
+   const heading=document.createElement('div');heading.style.cssText='font-weight:800;margin:8px 0 3px';heading.textContent='Individual AI accuracy • most recent 20 graded calls';table.appendChild(heading);
+   for(const x of allRows){const r=document.createElement('div');r.className='rank';
+    const left=document.createElement('span');left.textContent=x.name+' • '+(x.pick==='P'?'P':x.pick==='B'?'B':x.pick==='RAW'?'Raw ML':'WAIT');
+    const right=document.createElement('strong');right.textContent=x.w+'W / '+x.l+'L • '+x.rate+' (N '+x.n+')';
+    r.append(left,right);table.appendChild(r)}
   }
 
  }
