@@ -535,8 +535,12 @@ body { overscroll-behavior-y: none; }
   <div class="analyzer-card"><span>Next research lean</span><strong id="v420LivePick">WAIT</strong></div>
   <div class="analyzer-card"><span>Independent matches</span><strong id="v420LiveMatches">0</strong></div>
   <div class="analyzer-card"><span>Majority of matches</span><strong id="v420LiveShare">—</strong></div>
+  <div class="analyzer-card"><span>Live research W / L</span><strong id="v420LiveWL">0W / 0L</strong></div>
+  <div class="analyzer-card"><span>Live hit rate</span><strong id="v420LiveRate">—</strong></div>
  </div>
  <div class="analyzer-sub" id="v420LiveNote" aria-live="polite">Enter at least 8 Player/Banker results.</div>
+ <div class="analyzer-sub">Live grading starts after this version observes a research lean before the next P/B result. Ties are not scored. Historical audit outcomes are separate.</div>
+ <button class="tiny-btn" type="button" id="v420LiveReset" style="margin-top:7px;width:100%">Reset Research Live Accuracy</button>
  <div class="analyzer-sub" id="v420Note" style="margin-top:8px">Press Run Audit to evaluate the library currently loaded on this device. No AI prediction logic, bets, or accuracy counts will be changed.</div>
  <button class="tiny-btn" type="button" id="v420Run" style="margin-top:8px;width:100%;font-size:13px">Run Four-Signal Historical Audit</button>
 </section>
@@ -13921,7 +13925,7 @@ window.__mlTrainingDatasetV159=window.__mlTrainingDatasetV160={version:VERSION,b
 <script id="v162-ml-road-trainer-live-dataset-connection">
 (function(){
 'use strict';
-const VERSION=204, WARMUP=6, TARGET_CALLS=10;
+const VERSION=205, WARMUP=6, TARGET_CALLS=10;
 let runtime={trained:false,qualified:false,report:null,model:null,cutoff:.56,lastError:'',lastSignal:null};
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const sideOf=v=>{const s=String(v??'').toUpperCase();return s==='P'||s==='PLAYER'?'P':s==='B'||s==='BANKER'?'B':s==='T'||s==='TIE'?'T':''};
@@ -13990,6 +13994,7 @@ function splitDataset(x){
     const n=ids.length;
     const nTrain=Math.max(1,Math.floor(n*.70));
     const nVal=Math.max(1,Math.floor(n*.10));
+    ids=ids.slice().sort((a,b)=>{const hash=x=>{let h=2166136261;for(let i=0;i<x.length;i++)h=Math.imul(h^x.charCodeAt(i),16777619);return h>>>0};return hash('V205_SEED:'+a)-hash('V205_SEED:'+b)});
     ids.slice(0,nTrain).forEach(id=>trainIds.add(id));
     ids.slice(nTrain,nTrain+nVal).forEach(id=>valIds.add(id));
     ids.slice(nTrain+nVal).forEach(id=>testIds.add(id));
@@ -14014,10 +14019,14 @@ function trainAndValidate(){
     const trainModels={seq:buildModel(sp.train,'seq'),road:buildModel(sp.train,'road')};
     const valPred=predictRows(trainModels,sp.val), cutoff=chooseCutoff(valPred,sp.valShoes);
     const testPred=predictRows(trainModels,sp.test), all=accuracy(testPred), selective=accuracy(testPred.filter(z=>Math.max(z.p,1-z.p)>=cutoff));
-    const trainPB=sp.train.filter(r=>r.target_pb==='P'||r.target_pb==='B'); const p=trainPB.filter(r=>r.target_pb==='P').length, b=trainPB.length-p; const baseline=trainPB.length?Math.max(p,b)/trainPB.length:.5;
-    const minCalls=Math.max(30,sp.testShoes*4); const qualified=selective.n>=minCalls && selective.rate>=.53 && selective.rate>=baseline+.015;
+    // Compare exactly the same unseen hands; Banker is the default live baccarat reference.
+    const baseline=testPred.length?testPred.filter(z=>z.y==='B').length/testPred.length:0;
+    const selectiveTest=testPred.filter(z=>Math.max(z.p,1-z.p)>=cutoff);
+    const selectiveBaseline=selectiveTest.length?selectiveTest.filter(z=>z.y==='B').length/selectiveTest.length:0;
+    const buckets=[.5,.55,.6,.65,.7,.8,1.01].slice(0,-1).map((lo,i)=>{const hi=[.55,.6,.65,.7,.8,1.01][i],z=testPred.filter(q=>Math.max(q.p,1-q.p)>=lo&&Math.max(q.p,1-q.p)<hi);return {range:Math.round(lo*100)+'-'+Math.round(hi*100),...accuracy(z)}});
+    const minCalls=Math.max(30,sp.testShoes*4); const qualified=selective.n>=minCalls && selective.rate>=.53 && selective.rate>=selectiveBaseline+.015;
     const fullModels={seq:buildModel(x.rows,'seq'),road:buildModel(x.rows,'road')};
-    runtime={trained:true,qualified,cutoff,model:fullModels,lastError:'',lastSignal:null,report:{version:VERSION,uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,validationShoes:sp.valShoes,unseenTestShoes:sp.testShoes,testRows:testPred.length,overall:all,selective,baseline,cutoff,targetCallsPerShoe:TARGET_CALLS,qualified,reason:qualified?'PASS — held-out selective accuracy cleared the cross-shoe gate.':'WAIT — held-out selective accuracy did not clear the cross-shoe gate.'}};
+    runtime={trained:true,qualified,cutoff,model:fullModels,lastError:'',lastSignal:null,report:{version:VERSION,uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,validationShoes:sp.valShoes,unseenTestShoes:sp.testShoes,testRows:testPred.length,overall:all,selective,baseline,selectiveBaseline,calibrationBuckets:buckets,splitSeed:"V205_SEED",cutoff,targetCallsPerShoe:TARGET_CALLS,qualified,reason:qualified?'PASS — held-out selective accuracy cleared the cross-shoe gate.':'WAIT — held-out selective accuracy did not clear the cross-shoe gate.'}};
     renderReport();
     return runtime.report;
   }catch(e){runtime.trained=false;runtime.qualified=false;runtime.lastError=String(e?.message||e);renderReport();return null;}
@@ -14044,16 +14053,17 @@ function signal(){
   // when the held-out model passed validation AND the current confidence clears
   // the calibrated selective cutoff. Other AIs remain independent.
   const qualified=!!runtime.qualified && selectivePass;
-  const displayPass=true;
+  const displayPass=true; // Visible raw research lean, never a qualified pick by itself.
   const out={
-    side:displayPass?side:null,
+    side:qualified?side:null, // Downstream consumers cannot mistake raw lean for a validated call.
+    researchSide:side,
     displaySide:displayPass?side:null,
     rawSide:side,
     qualified,
-    experimental:false,
+    experimental:true,
     strength:displayPass?+(conf*100).toFixed(1):0,
     confidence:+(conf*100).toFixed(1),
-    status:displayPass?(side==='P'?'PLAYER':'BANKER'):'WAIT',
+    status:qualified?(side==='P'?'PLAYER':'BANKER'):'WAIT',
     pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),
     evidence:z.evidence,sources:z.sources,cutoff:+(runtime.cutoff*100).toFixed(1),
     reason:qualified?'QUALIFIED ML: held-out validation passed and this live call cleared the calibrated cutoff.':'RAW ML LEAN: visible for reference, but not qualified because held-out validation or the live cutoff did not pass.',
@@ -14065,15 +14075,17 @@ function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v}
 function renderReport(){
   const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;
   const r=runtime.report;
-  panel.querySelector('.analyzer-title').textContent='🧠 ML Road Trainer V204 — Stratified Held-Out Validation';
+  panel.querySelector('.analyzer-title').textContent='🧠 ML Road Trainer V204 — Seeded Stratified Held-Out Validation';
   const sub=panel.querySelector('.analyzer-sub');if(sub)sub.textContent='Connected directly to ML Training Dataset V160. Build / Refresh now rebuilds rows, trains two independent in-browser feature models, calibrates a selective gate on validation shoes, and tests that gate on completely held-out shoes. It cannot control other AIs.';
   const grid=panel.querySelector('.analyzer-grid');
   let live=null;try{live=runtime.trained?signal():null}catch(e){}
-  const liveTxt=live?.displaySide==='P'?'PLAYER':live?.displaySide==='B'?'BANKER':'WAIT';
+  const liveTxt=live?.qualified?(live?.side==='P'?'PLAYER':'BANKER'):'WAIT';
   const liveConf=Number.isFinite(Number(live?.confidence))?Number(live.confidence).toFixed(1)+'%':'—';
-  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>LIVE CONFIDENCE</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv170Authority">${runtime.trained?(runtime.qualified?'VALIDATED / SELECTIVE':'RAW LEAN ONLY'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>OFF / UNRESTRICTED</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
+  if(grid)grid.innerHTML=`<div class="analyzer-card"><span>LIVE PREDICTION</span><strong id="mlv170Pick">${liveTxt}</strong></div><div class="analyzer-card"><span>RAW RESEARCH LEAN</span><strong>${live?.researchSide==='P'?'PLAYER':live?.researchSide==='B'?'BANKER':'—'} (unverified)</strong></div><div class="analyzer-card"><span>MODEL SCORE (NOT CALIBRATED ODDS)</span><strong id="mlv170Conf">${liveConf}</strong></div><div class="analyzer-card"><span>LIVE AUTHORITY</span><strong id="mlv170Authority">${runtime.trained?(runtime.qualified?'VALIDATED / SELECTIVE':'RAW LEAN ONLY'):'READY TO TRAIN'}</strong></div><div class="analyzer-card"><span>UNSEEN SHOES</span><strong>${r?r.unseenTestShoes:'—'}</strong></div><div class="analyzer-card"><span>ALL TEST CALLS</span><strong>${r?(r.overall.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE TEST</span><strong>${r?(r.selective.rate*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>SELECTIVE N</span><strong>${r?r.selective.n:'—'}</strong></div><div class="analyzer-card"><span>BANKER SAME-HAND BASELINE</span><strong>${r?(r.baseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>BANKER SELECTIVE BASELINE</span><strong>${r?(r.selectiveBaseline*100).toFixed(1)+'%':'—'}</strong></div><div class="analyzer-card"><span>LIVE GATE</span><strong>${runtime.qualified?"VALIDATED SELECTIVE ONLY":"WAIT — UNVERIFIED"}</strong></div><div class="analyzer-card"><span>TARGET PACE</span><strong>≈${TARGET_CALLS} / shoe</strong></div>`;
   let note=document.getElementById('mlv170Note'); if(!note){note=document.createElement('div');note.id='mlv170Note';note.className='analyzer-sub';note.style.marginTop='8px';panel.appendChild(note)}
-  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${live?.reason||''} Validation reference: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%. Validation does NOT block live ML calls in V203.`:'Press Build / Refresh Dataset below to train the ML engine.';
+  let calib=document.getElementById('mlv205Calibration');if(!calib){calib=document.createElement('div');calib.id='mlv205Calibration';calib.className='analyzer-sub';panel.appendChild(calib)}
+  calib.textContent=r?'Unseen-test confidence buckets: '+r.calibrationBuckets.map(z=>z.range+'%: '+z.w+'/'+z.n+(z.n?' ('+(100*z.rate).toFixed(1)+'%)':'')).join(' | '):'Calibration available after training.';
+  note.textContent=runtime.lastError?'TRAINING ERROR: '+runtime.lastError:r?`${live?.reason||''} Validation reference: ${(r.selective.rate*100).toFixed(1)}% on ${r.selective.n} selective calls across ${r.unseenTestShoes} held-out shoes; baseline ${(r.baseline*100).toFixed(1)}%. Unverified raw leans are research-only; never delivered as qualified picks.`:'Press Build / Refresh Dataset below to train the ML engine.';
 }
 function install(){
   const panel=document.getElementById('mlRoadTrainerV155');if(panel)renderReport();
@@ -21152,9 +21164,13 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   const unique=new Map();for(const x of raw){const q=shoeseq(x);if(q.length>=9&&!unique.has(q))unique.set(q,q)}
   const shoes=[...unique.values()];if(cur.length<8)return {count:shoes.length,reason:'Enter at least 8 hands before searching partial-shoe continuations.'};
   if(!shoes.length)return {count:0,reason:'No saved shoes in the active library. Import or restore your saved-shoe backup.'};
-  const cr=normalizedRoad(cur),scores={P:0,B:0};let candidates=0,best=null;
+  const cr=normalizedRoad(cur),scores={P:0,B:0};let candidates=0,best=null,excluded=0;
   for(const shoe of shoes){
-   // Every plausible continuation is examined, including shifted occurrences within a shoe.
+   // A saved shoe containing the full live prefix already knows its future;
+   // exclude it from independent next-hand evidence.
+   if(shoe.startsWith(cur)){excluded++;continue}
+   const within={P:0,B:0};let withinN=0;
+   // Examine shifted matches but cap the total influence of each independent shoe.
    for(let pos=8;pos<shoe.length;pos++){
     const hist=shoe.slice(0,pos), n=Math.min(16,cur.length,hist.length);
     let eq=0;for(let i=0;i<n;i++)if(cur[cur.length-n+i]===hist[hist.length-n+i])eq++;
@@ -21167,16 +21183,17 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
     if(road<0.60||score<0.77)continue;
     const next=shoe[pos];if(next!=='P'&&next!=='B')continue;
     const weight=Math.pow(score,5)*(0.55+0.45*Math.min(1,n/16));
-    scores[next]+=weight;candidates++;
+    within[next]+=weight;withinN++;
     if(!best||score>best.score)best={score,bead,road,pos};
    }
+   if(withinN){const den=within.P+within.B;scores.P+=within.P/den;scores.B+=within.B/den;candidates++}
   }
   const total=scores.P+scores.B,edge=total?Math.abs(scores.P-scores.B)/total:0;
-  const info=best?`${Math.round(best.score*100)}% · ${candidates} matches`:'None';
-  if(!best)return {count:shoes.length,evidence:info,reason:'No qualified partial Bead + three-road match. Waiting, rather than inventing a signal.'};
-  if(candidates<2||edge<0.16)return {count:shoes.length,evidence:info,reason:`${candidates} continuation(s) found; Player/Banker vote not sufficiently separated.`};
+  const info=best?`${Math.round(best.score*100)}% similarity · ${candidates} shoes`:'None';
+  if(!best)return {count:shoes.length,evidence:info,reason:`No qualified independent Bead + three-road match. ${excluded} known-prefix shoe(s) excluded from voting.`};
+  if(candidates<2||edge<0.16)return {count:shoes.length,evidence:info,reason:`${candidates} independent shoe(s) found; Player/Banker vote not sufficiently separated. ${excluded} known-prefix shoe(s) excluded.`};
   const side=scores.P>scores.B?'P':'B';
-  return {side,count:shoes.length,evidence:info,reason:`Historical continuation vote: P ${Math.round(100*scores.P/total)}% / B ${Math.round(100*scores.B/total)}%. Match confidence is not a guaranteed win probability.`};
+  return {side,count:shoes.length,evidence:info,reason:`Independent shoe vote: P ${Math.round(100*scores.P/total)}% / B ${Math.round(100*scores.B/total)}%. ${excluded} known-prefix shoe(s) excluded. Similarity is not a win probability.`};
  }
  function tick(){
   try{
@@ -21189,7 +21206,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
     // Never score an undo, new shoe, bulk import, screenshot, or multi-hand replay as a live prediction.
     armed=null;lastHands=length;lastSeq=cur;
    }
-   const libKey=String(state?.predictionLibraryMode||'')+'|'+String(state?.currentShoeColor||'')+'|'+(state?.redPatternLibrary?.length||0)+'|'+(state?.blackPatternLibrary?.length||0);
+   const libKey=String(state?.predictionLibraryMode||'')+'|'+String(state?.currentShoeColor||'')+'|'+(typeof activePatternLibrary==='function'?activePatternLibrary():[]).map(shoeseq).join('|');
    const key=cur+'|'+libKey;
    if(key!==cachedKey){cachedPrediction=predict(cur);cachedKey=key}
    const out=cachedPrediction;paint(out);if(!armed&&out.side)armed=out.side;
@@ -21264,36 +21281,81 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  // Live research readout uses the same bead-suffix, color separation, independent-shoe
  // vote count, and 35-point vote-gap conditions as the historical audit.
  // Ties are omitted from the bead sequence; raw results are not modified.
+ const LIVE_KEY='baccarat-v420-audit-live-grades-v435';
+ let liveLedger={w:0,l:0};
+ try{const x=JSON.parse(localStorage.getItem(LIVE_KEY)||'null');if(x&&Number.isInteger(x.w)&&Number.isInteger(x.l))liveLedger={w:Math.max(0,x.w),l:Math.max(0,x.l)}}catch(_){}
+ let lastSequence=null, pending=null;
+ function paintLiveLedger(){
+  const n=liveLedger.w+liveLedger.l;
+  if($('v420LiveWL'))$('v420LiveWL').textContent=liveLedger.w+'W / '+liveLedger.l+'L';
+  if($('v420LiveRate'))$('v420LiveRate').textContent=n?(100*liveLedger.w/n).toFixed(1)+'% ('+n+')':'—';
+ }
+ function getRawSequence(){return (Array.isArray(state?.hands)?state.hands:[]).map(h=>typeof h==='string'?h:h?.r).filter(x=>x==='P'||x==='B'||x==='T').join('')}
+ function recordResult(raw){
+  if(lastSequence===null){lastSequence=raw;return}
+  if(raw===lastSequence)return;
+  const append=raw.length===lastSequence.length+1&&raw.startsWith(lastSequence);
+  if(append&&pending){const actual=raw.at(-1);if(actual==='P'||actual==='B'){
+    liveLedger[actual===pending?'w':'l']++;
+    try{localStorage.setItem(LIVE_KEY,JSON.stringify(liveLedger))}catch(_){}
+  }}
+  pending=null;lastSequence=raw;lastKey='';paintLiveLedger();
+ }
+ $('v420LiveReset')?.addEventListener('click',()=>{liveLedger={w:0,l:0};try{localStorage.removeItem(LIVE_KEY)}catch(_){}paintLiveLedger()});
+ $('v406ResetAllAccuracy')?.addEventListener('click',()=>{liveLedger={w:0,l:0};try{localStorage.removeItem(LIVE_KEY)}catch(_){}paintLiveLedger()});
+ paintLiveLedger();
  let lastKey='';
  function liveTick(){
   try{
-   const seq=(Array.isArray(state?.hands)?state.hands:[]).map(h=>h?.r).filter(x=>x==='P'||x==='B').join('');
+   const raw=getRawSequence();recordResult(raw);
+   const seq=raw.replace(/T/g,'');
    const mode=String(state?.predictionLibraryMode||'').toLowerCase();
    const color=String(state?.currentShoeColor||'').toLowerCase();
    const library=data();
    const key=seq+'|'+mode+'|'+color+'|'+library.length;
    if(key===lastKey)return;lastKey=key;
    const pick=$('v420LivePick'),matches=$('v420LiveMatches'),share=$('v420LiveShare'),note=$('v420LiveNote');
-   pick.textContent='WAIT';matches.textContent='0';share.textContent='—';
-   if(seq.length<8){note.textContent='Enter at least 8 Player/Banker results to search the saved-shoe library.';return}
-   const suffix=seq.slice(-8),votes=[];
-   for(const shoe of library){
-    if((mode==='red'||mode==='black')&&shoe.color!==mode)continue;
-    if(mode!=='combined'&&mode!=='all'&&mode!=='both'&&(color==='red'||color==='black')&&shoe.color!==color)continue;
-    // One vote per distinct shoe, never multiple observations from the same shoe.
-    for(let i=8;i<shoe.seq.length;i++){
-     if(shoe.seq.slice(i-8,i)===suffix&&(shoe.seq[i]==='P'||shoe.seq[i]==='B')){
-      votes.push(shoe.seq[i]);break;
+   pick.textContent='WAIT';matches.textContent='0';share.textContent='—';pending=null;
+   if(seq.length<8){note.textContent='Enter at least 8 Player/Banker results to start strict or exploratory research matching.';return}
+   // Strict eight-result research first; exploratory fallback uses shorter suffixes.
+   // Every reference shoe contributes at most one continuation vote.
+   function collect(k){
+    const suffix=seq.slice(-k),votes=[];
+    for(const shoe of library){
+     if((mode==='red'||mode==='black')&&shoe.color!==mode)continue;
+     if(mode!=='combined'&&mode!=='all'&&mode!=='both'&&(color==='red'||color==='black')&&shoe.color!==color)continue;
+     for(let i=k;i<shoe.seq.length;i++){
+      if(shoe.seq.slice(i-k,i)===suffix&&(shoe.seq[i]==='P'||shoe.seq[i]==='B')){
+       votes.push(shoe.seq[i]);break;
+      }
      }
     }
+    const n=votes.length,p=votes.filter(v=>v==='P').length,b=n-p;
+    return {k,n,p,b,edge:n?Math.abs(p-b)/n:0,share:n?Math.max(p,b)/n:0};
    }
-   const n=votes.length,p=votes.filter(v=>v==='P').length,b=n-p;
-   const majority=n?Math.max(p,b)/n:0,edge=n?Math.abs(p-b)/n:0;
+   const strict=collect(8);
+   let result=strict,level='STRICT';
+   if(!(strict.n>=4&&strict.edge>=.35&&strict.p!==strict.b)){
+    level='EXPLORATORY';
+    const alternatives=[collect(6),collect(4)];
+    result=alternatives.find(r=>r.n>=4&&r.edge>=.35&&r.p!==r.b)||alternatives.find(r=>r.n>=2&&r.p!==r.b)||strict;
+   }
+   const {k,n,p,b,edge,share:majority}=result;
    matches.textContent=String(n);share.textContent=n?(majority*100).toFixed(0)+'%':'—';
-   if(n<4){note.textContent=`Only ${n} distinct saved-shoe matches; requires at least 4. Showing WAIT.`;return}
-   if(edge<.35||p===b){note.textContent=`Historical votes disagree (${p} Player, ${b} Banker); requires at least 35-point vote gap. Showing WAIT.`;return}
-   pick.textContent=p>b?'PLAYER':'BANKER';
-   note.textContent=`Research lean from ${n} distinct reference shoes (${p} Player / ${b} Banker). This is historical agreement, not a measured probability or validated edge.`;
+   if(!n||p===b){note.textContent=`No directional continuation found. Exact 8-hand support: ${strict.n}. Showing WAIT.`;return}
+   const side=p>b?'P':'B';
+   if(level==='STRICT'){
+    pick.textContent=side==='P'?'PLAYER':'BANKER';
+    note.textContent=`STRICT 8-hand research lean (${n} distinct shoes: ${p} P / ${b} B). Historical vote share is not win probability.`;
+   }else{
+    // Distinguish a low-support research hypothesis from a qualified strict match.
+    pick.textContent=(side==='P'?'PLAYER':'BANKER')+' · EXP';
+    note.textContent=`EXPLORATORY ${k}-hand continuation (${n} distinct shoes: ${p} P / ${b} B); strict 8-hand matches: ${strict.n}. Not validated; NOT a qualified signal.`;
+   }
+   // Record exploratory calls separately from historical audit, but only when there
+   // is meaningful independent support. This does not certify betting reliability.
+   if(n>=2)pending=side;
+
   }catch(e){const n=$('v420LiveNote');if(n)n.textContent='Live readout error: '+String(e.message||e)}
  }
  setInterval(liveTick,900);liveTick();
@@ -21320,17 +21382,23 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    for(const entry of Array.isArray(lib)?lib:[]){let s=normalize(entry);if(s.length>=9&&!seen.has(s)){seen.add(s);all.push(s)}}
   }
   if(!all.length)return {note:'No matching saved-shoe library loaded for the selected shoe color.'};
-  // Exact last-eight sequence, one next-hand vote per independent saved shoe.
-  const key=cur.slice(-8),votes=[];let exactPrefix=0;
-  for(const s of all){
-   if(s.startsWith(cur)&&s.length>cur.length)exactPrefix++;
-   let at=-1;for(let i=8;i<s.length;i++){if(s.slice(i-8,i)===key&&(s[i]==='P'||s[i]==='B')){at=i;break}}
-   if(at>=0)votes.push(s[at]);
+  // Exact last-eight sequence. One aggregate vote per independent saved shoe.
+  const key=cur.slice(-8),votes=[];let exactPrefix=0,ambiguous=0;
+  for(const shoe of all){
+   if(shoe.startsWith(cur)&&shoe.length>cur.length){exactPrefix++;continue}
+   let p=0,b=0;
+   for(let i=8;i<shoe.length;i++){
+    if(shoe.slice(i-8,i)!==key)continue;
+    if(shoe[i]==='P')p++;
+    else if(shoe[i]==='B')b++;
+   }
+   if(p>b)votes.push('P');else if(b>p)votes.push('B');else if(p+b)ambiguous++;
   }
   const n=votes.length,p=votes.filter(x=>x==='P').length,b=n-p,side=p>b?'P':b>p?'B':null;
   const share=n?Math.max(p,b)/n:0;
-  let reason=n<4?'Insufficient independent shoe matches (minimum 4).':share<.75?'Historical continuations disagree; WAIT.':'Pattern qualifies for research-only display.';
-  if(exactPrefix)reason+=` ${exactPrefix} saved shoe(s) share the entire current prefix; their future outcomes were stored in the library, so this may be memorization rather than predictive skill.`;
+  let reason=n<4?'Insufficient independent shoe matches (minimum 4).':share<.75?'Historical shoe votes disagree; WAIT.':'Independent historical shoe votes qualify for research display.';
+  if(exactPrefix)reason+=` ${exactPrefix} exact-prefix saved shoe(s) excluded to avoid looking ahead.`;
+  if(ambiguous)reason+=` ${ambiguous} shoe(s) had tied continuations and were excluded.`;
   return {side:n>=4&&share>=.75?side:null,n,share,reason,exactPrefix,library:all.length};
  }
  function paint(o){
@@ -21352,11 +21420,11 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    armed=null;last=cur;lastCacheKey='';
   }
   const mode=String(state?.predictionLibraryMode||'')+'|'+String(state?.currentShoeColor||'');
-  const k=cur+'|'+mode+'|'+(state?.redPatternLibrary?.length||0)+'|'+(state?.blackPatternLibrary?.length||0);
+  const k=cur+'|'+mode+'|'+[...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])].map(normalize).join('|');
   if(k!==lastCacheKey){lastResult=find(cur);lastCacheKey=k}
   const out=Object.assign({},lastResult||{});
   // Maximum four chronological signals per shoe, with three-hand spacing.
-  if(used>=4){out.side=null;out.note='Four qualifying signals reached for this shoe.'}
+  if(used>=4){out.side=null;out.note='Four-signal per-shoe limit reached; accuracy is retained, but no new graded calls are issued until a new shoe.'}
   else if(cur.length-lastSignal<3){out.side=null;out.note='Spacing rule: wait at least 3 hands after the last signal.'}
   if(out.side&&!armed&&lastSignal!==cur.length){armed={side:out.side};used++;lastSignal=cur.length}
   else if(armed)out.side=armed.side;
@@ -21376,7 +21444,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  ['Derived Road AI','v358DerivedResult'],['AI Pattern Recognizer','roadAiSide'],
  ['Bead History AI','beadHistSide'],['8-Hand Bead + 3-Road','v388TriSide'],
  ['Historical Single-Road','v388OneSide'],['Main Future Awareness','v277Action'],['Saved Shoe Recognition','v419Pick'],
- ['Four-Signal Precision','v421Pick'],['Main Road Only','v284Pick'],
+ ['Four-Signal Precision','v421Pick'],['Four-Signal Research Audit','v420LivePick'],['Main Road Only','v284Pick'],
  ['ML Trainer','mlv307Pick']
  ];
  const streakExcluded=new Set(['Historical Three-Road','Historical Single-Road']);
@@ -21474,8 +21542,20 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  $('v422Reset')?.addEventListener('click',reset);
  function reset(){for(const [name] of models)journal[name]=[];persist();paint()}
  $('v406ResetAllAccuracy')?.addEventListener('click',reset);
- window.__V422_STREAK__={reset,scan,version:431,mlRawTracking:true};
+ window.__V422_STREAK__={reset,scan,version:435,mlRawTracking:true,auditLiveTracked:true};
  setInterval(scan,160);scan();
+})();
+</script>
+<script id="v433-bea2-experimental-evidence-layer">
+(function(){'use strict';
+// Experimental advisory only; never alters existing BEA2 decisions, scoring or accuracy ledger.
+function seq(){try{return currentSequence().map(x=>String(x?.r??x).toUpperCase()).map(x=>x==='PLAYER'?'P':x==='BANKER'?'B':x).filter(x=>'PBT'.includes(x))}catch(_){return []}}
+function lib(){let a=[];try{a=typeof uniqueActivePatternLibrary==='function'?uniqueActivePatternLibrary(false):[]}catch(_){}if(!a?.length){try{a=[...(state.redPatternLibrary||[]),...(state.blackPatternLibrary||[])]}catch(_){}}const seen=new Set();return a.map(x=>String(typeof x==='string'?x:(x.sequence||x.seq||'')).toUpperCase().replace(/[^PBT]/g,'')).filter(x=>{if(x.length<15||seen.has(x))return false;seen.add(x);return true})}
+function regime(s){let a=s.filter(x=>x==='P'||x==='B').slice(-9);let k=0;for(let i=1;i<a.length;i++)k+=a[i]===a[i-1];return a.length>1?k/(a.length-1):.5}
+function calc(){let s=seq(),p=s.filter(x=>x!=='T');if(p.length<12)return {reason:'Building 12-hand context',n:0};let tail=p.slice(-8),r=regime(p),found=[];for(let shoe of lib()){let q=shoe.split('').filter(x=>x!=='T'),best=null;for(let j=8;j<q.length;j++){let h=q.slice(j-8,j),m=0;for(let k=0;k<8;k++)m+=h[k]===tail[k];if(m<6)continue;let w=Math.pow(m/8,5)*(1-.30*Math.abs(regime(q.slice(0,j))-r));if(!best||w>best.weight)best={side:q[j],weight:w,match:m,shoe};}if(best)found.push(best)}found.sort((a,b)=>b.weight-a.weight);found=found.slice(0,12);if(found.length<3)return {reason:'Fewer than 3 independently matching shoes',n:found.length};let b=0,pl=0;for(let x of found)x.side==='B'?b+=x.weight:pl+=x.weight;let side=b>=pl?'B':'P',support=Math.max(b,pl)/(b+pl);let base=null;try{base=window.__V332_BEST_ESTIMATE_2__?.decide()}catch(_){}let agree=base?.side?base.side===side:null;return {side,support,n:found.length,exact:found.filter(x=>x.match===8).length,agreement:agree,regime:r>=.69?'Streak':r<=.31?'Alternating':'Mixed',reason:support>=.60?'Research candidate — unvalidated':'Weak historical vote — not a betting signal'};}
+function ensure(){const host=document.getElementById('v331BestEstimate2');if(!host||document.getElementById('v433BE2Study'))return;const d=document.createElement('details');d.id='v433BE2Study';d.className='v417-extra';d.style.marginTop='8px';d.innerHTML='<summary>BEA2 research upgrade: 8-hand matches, regime, false-match checks & reliability</summary><div class="analyzer-grid"><div class="analyzer-card"><span>8-hand historical vote</span><strong id="v433Side">—</strong></div><div class="analyzer-card"><span>Vote support (not probability)</span><strong id="v433Support">—</strong></div><div class="analyzer-card"><span>Independent matching shoes</span><strong id="v433Matches">—</strong></div><div class="analyzer-card"><span>Exact 8-hand matches</span><strong id="v433Exact">—</strong></div><div class="analyzer-card"><span>Current behavior</span><strong id="v433Regime">—</strong></div><div class="analyzer-card"><span>BEA2 confirmation</span><strong id="v433Agree">—</strong></div></div><div class="analyzer-sub" id="v433Note">Research only. Strong-looking past matches can fail on unseen hands.</div><div class="analyzer-sub">False-match protection: one vote per saved shoe; imperfect 6/8 and 7/8 matches penalized; score changes with shoe behavior. Ties skipped. Inverted patterns are checked but do not qualify as positive evidence until separately validated. Existing BEA2 logic/ledger untouched.</div>';host.appendChild(d)}
+function paint(){ensure();if(!document.getElementById('v433BE2Study'))return;let x=calc(),set=(id,v)=>{let el=document.getElementById(id);if(el)el.textContent=v};set('v433Side',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');set('v433Support',x.support? (100*x.support).toFixed(1)+'%':'—');set('v433Matches',String(x.n||0));set('v433Exact',String(x.exact||0));set('v433Regime',x.regime||'—');set('v433Agree',x.agreement==null?'BEA2 waiting':x.agreement?'Agrees':'Disagrees');set('v433Note',(x.reason||'')+' • Advisory only; no demonstrated edge over Banker baseline.');}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else paint();setInterval(()=>{try{paint()}catch(_){}},1800);window.__V433_BE2_EXPERIMENT__={paint,calc,advisoryOnly:true};
 })();
 </script>
 </body>
