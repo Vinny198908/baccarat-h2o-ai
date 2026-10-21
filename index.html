@@ -484,6 +484,15 @@ body { overscroll-behavior-y: none; }
 #v423TrustTable .rank strong{text-align:right;white-space:nowrap}
 #v434WatchCaption{font-size:10px;color:#bcd2d6;margin-top:5px}
 </style>
+<style id="v436-evidence-style">
+#v436Evidence{margin:9px 0;padding:12px;background:#151d25;border:1px solid #52768b;border-radius:13px;color:#eef6fa}
+#v436Evidence h3{margin:0;font-size:17px} #v436Evidence p{font-size:11px;color:#bfd0da;line-height:1.45;margin:6px 0}
+#v436Evidence .v436metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:9px 0}
+#v436Evidence .v436metric{padding:8px 4px;text-align:center;background:#233341;border-radius:8px;min-width:0}
+#v436Evidence .v436metric strong{display:block;font-size:20px} #v436Evidence .v436metric small{font-size:10px;color:#bdd0df}
+#v436Evidence .v436line{padding:7px;border-top:1px solid #354653;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+#v436Evidence button{width:100%;padding:9px;background:#273e4f;color:#fff;border:1px solid #627e93;border-radius:8px;font-weight:800}
+</style>
 </head>
 <body>
 <!-- V339: Best-Estimate Analyzer 2 accuracy now settles in the authoritative live P/B/T commit path before the hand is pushed, then arms the next call after commit. The delayed 210ms click-grading dependency was removed. Prediction logic unchanged. -->
@@ -558,6 +567,17 @@ body { overscroll-behavior-y: none; }
  <div id="v434WatchAccuracy" aria-live="polite"><div class="cell"><b id="v434WatchWins">0</b><span>LEADER WINS</span></div><div class="cell"><b id="v434WatchLosses">0</b><span>LEADER LOSSES</span></div><div class="cell"><b id="v434WatchTotal">0</b><span>GRADED CALLS</span></div><div class="cell"><b id="v434WatchRate">—</b><span>ACCURACY</span></div></div>
  <div id="v434WatchCaption">Live counters use the same graded results as AI Streak Signals. Ties, WAIT and undo are not counted.</div>
  <div id="v423TrustTable"></div>
+</section>
+<section id="v436Evidence" aria-label="Prediction Evidence Auditor">
+<h3>V436 • Prediction Evidence Auditor</h3>
+<p>Independent evidence families, provisional live grades, and same-hand Banker baseline. RESEARCH ONLY — not a prediction, betting instruction, or verified advantage. Existing AI decisions are unchanged.</p>
+<div class="v436metrics"><div class="v436metric"><strong id="v436Votes">0</strong><small>VISIBLE AI CALLS</small></div><div class="v436metric"><strong id="v436Families">0</strong><small>EVIDENCE FAMILIES</small></div><div class="v436metric"><strong id="v436Samples">0</strong><small>GRADED AGREEMENT CALLS</small></div></div>
+<div id="v436Status" class="v436line" aria-live="polite">Collecting observable AI calls.</div>
+<div id="v436Groups" class="v436line">No current calls.</div>
+<div id="v436Comparison" class="v436line">Forward test: awaiting observations.</div>
+<div id="v436Phases" class="v436line">Shoe-phase audit awaiting results.</div>
+<p>Grade only predictions visible before each new result. Ignore ties. Undo, replacement of shoe history, and resets are not graded. Never treat multiple derived roads as independent of their source history. Local research log stores at most 2,000 graded agreement calls.</p>
+<button type="button" id="v436Reset">Reset Auditor Research Only</button>
 </section>
 <section id="v422StreakPanel" aria-label="AI Streak Signals">
  <div class="streak-title">AI Streak Signals V431</div>
@@ -21577,6 +21597,67 @@ function calc(){let s=seq(),p=s.filter(x=>x!=='T');if(p.length<12)return {reason
 function ensure(){const host=document.getElementById('v331BestEstimate2');if(!host||document.getElementById('v433BE2Study'))return;const d=document.createElement('details');d.id='v433BE2Study';d.className='v417-extra';d.style.marginTop='8px';d.innerHTML='<summary>BEA2 research upgrade: 8-hand matches, regime, false-match checks & reliability</summary><div class="analyzer-grid"><div class="analyzer-card"><span>8-hand historical vote</span><strong id="v433Side">—</strong></div><div class="analyzer-card"><span>Vote support (not probability)</span><strong id="v433Support">—</strong></div><div class="analyzer-card"><span>Independent matching shoes</span><strong id="v433Matches">—</strong></div><div class="analyzer-card"><span>Exact 8-hand matches</span><strong id="v433Exact">—</strong></div><div class="analyzer-card"><span>Current behavior</span><strong id="v433Regime">—</strong></div><div class="analyzer-card"><span>BEA2 confirmation</span><strong id="v433Agree">—</strong></div></div><div class="analyzer-sub" id="v433Note">Research only. Strong-looking past matches can fail on unseen hands.</div><div class="analyzer-sub">False-match protection: one vote per saved shoe; imperfect 6/8 and 7/8 matches penalized; score changes with shoe behavior. Ties skipped. Inverted patterns are checked but do not qualify as positive evidence until separately validated. Existing BEA2 logic/ledger untouched.</div>';host.appendChild(d)}
 function paint(){ensure();if(!document.getElementById('v433BE2Study'))return;let x=calc(),set=(id,v)=>{let el=document.getElementById(id);if(el)el.textContent=v};set('v433Side',x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');set('v433Support',x.support? (100*x.support).toFixed(1)+'%':'—');set('v433Matches',String(x.n||0));set('v433Exact',String(x.exact||0));set('v433Regime',x.regime||'—');set('v433Agree',x.agreement==null?'BEA2 waiting':x.agreement?'Agrees':'Disagrees');set('v433Note',(x.reason||'')+' • Advisory only; no demonstrated edge over Banker baseline.');}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else paint();setInterval(()=>{try{paint()}catch(_){}},1800);window.__V433_BE2_EXPERIMENT__={paint,calc,advisoryOnly:true};
+})();
+</script>
+<script id="v436-evidence-auditor">
+(function(){'use strict';
+ const $=id=>document.getElementById(id), KEY='baccarat-v436-evidence-audit';
+ const models=[
+  ['Sequence AI V2','seqAiSide','Saved-history sequence'],
+  ['Saved Shoe Recognition','v419Pick','Saved-history sequence'],
+  ['Four-Signal Precision','v421Pick','Saved-history sequence'],
+  ['Four-Signal Audit','v420LivePick','Saved-history sequence'],
+  ['Bead History AI','beadHistSide','Saved-history sequence'],
+  ['8-Hand Bead + 3-Road','v388TriSide','Saved-history sequence'],
+  ['Historical Single-Road','v388OneSide','Saved-history sequence'],
+  ['AI Pattern Recognizer','roadAiSide','Road-structure'],
+  ['Main Future Road','futureFinal','Road-structure'],
+  ['Main Future Test 2','v360T2Pick','Road-structure'],
+  ['Derived Road AI','v358DerivedResult','Road-structure'],
+  ['Main Road Only','v284Pick','Road-structure'],
+  ['Main Future Awareness','v277Action','Road-structure'],
+  ['Best Estimate','bestSide','Composite / unknown overlap'],
+  ['Best Estimate 2','v331BE2Side','Composite / unknown overlap']
+ ];
+ let journal=[];try{const x=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(x))journal=x.filter(r=>r&&['P','B'].includes(r.actual)).slice(-2000)}catch(_){}
+ const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(journal.slice(-2000)))}catch(_){}};
+ const seq=()=>Array.isArray(window.state?.hands)?window.state.hands.map(x=>typeof x==='string'?x:x?.r).filter(x=>['P','B','T'].includes(x)).join(''): (typeof state!=='undefined'&&Array.isArray(state?.hands)?state.hands.map(x=>typeof x==='string'?x:x?.r).filter(x=>['P','B','T'].includes(x)).join(''):'');
+ function side(s){const t=String(s||'').trim().toUpperCase();if(/\bWAIT\b|\bNONE\b|\bRESOLVED\b|\bNO CALL\b/.test(t))return null;if(t==='P'||t==='PLAYER'||t.startsWith('PLAYER —')||t.startsWith('PLAYER •'))return 'P';if(t==='B'||t==='BANKER'||t.startsWith('BANKER —')||t.startsWith('BANKER •'))return 'B';return null}
+ function capture(){return models.map(([name,id,family])=>({name,family,pick:side($(id)?.textContent)})).filter(x=>x.pick)}
+ const phase=n=>n<8?'Before 8':n<=20?'8–20':n<=40?'21–40':'41+';
+ function assess(calls){const grouped={};for(const x of calls)(grouped[x.family]??=[]).push(x);
+  const families=Object.entries(grouped).map(([name,items])=>{const p=items.filter(x=>x.pick==='P').length,b=items.length-p;return {name,n:items.length,p,b,lean:p===b?null:p>b?'P':'B'}});
+  const p=calls.filter(x=>x.pick==='P').length,b=calls.length-p;
+  return {families,unanimous:calls.length>=2&&(p===0||b===0),side:p===0?'B':b===0?'P':null};
+ }
+ function rate(rows,fn){let n=0,w=0,bank=0;for(const x of rows){const pick=fn(x);if(pick==='P'||pick==='B'){n++;if(pick===x.actual)w++;if(x.actual==='B')bank++}}return {n,w,bank}}
+ function paint(){const calls=capture(),a=assess(calls),all=journal.filter(x=>x.unanimous&&x.side),r=rate(all,x=>x.side);
+  $('v436Votes').textContent=calls.length;$('v436Families').textContent=a.families.length;$('v436Samples').textContent=r.n;
+  $('v436Status').textContent=!calls.length?'No currently readable qualified P/B calls.':a.unanimous?'Apparent unanimous '+(a.side==='P'?'PLAYER':'BANKER')+' across '+calls.length+' calls. These are NOT '+calls.length+' independent confirmations.':'Current calls conflict or lack unanimity. No recommendation is made.';
+  $('v436Groups').textContent=a.families.length?a.families.map(f=>f.name+': '+f.n+' call(s) ('+f.p+' P / '+f.b+' B)').join(' • '):'No evidence families observed.';
+  $('v436Comparison').textContent=r.n?'Unanimous-call forward grades: '+r.w+'/'+r.n+' ('+(100*r.w/r.n).toFixed(1)+'%) vs Banker-only '+r.bank+'/'+r.n+' ('+(100*r.bank/r.n).toFixed(1)+'%) on EXACT SAME hands. Sample is exploratory, not independent validation; Banker commission not included.':'No eligible forward-graded unanimous calls yet. Historic app counters are not imported as proof.';
+  const phases=['8–20','21–40','41+'].map(k=>{const z=rate(all.filter(x=>x.phase===k),x=>x.side);return k+': '+(z.n?z.w+'/'+z.n+' ('+(100*z.w/z.n).toFixed(1)+'%)':'0 graded')});
+  $('v436Phases').textContent='Phase outcomes (exploratory): '+phases.join(' • ');
+ }
+ let last=null,snapshot=[];
+ function scan(){try{const cur=seq();if(last===null){last=cur;snapshot=capture();paint();return}
+   if(cur!==last){const append=cur.length===last.length+1&&cur.startsWith(last);
+    if(append){const actual=cur.at(-1);if((actual==='P'||actual==='B')&&snapshot.length){const a=assess(snapshot);journal.push({actual,n:cur.length,phase:phase(cur.length),unanimous:a.unanimous,side:a.side,families:a.families.length,calls:snapshot.length});journal=journal.slice(-2000);persist()}}
+    last=cur;snapshot=capture();paint();return;
+   }
+   snapshot=capture();paint();
+ }catch(e){if($('v436Status'))$('v436Status').textContent='Auditor diagnostic: '+String(e.message||e)}}
+ let pending=null;
+ document.addEventListener('click',e=>{const btn=e.target.closest?.('[data-result]');if(!btn||!['P','B','T'].includes(btn.dataset.result))return;
+   scan();pending={seq:last,calls:capture()};snapshot=pending.calls;
+   setTimeout(()=>{if(pending&&last===pending.seq)snapshot=pending.calls;scan();pending=null},0);
+   setTimeout(scan,110);
+ },true);
+ $('v436Reset')?.addEventListener('click',()=>{journal=[];persist();paint()});
+ // Use same reset-all contract as other accuracy-monitoring extensions.
+ $('v406ResetAllAccuracy')?.addEventListener('click',()=>{journal=[];persist();paint()});
+ window.__V436_EVIDENCE__={scan,report:()=>({records:journal.length,unanimous:journal.filter(x=>x.unanimous).length}),version:436};
+ setInterval(scan,950);scan();
 })();
 </script>
 </body>
