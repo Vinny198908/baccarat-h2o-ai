@@ -66,7 +66,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>All-In Baccarat — Prediction AI Dashboard</title>
+<title>V447 After-Tie Research • All-In Baccarat — Prediction AI Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -837,7 +837,7 @@ body { overscroll-behavior-y: none; }
   <div class="analyzer-sub">Prioritizes exact full-prefix matching, then P/B-only prefix matching, before shorter bead/rhythm/road patterns. Independent matching shoes get one vote. Exact historical agreement is not a guaranteed probability.</div>
   <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
     <div class="analyzer-card"><span>NEXT RESULT</span><strong id="beadHistSide">WAIT</strong></div>
-    <div class="analyzer-card"><span>CONFIDENCE</span><strong id="beadHistConf">—</strong></div>
+    <div class="analyzer-card"><span>HISTORICAL MODEL SCORE</span><strong id="beadHistConf">—</strong></div>
     <div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="beadHistEvidence">0</strong></div>
     <div class="analyzer-card"><span>LIBRARY</span><strong id="beadHistLibrary">0 / 0</strong></div>
   </div>
@@ -11248,71 +11248,45 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   function seq(){try{return currentSequence().filter(x=>x==='P'||x==='B'||x==='T')}catch(e){return[]}}
   function lib(){try{return activePatternLibrary().filter(x=>x&&typeof x.sequence==='string')}catch(e){return[]}}
 
+  // V444: shared tie evidence uses independent unique historical sequences, and
+  // does not interpret a historical majority as a calibrated betting probability.
   function tieTransitionEvidence(){
-    const cur=seq(), L=lib(), n=cur.length;
-    const lastTie=n>0 && cur[n-1]==='T';
-    const consecutiveTies=lastTie ? (()=>{let c=0;for(let i=n-1;i>=0&&cur[i]==='T';i--)c++;return c})() : 0;
-
-    if(!lastTie || n<4 || !L.length){
-      return {active:lastTie,side:null,pPct:50,bPct:50,matches:0,quality:0,consecutiveTies};
-    }
-
-    const maxK=Math.min(10,n), minK=Math.min(4,maxK), hits=[];
-
-    L.forEach((shoe,si)=>{
-      const s=shoe.sequence||'';
+    const cur=seq(), raw=lib(), n=cur.length;
+    let tieCount=0;for(let i=n-1;i>=0&&cur[i]==='T';i--)tieCount++;
+    const active=tieCount>0;
+    const empty={active,side:null,pPct:50,bPct:50,matches:0,quality:0,consecutiveTies:tieCount,reason:'Not enough independent post-tie evidence; WAIT'};
+    if(!active||n<4||!raw.length)return empty;
+    const seen=new Set(),shoes=[];
+    raw.forEach(sh=>{const ss=String(sh?.sequence||'').toUpperCase();if(ss.length>=4&&!seen.has(ss)){seen.add(ss);shoes.push(ss)}});
+    const maxK=Math.min(10,n),minK=4,hits=[];
+    for(const s of shoes){
       let best=null;
-
       for(let k=maxK;k>=minK;k--){
         const pat=cur.slice(-k).join('');
-
         for(let i=0;i+k<s.length;i++){
-          if(s.slice(i,i+k)!==pat) continue;
-
-          // Learn the first non-tie P/B result after the matched tie context.
-          let j=i+k;
-          while(j<s.length && s[j]==='T') j++;
-          if(j>=s.length || (s[j]!=='P' && s[j]!=='B')) continue;
-
-          const recency=k/maxK;
-          const sameBeadPos=(i%6)===((n-k)%6) ? 1 : 0;
-          const w=(1+.18*sameBeadPos)*(.72+.28*recency);
-          const cand={next:s[j],k,w,pos:sameBeadPos,si};
-
-          if(!best || cand.k>best.k || (cand.k===best.k && cand.w>best.w)){
-            best=cand;
-          }
+          if(s.slice(i,i+k)!==pat)continue;
+          let j=i+k;while(j<s.length&&s[j]==='T')j++;
+          if(j>=s.length||(s[j]!=='P'&&s[j]!=='B'))continue;
+          const cand={next:s[j],k};
+          if(!best||cand.k>best.k)best=cand;
         }
-        if(best) break;
+        if(best)break;
       }
-
-      if(best) hits.push(best);
-    });
-
-    if(!hits.length){
-      return {active:true,side:null,pPct:50,bPct:50,matches:0,quality:0,consecutiveTies};
+      if(best)hits.push(best); // maximum one vote per distinct saved shoe
     }
-
-    let P=0,B=0;
-    hits.forEach(h=>{if(h.next==='P')P+=h.w;else B+=h.w});
-    const total=P+B;
-    const p=total?P/total:.5, b=total?B/total:.5;
-    const edge=Math.abs(p-b);
-    const avgK=hits.reduce((a,h)=>a+h.k,0)/hits.length;
-    const quality=clamp(Math.round(100*(.55*(avgK/maxK)+.45*Math.min(1,hits.length/10))),0,100);
-    const enough=hits.length>=4 && edge>=.12 && quality>=55;
-
-    return {
-      active:true,
-      side:enough?(p>=b?'P':'B'):null,
-      pPct:Math.round(p*100),
-      bPct:Math.round(b*100),
-      matches:hits.length,
-      quality,
-      edge:Math.round(edge*100),
-      consecutiveTies,
-      reason:enough?'historical post-tie continuation found':'post-tie evidence not strong enough'
-    };
+    if(!hits.length)return empty;
+    const P=hits.filter(h=>h.next==='P').length,B=hits.length-P;
+    const maj=Math.max(P,B)/hits.length;
+    const avgK=hits.reduce((sum,h)=>sum+h.k,0)/hits.length;
+    const quality=Math.round(100*(0.5*avgK/maxK+0.5*Math.min(1,hits.length/20)));
+    // A 70% sample majority is a screening criterion, NOT a validated 70% win rate.
+    // Absence of held-out evidence means the module must never manufacture a pick.
+    const enough=hits.length>=12&&maj>=0.70&&quality>=60;
+    return {active:true,side:enough?(P>B?'P':'B'):null,
+      pPct:Math.round(100*P/hits.length),bPct:Math.round(100*B/hits.length),
+      matches:hits.length,quality,edge:Math.round(100*(2*maj-1)),
+      consecutiveTies:tieCount,reason:enough?'Historical post-tie agreement; not a verified edge':'Post-tie evidence inconclusive; WAIT',
+      independentShoes:shoes.length,verifiedEdge:false};
   }
 
   function adaptResult(base){
@@ -11340,9 +11314,9 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       x.reason=(x.reason?x.reason+' • ':'')+'post-tie history conflicts — WAIT';
     }else if(raw===t.side){
       if('confidence' in x && Number.isFinite(Number(x.confidence)))
-        x.confidence=clamp(Math.round(Number(x.confidence)+Math.min(4,t.edge/8)),0,100);
+        x.confidence=Number(x.confidence); // V444: no unvalidated post-tie confidence boost
       if('strength' in x && Number.isFinite(Number(x.strength)))
-        x.strength=clamp(Math.round(Number(x.strength)+Math.min(4,t.edge/8)),0,100);
+        x.strength=Number(x.strength); // V444: no unvalidated post-tie strength boost
       x.tieTransitionStatus='CONFIRMS';
       x.reason=(x.reason?x.reason+' • ':'')+'post-tie history confirms';
     }else{
@@ -20657,14 +20631,14 @@ function predict(seq){
     if(!matches.length)return null;
     const p=matches.filter(x=>x.side==='P').length,b=matches.length-p,n=p+b;
     const confidence=Math.max(p,b)/n,side=p>b?'P':b>p?'B':null;
-    const qualified=side&&confidence>=.70;
+    const qualified=side&&n>=10&&confidence>=.70;
     return {side:qualified?side:null,conf:confidence,evidence:n,library:lib.length,stored:libCache.rawCount,pN:p,bN:b,leadKind:kind,exactPriority:true,reason:`${qualified?(side==='P'?'PLAYER':'BANKER'):'WAIT'} • ${kind} ${n} independent shoe${n===1?'':'s'} • P ${p} / B ${b} • ${Math.round(confidence*100)}% historical agreement${n===1?' (single example, not calibrated confidence)':''}`};
   }
   // A matching raw full prefix always takes precedence; P/B-only matching is second.
   const prefixResult=exactDecision(exact,'full-prefix')||exactDecision(exactPB,'P/B-prefix');
   if(prefixResult){predictionCache.key=cacheKey;predictionCache.value=prefixResult;return prefixResult;}
   const lt=rhythm(lp),cur=lp[lp.length-1],best=new Map(),liveRoads=buildLiveRoads(live);
-  const add=(i,w,v,k,n,pbCount)=>{if(v!=='P'&&v!=='B')return;const old=best.get(i);if(!old||w>old.w)best.set(i,{w,v,k,n,pbCount:Number.isFinite(pbCount)?pbCount:null});};
+  const add=(i,w,v,k,n,pbCount)=>{if(v!=='P'&&v!=='B')return; if(!['full-prefix','pb-prefix'].includes(k) && n<8)return; const old=best.get(i);if(!old||w>old.w)best.set(i,{w,v,k,n,pbCount:Number.isFinite(pbCount)?pbCount:null});};
   lib.forEach((sh,i)=>{
     const spbt=sh.sequence,sp=sh.pb,st=sh.rhythm;
     if(spbt.startsWith(live)&&spbt.length>live.length){let j=live.length;while(j<spbt.length&&spbt[j]==='T')j++;if(j<spbt.length)add(i,10+Math.min(lp.length,24)*0.16,spbt[j],'full-prefix',lp.length,lp.length);}
@@ -20694,7 +20668,7 @@ function predict(seq){
   const finalSide=(strongBead&&side!==beadSide)?beadSide:side,finalConf=(finalSide===side?conf:Math.max(beadP,beadB));
   const roadConfirmed=road.side===beadSide&&road.evidence>=2,allRoadState=[...best.values()].some(x=>x.roadState?.all3);
   const localGate=allRoadState?Math.max(.535,CFG.conf-.015):CFG.conf;
-  if(finalConf<localGate||edge<CFG.edge||support<CFG.minSupport)result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,reason:`WAIT • bead ${beadSide} ${Math.round(Math.max(beadP,beadB)*100)}% • support P ${pN} / B ${bN}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
+  if(best.size<10||finalConf<Math.max(.65,localGate)||edge<CFG.edge||support<Math.max(8,CFG.minSupport))result={side:null,conf:finalConf,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,road,main,weights,reason:`WAIT • bead ${beadSide} ${Math.round(Math.max(beadP,beadB)*100)}% • support P ${pN} / B ${bN}${roadConflict?' • 3-road conflict':''}${mainConflict?' • main-road conflict':''}`};
   else {const leadKind=Object.entries(kinds).sort((a,b)=>b[1]-a[1])[0]?.[0]||'history';result={side:finalSide,conf:finalConf,edge,evidence:best.size,library:lib.length,stored:libCache.rawCount,pN,bN,leadKind,road,main,weights,roadConfirmed,allRoadState,reason:`${finalSide==='P'?'PLAYER':'BANKER'} • ${Math.round(finalConf*100)}% • adaptive bead-dominant history${allRoadState?' • same-state 3-road confirmation':''}${main.side===finalSide?' • main-road support':''} • strongest ${leadKind}`};}
   predictionCache.key=cacheKey;predictionCache.value=result;return result;
 }
@@ -20942,10 +20916,10 @@ window.__V384_BUILD__={
    const best=choices[0]||{side:'WAIT',support:0,rate:0,road:0,p:0,b:0};
    // Issue a transparent low-sample historical estimate whenever at least
    // one independent shoe points to one side; do not label it a betting edge.
-   const qualified=best.support>=4 && best.p!==best.b && best.rate>=0.60;
+   const qualified=best.support>=12 && best.p!==best.b && best.rate>=0.70;
    const side=qualified?best.side:'WAIT',pct=Math.round(best.rate*100);
    return {side,support:best.support,rate:pct,road:mode==='One'?ROAD_NAMES[best.road]:'At least 2 roads',
-     note:best.support?`${best.support} independent shoes: ${best.p} Player / ${best.b} Banker continuations (${pct}% historical majority). ${qualified?'Historical lean only; sample size may be tiny, not a proven live edge.':'Insufficient independent evidence or split vote; WAIT.'}`:'No independent saved-shoe matches met the bead + road rules.'};
+     note:best.support?`${best.support} independent shoes: ${best.p} Player / ${best.b} Banker continuations (${pct}% historical majority). ${qualified?'Historical majority only; this is not calibrated prediction accuracy or a proven live edge.':'Insufficient independent evidence or split vote; WAIT.'}`:'No independent saved-shoe matches met the bead + road rules.'};
  }
  function compute(){try{const live=pb((Array.isArray(state.hands)?state.hands:[]).map(h=>typeof h==='string'?h:h.r).join(''));const lib=library();return {Tri:vote('Tri',live,lib),One:vote('One',live,lib),length:state.hands.length,libraryCount:lib.length}}catch(e){const fallback={side:'WAIT',support:0,rate:0,road:'—',note:'Analysis temporarily unavailable: '+e.message};return {Tri:fallback,One:fallback,length:state.hands?.length||0,libraryCount:0}}}
  function paint(calls){calls=calls||compute();for(const k of MODES){const a=ledgers[k],v=calls[k];put(k+'Side',v.side==='P'?'PLAYER':v.side==='B'?'BANKER':'WAIT');put(k+'Support',v.support+' shoes');if(k==='Tri')put(k+'Confidence',v.support?v.rate+'%':'—');else put(k+'Road',v.road||'—');put(k+'Accuracy',a.w+a.l?Math.round(100*a.w/(a.w+a.l))+'%':'—');put(k+'WL',a.w+'W-'+a.l+'L');put(k+'Count',(a.w+a.l)+' / '+a.wait);put(k+'Note','NEXT HAND '+(calls.length+1)+' • Library scanned: '+(calls.libraryCount||0)+' unique shoes • '+v.note+(a.last?' • Previous result: '+a.last:''));}return calls}
@@ -21631,5 +21605,284 @@ window.__V439_SHADOW__={scan,report:()=>({graded:logs.length,records:logs}),vers
 })();
 </script>
 
+
+<script>
+// V444 after-tie library research — observational data, NOT automatic prediction override.
+(function(){
+ function sequenceOf(x){return String(x&&x.sequence||'').toUpperCase().replace(/[^PBT]/g,'')}
+ function library(){try{return [...(state.redPatternLibrary||[]),...(state.blackPatternLibrary||[])]}catch(e){return []}}
+ function audit(){
+   const seen=new Set();let shoes=0,ties=0,observed=0,P=0,B=0,stay=0,switches=0;
+   for(const x of library()){
+     const seq=sequenceOf(x);if(!seq||seen.has(seq))continue;seen.add(seq);shoes++;
+     for(let i=0;i<seq.length;i++){
+       if(seq[i]!=='T')continue;ties++;
+       let before=null,after=null;
+       for(let j=i-1;j>=0;j--){if(seq[j]==='P'||seq[j]==='B'){before=seq[j];break}}
+       for(let j=i+1;j<seq.length;j++){if(seq[j]==='P'||seq[j]==='B'){after=seq[j];break}}
+       if(before&&after){observed++;if(after==='P')P++;else B++;if(before===after)stay++;else switches++}
+     }
+   }
+   return {shoes,ties,observed,P,B,stay,switches};
+ }
+ function show(){
+   let host=document.getElementById('v444TieAudit');
+   if(!host){host=document.createElement('section');host.id='v444TieAudit';host.style.cssText='margin:12px 0;padding:14px;border:1px solid #4b5563;border-radius:12px;background:#171a1f;color:#f4f6f8;font:14px system-ui';
+     (document.querySelector('.wrap')||document.body).appendChild(host)}
+   const a=audit(),e=typeof window.tieTransitionEvidence==='function'?window.tieTransitionEvidence():null;
+   const active=e&&e.active;
+   host.innerHTML='<b>V444 • After-Tie Library Evidence (Research)</b><div style="margin-top:8px">Saved unique shoes: '+a.shoes+' • Ties: '+a.ties+' • Complete tie transitions: '+a.observed+'</div>'+
+   '<div>After tie: Player '+a.P+' / Banker '+a.B+' • Same side '+a.stay+' / Switch '+a.switches+'</div>'+
+   '<div style="margin-top:6px;color:#e5c78b">'+(active?('Current tie context: '+(e.matches||0)+' unique matched shoes • '+(e.side?(e.side==='P'?'Player':'Banker')+' historical lean':'WAIT — insufficient agreement')):'After-tie signal activates only when the latest result is Tie')+'</div>'+
+   '<small style="display:block;margin-top:6px;color:#aeb7c2">Historical percentages are not verified next-hand probabilities. Existing AI core predictions are retained; tie evidence can flag conflicts, not guarantee a winner.</small>';
+ }
+ window.__V444_TIE_AUDIT__={audit,update:show};
+ document.addEventListener('DOMContentLoaded',show);setInterval(show,2500);show();
+})();
+</script>
+
+<script id="v445-dedicated-after-tie-ai">
+(function(){'use strict';
+  if(window.__V445_AFTER_TIE_AI__)return;
+  const KEY='v448_after_tie_shadow_audit_v1';
+  const $=id=>document.getElementById(id);
+  const sequence=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h.r).filter(x=>x==='P'||x==='B'||x==='T').join('')}catch(_){return ''}};
+  let ledger=[];
+  try{const v=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(v))ledger=v.slice(-2000)}catch(_){}
+  let previous=null,pending=null;
+  // V446: trained five-hand post-tie pattern matcher. This is research-only
+  // because held-out results did not establish an advantage.
+  function trainedEvidence(s){
+    const k=6, minShoes=8, minAgreement=.65;
+    const raw=typeof activePatternLibrary==='function'?activePatternLibrary():[];
+    const seen=new Set(), votes=[];
+    const pattern=s.slice(-k);
+    if(s.length<k) return {matches:0,side:null,agreement:0,reason:'Need six recent outcomes including Tie'};
+    for(const item of raw){
+      const sh=String(item?.sequence||'').toUpperCase();
+      if(sh.length<k+1||seen.has(sh))continue;
+      seen.add(sh);
+      let p=0,b=0;
+      for(let j=k;j<sh.length;j++){
+        if(sh[j-1]!=='T'||sh.slice(j-k,j)!==pattern)continue;
+        if(sh[j]==='P')p++;if(sh[j]==='B')b++;
+      }
+      if(p>b)votes.push('P');else if(b>p)votes.push('B');
+    }
+    const p=votes.filter(x=>x==='P').length,b=votes.length-p,n=p+b;
+    const agreement=n?Math.max(p,b)/n:0;
+    const candidate=n>=minShoes&&agreement>=minAgreement?(p>b?'P':'B'):null;
+    return {matches:n,candidate,agreement,side:null,
+      reason:candidate?'RESEARCH ONLY — held-out advantage not verified':'Insufficient independent agreement — WAIT'};
+  }
+  function assess(s){
+    let ties=0;for(let i=s.length-1;i>=0&&s[i]==='T';i--)ties++;
+    if(!ties)return {active:false,side:null,matches:0,reason:'Standing by for a Tie'};
+    const e=trainedEvidence(s);
+    return {active:true,side:null,candidate:e.candidate,agreement:e.agreement,matches:e.matches,ties,
+      reason:e.reason+(e.candidate?' • Candidate '+(e.candidate==='P'?'Player':'Banker')+' ('+Math.round(100*e.agreement)+'% match agreement)':'')};
+  }
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(ledger))}catch(_){}}
+  function ensure(){
+    if($('v445AfterTieAI'))return;
+    const host=document.createElement('section');host.id='v445AfterTieAI';
+    host.style.cssText='margin:12px 0;padding:13px;border:2px solid #7f99b0;border-radius:12px;background:#14212b;color:#eff6fc;font:14px system-ui';
+    host.innerHTML='<div style="font-weight:800;font-size:18px">After-Tie AI • Verified Shadow Audit (V448 baseline)</div><div style="font-size:12px;color:#b4c9d8;margin:4px 0 10px">Trained on 195 saved shoes. Exact six-hand post-tie matches; one vote per unique shoe. Research mode: independently grades historical candidates after the next outcome; no live betting call. New audit statistics start at zero.</div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;text-align:center"><div style="background:#253c4c;padding:9px 2px;border-radius:7px"><strong id="v445Pick" style="font-size:20px">WAIT</strong><div style="font-size:10px">NEXT RESULT</div></div><div style="background:#253c4c;padding:9px 2px;border-radius:7px"><strong id="v445WL" style="font-size:20px">0W–0L</strong><div style="font-size:10px">GRADED CALLS</div></div><div style="background:#253c4c;padding:9px 2px;border-radius:7px"><strong id="v445Rate" style="font-size:20px">—</strong><div style="font-size:10px">LIVE ACCURACY</div></div></div><div id="v445Info" style="margin-top:9px;font-size:12px">Waiting for a tie.</div><div id="v445Shadow" style="font-size:12px;margin-top:6px">Historical candidate audit: 0W–0L (—) • 0 qualified</div><div id="v445Wait" style="font-size:12px;margin-top:5px">WAIT: 0 • Ties continued: 0</div><button id="v445Reset" type="button" style="margin-top:9px;background:#2a475e;color:white;border:1px solid #6d8ba0;border-radius:7px;padding:9px;width:100%;font-weight:700">Reset After-Tie AI Research Counts</button><div style="margin-top:7px;font-size:11px;color:#b4c9d8">Previous held-out research: 28W–25L (52.8%) on 53 calls; not a verified edge. Shadow grades start fresh and do not count as live betting wins.</div>';
+    const anchor=$('v444TieAudit');if(anchor)anchor.insertAdjacentElement('afterend',host);else(document.querySelector('.wrap')||document.body).appendChild(host);
+    $('v445Reset').addEventListener('click',reset);
+    $('v406ResetAllAccuracy')?.addEventListener('click',reset);
+  }
+  function reset(){ledger=[];save();paint()}
+  function paint(){ensure();const current=pending||assess(sequence());
+    const w=ledger.filter(x=>x.result==='W').length,l=ledger.filter(x=>x.result==='L').length;
+    $('v445WL').textContent=w+'W–'+l+'L';$('v445Rate').textContent=w+l?(100*w/(w+l)).toFixed(1)+'%':'—';
+    $('v445Pick').textContent=current.active?(current.side==='P'?'PLAYER':current.side==='B'?'BANKER':'WAIT'):'WAIT';
+    $('v445Info').textContent=current.active?((current.matches||0)+' independent historical matches • '+(current.side?'Historical support '+(current.side==='P'?current.pPct:current.bPct)+'% • ':'')+current.reason):'Standing by. Activates only following a Tie.';
+    const sw=ledger.filter(x=>x.shadow==='W').length,sl=ledger.filter(x=>x.shadow==='L').length;
+    $('v445Shadow').textContent='Shadow research: '+sw+'W–'+sl+'L ('+(sw+sl?(100*sw/(sw+sl)).toFixed(1)+'%':'—')+') • '+(sw+sl)+' qualified';
+    $('v445Wait').textContent='WAIT: '+ledger.filter(x=>x.result==='WAIT').length+' • Ties continued: '+ledger.filter(x=>x.result==='TIE').length;
+  }
+  function scan(){try{
+    const s=sequence();
+    if(previous===null){previous=s;pending=assess(s);paint();return}
+    if(s!==previous){
+      const appended=s.length===previous.length+1&&s.startsWith(previous);
+      if(appended){
+        const actual=s.slice(-1);
+        if(pending?.active){
+          if(actual==='T')ledger.push({result:'TIE',shadow:null});
+          else ledger.push({result:'WAIT',shadow:pending.candidate?(pending.candidate===actual?'W':'L'):null,candidate:pending.candidate||null,actual,independentMatches:pending.matches||0});
+          ledger=ledger.slice(-2000);save();
+        }
+      }else{ /* undo, reset or shoe replacement: never grade old predictions */ }
+      previous=s;pending=assess(s);paint();return;
+    }
+    pending=assess(s);paint();
+  }catch(e){const el=$('v445Info');if(el)el.textContent='Diagnostic: '+String(e.message||e)}}
+  document.addEventListener('DOMContentLoaded',scan);
+  setInterval(scan,500);scan();
+  window.__V445_AFTER_TIE_AI__={scan,reset,report:()=>({ledger:[...ledger],graded:ledger.filter(x=>x.result==='W'||x.result==='L').length}),version:448};
+})();
+</script>
+
+<!-- V446: after-tie training audit; research-only until held-out validation improves -->
+<script id="v449-tie-snapshot-research">
+(function(){'use strict';
+ const id='v449TieSnapshotPanel';let cacheKey='',history=[],log=[],old=null,pending=null;
+ function live(){return (state.hands||[]).map(h=>typeof h==='string'?h:h.r).filter(x=>'PBT'.includes(x)).join('')}
+ function snap(s){const pb=s.replace(/T/g,'');const hands=Array.from(pb,c=>({r:c}));const col=buildBigRoadColumns(hands);const road=[1,2,3].map(n=>deriveRoad(hands,n).slice(-5).join(''));const last=pb.slice(-1);let run=0;for(let i=pb.length-1;i>=0&&pb[i]===last;i--)run++;return [s.slice(-8),pb.slice(-8),last,Math.min(5,run),col.length>1&&col.at(-1).length===col.at(-2).length?'S':'D',...road]}
+ function simil(a,b){const w=[1.8,1.2,.4,.8,.4,1.1,1.1,1.1];let t=0;for(let i=0;i<8;i++){if([0,1,5,6,7].includes(i)){let n=0;const x=a[i],y=b[i];for(let z=1;z<=Math.min(x.length,y.length);z++){if(x.at(-z)!==y.at(-z))break;n++}t+=w[i]*n/Math.max(1,Math.min(x.length,y.length,i<2?8:5))}else t+=w[i]*(a[i]===b[i]?1:0)}return t}
+ function refresh(){const raw=typeof activePatternLibrary==='function'?activePatternLibrary():[];const unique=[...new Set(raw.map(x=>String(x&&x.sequence||'').toUpperCase().replace(/[^PBT]/g,'')).filter(x=>x.length>10))];const key=unique.length+':'+unique.reduce((n,x)=>n+x.length,0)+':'+unique.slice(0,3).join(':');if(key===cacheKey)return;cacheKey=key;history=[];unique.forEach((s,shoe)=>{for(let i=0;i<s.length;i++){if(s[i]!=='T')continue;let j=i+1;while(j<s.length&&s[j]==='T')j++;if(j<s.length&&'PB'.includes(s[j]))history.push({shoe,features:snap(s.slice(0,j)),next:s[j]})}})}
+ function choose(s){if(!s.endsWith('T'))return {candidate:null,reason:'Waiting for a tie',n:0};refresh();const f=snap(s),best=new Map();for(const h of history){if(h.features[2]!==f[2])continue;const v=simil(f,h.features);const prev=best.get(h.shoe);if(!prev||v>prev.v)best.set(h.shoe,{v,side:h.next})}const top=[...best.values()].sort((a,b)=>b.v-a.v).slice(0,16);if(top.length<8)return {candidate:null,reason:'Fewer than 8 independent matching shoes',n:top.length};const cutoff=top[Math.min(11,top.length-1)].v;const high=top.filter(x=>x.v>=cutoff);const b=high.filter(x=>x.side==='B').length,p=high.length-b;const candidate= Math.max(b,p)/high.length>=.7&&cutoff>=4.1?(b>p?'B':'P'):null;return {candidate,n:high.length,agreement:Math.max(b,p)/high.length,reason:candidate?'Research candidate only':'Insufficient road-state agreement'} }
+ function panel(){let e=document.getElementById(id);if(e)return e;e=document.createElement('section');e.id=id;e.style.cssText='margin:12px 0;padding:12px;background:#192735;color:#e8f2fa;border:1px solid #869eb2;border-radius:10px;font:13px system-ui';e.innerHTML='<b>V449 • Historical Tie Road Snapshots (Research)</b><div id="v449Info" style="margin:8px 0">Scanning...</div><div id="v449Stats"></div><button id="v449Reset" style="padding:8px;margin-top:8px">Reset snapshot research counts</button><p style="font-size:11px">Rebuilds Bead Plate, Big Road columns, Big Eye, Small, and Cockroach states using only hands known when each tie occurred. Compares inverted structures only indirectly through derived roads. Candidates are not betting signals.</p>';(document.getElementById('v445AfterTieAI')||document.body).insertAdjacentElement('afterend',e);e.querySelector('#v449Reset').onclick=()=>{log=[];draw()};return e}
+ function draw(){const e=panel(),w=log.filter(x=>x===true).length,l=log.filter(x=>x===false).length,a=pending||{reason:'Waiting'};e.querySelector('#v449Info').textContent=`Library tie snapshots: ${history.length} • Unique-shoe matching: ${a.n||0} • ${a.reason}${a.candidate?' • historical '+(a.candidate==='B'?'Banker':'Player')+' candidate':''}`;e.querySelector('#v449Stats').textContent=`Forward shadow observations: ${w}W–${l}L (${w+l?(100*w/(w+l)).toFixed(1)+'%':'—'}). No validated betting advantage.`}
+ function tick(){try{const s=live();if(old!==null&&s.length===old.length+1&&s.startsWith(old)&&pending&&'PB'.includes(s.at(-1))&&pending.candidate)log.push(pending.candidate===s.at(-1));old=s;pending=choose(s);draw()}catch(e){const box=document.getElementById('v449Info');if(box)box.textContent='Diagnostic: '+e.message}}
+ setInterval(tick,1200);document.addEventListener('DOMContentLoaded',tick);tick();window.__V449_TIE_SNAPSHOT__={snapshot:snap,inspect:choose,version:449};
+})();
+</script>
+<script id="v450-independent-after-tie-research">
+(function(){'use strict';
+ if(window.__V450_AFTER_TIE__)return;
+ const ID='v450AfterTiePanel',KEY='v450_after_tie_comparisons_v1';
+ const $=id=>document.getElementById(id);
+ const seq=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h.r).filter(x=>x==='B'||x==='P'||x==='T').join('')}catch(_){return ''}};
+ let log=[];try{const a=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(a))log=a.slice(-3000)}catch(_){}
+ let previous=null,pending=null;
+ function independent(s){
+  if(!s.endsWith('T'))return {candidate:null,reason:'Waiting for a Tie'};
+  const pb=s.replace(/T/g,'');if(pb.length<8)return {candidate:null,reason:'Need eight completed B/P hands'};
+  const last=pb.at(-1),prev=pb.at(-2);let run=1;for(let i=pb.length-2;i>=0&&pb[i]===last;i--)run++;
+  const tail=pb.slice(-8),sw=[...tail].slice(1).filter((x,i)=>x!==tail[i]).length;
+  // This is a deliberately transparent hypothesis, not a trained probability.
+  // The independent model uses no library data or future outcome.
+  let candidate,reason;
+  if(run>=3){candidate=last;reason='Current-shoe run continuation hypothesis ('+run+' same-side)'}
+  else if(sw>=5){candidate=last==='B'?'P':'B';reason='Current-shoe high-switch hypothesis ('+sw+'/7 changes)'}
+  else if(run===1 && prev!==last){candidate=last;reason='Current-shoe switch/hold hypothesis'}
+  else {candidate=last;reason='Current-shoe side-persistence hypothesis'}
+  return {candidate,reason,run,switches:sw};
+ }
+ function assess(s){if(!s.endsWith('T'))return {active:false};const local=independent(s);
+  let historical=null;try{historical=window.__V449_TIE_SNAPSHOT__?.inspect?.(s)||null}catch(_){}
+  const h=historical?.candidate||null,i=local.candidate||null;
+  const combined=h&&i?(h===i?h:null):null;
+  return {active:true,independent:i,historical:h,combined,localReason:local.reason,historicalReason:historical?.reason||'No qualified historical match',matches:historical?.n||0,agree:h&&i&&h===i};
+ }
+ function create(){let e=$(ID);if(e)return e;e=document.createElement('section');e.id=ID;
+  e.style.cssText='margin:12px 0;padding:13px;border:2px solid #8799b8;border-radius:11px;background:#142431;color:#eaf3fc;font:13px system-ui';
+  e.innerHTML='<strong style="font-size:18px">V450 • After-Tie Dual Engine (Research)</strong><div style="margin:5px 0 10px;color:#c2d0de">Independent engine operates even with zero library matches. Historical engine stays separate. Combined requires agreement. Research hypotheses only — no betting signals.</div><div id="v450Picks" style="font-size:15px;font-weight:bold">Waiting for a tie</div><div id="v450Reason" style="margin:8px 0"></div><div id="v450Counts" style="line-height:1.8"></div><button type="button" id="v450Reset" style="margin-top:8px;padding:9px;background:#304b60;color:white;border:1px solid #8394a4;border-radius:6px">Reset dual-engine research counts</button>';
+  ($( 'v449TieSnapshotPanel')||$('v445AfterTieAI')||document.body).insertAdjacentElement('afterend',e);
+  $('v450Reset').onclick=()=>{log=[];save();paint()};
+  $('v406ResetAllAccuracy')?.addEventListener('click',()=>{log=[];save();paint()});return e;
+ }
+ function save(){try{localStorage.setItem(KEY,JSON.stringify(log))}catch(_){}}
+ function scores(which){const a=log.filter(x=>x.actual==='B'||x.actual==='P');const calls=a.filter(x=>x[which]==='B'||x[which]==='P'),w=calls.filter(x=>x[which]===x.actual).length;return which+': '+w+'W–'+(calls.length-w)+'L ('+(calls.length?(100*w/calls.length).toFixed(1)+'%':'—')+') • '+calls.length+'/'+a.length+' covered'}
+ function paint(){create();const a=pending||assess(seq());$('v450Picks').textContent=a.active?'Independent: '+(a.independent||'WAIT')+' | Library: '+(a.historical||'WAIT')+' | Combined: '+(a.combined||'WAIT'):'Waiting for Tie';$('v450Reason').textContent=a.active?'Independent: '+a.localReason+' • Historical: '+a.historicalReason+' ('+a.matches+' shoes)':'Engine activates only after a Tie';$('v450Counts').textContent=[scores('independent'),scores('historical'),scores('combined')].join(' | ')}
+ function tick(){try{const s=seq();if(previous!==null&&s!==previous){const appended=s.length===previous.length+1&&s.startsWith(previous);if(appended&&pending?.active&&'BP'.includes(s.at(-1))){log.push({actual:s.at(-1),independent:pending.independent||null,historical:pending.historical||null,combined:pending.combined||null});log=log.slice(-3000);save()}}previous=s;pending=assess(s);paint()}catch(e){if($('v450Reason'))$('v450Reason').textContent='Diagnostic: '+String(e.message||e)}}
+ document.addEventListener('DOMContentLoaded',tick);setInterval(tick,950);tick();window.__V450_AFTER_TIE__={inspect:assess,independent,reset:()=>{log=[];save();paint()},version:450};
+})();
+</script>
+<script id="v451-after-tie-all-ai">
+(function(){
+'use strict';
+if(window.__V451_AFTER_TIE_TRACKING__)return;
+const STORE='baccarat_v451_after_tie_accuracy_v1';
+const MODELS=[
+ ['Sequence AI V2','seqAiSide'],['Best Estimate','bestSide'],['Best Estimate 2','v331BE2Side'],
+ ['Main Future Road','futureFinal'],['Main Future Test 2','v360T2Pick'],
+ ['Derived Road AI','v358DerivedResult'],['AI Pattern Recognizer','roadAiSide'],
+ ['Bead Plate History AI','beadHistSide'],['8-Hand Bead + 3-Road','v388TriSide'],
+ ['Historical Single-Road','v388OneSide'],['Main Future Awareness','v277Action'],
+ ['Saved Shoe Recognition','v419Pick'],['Four-Signal Precision','v421Pick'],
+ ['Four-Signal Research Audit','v420LivePick'],['Main Road Only','v284Pick'],['ML Trainer','mlv307Pick']
+];
+const $=id=>document.getElementById(id);
+const seq=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(v=>v==='P'||v==='B'||v==='T').join('')}catch(e){return ''}};
+const normalize=v=>{const t=String(v||'').trim().toUpperCase();if(/WAIT|NO BET|HOLD|NONE|RESOLVED|NO SIGNAL|—/.test(t))return null;if(/^(P|PLAYER)(?:\b|\s|$)/.test(t))return 'P';if(/^(B|BANKER)(?:\b|\s|$)/.test(t))return 'B';return null};
+const fresh=()=>({w:0,l:0,wait:0});
+let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch(e){}
+let stats=saved.stats&&typeof saved.stats==='object'?saved.stats:{};
+let lastSequence=seq(),pending=null;
+let generation=Number(saved.generation)||0;
+function persist(){try{localStorage.setItem(STORE,JSON.stringify({stats,generation}))}catch(e){}}
+function entries(){
+ const z=new Map(MODELS);
+ // Source-of-truth verified model definitions: supports future models with verified prediction getters.
+ try{for(const row of (window.__accuracyModelDefs||[])){if(Array.isArray(row)&&row[0]&&!z.has(row[1]))z.set(row[1],null)}}catch(e){}
+ return [...z].filter(([name])=>name);
+}
+function signals(){
+ const result={};
+ const defs=Array.isArray(window.__accuracyModelDefs)?window.__accuracyModelDefs:[];
+ const byLabel={};for(const row of defs){if(!Array.isArray(row))continue;try{const p=row[2]?.();const side=p?.side;if(side==='P'||side==='B')byLabel[String(row[1]||'').toLowerCase()]=side}catch(e){}}
+ for(const [name,id] of entries()){
+  let side=null;
+  if(id)side=normalize($(id)?.textContent);
+  if(!side)side=byLabel[name.toLowerCase()]||null;
+  // ML raw side is not a qualified prediction; never score a research lean as a live call.
+  result[name]=side;
+ }
+ return result;
+}
+function startAfterTie(s){if(!s.endsWith('T')){pending=null;return}
+ pending={seq:s,signals:signals(),generation};
+}
+function settle(newSeq){
+ if(newSeq===lastSequence)return;
+ const old=lastSequence;lastSequence=newSeq;
+ // Edits, reset and shoe replacements cannot be treated as chronological outcomes.
+ if(!newSeq.startsWith(old)||newSeq.length!==old.length+1){pending=null;if(newSeq.endsWith('T'))startAfterTie(newSeq);paint();return}
+ const actual=newSeq.at(-1);
+ if((actual==='P'||actual==='B')&&pending&&pending.seq===old&&pending.generation===generation){
+  for(const [name,side] of Object.entries(pending.signals)){
+   const m=stats[name]||(stats[name]=fresh());
+   if(side==='B'||side==='P'){if(side===actual)m.w++;else m.l++}else m.wait++;
+  }
+  persist();
+ }
+ pending=null;
+ if(actual==='T')startAfterTie(newSeq);
+ paint();
+}
+function resetOne(name){stats[name]=fresh();generation++;pending=null;if(lastSequence.endsWith('T'))startAfterTie(lastSequence);persist();paint()}
+function resetAll(){if(!window.confirm('Reset ALL AI AFTER-TIE accuracy counts only? Regular accuracy counts and saved shoes will stay unchanged.'))return;
+ stats={};generation++;pending=null;if(lastSequence.endsWith('T'))startAfterTie(lastSequence);persist();paint();}
+function make(){
+ let area=$('v451AfterTieAccuracy');if(area)return area;
+ area=document.createElement('section');area.id='v451AfterTieAccuracy';
+ area.style.cssText='padding:14px;margin:12px 0;border:2px solid #8299bd;background:#15232e;color:#eaf1ff;border-radius:12px;font:13px system-ui';
+ const header=document.createElement('div');header.innerHTML='<strong style="font-size:17px">ALL AI AFTER-TIE ACCURACY</strong><p style="margin:5px 0 9px;color:#c6d6e6">Separate verified outcomes immediately following a tie. A further Tie is not scored as a win/loss. Regular AI accuracy stays untouched.</p>';
+ const reset=document.createElement('button');reset.type='button';reset.id='v451ResetAllAfterTie';reset.textContent='RESET ALL AFTER-TIE COUNTS ONLY';reset.style.cssText='font-weight:800;background:#a83838;color:white;border:1px solid #d98282;padding:10px;border-radius:8px;margin-bottom:10px';reset.addEventListener('click',resetAll);
+ const table=document.createElement('div');table.id='v451AfterTieRows';table.style.cssText='display:grid;gap:5px';
+ area.append(header,reset,table);
+ const anchor=$('v406MasterResetBox')||$('v450AfterTiePanel')||document.querySelector('.analyzer')||document.body;
+ anchor.parentNode?.insertBefore(area,anchor.nextSibling);
+ return area;
+}
+function paint(){
+ const area=make();if(!area)return;
+ const rows=$('v451AfterTieRows');if(!rows)return;
+ const models=entries();
+ for(const [name,id] of models){
+  const m=stats[name]||fresh(),n=(+m.w||0)+(+m.l||0),rate=n?(100*m.w/n).toFixed(1)+'%':'—';
+  let row=[...rows.children].find(e=>e.dataset.ai===name);
+  if(!row){row=document.createElement('div');row.dataset.ai=name;row.style.cssText='display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:6px 9px;border:1px solid #45586c;border-radius:7px';
+   const label=document.createElement('span');label.textContent=name;label.style.cssText='flex:1 1 155px;font-weight:650';const result=document.createElement('strong');result.className='v451score';result.style.fontSize='13px';
+   const btn=document.createElement('button');btn.type='button';btn.textContent='Reset After Tie';btn.style.cssText='background:#324b66;color:white;padding:5px 8px;border-radius:6px;font-size:11px';btn.addEventListener('click',()=>resetOne(name));row.append(label,result,btn);rows.appendChild(row)}
+  row.querySelector('.v451score').textContent=`${m.w||0}W–${m.l||0}L · ${rate} · WAIT ${m.wait||0}`;
+  // For installed AI cards, also show a lightweight per-AI summary/reset.
+  if(id){const node=$(id),panel=node?.closest('.analyzer,.road-predict-panel');if(panel){let badge=[...panel.querySelectorAll('[data-v451-mini]')].find(x=>x.dataset.v451Mini===name);
+   if(!badge){badge=document.createElement('div');badge.dataset.v451Mini=name;badge.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:7px 0;padding:5px;border:1px solid #597080;border-radius:7px';const label=document.createElement('span');label.className='v451-mini-score';const btn=document.createElement('button');btn.type='button';btn.textContent='Reset After-Tie';btn.style.cssText='font-size:11px;padding:4px 7px';btn.addEventListener('click',()=>resetOne(name));badge.append(label,btn);panel.appendChild(badge)}
+   badge.querySelector('.v451-mini-score').textContent=`After Tie: ${m.w||0}W–${m.l||0}L (${rate})`;}}
+ }
+}
+function tick(){const s=seq();if(s!==lastSequence)settle(s);else if(s.endsWith('T')&&(!pending||pending.seq!==s))startAfterTie(s);paint();}
+// Capture before the next result is entered; buttons / programmatic imports are also handled by polling.
+document.addEventListener('click',ev=>{const b=ev.target?.closest?.('[data-result],#previewP,#previewB');if(!b)return;const s=seq();if(s.endsWith('T')&&(!pending||pending.seq!==s))startAfterTie(s)},true);
+if(lastSequence.endsWith('T'))startAfterTie(lastSequence);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{paint();setInterval(tick,700)});else{paint();setInterval(tick,700)}
+window.__V451_AFTER_TIE_TRACKING__={resetAll,resetOne,read:()=>JSON.parse(JSON.stringify(stats)),tick};
+})();
+</script>
 </body>
 </html>
