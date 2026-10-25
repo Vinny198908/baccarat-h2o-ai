@@ -1,3 +1,4 @@
+<!-- V490: Add all current visible prediction AIs to V422 streak monitor; counterexample WARNINGS separate. No engine logic modified. -->
 <!-- V487: Honest strong-match qualification and always-on local adaptation while Gemini is enabled. -->
 <!-- V486: Gemini uses whole-library local transition learning, live adaptation, and transparent hybrid grading. -->
 <!-- V488: Add independent-shoe search diagnostics while preserving the established historical decision votes; include sliding and inverted windows, evidence ranking and corrected tie-aware Bead Plate row handling. Other AIs unchanged. -->
@@ -88,7 +89,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V487 • Full-Library Adaptive Gemini • All-In Baccarat — Prediction Dashboard</title>
+<title>V490 • Expanded AI Streak Signals • Gemini Counterexample Auditor • All-In Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -586,7 +587,7 @@ body { overscroll-behavior-y: none; }
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V489 • GEMINI COUNTEREXAMPLES + FULL-LIBRARY SEARCH</div>
+<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V490 • GEMINI COUNTEREXAMPLES + FULL-LIBRARY SEARCH</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
@@ -659,8 +660,8 @@ body { overscroll-behavior-y: none; }
 <div id="v423TrustTable"></div>
 </section>
 <section aria-label="AI Streak Signals" id="v422StreakPanel">
-<div class="streak-title">AI Streak Signals V431</div>
-<div class="streak-note">ALTERNATING = six consecutive graded calls W-L-W-L-W-L or L-W-L-W-L-W. HOT = 3 or more consecutive graded wins. Tracked separately for every AI below; these are performance alerts, not next-hand win probabilities.</div>
+<div class="streak-title">AI Streak Signals V490</div>
+<div class="streak-note">ALTERNATING = six consecutive graded calls W-L-W-L-W-L or L-W-L-W-L-W. HOT = 3 or more consecutive graded wins. Includes all available visible prediction AIs and a separately labeled counterexample-warning audit. These are historical performance alerts, not next-hand win probabilities.</div>
 <div aria-live="polite" class="streak-note" id="v422Summary">Monitoring upcoming graded predictions.</div>
 <div id="v422StreakRows"></div>
 <button id="v422Reset" type="button">Reset Streak History Only</button>
@@ -21305,18 +21306,45 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  const $=id=>document.getElementById(id);
  const models=[
  ['Sequence AI V2','seqAiSide'],['Best Estimate','bestSide'],['Best Estimate 2','v331BE2Side'],
+ ['Best Estimate 3 (Assisted)','v439Alt'],
  ['Main Future Road','futureFinal'],['Main Future Test 2','v360T2Pick'],
  ['Derived Road AI','v358DerivedResult'],['AI Pattern Recognizer','roadAiSide'],
  ['Bead History AI','beadHistSide'],['8-Hand Bead + 3-Road','v388TriSide'],
- ['Historical Single-Road','v388OneSide'],['Main Future Awareness','v277Action'],['Saved Shoe Recognition','v419Pick'],
- ['Four-Signal Precision','v421Pick'],['Four-Signal Research Audit','v420LivePick'],['Main Road Only','v284Pick'],
- ['ML Trainer','mlv307Pick']
+ ['Historical Single-Road','v388OneSide'],['Main Future Awareness','v277Action'],
+ ['Main Future Awareness V480','v460Action'],
+ ['Shared Historical Memory Brain','v369MemSide'],
+ ['Saved Shoe Recognition','v419Pick'],['Four-Signal Precision','v421Pick'],
+ ['Four-Signal Research Audit','v420LivePick'],['Main Road Only','v284Pick'],
+ ['ML Trainer','mlv307Pick'],
+ ['After-Tie AI','v445Pick'],['Google Gemini (Adaptive)','v465Pick'],
+ ['BAIP Active AI Selector','v468Pick']
  ];
  const streakExcluded=new Set(['Historical Three-Road','Historical Single-Road']);
- const KEY='baccarat-v422-streak-history';let journal={}, last=null, snapshots={};
+ const KEY='baccarat-v422-streak-history';let journal={}, last=null, snapshots={},lastGrade=null;
  for(const [name] of models)journal[name]=[];
  try{const v=JSON.parse(localStorage.getItem(KEY)||'{}');for(const [name] of models)if(Array.isArray(v[name]))journal[name]=v[name].filter(x=>x==='W'||x==='L').slice(-20)}catch(e){}
  const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(journal))}catch(e){}};
+ // Counterexample Auditor grades are NOT Player/Banker predictions. Display its
+ // own pre-result, settled warning verdicts as a separately labeled sequence.
+ const WARN_RESET_KEY='baccarat-v490-streak-warning-reset';
+ let warningReset={epoch:null,offset:0};
+ try{const v=JSON.parse(localStorage.getItem(WARN_RESET_KEY)||'null');if(v&&typeof v==='object')warningReset=v}catch(_){}
+ function warningRows(){
+  try{
+   const st=window.__V489_COUNTEREXAMPLE_AUDITOR__?.stats?.();
+   const rows=Array.isArray(st?.rows)?st.rows:[];
+   if(warningReset.epoch!==st?.epoch || rows.length<warningReset.offset){
+    warningReset={epoch:st?.epoch??null,offset:0};
+   }
+   return rows.slice(warningReset.offset).filter(x=>x?.warned&&(x.verdict==='WIN'||x.verdict==='LOSS')).map(x=>x.verdict==='WIN'?'W':'L').slice(-20);
+  }catch(_){return []}
+ }
+ function resetWarningView(){try{
+  const st=window.__V489_COUNTEREXAMPLE_AUDITOR__?.stats?.();
+  warningReset={epoch:st?.epoch??null,offset:Array.isArray(st?.rows)?st.rows.length:0};
+  localStorage.setItem(WARN_RESET_KEY,JSON.stringify(warningReset));
+ }catch(_){}}
+
  function seq(){return Array.isArray(state?.hands)?state.hands.map(x=>typeof x==='string'?x:x?.r).filter(x=>['P','B','T'].includes(x)).join(''):''}
  function side(v){const t=String(v||'').trim().toUpperCase();if(/\bWAIT\b|\bNONE\b|\bRESOLVED\b/.test(t))return null;
   if(t==='P'||t==='PLAYER'||t.startsWith('PLAYER —')||t.startsWith('PLAYER •')||/^LIKELY ANSWER:\s*PLAYER\b/.test(t))return 'P';
@@ -21324,6 +21352,8 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   return null;
  }
  function capture(){const o={};for(const [name,id] of models){
+   if(name==='Google Gemini (Adaptive)' && !document.getElementById('v465On')?.checked){o[name]=null;continue;}
+   if(name==='BAIP Active AI Selector' && !document.getElementById('v468Enabled')?.checked){o[name]=null;continue;}
    if(name==='ML Trainer'){
      try{const z=(window.__mlRoadTrainerV3||window.__mlRoadTrainerV2)?.signal?.()||{};
        const v=z.rawSide||z.displaySide||z.side;
@@ -21340,6 +21370,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    const left=document.createElement('div');let letters=a.slice(-6).map(v=>'<span class="'+v.toLowerCase()+'">'+v+'</span>').join('')||'—';
    left.innerHTML='<div class="v422name"></div><div class="v422letters">'+letters+'</div><div class="v422sub"></div>';
    left.querySelector('.v422name').textContent=name;left.querySelector('.v422sub').textContent=a.length+' graded calls tracked'+(wins?' • '+wins+' consecutive win'+(wins===1?'':'s'):'');
+   if(name==='Shared Historical Memory Brain' || name==='Main Future Awareness V480'){left.querySelector('.v422sub').textContent+=' • research/advisory signal';}
    if(name==='ML Trainer'){
      const original=left.querySelector('.v422sub').textContent;
      left.querySelector('.v422sub').textContent=original+' • RAW ML leans (not necessarily qualified)';
@@ -21360,7 +21391,23 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    if(!alternating&&!burning){const x=document.createElement('span');x.className='v422flag';x.textContent='MONITORING';flags.appendChild(x)}
    row.append(left,flags);root.appendChild(row)
   }
-  $('v422Summary').textContent=hot+' AI(s) on 3+ win streak • '+alt+' AI(s) alternating over last 6 graded calls. Ties and WAIT are ignored; undo and bulk shoe changes are not graded.';
+  // Render audit warnings separately, never as an independent directional bet.
+  if(window.__V489_COUNTEREXAMPLE_AUDITOR__ && $('v489CounterAudit')){
+   const a=warningRows(),last6=a.slice(-6).join('');
+   const alternating=last6==='WLWLWL'||last6==='LWLWLW';
+   let wins=0;for(let i=a.length-1;i>=0&&a[i]==='W';i--)wins++;
+   const row=document.createElement('div');row.className='v422row';row.dataset.monitor='counterexample';
+   const left=document.createElement('div');
+   left.innerHTML='<div class="v422name">Gemini Counterexample Auditor (warnings)</div><div class="v422letters"></div><div class="v422sub"></div>';
+   left.querySelector('.v422letters').innerHTML=a.slice(-6).map(v=>'<span class="'+v.toLowerCase()+'">'+v+'</span>').join('')||'—';
+   left.querySelector('.v422sub').textContent=a.length+' graded warnings tracked • W = warning confirmed, L = warning false; NOT a P/B call';
+   const flags=document.createElement('div');flags.className='v422flags';
+   const f=document.createElement('span');f.className='v422flag'+(alternating?' alt':wins>=3?' hot':'');
+   f.textContent=alternating?'6 ALTERNATING WARNINGS':wins>=3?wins+' CONFIRMED WARNINGS':'WARNING AUDIT';
+   flags.appendChild(f);row.append(left,flags);root.appendChild(row);
+   if(alternating)alt++;if(wins>=3)hot++;
+  }
+  $('v422Summary').textContent=hot+' AI(s)/audits on 3+ consecutive confirmations • '+alt+' alternating over last 6 graded events. Ties and WAIT are ignored; undo and bulk shoe changes are not graded.';
   // Research-only ranking: sample floor, actual graded outcomes, and CURRENT prediction availability.
   // Streaks do not boost the ranking and a good historical rank is not a validated predictive edge.
   const ranked=models.filter(([name,id])=>!streakExcluded.has(name)&&($(id)||name==='ML Trainer')).map(([name,id])=>{
@@ -21402,8 +21449,12 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
 
  }
  function scan(){try{const cur=seq();if(last===null){last=cur;snapshots=capture();paint();return}
-  if(cur!==last){if(cur.length===last.length+1&&cur.startsWith(last)){
-    const actual=cur.slice(-1);if(actual==='P'||actual==='B')for(const [name] of models){const p=snapshots[name];if(p){journal[name].push(p===actual?'W':'L');journal[name]=journal[name].slice(-20)}}persist();
+  if(cur!==last){if(lastGrade&&lastGrade.after===last&&lastGrade.before===cur){
+    for(const [name,verdict] of lastGrade.updated){if(journal[name]?.at(-1)===verdict)journal[name].pop()}
+    lastGrade=null;persist();
+   }
+   if(cur.length===last.length+1&&cur.startsWith(last)){
+    const actual=cur.slice(-1),updated=[];if(actual==='P'||actual==='B')for(const [name] of models){const p=snapshots[name];if(p){const grade=p===actual?'W':'L';journal[name].push(grade);journal[name]=journal[name].slice(-20);updated.push([name,grade])}}lastGrade={before:last,after:cur,updated};persist();
    }
    last=cur;snapshots=capture();paint();return;
   }
@@ -21417,9 +21468,9 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    setTimeout(scan,100);setTimeout(scan,350);
  },true);
  $('v422Reset')?.addEventListener('click',reset);
- function reset(){for(const [name] of models)journal[name]=[];persist();paint()}
+ function reset(){for(const [name] of models)journal[name]=[];resetWarningView();persist();paint()}
  $('v406ResetAllAccuracy')?.addEventListener('click',reset);
- window.__V422_STREAK__={reset,scan,version:435,mlRawTracking:true,auditLiveTracked:true};
+ window.__V422_STREAK__={reset,scan,version:490,models:models.map(x=>x[0]),mlRawTracking:true,auditLiveTracked:true,counterexampleWarningsSeparate:true};
  setInterval(scan,160);scan();
 })();
 </script>
