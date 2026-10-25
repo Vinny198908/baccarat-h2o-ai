@@ -1,3 +1,5 @@
+<!-- V485: Move Reliability Watch, Streak Signals, All AI After-Tie Accuracy, and Main Future Awareness to the bottom. Display-only; preserve engines, data and reset buttons. -->
+<!-- V484: Gemini library-first actual-segment retrieval, bounded distinct shoe examples; independent from existing AIs. -->
 <!-- V483: Gemini proxy HTTP error diagnostics; show upstream Google status without secrets. -->
 <!-- V482: After-Tie history-primary blend. Qualified shoe history 80%, current-shoe context 20%; never consult future results from current live shoe. -->
 <!-- V481: After-Tie adaptive research + fair same-hand Banker shadow audit; promotes library calls only after sustained live advantage. No validated betting edge. -->
@@ -581,7 +583,7 @@ body { overscroll-behavior-y: none; }
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V483 • GEMINI ERROR DIAGNOSTICS + AFTER-TIE V482</div>
+<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V485 • FOUR PANELS AT BOTTOM + GEMINI V484</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
@@ -22201,27 +22203,113 @@ function paint(){
 function status(message){show('v465Status',message);}
 function clearPending(){ledger.pending=null;store();show('v465Pick','WAIT');show('v465Reason','No pre-committed Gemini prediction for the next hand.');}
 function cancel(){taskId++;if(scheduled){clearTimeout(scheduled);scheduled=null;}if(inflight){try{inflight.abort()}catch(e){}inflight=null;}}
-function input(){
- const raw=sequence();const hands=(state.hands||[]).filter(h=>h&&['P','B','T'].includes(h.r));
- let roads={};try{for(const [name,offset] of [['bigEye',1],['small',2],['cockroach',3]])roads[name]=deriveRoad(hands,offset).slice(-25).join('');}catch(e){}
- let same=0,inverted=0,p=0,b=0;
- try{
-   const pb=raw.replace(/T/g,'');const tail=pb.slice(-8);
-   if(tail.length===8){const inv=tail.replace(/[PB]/g,x=>x==='P'?'B':'P');const seen=new Set();
-     for(const sh of [...(state.redPatternLibrary||[]),...(state.blackPatternLibrary||[])]){
-       const hist=String(sh?.sequence||'').replace(/T/g,'');if(hist.length<9||seen.has(hist))continue;seen.add(hist);
-       let found=null;for(const [sig,flipped] of [[tail,false],[inv,true]]){
-         let at=hist.indexOf(sig);while(at>=0){if(at+8<hist.length){found={flipped,result:hist[at+8]};break;}at=hist.indexOf(sig,at+1)}
-         if(found)break;
+// V484: independent, bounded local library retrieval for Gemini only.
+// Scans ALL saved RED+BLACK shoes; never alters library data or other AIs.
+function v484DeepLibrary(raw, roads) {
+ const livePB=String(raw||'').replace(/T/g,'');
+ // Six or seven P/B results offer too many chance matches in a large library.
+ // Gemini can still analyze them, but library examples start at 8 P/B hands.
+ const all=[...(Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[]),
+            ...(Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[])];
+ const used=new Set(), ranked=[];
+ const flip=s=>s.replace(/[PB]/g,c=>c==='P'?'B':'P');
+ const lastT=raw.endsWith('T');
+ const structure=seq=>{let r='';for(let i=1;i<seq.length;i++)r+=seq[i]===seq[i-1]?'S':'C';return r;};
+ const liveShape=structure(livePB);
+ const agreement=(a,b,length)=>{
+   const n=Math.min(length,a.length,b.length);if(n<3)return null;
+   let hits=0;for(let j=1;j<=n;j++)if(a[a.length-j]===b[b.length-j])hits++;
+   return hits/n;
+ };
+ for(const sh of all){
+   const rawHist=typeof sh?.sequence==='string'?sh.sequence:typeof sh==='string'?sh:'';
+   if(!/^[PBT]{8,}$/.test(rawHist)||used.has(rawHist))continue;
+   used.add(rawHist);
+   const histPB=rawHist.replace(/T/g,'');
+   if(histPB.length<9||livePB.length<8)continue;
+   const pbRawIndices=[];
+   for(let idx=0;idx<rawHist.length;idx++)if(rawHist[idx]!=='T')pbRawIndices.push(idx);
+   const pre=[];
+   for(let pos=8;pos<histPB.length;pos++){
+     const n=Math.min(16,livePB.length,pos), eight=Math.min(8,n);
+     if(n<8)continue;
+     const segment=histPB.slice(pos-n,pos);
+     for(const inverted of [false,true]){
+       const compare=inverted?flip(segment):segment;
+       let recent=0,weightHits=0,totalWeight=0,consecutive=0;
+       for(let j=0;j<n;j++){
+         const match=compare[j]===livePB[livePB.length-n+j];
+         const w=j+1;totalWeight+=w;if(match)weightHits+=w;
+         if(j>=n-eight&&match)recent++;
        }
-       if(found){same++;if(found.flipped)inverted++;const vote=found.flipped?(found.result==='P'?'B':'P'):found.result;if(vote==='P')p++;else if(vote==='B')b++;}
+       for(let j=1;j<=n;j++){
+         if(compare[n-j]===livePB[livePB.length-j])consecutive++;else break;
+       }
+       // Keep chance matches out of the primary candidate set. Sliding and inverse
+       // are supported; near-return requires a strong 11/12 bead alignment plus roads.
+       const mustMatch=Math.min(10,livePB.length);
+       let last12Hits=0;const twelve=Math.min(12,n);
+       for(let k=0;k<twelve;k++)if(compare[n-1-k]===livePB[livePB.length-1-k])last12Hits++;
+       const near=livePB.length>=12&&n>=12&&last12Hits>=11&&consecutive>=4;
+       if(consecutive<mustMatch&&!near)continue;
+       const bead=.82*(weightHits/totalWeight)+.13*(consecutive/n)+.05*(n/16);
+       pre.push({pos,inverted,bead,near:consecutive<mustMatch,afterTie:rawHist[pbRawIndices[pos]-1]==='T',sample:segment});
      }
    }
- }catch(e){}
+   // Stage 1 retrieves the best bead candidates. Road agreement is calculated
+   // only on a small shortlist; avoids recomputing derived roads for every hand.
+   pre.sort((a,b)=>b.bead-a.bead);
+   let best=null;
+   for(const candidate of pre.slice(0,4)){
+     const cutoff=pbRawIndices[candidate.pos]; // PRE-result prefix only; no future road leakage.
+     const prefix=rawHist.slice(0,cutoff);
+     let roadNumerator=0,roadDenominator=0;
+     try{
+       const histHands=prefix.split('').map(r=>({r}));
+       for(const [name,offset] of [['bigEye',1],['small',2],['cockroach',3]]){
+         const historical=deriveRoad(histHands,offset).join('');
+         const v=agreement(String(roads?.[name]||''),historical,8);
+         if(v!==null){roadNumerator+=v;roadDenominator++}
+       }
+     }catch(_){}
+     const road=roadDenominator?roadNumerator/roadDenominator:null;
+     const main=agreement(liveShape,structure(histPB.slice(0,candidate.pos)),10);
+     if(candidate.near&&(road===null||road<.75||main===null||main<.85))continue;
+     const pieces=[[candidate.bead,.72],[main,.12],[road,.16]].filter(x=>x[0]!==null);
+     const weighted=pieces.reduce((s,[v,w])=>s+v*w,0)/pieces.reduce((s,[,w])=>s+w,0);
+     const tieAdjustment=lastT?(candidate.afterTie?.055:-.065):candidate.afterTie?-.008:0;
+     const score=Math.max(0,Math.min(1,weighted+tieAdjustment));
+     if(score<.66)continue;
+     const next=candidate.inverted?flip(histPB[candidate.pos]):histPB[candidate.pos];
+     const entry={score:Math.round(score*100),next,inverted:candidate.inverted,
+        matchedHands:Math.min(16,livePB.length,candidate.pos),
+        matchSegment:candidate.inverted?flip(candidate.sample):candidate.sample,
+        historicalContext:prefix.slice(-22),afterTie:candidate.afterTie,
+        roadAgreement:road===null?null:Math.round(road*100),
+        mainRoadAgreement:main===null?null:Math.round(main*100)};
+     if(!best||entry.score>best.score)best=entry;
+   }
+   if(best)ranked.push(best); // one candidate and one vote per distinct saved shoe.
+ }
+ ranked.sort((a,b)=>b.score-a.score);
+ const examples=ranked.slice(0,14);
+ const distinctMatches=ranked.length;
+ return {version:1,scannedShoes:used.size,qualifyingShoes:distinctMatches,
+   libraryMatchSummary:{distinctMatches,invertedMatches:ranked.filter(x=>x.inverted).length,
+    playerNextVotes:ranked.filter(x=>x.next==='P').length,
+    bankerNextVotes:ranked.filter(x=>x.next==='B').length},examples};
+}
+function input(){
+ const raw=sequence();const hands=(state.hands||[]).filter(h=>h&&['P','B','T'].includes(h.r));
+ const roads={};try{for(const [name,offset] of [['bigEye',1],['small',2],['cockroach',3]])roads[name]=deriveRoad(hands,offset).slice(-25).join('');}catch(e){}
+ const evidence=v484DeepLibrary(raw,roads);
  return {sequence:raw.slice(-100),handCount:raw.length,shoeColor:String(state.currentShoeColor||'unspecified'),
    ignoreTiesInLibrarySearch:(()=>{try{return localStorage.getItem('v452_ignore_ties')==='1'}catch(e){return false}})(),
-   derivedRoads:roads,libraryMatchSummary:{distinctMatches:same,invertedMatches:inverted,playerNextVotes:p,bankerNextVotes:b}};
+   derivedRoads:roads,libraryMatchSummary:evidence.libraryMatchSummary,
+   libraryEvidence:{version:1,scannedShoes:evidence.scannedShoes,
+    qualifyingShoes:evidence.qualifyingShoes,examples:evidence.examples}};
 }
+
 async function analyze(){
  scheduled=null;
  if(!enabled||!ready()||inflight)return;
@@ -22231,10 +22319,12 @@ async function analyze(){
  clearPending();const token=++taskId;
  const controller=new AbortController();inflight=controller;
  const timeout=setTimeout(()=>controller.abort(),5000);
+ const payload=input();
+ show('v484LibraryInfo','Local library scan: '+payload.libraryEvidence.scannedShoes+' unique shoes • '+payload.libraryEvidence.qualifyingShoes+' matching shoes • '+payload.libraryEvidence.examples.length+' historical examples selected.');
  const start=performance.now();status('Contacting Gemini through your proxy (5s maximum)…');paint();
  try{
    const headers={'Content-Type':'application/json'};if(accessToken)headers.Authorization='Bearer '+accessToken;
-   const response=await fetch(endpoint,{method:'POST',mode:'cors',headers,body:JSON.stringify(input()),signal:controller.signal,cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
+   const response=await fetch(endpoint,{method:'POST',mode:'cors',headers,body:JSON.stringify(payload),signal:controller.signal,cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
    if(!response.ok){
      let extra='';
      try{
@@ -22256,7 +22346,10 @@ async function analyze(){
    ledger.pending=side==='WAIT'?null:{side,handN:pre.length,prefix:pre};
    store();show('v465Pick',side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT');
    show('v465Reason',String(data.reason||'Analysis returned without an explanation.').slice(0,250));
-   status(side==='WAIT'?'Gemini returned WAIT — no bet classification.':'Locked for hand '+(pre.length+1)+' • experimental only • not verified odds');
+   const supported=data.libraryEvidenceUsed===true;
+   status((side==='WAIT'?'Gemini returned WAIT.':'Locked for hand '+(pre.length+1)+'.')+
+     (supported?' Deep library processed: '+(Number(data.acceptedExamples)||0)+' examples.':' Proxy update needed: historical examples NOT confirmed processed.')+
+     ' Experimental only; no verified betting edge.');
  }catch(e){
    if(token!==taskId||pre!==sequence()||!enabled)return;
    clearPending();
@@ -22304,9 +22397,9 @@ function addUI(){
  const target=$('v452TieMode')||document.querySelector('.app');if(!target)return;
  const e=document.createElement('section');e.id='v465Gemini';e.setAttribute('aria-label','Google Gemini independent analyzer');
  e.innerHTML=`<div class="gm-head"><div class="gm-title">Google Gemini AI • Independent Test</div><label class="gm-control"><input type="checkbox" id="v465On"> ON / OFF</label></div>
- <div class="gm-description">Optional Google Gemini API analyzer. Runs separately from your existing AIs. Needs your own secure proxy connection; no API key is saved in this HTML. Analysis is experimental, not a verified betting advantage.</div>
+ <div class="gm-description">Independent Google Gemini analyzer. V484 locally scans distinct saved RED+BLACK shoes and sends up to 14 short historical matching examples, including inverted patterns, to your Google proxy. It does not upload the full library. Experimental only; no verified betting advantage.</div>
  <div class="gm-grid"><div class="gm-cell"><span>NEXT GEMINI CALL</span><strong id="v465Pick">WAIT</strong></div><div class="gm-cell"><span>WINS</span><strong id="v465Win">0</strong></div><div class="gm-cell"><span>LOSSES</span><strong id="v465Loss">0</strong></div><div class="gm-cell"><span>ACCURACY</span><strong id="v465Accuracy">—</strong></div><div class="gm-cell"><span>GRADED HANDS</span><strong id="v465Sample">0</strong></div><div class="gm-cell"><span>WAITS / 5s RESPONSE</span><strong><span id="v465Wait" style="display:inline;font-size:17px;color:white">0</span> / <span id="v465Latency" style="display:inline;font-size:16px;color:white">—</span></strong></div></div>
- <div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div>
+ <div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div><div id="v484LibraryInfo" class="gm-description">Deep library retrieval: scans both RED and BLACK saved-shoe libraries after 6 hands.</div>
  <details style="margin-top:10px"><summary style="font-size:12px;cursor:pointer;color:#a7c5ff">Connection settings</summary>
  <div class="gm-description">Enter your hosted HTTPS proxy URL and its separate access token. <b>Never enter your Google Gemini API key here.</b> The proxy stores that private key.</div>
  <input id="v465Endpoint" class="gm-url" placeholder="https://your-server.onrender.com/gemini" aria-label="Secure Gemini proxy URL" autocomplete="off" spellcheck="false">
@@ -22316,7 +22409,7 @@ function addUI(){
  </details>
  <label class="gm-control" style="margin-top:10px"><input type="checkbox" id="v465Auto"> Analyze each new hand automatically (when enabled)</label>
  <div class="gm-buttons"><button id="v465Analyze" type="button">Analyze Current Hand</button><button id="v465Reset" type="button">Reset Gemini Accuracy Only</button></div>
- <div class="gm-note"><span id="v465Last">Not graded yet</span>. Ties are excluded from accuracy. WAITs count separately. Undo reverses the most recent matching Gemini grade. No history is sent until you enable this module and configure a proxy. Switch OFF to disconnect immediately; original AI logic stays unchanged.</div>`;
+ <div class="gm-note"><span id="v465Last">Not graded yet</span>. Ties are excluded from accuracy. WAITs count separately. Undo reverses the most recent matching Gemini grade. When enabled, live history and a few historical shoe segments are sent to your Google Gemini proxy. Switch OFF to disconnect immediately; original AI logic stays unchanged.</div>`;
  target.insertAdjacentElement('afterend',e);
  $('v465Endpoint').value=endpoint;$('v469AccessToken').value=accessToken;
  $('v465On').checked=enabled;$('v465Auto').checked=auto;
@@ -22330,7 +22423,7 @@ function addUI(){
  lastSeen=sequence();paint();status(enabled?(ready()?'ON • proxy configured (connection not yet verified)':'ON • needs HTTPS proxy and token'):'OFF • existing AIs unaffected');
  if(enabled)queueAnalyze();
 }
-window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V465',independent:true};
+window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V484',independent:true,libraryPreview:()=>input().libraryEvidence};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addUI,{once:true});else addUI();
 })();
 </script>
@@ -22489,11 +22582,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       const before=baip?.parentElement===app?baip.nextElementSibling:(first||header).nextElementSibling;
       if(before!==gemini)app.insertBefore(gemini,before);
     }
-    const awareness=document.getElementById('v460MainFutureAwareness');
-    if(awareness&&awareness.parentElement===app){
-      const anchor=gemini?.parentElement===app?gemini:(baip?.parentElement===app?baip:first||header);
-      if(anchor.nextElementSibling!==awareness)app.insertBefore(awareness,anchor.nextElementSibling);
-    }
+    // V485: Main Future Awareness is now one of four panels pinned to the bottom.
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',place,{once:true});else place();
   window.addEventListener('load',place,{once:true});
@@ -22518,6 +22607,52 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     });
     observer.observe(app,{childList:true});
   }
+})();
+</script>
+
+<!-- V485: Relocate the four panels the user highlighted; MOVE DOM nodes, do not clone or reset. -->
+<script id="v485-four-panel-bottom-layout">
+(function(){
+  'use strict';
+  const ids=['v423TrustPanel','v422StreakPanel','v451AfterTieAccuracy','v460MainFutureAwareness'];
+  const app=document.querySelector('.app');
+  if(!app)return;
+  let scheduled=false, moving=false;
+  function isAlreadyBottom(nodes){
+    if(!nodes.length)return true;
+    let cursor=app.lastElementChild;
+    for(let i=nodes.length-1;i>=0;i--){
+      if(nodes[i]!==cursor || nodes[i].parentElement!==app)return false;
+      cursor=cursor.previousElementSibling;
+    }
+    return true;
+  }
+  function place(){
+    scheduled=false;
+    if(moving)return;
+    const nodes=ids.map(id=>document.getElementById(id)).filter(Boolean);
+    if(isAlreadyBottom(nodes))return;
+    moving=true;
+    try{for(const node of nodes)app.appendChild(node);}finally{moving=false;}
+  }
+  function queue(){
+    if(scheduled)return;
+    scheduled=true;
+    requestAnimationFrame(place);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',queue,{once:true});
+  else queue();
+  window.addEventListener('load',queue,{once:true});
+  setTimeout(queue,250);setTimeout(queue,1000);
+  if(typeof MutationObserver!=='undefined'){
+    const observer=new MutationObserver(()=>{
+      if(moving)return;
+      const nodes=ids.map(id=>document.getElementById(id)).filter(Boolean);
+      if(!isAlreadyBottom(nodes))queue();
+    });
+    observer.observe(app,{childList:true,subtree:true});
+  }
+  window.__V485_FOUR_PANELS__={place,ids:ids.slice()};
 })();
 </script>
 </body>
