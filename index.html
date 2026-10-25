@@ -1,3 +1,4 @@
+<!-- V470: Move BAIP and Gemini panels next to title; safeguard missing V369 legacy memory implementation. Existing prediction engines and grading unchanged. -->
 <!-- V468 BAIP-style active AI monitor; independent accuracy + pre-result grading, no changes to existing AI prediction logic. -->
 <!-- V467: All visible lower panels beneath Main Future Awareness V460 hidden, engines preserved. -->
 <!-- V465: Standalone optional Google Gemini analyzer with independent verifiable accuracy and secure proxy connection. -->
@@ -559,7 +560,7 @@ body { overscroll-behavior-y: none; }
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V469 GEMINI • UPDATED BUILD</div>
+<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V470 • BAIP + GEMINI AT TOP</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
@@ -19904,14 +19905,34 @@ function ensurePanel(){
   d=document.createElement('div');d.className='analyzer';d.id='v369MemoryPanel';d.innerHTML=`<div class="analyzer-title">Shared Historical Memory Brain — V370</div><div class="analyzer-sub">One ranked library-memory layer for every library-aware AI. Exact beginning-to-current saved-shoe continuations now have first priority; long exact/near-exact segments remain the fallback. Exact duplicates receive one vote. Ties, inverted segments, offsets and short break/resume patterns are preserved.</div><div class="analyzer-grid"><div class="analyzer-card"><span>Memory next</span><strong id="v369MemSide">WAIT</strong></div><div class="analyzer-card"><span>Priority</span><strong id="v369MemPriority">—</strong></div><div class="analyzer-card"><span>Confidence</span><strong id="v369MemConf">—</strong></div><div class="analyzer-card"><span>Evidence</span><strong id="v369MemEvidence">—</strong></div></div><div class="analyzer-sub" id="v369MemNote" style="margin-top:7px">Waiting for saved-shoe evidence.</div>`;
   anchor.parentNode.insertBefore(d,anchor.nextSibling);return d;
 }
+// V470 stability: V369 legacy memory implementation is missing from this old merged script.
+// Fail visibly and safely rather than throwing an uncaught ReferenceError during startup.
+const v369CorePresent = () => typeof memory === 'function' && typeof apply === 'function';
 function paint(){
-  ensurePanel();const m=memory(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  ensurePanel();
+  const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
+  if(!v369CorePresent()){
+    set('v369MemSide','WAIT');set('v369MemPriority','UNAVAILABLE');set('v369MemConf','—');
+    set('v369MemEvidence','MODULE INCOMPLETE');
+    set('v369MemNote','Legacy shared memory module is incomplete in this build and has been safely disabled. Other AI prediction engines remain separate.');
+    return;
+  }
+  const m=memory();
   set('v369MemSide',m.qualified?(m.side==='P'?'PLAYER':'BANKER'):'WAIT');set('v369MemPriority',m.priority||'NONE');set('v369MemConf',m.qualified?`${Math.round(m.score)}%`:'—');
   set('v369MemEvidence',m.source||'NONE');set('v369MemNote',m.qualified?`${m.detail}. This same ranked memory is available to all library-aware AI calls.`:(m.detail||'No qualified historical continuation yet.'));
 }
-function install(){installSignalWrappers();wrapCombined();wrapBE2();ensurePanel();paint();window.__V369_SHARED_MEMORY__={version:VERSION,memory,apply,paint,allLibraryAwareAIs:true,duplicatesOneVote:true,exactPrefixPriority:true,longMatchesPriority:true,tieAware:true,invertedAware:true,breakResumeAware:true};}
+function install(){
+  installSignalWrappers();wrapCombined();
+  if(!v369CorePresent()){
+    ensurePanel();paint();
+    window.__V369_SHARED_MEMORY__={version:VERSION,available:false,paint};
+    return;
+  }
+  wrapBE2();ensurePanel();paint();
+  window.__V369_SHARED_MEMORY__={version:VERSION,available:true,memory,apply,paint,allLibraryAwareAIs:true,duplicatesOneVote:true,exactPrefixPriority:true,longMatchesPriority:true,tieAware:true,invertedAware:true,breakResumeAware:true};
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{[120,900,2200].forEach(ms=>setTimeout(install,ms))},{once:true});else[120,900,2200].forEach(ms=>setTimeout(install,ms));
-document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#redShoeBtn,#blackShoeBtn'))setTimeout(()=>{installSignalWrappers();wrapCombined();wrapBE2();paint()},260)},false);
+document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#redShoeBtn,#blackShoeBtn'))setTimeout(()=>{installSignalWrappers();wrapCombined();if(v369CorePresent())wrapBE2();paint()},260)},false);
 })();
 </script>
 <script id="v370-build-marker">window.__V370_BUILD__={version:370,base:'V369 shared-memory build',sharedHistoricalMemory:true,exactPrefixPriority:true,allLibraryAwareAIs:true,coreSideReversal:false,waitRescueRequiresStrongMemory:true};</script>
@@ -22131,6 +22152,47 @@ function install(){if($('v468Selector'))return;
 }
 window.__BAIP_V468__={arm,settle,afterCommit,reconcile,stats:()=>JSON.parse(JSON.stringify({...z,pending:z.pending})),resetOnly,version:'V468',independent:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
+})();
+</script>
+
+<!-- V470: keep new analyzers visible on a phone; moves existing nodes so listeners, grading and state remain intact. -->
+<script id="v470-visible-ai-placement">
+(()=>{
+  'use strict';
+  function place(){
+    const app=document.querySelector('.app'),header=app?.querySelector('.topbar');
+    const baip=document.getElementById('v468Selector');
+    const gemini=document.getElementById('v465Gemini');
+    if(!app||!header)return;
+    if(baip && baip.parentElement===app && header.nextElementSibling!==baip){
+      app.insertBefore(baip,header.nextElementSibling);
+    }
+    if(gemini && gemini.parentElement===app){
+      const before=baip?.parentElement===app?baip.nextElementSibling:header.nextElementSibling;
+      if(before!==gemini)app.insertBefore(gemini,before);
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',place,{once:true});else place();
+  window.addEventListener('load',place,{once:true});
+  setTimeout(place,250);
+  setTimeout(place,1000);
+  // Other existing layout modules move their panels after startup. Watch only direct
+  // panel moves and restore the requested two-panel priority without touching scores.
+  let pending=false;
+  const app=document.querySelector('.app');
+  if(app && typeof MutationObserver!=='undefined'){
+    const observer=new MutationObserver(()=>{
+      if(pending)return;
+      const header=app.querySelector('.topbar'), baip=document.getElementById('v468Selector'),gemini=document.getElementById('v465Gemini');
+      if(!header || (!baip&&!gemini))return;
+      const misplaced=(baip&&header.nextElementSibling!==baip) ||
+        (gemini&&(baip||header).nextElementSibling!==gemini);
+      if(!misplaced)return;
+      pending=true;
+      requestAnimationFrame(()=>{pending=false;place()});
+    });
+    observer.observe(app,{childList:true});
+  }
 })();
 </script>
 </body>
