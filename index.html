@@ -1,3 +1,6 @@
+<!-- V487: Honest strong-match qualification and always-on local adaptation while Gemini is enabled. -->
+<!-- V486: Gemini uses whole-library local transition learning, live adaptation, and transparent hybrid grading. -->
+<!-- V488: Add independent-shoe search diagnostics while preserving the established historical decision votes; include sliding and inverted windows, evidence ranking and corrected tie-aware Bead Plate row handling. Other AIs unchanged. -->
 <!-- V485: Move Reliability Watch, Streak Signals, All AI After-Tie Accuracy, and Main Future Awareness to the bottom. Display-only; preserve engines, data and reset buttons. -->
 <!-- V484: Gemini library-first actual-segment retrieval, bounded distinct shoe examples; independent from existing AIs. -->
 <!-- V483: Gemini proxy HTTP error diagnostics; show upstream Google status without secrets. -->
@@ -85,7 +88,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V460 • V459 • V452 Tie-Filtered Search Test • V451 Three Historical AI Coverage Adjustment • V450 Four-Signal Fix • All-In Baccarat — Prediction AI Dashboard</title>
+<title>V487 • Full-Library Adaptive Gemini • All-In Baccarat — Prediction Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -583,7 +586,7 @@ body { overscroll-behavior-y: none; }
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V485 • FOUR PANELS AT BOTTOM + GEMINI V484</div>
+<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V489 • GEMINI COUNTEREXAMPLES + FULL-LIBRARY SEARCH</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
@@ -877,6 +880,7 @@ body { overscroll-behavior-y: none; }
 <div class="match-pct"><strong id="roadAiEdge">—</strong><span>Historical edge</span></div>
 </div>
 <div class="analyzer-sub" id="roadAiNote" style="margin-top:8px">Choose a shoe library and enter hands to begin historical matching.</div>
+<div id="v488PatternMatches" style="font-size:11px;color:#bcd9ff;font-weight:750;padding:6px 5px;background:#202833;border-radius:7px;margin-top:5px">LIBRARY MATCH SCAN: loading…</div>
 </div>
 <div class="analyzer" id="kaggleControlPanel">
 <div class="analyzer-title">Historical Library Control</div>
@@ -12669,6 +12673,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       ()=>{try{const rt=window.__GPT_MIRROR_V3_RUNTIME__;if(rt){rt.armed=true;rt.cacheKey=null;rt.cacheValue=null;}}catch(e){}},
       // V465: Gemini has its own pre-committed ledger and does NOT change other engines.
       ()=>{try{window.__GEMINI_V465__?.settle(actual)}catch(e){console.warn('Gemini settlement isolated',e)}},
+      // V489: grade only a V489 auditor warning armed and displayed BEFORE this hand.
+      ()=>{try{window.__V489_COUNTEREXAMPLE_AUDITOR__?.settle?.(actual)}catch(e){console.warn('V489 counterexample audit grading isolated',e)}},
       // V471: grade the dedicated After-Tie AI from its prior locked call.
       ()=>{try{window.__V471_AFTER_TIE_AI__?.settle?.(actual)}catch(e){console.warn('V471 After Tie settle',e)}},
       // V468: frozen pre-result active-AI snapshot only; does not modify any underlying AI.
@@ -12836,6 +12842,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         state.scanSnapshot=null;
         // V465: queue an optional asynchronous Gemini request AFTER the actual hand is stored.
         try{window.__GEMINI_V465__?.afterCommit()}catch(e){}
+        try{window.__V489_COUNTEREXAMPLE_AUDITOR__?.afterCommit?.()}catch(e){}
         try{window.__BAIP_V468__?.afterCommit?.()}catch(e){}
         try{window.__V471_AFTER_TIE_AI__?.afterCommit?.()}catch(e){}
         if(!isPreview){
@@ -15827,10 +15834,24 @@ const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const pb=a=>(a||[]).filter(x=>x==='P'||x==='B');
 const rawSeq=()=>{try{return currentSequence().filter(x=>x==='P'||x==='B')}catch(e){return []}};
 const livePB=()=>pb(rawSeq());
-const lib=()=>{try{return (activePatternLibrary()||[])
-  .filter(x=>x&&typeof x.sequence==='string')
-  .map(x=>Object.assign({},x,{sequence:String(x.sequence||'').replace(/[^PB]/g,'')}))
-  .filter(x=>x.sequence.length>=6)}catch(e){return []}};
+// V488: search every unique saved shoe, regardless of the current RED/BLACK
+// display filter. Color is metadata for diagnostics, never a hard exclusion.
+// Library cache is keyed by the actual contents, so Save/Import/Undo rebuild it.
+let v488LibKey='', v488LibCache=[];
+const lib=()=>{try{
+  const combined=[...(state.redPatternLibrary||[]),...(state.blackPatternLibrary||[])];
+  const raw=combined.length?combined:(activePatternLibrary()||[]);
+  const key=raw.map(x=>String(x?.sequence||'')).join('|');
+  if(key===v488LibKey)return v488LibCache;
+  v488LibKey=key;
+  const seen=new Set();v488LibCache=[];
+  for(const x of raw){
+    const s=String(x?.sequence||'').toUpperCase().replace(/[^PB]/g,'');
+    if(s.length<7||seen.has(s))continue;
+    seen.add(s);v488LibCache.push({sequence:s,shoeColor:x.shoeColor||null});
+  }
+  return v488LibCache;
+}catch(e){return []}};
 
 function addVote(box,side,w){if(side==='P')box.p+=w;else if(side==='B')box.b+=w;box.n+=w;}
 function normVote(v){const n=v.p+v.b;return n?{p:v.p/n,b:v.b/n,edge:Math.abs(v.p-v.b)/n,n}: {p:.5,b:.5,edge:0,n:0};}
@@ -15881,7 +15902,7 @@ function liveMainPattern(seq){
   return {vote,quality,details,run,switchRate};
 }
 
-function historicalMainPattern(seq,shoes){
+function v488OriginalHistoricalMainPattern(seq,shoes){
   const global={p:0,b:0,n:0};
   let shoeMatches=0,bestLen=0,bestSim=0,totalWindows=0;
   const lens=[18,14,11,8,6,5].filter(k=>k<=seq.length);
@@ -15944,12 +15965,99 @@ function historicalMainPattern(seq,shoes){
   return {vote,quality,matches:shoeMatches,bestLen,bestSim,totalWindows,oneVotePerShoe:true};
 }
 
+
+function historicalMainPattern(seq,shoes){
+  // V488: full-library, independent-shoe match retrieval. All evidence ends
+  // BEFORE the saved example's next result. No next-hand live leakage.
+  // Search shifting windows and inverted P/B rhythms. Recent cells receive
+  // more weight; short random lookalikes cannot drown out long matches.
+  const neutral={p:.5,b:.5,edge:0,n:0};
+  if(seq.length<6)return {vote:neutral,quality:0,matches:0,bestLen:0,bestSim:0,totalWindows:0,scanned:shoes.length,direct:0,inverted:0,strong:0};
+  const cacheKey=seq.join('')+'|'+v488LibKey;
+  if(historicalMainPattern.cachedKey===cacheKey)return historicalMainPattern.cached;
+  const live=seq.join('');
+  const lens=[18,14,11,8,6].filter(k=>k<=live.length);
+  const threshold=k=>k>=18?.80:k>=14?.82:k>=11?.84:k>=8?.89:1;
+  const bests=[];let scanned=0,totalWindows=0;
+  for(let si=0;si<shoes.length;si++){
+    const hist=shoes[si].sequence;
+    if(hist.length<7)continue;
+    scanned++;
+    let best=null,second=null;
+    // Select best independent continuation window per saved shoe;
+    // a shoe can never cast multiple votes even if it matches in many spots.
+    for(const k of lens){
+      const from=live.length-k;
+      for(let pos=0;pos+k<hist.length;pos++){
+        let direct=0,inverse=0,weightedD=0,weightedI=0,den=0;
+        let tailD=0,tailI=0;
+        for(let j=0;j<k;j++){
+          const equal=hist[pos+j]===live[from+j];
+          const weight=1+1.20*(j+1)/k;den+=weight;
+          if(equal){direct++;weightedD+=weight;if(j>=k-4)tailD++;}
+          else {inverse++;weightedI+=weight;if(j>=k-4)tailI++;}
+        }
+        for(const inverted of [false,true]){
+          const eq=inverted?inverse:direct;
+          const last=inverted?tailI:tailD;
+          const sim=(inverted?weightedI:weightedD)/den;
+          if(eq/k<threshold(k)||last<3||sim<(threshold(k)-.02))continue;
+          const rawNext=hist[pos+k];
+          if(rawNext!=='P'&&rawNext!=='B')continue;
+          const next=inverted?(rawNext==='P'?'B':'P'):rawNext;
+          // Longer windows dominate, with mild phase alignment. Inversion
+          // is treated as a separate hypothesis and slightly discounted.
+          const phase=Math.abs((pos+k)-(live.length));
+          const phaseFactor=.93+.07*Math.exp(-phase/18);
+          const score=Math.pow(k/8,1.10)*Math.pow(sim,4.0)*phaseFactor*(inverted?.88:1);
+          const candidate={next,k,sim,score,inverted,shoe:si,pos};
+          totalWindows++;
+          if(!best||score>best.score){second=best;best=candidate;}
+          else if(!second||score>second.score)second=candidate;
+        }
+      }
+    }
+    if(best){
+      // Nearly equal, opposite within-shoe continuations mark ambiguity;
+      // don't arbitrarily promote the first match as certainty.
+      const conflict=second&&second.next!==best.next&&second.score>best.score*.96;
+      best.voteScale=conflict?.35:1;
+      bests.push(best);
+    }
+  }
+  bests.sort((a,b)=>b.score-a.score);
+  // Limit the pool to the strongest independent matches; never count the
+  // hundreds of chance six-hand recurrences as equally meaningful.
+  const peak=bests[0]?.score||0;
+  const selected=bests.filter(x=>x.score>=Math.max(.57,peak*.64)).slice(0,32);
+  let p=0,b=0,bestLen=0,bestSim=0,strong=0,direct=0,inverted=0;
+  for(const x of selected){
+    let weight=Math.min(1.25,Math.max(.25,x.score/(peak||1)))*x.voteScale;
+    if(x.k>=11)strong++;
+    if(x.inverted)inverted++;else direct++;
+    if(x.next==='P')p+=weight;else b+=weight;
+    bestLen=Math.max(bestLen,x.k);bestSim=Math.max(bestSim,x.sim);
+  }
+  const n=p+b;
+  const vote=n?{p:p/n,b:b/n,edge:Math.abs(p-b)/n,n}:{...neutral};
+  const quality=Math.round(100*clamp(
+    .30*Math.min(1,selected.length/12)+
+    .27*Math.min(1,strong/6)+
+    .23*Math.min(1,bestLen/16)+
+    .12*bestSim+
+    .08*vote.edge,0,1));
+  const out={vote,quality,matches:selected.length,bestLen,bestSim,totalWindows,scanned,direct,inverted,strong,
+    candidates:bests.length,oneVotePerShoe:true,rankedMatches:selected.map(x=>({shoe:x.shoe,k:x.k,sim:Math.round(x.sim*100),inverted:x.inverted,next:x.next}))};
+  historicalMainPattern.cachedKey=cacheKey;historicalMainPattern.cached=out;
+  return out;
+}
 function beadPattern(raw,shoes){
   const v={p:0,b:0,n:0};let matches=0,bestLen=0;
   if(raw.length<5)return {vote:normVote(v),quality:0,matches,bestLen};
   const row=raw.length%6;
   for(const shoe of shoes){
-    const hist=String(shoe.sequence||'').split('').filter(x=>x==='P'||x==='B');
+    const ignoreTies=typeof v452IgnoreTies==='function'&&v452IgnoreTies();
+    const hist=String(shoe.sequence||'').split('').filter(x=>x==='P'||x==='B'||(!ignoreTies&&x==='T'));
     for(let pos=5;pos<hist.length;pos++){
       if(pos%6!==row)continue;
       const next=hist[pos];if(next!=='P'&&next!=='B')continue;
@@ -16046,7 +16154,7 @@ function recentDecisionState(){
   return {n:a.length,lossStreak,recentN:rec.length,recentAcc:acc,defensive:lossStreak>=2};
 }
 function patternRecognizerSignal(){
-  const seq=livePB(), raw=rawSeq(), shoes=lib();
+  const seq=livePB(), raw=currentSequence(), shoes=lib();
   settleFamilyRuntime(seq);
   settleDecisionRuntime(seq);
 
@@ -16058,8 +16166,9 @@ function patternRecognizerSignal(){
   }
 
   const live=liveMainPattern(seq);
-  const hist=historicalMainPattern(seq,shoes);
-  const bead=beadPattern(raw,shoes);
+  const discovered=historicalMainPattern(seq,shoes);
+  const hist=v488OriginalHistoricalMainPattern(seq,shoes);
+  const bead=beadPattern(raw, (state.redPatternLibrary||[]).concat(state.blackPatternLibrary||[]));
   const roads=derivedConfirmation();
   const adapt=adaptiveWeights(seq,hist,bead,roads);
   const reg=adapt.reg||regimeProfile(seq);
@@ -16112,6 +16221,13 @@ function patternRecognizerSignal(){
     // Not appended to sources: V160 is correlated with saved-shoe history.
   }
 
+
+  // Strong matching independent shoes can CONFIRM an established history direction
+  // with at most 7% supplementary influence. Contradictions never flip a call.
+  const extraSide=sideOfVote(discovered),baseSide=sideOfVote(hist);
+  if(discovered.strong>=4 && discovered.matches>=6 && discovered.vote.edge>=.25 && extraSide===baseSide){
+    const bonus=.07; p+=bonus*discovered.vote.p;b+=bonus*discovered.vote.b;w+=bonus;
+  }
 
   if(!liveRuntime.pending || liveRuntime.pending.handN!==seq.length){
     liveRuntime.pending={
@@ -16200,8 +16316,8 @@ function patternRecognizerSignal(){
 
   return {
     side,candidate,qualified:!!side,strength,pPct,bPct,edge,quality,
-    matches:(hist.matches||0)+(bead.matches||0),
-    bestLen:Math.max(hist.bestLen||0,bead.bestLen||0),
+    matches:hist.matches||0,
+    bestLen:hist.bestLen||0,
     bestSimilarity:Math.round((hist.bestSim||0)*100),
     roadMatches:hist.matches||0,beadMatches:bead.matches||0,
     roadVotes:roads.ready,roadsAgree:roads.agree,
@@ -16211,6 +16327,7 @@ function patternRecognizerSignal(){
     live,hist,bead,roads,sources,adapt,
     sourceReady:ready.length,sourceSupport:support.length,sourceOppose:oppose.length,
     oneVotePerHistoricalShoe:true,
+    searchStats:{scanned:discovered.scanned||0,direct:discovered.direct||0,inverted:discovered.inverted||0,strong:discovered.strong||0,candidates:discovered.candidates||0,rankedMatches:discovered.rankedMatches||[],secondarySide:discovered.vote.p>discovered.vote.b?'P':discovered.vote.b>discovered.vote.p?'B':null},
     decision:recentDecisionState()
   };
 }
@@ -16223,8 +16340,8 @@ function paint(){
   set('roadAiAgree',String(r.matches||0));set('roadAiP',r.pPct+'%');set('roadAiB',r.bPct+'%');set('roadAiEdge',r.edge+' pts');
   const panel=document.getElementById('roadPreviewAiPanel');
   if(panel){
-    const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 AI Pattern Recognizer — Live-Adaptive Consensus';
-    const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>PATTERN ENGINE V416 — MORE ACTIVE CONSENSUS.</b> Uses saved-shoe history, Bead Plate, the 3 derived roads, and the current live-shoe pattern engine. Historical shoes get one consensus vote each. A+ prefers 3-of-4 agreement; further-loosened A-tier allows 2-source confirmation when saved history anchors the direction. TRANSITION can qualify with 2-source agreement when live flow and history agree.';
+    const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 AI Pattern Recognizer V488 — Full-Library Match Search';
+    const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>V488 ALL-SHOE MATCHING.</b> Searches the complete saved-shoe library for shifting exact, near-exact, and inverted P/B windows. Ranks independent shoes by match length and similarity; avoids counting duplicate windows as separate shoes. Bead Plate, live pattern, and 3 derived roads still confirm. Original history voting retained after held-out test; new direct/inverted matches are diagnostic evidence, not a guaranteed winning rate.';
   }
   const v160note=document.getElementById('v428V160Status');
   if(v160note){const m=window.__v428PatternV160?.match(livePB().join(''));
@@ -16233,10 +16350,13 @@ function paint(){
   const note=document.getElementById('roadAiNote');if(note){
     const hp=r.hist||{},bp=r.bead||{},rd=r.roads||{},lv=r.live||{};
     const regime=r.adapt?.reg?.regime||'MIXED';
+    const hs=r.searchStats||{};const searchText=` • history ${hs.scanned||0} shoes scanned / ${(hs.direct||0)+(hs.inverted||0)} top independent matches (${hs.direct||0} direct, ${hs.inverted||0} inverted; ${hs.strong||0} long)`;
     note.textContent=r.side
-      ? `QUALIFIED ${r.tier||''}: ${regime} • history ${Math.round(Math.max(hp.vote?.p||0,hp.vote?.b||0)*100)}% • live ${Math.round(Math.max(lv.vote?.p||0,lv.vote?.b||0)*100)}% • bead ${Math.round(Math.max(bp.vote?.p||0,bp.vote?.b||0)*100)}% • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0} • edge ${r.edge} • picks ${r.side==='P'?'PLAYER':'BANKER'}.`
-      : `${r.waitReason||'WAIT'} Regime ${regime} • saved matches ${hp.matches||0} unique shoes • live quality ${lv.quality||0}/100 • bead matches ${bp.matches||0} • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0}.`;
+      ? `QUALIFIED ${r.tier||''}: ${regime}${searchText} • history ${Math.round(Math.max(hp.vote?.p||0,hp.vote?.b||0)*100)}% • live ${Math.round(Math.max(lv.vote?.p||0,lv.vote?.b||0)*100)}% • bead ${Math.round(Math.max(bp.vote?.p||0,bp.vote?.b||0)*100)}% • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0} • edge ${r.edge} • picks ${r.side==='P'?'PLAYER':'BANKER'}.`
+      : `${r.waitReason||'WAIT'} Regime ${regime}${searchText} • live quality ${lv.quality||0}/100 • bead matches ${bp.matches||0} • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0}.`;
   }
+  const counter=document.getElementById('v488PatternMatches');
+  if(counter){const h=r.searchStats||{};counter.textContent=`LIBRARY MATCH SCAN: ${h.scanned||0} shoes checked • ${(h.direct||0)+(h.inverted||0)} distinct top matches • ${h.strong||0} long (11+ hands) • ${h.inverted||0} inverted`; }
   // Keep V73's existing roadpreview accuracy card compatible with the converted slot.
   const c=panel?.querySelector('[data-v73-acc="roadpreview"]');if(c){const span=c.querySelector('span');if(span)span.textContent='Pattern Recognizer verified accuracy';}
   return r;
@@ -16253,12 +16373,12 @@ function bindRuntimeReset(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(boot,100);setTimeout(bindRuntimeReset,120)},{once:true});else {setTimeout(boot,100);setTimeout(bindRuntimeReset,120)}
 [350,900,1800,3000].forEach(ms=>setTimeout(()=>{boot();bindRuntimeReset()},ms));
-const api={version:'V249_LIVE_ADAPTIVE_CONSENSUS',replacesRoadPreview:true,compatibilityKey:'roadpreview',
+const api={version:'V488_FULL_LIBRARY_MATCH_SEARCH',replacesRoadPreview:true,compatibilityKey:'roadpreview',
 primarySources:['saved-pb-shoe-history','pb-only-bead-plate-pattern','live-shoe-pattern'],
 confirmation:['big-eye-boy','small-road','cockroach-road'],liveRegimeWindows:[5,10,20,30],
 extraLongWindowActive:true,trustAwareQualification:true,explicitNewShoeRuntimeReset:true,
 onlineFamilyTrust:true,boundedAdaptation:true,otherAiInputs:false,selectiveWait:true,
-oneVotePerHistoricalShoe:true,livePatternEngineActive:true,preferredAgreement:'3-of-4',
+oneVotePerHistoricalShoe:true,slidingAndInvertedMatches:true,livePatternEngineActive:true,preferredAgreement:'3-of-4',
 selectiveAgreement:'history-anchored-2-source',transitionCanQualify:true};
 window.__V217_PATTERN_RECOGNIZER__=api;window.__V216_PATTERN_RECOGNIZER__=api;
 })();
@@ -22173,11 +22293,13 @@ window.__V464_BEAD_ENGINES__={calc,update,sliding:true,inverted:true};
 if(window.__GEMINI_V465__)return;
 const STORAGE='baccarat-gemini-v465-ledger';
 const $=id=>document.getElementById(id);
-const blank=()=>({wins:0,losses:0,waits:0,ties:0,rows:[],pending:null,last:'No graded predictions yet'});
+const blank=()=>({wins:0,losses:0,waits:0,ties:0,rows:[],adaptiveRows:[],pending:null,last:'No graded predictions yet'});
 let ledger=blank();
 try{const x=JSON.parse(localStorage.getItem(STORAGE)||'null');if(x&&typeof x==='object'){
   for(const k of ['wins','losses','waits','ties'])ledger[k]=Number.isSafeInteger(x[k])&&x[k]>=0?x[k]:0;
-  ledger.rows=Array.isArray(x.rows)?x.rows.slice(-300):[];ledger.last=String(x.last||ledger.last);ledger.pending=null;
+  ledger.rows=Array.isArray(x.rows)?x.rows.slice(-300):[];
+  ledger.adaptiveRows=Array.isArray(x.adaptiveRows)?x.adaptiveRows.slice(-80):[];
+  ledger.last=String(x.last||ledger.last);ledger.pending=null;
 }}catch(e){}
 let enabled=false,endpoint='',accessToken='',auto=true,inflight=null,scheduled=null,taskId=0;
 try{const c=JSON.parse(localStorage.getItem(STORAGE+'-settings')||'{}');enabled=c.enabled===true;endpoint=String(c.endpoint||'').trim();accessToken=String(c.accessToken||'');auto=c.auto!==false;}catch(e){}
@@ -22299,13 +22421,165 @@ function v484DeepLibrary(raw, roads) {
     playerNextVotes:ranked.filter(x=>x.next==='P').length,
     bankerNextVotes:ranked.filter(x=>x.next==='B').length},examples};
 }
+
+// V486 full-library learning: all unique historical shoes contribute to background
+// behavior and one independently weighted matching vote per saved shoe. The full
+// stored sequences remain local; only aggregate metrics and V484 examples go
+// to the existing Gemini proxy. This is empirical analysis, NOT a validated edge.
+let v486Cache={signature:'',shoes:[],profile:null};
+function v486Flip(s){return s.replace(/[PB]/g,c=>c==='P'?'B':'P');}
+function v486Corpus(){
+ const all=[...(Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[]),
+            ...(Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[])];
+ const records=[],unique=new Set(),signatureParts=[];
+ for(const shoe of all){
+   const raw=(typeof shoe==='string'?shoe:shoe?.sequence||'').toUpperCase();
+   if(!/^[PBT]{8,}$/.test(raw)||unique.has(raw))continue;
+   unique.add(raw);signatureParts.push(raw);
+   const pb=raw.replace(/T/g,'');if(pb.length<7)continue;
+   const indices=[];for(let i=0;i<raw.length;i++)if(raw[i]!=='T')indices.push(i);
+   records.push({raw,pb,indices,color:String(shoe?.shoeColor||'unknown')});
+ }
+ const signature=signatureParts.join('|');
+ if(signature===v486Cache.signature&&v486Cache.profile)return v486Cache;
+ const phases=[{p:0,b:0},{p:0,b:0},{p:0,b:0}];
+ const runs=[{p:0,b:0},{p:0,b:0},{p:0,b:0},{p:0,b:0}];
+ const tie={p:0,b:0};const regime={switches:0,stays:0};
+ const pattern=new Map();let observations=0,allP=0,allB=0;
+ for(const sh of records){
+   const {pb,raw,indices}=sh;
+   for(let pos=6;pos<pb.length;pos++){
+     const next=pb[pos],previous=pb[pos-1];
+     const pi=Math.min(2,Math.floor(pos/(Math.max(1,pb.length)/3)));
+     phases[pi][next.toLowerCase()]++;
+     if(next!==previous)regime.switches++;else regime.stays++;
+     let run=1;for(let j=pos-2;j>=0&&pb[j]===previous;j--)run++;
+     runs[Math.min(3,run-1)][next.toLowerCase()]++;
+     if(indices[pos]-indices[pos-1]>1)tie[next.toLowerCase()]++;
+     const code=pb.slice(pos-6,pos);const stat=pattern.get(code)||{p:0,b:0};stat[next.toLowerCase()]++;pattern.set(code,stat);
+     observations++;if(next==='P')allP++;else allB++;
+   }
+ }
+ v486Cache={signature,shoes:records,profile:{shoes:records.length,observations,
+   outcomes:{player:allP,banker:allB},phaseOutcomes:phases,runOutcomes:runs,
+   afterTieOutcomes:tie,transitions:regime,distinctSixHandMotifs:pattern.size,
+   sampleMotifs:[...pattern.entries()].sort((a,b)=>(b[1].p+b[1].b)-(a[1].p+a[1].b)).slice(0,8).map(([motif,v])=>({motif,player:v.p,banker:v.b}))}};
+ return v486Cache;
+}
+function v486LiveReliability(raw){
+ const rows=(ledger.adaptiveRows||[]).filter(r=>raw.startsWith(r.after)).slice(-24);
+ const keys=['direct','inverted','rhythm','afterTie'];const weights={},stats={};
+ for(const key of keys){
+   let w=0,l=0;
+   for(const r of rows){if(r.picks?.[key]&&['P','B'].includes(r.actual)){if(r.picks[key]===r.actual)w++;else l++;}}
+   const n=w+l; // Shrink toward neutral: never let a small streak dominate.
+   weights[key]=n>=8?Math.max(.82,Math.min(1.18,1+(.5*(w-l)/(n+12)))):1;
+   stats[key]={wins:w,losses:l,weight:Number(weights[key].toFixed(3))};
+ }
+ return {weights,stats,samples:rows.length};
+}
+function v486FullLibrary(raw){
+ const {shoes,profile}=v486Corpus();
+ const livePB=String(raw||'').replace(/T/g,'');
+ const prior=v486LiveReliability(raw);
+ const rawEndingTie=raw.endsWith('T');
+ const last=livePB.slice(-16),phase=Math.min(2,Math.floor(raw.length/26));
+ const totals={p:0,b:0};const perMode={direct:{p:0,b:0},inverted:{p:0,b:0},rhythm:{p:0,b:0},afterTie:{p:0,b:0}};
+ let matchingShoes=0,invertedShoes=0,consideredWindows=0;
+ for(const shoe of shoes){
+   const hist=shoe.pb;let best=null;
+   // Read the next outcome only after measuring the past-only matching prefix.
+   // All 195 shoes inform the baseline, but fewer qualify as true local matches.
+   if(last.length<8)continue;
+   for(let pos=8;pos<hist.length;pos++){
+     const n=Math.min(last.length,pos,16);
+     if(n<8)continue;
+     consideredWindows++;
+     const part=hist.slice(pos-n,pos),current=last.slice(-n);
+     let hits=0,invertedHits=0,shapeHits=0,den=0;
+     for(let j=0;j<n;j++){
+       const w=j+1;den+=w;
+       if(part[j]===current[j])hits+=w;else invertedHits+=w;
+       if(j>0&&(part[j]===part[j-1])===(current[j]===current[j-1]))shapeHits++;
+     }
+     const direct=hits/den,inverse=invertedHits/den,shape=shapeHits/(n-1);
+     const inverted=inverse>direct;
+     const bead=Math.max(direct,inverse);
+     // A high best-of-many score by itself can be misleading. Require recent
+     // exact agreement before considering the historical next-hand label.
+     const tailN=Math.min(12,n);
+     let recentExact=0;
+     for(let k=0;k<tailN;k++)if(part[n-1-k]===(inverted?v486Flip(current[n-1-k]):current[n-1-k]))recentExact++;
+     const needed=tailN>=12?11:tailN>=10?9:8;
+     if(recentExact<needed)continue;
+     let streak=1;for(let j=pos-2;j>=0&&hist[j]===hist[pos-1];j--)streak++;
+     let liveStreak=1;for(let j=livePB.length-2;j>=0&&livePB[j]===livePB.at(-1);j--)liveStreak++;
+     const runFit=1-Math.min(1,Math.abs(Math.min(streak,8)-Math.min(liveStreak,8))/7);
+     const historicalTie=shoe.indices[pos]-shoe.indices[pos-1]>1;
+     const tieFit=rawEndingTie===historicalTie;
+     const recentFit=(part.slice(-4)===(inverted?v486Flip(current.slice(-4)):current.slice(-4)));
+     const score=.66*bead+.19*shape+.09*runFit+.06*(1-Math.min(1,Math.abs(phase-Math.min(2,Math.floor(shoe.indices[pos]/26)))/2))
+       +(tieFit?.025:-.055)+(recentFit?.025:-.04);
+     if(score<.76)continue;
+     const mode=rawEndingTie&&historicalTie?'afterTie':shape>=.85&&bead<.77?'rhythm':inverted?'inverted':'direct';
+     const side=mode==='rhythm'?(hist[pos]===hist[pos-1]?livePB.at(-1):(livePB.at(-1)==='P'?'B':'P'))
+       :(inverted?v486Flip(hist[pos]):hist[pos]);
+     // Penalize weak/very short matching contexts and heavy winner-selection.
+     const weight=Math.pow(Math.max(0,(score-.55)/.55),2)*(n/16*.4+.6)*prior.weights[mode];
+     if(!best||weight>best.weight)best={weight,side,mode,inverted,score};
+   }
+   if(!best)continue;
+   matchingShoes++;if(best.inverted)invertedShoes++;
+   const key=best.side.toLowerCase();totals[key]+=best.weight;
+   perMode[best.mode][key]+=best.weight;
+ }
+ const votes=totals.p+totals.b;
+ const base=profile.outcomes.player+profile.outcomes.banker;
+ const basePlayer=base?profile.outcomes.player/base:.5;
+ // Shrink low-support searches against the complete-library baseline.
+ const playerShare=(totals.p+15*basePlayer)/(votes+15);
+ const support=matchingShoes;
+ const localValid=support>=8&&votes>=1.2&&Math.abs(playerShare-.5)>=.055;
+ const modes={};const modePicks={};
+ for(const [name,v] of Object.entries(perMode)){
+   const total=v.p+v.b;
+   modes[name]={playerWeight:+v.p.toFixed(3),bankerWeight:+v.b.toFixed(3)};
+   if(total>=.5&&Math.abs(v.p-v.b)/total>=.10)modePicks[name]=v.p>v.b?'P':'B';
+ }
+ const lean=playerShare>.5?'P':'B';
+ return {summary:{version:3,scannedShoes:profile.shoes,trainingObservations:profile.observations,
+   qualifyingShoes:matchingShoes,invertedShoes,scannedWindows:consideredWindows,
+   historicalBaseline:profile.outcomes,transitionBehavior:profile.transitions,
+   phaseBehavior:profile.phaseOutcomes,runBehavior:profile.runOutcomes,
+   afterTieBehavior:profile.afterTieOutcomes,distinctMotifs:profile.distinctSixHandMotifs,
+   frequentMotifs:profile.sampleMotifs,liveHand:raw.length,liveLastSix:livePB.slice(-6),
+   afterTieNow:rawEndingTie,matchedPlayerWeight:+totals.p.toFixed(3),
+   matchedBankerWeight:+totals.b.toFixed(3),historicalPlayerVotePercent:+(100*playerShare).toFixed(1),
+   independentMatchingShoes:matchingShoes,adaptiveLiveSamples:prior.samples,
+   liveReliability:prior.stats,modeVotes:modes,
+   disclaimer:'Historical similarity is not a calibrated next-hand probability.'},
+   valid:localValid,lean,playerShare,modePicks};
+}
+function v486Hybrid(geminiSide,library){
+ if(!library.valid)return {side:'WAIT',source:'WAIT: library votes are split or strong support is insufficient'};
+ const remoteP=geminiSide==='P'?1:geminiSide==='B'?0:null;
+ // The full-library model has majority influence; the proxy remains independent.
+ if(remoteP===null){
+   return {side:Math.abs(library.playerShare-.5)>=.065?library.lean:'WAIT',source:'Full-library only; Gemini WAIT'};
+ }
+ const blended=.85*library.playerShare+.15*(remoteP===1?.65:.35);
+ const side=Math.abs(blended-.5)>=.035?(blended>.5?'P':'B'):'WAIT';
+ return {side,source:'85% full-library behavior + 15% Gemini direction'};
+}
+
 function input(){
  const raw=sequence();const hands=(state.hands||[]).filter(h=>h&&['P','B','T'].includes(h.r));
  const roads={};try{for(const [name,offset] of [['bigEye',1],['small',2],['cockroach',3]])roads[name]=deriveRoad(hands,offset).slice(-25).join('');}catch(e){}
  const evidence=v484DeepLibrary(raw,roads);
- return {sequence:raw.slice(-100),handCount:raw.length,shoeColor:String(state.currentShoeColor||'unspecified'),
+ const learned=v486FullLibrary(raw);
+ return {__localLearned:learned,libraryLearnedBehavior:learned.summary,sequence:raw.slice(-100),handCount:raw.length,shoeColor:String(state.currentShoeColor||'unspecified'),
    ignoreTiesInLibrarySearch:(()=>{try{return localStorage.getItem('v452_ignore_ties')==='1'}catch(e){return false}})(),
-   derivedRoads:roads,libraryMatchSummary:evidence.libraryMatchSummary,
+   derivedRoads:roads,counterexampleAudit:(window.__V489_COUNTEREXAMPLE_AUDITOR__?.previewForGemini?.(raw)||null),libraryMatchSummary:evidence.libraryMatchSummary,
    libraryEvidence:{version:1,scannedShoes:evidence.scannedShoes,
     qualifyingShoes:evidence.qualifyingShoes,examples:evidence.examples}};
 }
@@ -22320,7 +22594,12 @@ async function analyze(){
  const controller=new AbortController();inflight=controller;
  const timeout=setTimeout(()=>controller.abort(),5000);
  const payload=input();
- show('v484LibraryInfo','Local library scan: '+payload.libraryEvidence.scannedShoes+' unique shoes • '+payload.libraryEvidence.qualifyingShoes+' matching shoes • '+payload.libraryEvidence.examples.length+' historical examples selected.');
+ const learned=payload.__localLearned;delete payload.__localLearned;
+ // Snapshot local learning before the hand is revealed, so future results never leak.
+ ledger.learningPending={before:pre,modePicks:learned.modePicks};
+ show('v484LibraryInfo','Full library learned: '+learned.summary.scannedShoes+' unique shoes • '+learned.summary.trainingObservations+' historical contexts • '+learned.summary.qualifyingShoes+' matching shoes • '+learned.summary.adaptiveLiveSamples+' recent live grades.');
+ /* old UI update retired: */
+
  const start=performance.now();status('Contacting Gemini through your proxy (5s maximum)…');paint();
  try{
    const headers={'Content-Type':'application/json'};if(accessToken)headers.Authorization='Bearer '+accessToken;
@@ -22343,12 +22622,16 @@ async function analyze(){
    const side=String(data.prediction||data.side||'WAIT').trim().toUpperCase();
    if(!['P','B','WAIT'].includes(side))throw new Error('Invalid Gemini prediction in proxy response');
    lastRequestMs=Math.round(performance.now()-start);
-   ledger.pending=side==='WAIT'?null:{side,handN:pre.length,prefix:pre};
-   store();show('v465Pick',side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT');
-   show('v465Reason',String(data.reason||'Analysis returned without an explanation.').slice(0,250));
+   const combined=v486Hybrid(side,learned);
+   const decided=combined.side;
+   ledger.pending=decided==='WAIT'?null:{side:decided,handN:pre.length,prefix:pre};
+   store();show('v465Pick',decided==='P'?'PLAYER':decided==='B'?'BANKER':'WAIT');
+   show('v465Reason',combined.source+' • Gemini '+side+' • Local '+learned.lean+
+     ' ('+(learned.playerShare*100).toFixed(1)+'% historical P vote, not win chance). '+
+     String(data.reason||'').slice(0,130));
    const supported=data.libraryEvidenceUsed===true;
-   status((side==='WAIT'?'Gemini returned WAIT.':'Locked for hand '+(pre.length+1)+'.')+
-     (supported?' Deep library processed: '+(Number(data.acceptedExamples)||0)+' examples.':' Proxy update needed: historical examples NOT confirmed processed.')+
+   status((decided==='WAIT'?'Final hybrid WAIT.':'Final hybrid locked for hand '+(pre.length+1)+'.')+
+     (supported?' Proxy confirmed '+(Number(data.acceptedExamples)||0)+' selected examples.':' Proxy has NOT confirmed using the aggregate behavior summary (local hybrid still uses it).')+
      ' Experimental only; no verified betting edge.');
  }catch(e){
    if(token!==taskId||pre!==sequence()||!enabled)return;
@@ -22357,21 +22640,34 @@ async function analyze(){
  }finally{clearTimeout(timeout);if(inflight===controller)inflight=null;paint();}
 }
 function queueAnalyze(){cancel();if(!enabled)return;
- if(!ready()){status('OFFLINE: Add HTTPS proxy URL and separate access token to activate.');return;}
- if(!auto){status('Ready — press Analyze Hand to request a separate Gemini prediction.');return;}
+ const pre=sequence();
+ if(pre.replace(/T/g,'').length>=8){
+   const local=v486FullLibrary(pre);
+   ledger.learningPending={before:pre,modePicks:local.modePicks};
+   store();
+   show('v484LibraryInfo','Full library learning ('+local.summary.scannedShoes+' saved shoes) • '+local.summary.trainingObservations+' contexts • '+local.summary.qualifyingShoes+' strong independent matches • '+local.summary.adaptiveLiveSamples+' recent live learning samples.');
+ }
+ if(!ready()){status('Local library adapting. Connect the Gemini proxy for hybrid calls; no Gemini prediction is active.');return;}
+ if(!auto){status('Local learning active. Press Analyze Hand to request a Gemini prediction.');return;}
  scheduled=setTimeout(analyze,60);
 }
 // Called only by the authoritative PRE-COMMIT result queue.
 function settle(actual){
- if(!['P','B','T'].includes(actual))return;
+ if(!['P','B','T'].includes(actual))return; if(!enabled&&!ledger.pending)return;
  const before=sequence();cancel();const lock=ledger.pending;ledger.pending=null;
+ const learn=ledger.learningPending;ledger.learningPending=null;
+ if(learn?.before===before&&actual!=='T'&&Object.keys(learn.modePicks||{}).length){
+   if(!Array.isArray(ledger.adaptiveRows))ledger.adaptiveRows=[];
+   ledger.adaptiveRows.push({before,after:before+actual,actual,picks:learn.modePicks});
+   if(ledger.adaptiveRows.length>80)ledger.adaptiveRows.shift();
+ }
  let verdict='UNSCORED';
  if(actual==='T'){ledger.ties++;verdict='TIE';}
  else if(lock&&lock.handN===before.length&&lock.prefix===before&&['P','B'].includes(lock.side)){
    if(lock.side===actual){ledger.wins++;verdict='WIN';}else{ledger.losses++;verdict='LOSS';}
- }else{ledger.waits++;verdict='WAIT';}
+ }else if(ready()&&before.replace(/T/g,'').length>=8){ledger.waits++;verdict='WAIT';}
  ledger.last='Hand '+(before.length+1)+' '+actual+': '+verdict+(lock?' ('+lock.side+' predicted)':' (no locked pick)');
- ledger.rows.push({before,after:before+actual,actual,verdict,side:lock?.side||null});
+ if(verdict!=='UNSCORED')ledger.rows.push({before,after:before+actual,actual,verdict,side:lock?.side||null});
  if(ledger.rows.length>300)ledger.rows.shift();
  store();show('v465Pick','WAIT');show('v465Reason','Previous prediction settled. Next result not yet analyzed.');
  paint();
@@ -22382,8 +22678,12 @@ function reconcile(){
  // Undo may remove the most recently graded hand; remove that exact ledger row only.
  const prev=lastSeen;lastSeen=current;
  if(prev.length===current.length+1&&prev.startsWith(current)){
+   // Undo must reverse local training even without a proxy/graded row.
+   const lr=ledger.adaptiveRows?.at(-1);
+   if(lr&&lr.after===prev&&lr.before===current){ledger.adaptiveRows.pop();store();}
    const r=ledger.rows.at(-1);
    if(r&&r.after===prev&&r.before===current){ledger.rows.pop();
+
      if(r.verdict==='WIN')ledger.wins=Math.max(0,ledger.wins-1);
      if(r.verdict==='LOSS')ledger.losses=Math.max(0,ledger.losses-1);
      if(r.verdict==='WAIT')ledger.waits=Math.max(0,ledger.waits-1);
@@ -22391,15 +22691,16 @@ function reconcile(){
      ledger.last='Last Gemini grade undone';store();
    }
  }
+ if((current.length===0&&prev.length>0)||(!prev.startsWith(current)&&!current.startsWith(prev))){ledger.adaptiveRows=[];ledger.learningPending=null;store();}
  cancel();clearPending();paint();if(enabled)queueAnalyze();
 }
 function addUI(){
  const target=$('v452TieMode')||document.querySelector('.app');if(!target)return;
  const e=document.createElement('section');e.id='v465Gemini';e.setAttribute('aria-label','Google Gemini independent analyzer');
- e.innerHTML=`<div class="gm-head"><div class="gm-title">Google Gemini AI • Independent Test</div><label class="gm-control"><input type="checkbox" id="v465On"> ON / OFF</label></div>
- <div class="gm-description">Independent Google Gemini analyzer. V484 locally scans distinct saved RED+BLACK shoes and sends up to 14 short historical matching examples, including inverted patterns, to your Google proxy. It does not upload the full library. Experimental only; no verified betting advantage.</div>
- <div class="gm-grid"><div class="gm-cell"><span>NEXT GEMINI CALL</span><strong id="v465Pick">WAIT</strong></div><div class="gm-cell"><span>WINS</span><strong id="v465Win">0</strong></div><div class="gm-cell"><span>LOSSES</span><strong id="v465Loss">0</strong></div><div class="gm-cell"><span>ACCURACY</span><strong id="v465Accuracy">—</strong></div><div class="gm-cell"><span>GRADED HANDS</span><strong id="v465Sample">0</strong></div><div class="gm-cell"><span>WAITS / 5s RESPONSE</span><strong><span id="v465Wait" style="display:inline;font-size:17px;color:white">0</span> / <span id="v465Latency" style="display:inline;font-size:16px;color:white">—</span></strong></div></div>
- <div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div><div id="v484LibraryInfo" class="gm-description">Deep library retrieval: scans both RED and BLACK saved-shoe libraries after 6 hands.</div>
+ e.innerHTML=`<div class="gm-head"><div class="gm-title">Gemini + Entire Library • Live Adaptive Test</div><label class="gm-control"><input type="checkbox" id="v465On"> ON / OFF</label></div>
+ <div class="gm-description">V489 Gemini + Full-Library Adaptive Analyzer: learns context transitions from EVERY distinct saved RED and BLACK shoe, checks sliding and inverted matches, and gradually adjusts pattern weights using completed live hands. Full-library behavior has 85% influence when strongly qualified; Gemini direction 15%. Weak matching evidence produces WAIT. Sends summaries and up to 14 selected segments through your existing proxy (not full raw shoes). Historical similarity is not a proven betting edge.</div>
+ <div class="gm-grid"><div class="gm-cell"><span>NEXT ADAPTIVE CALL</span><strong id="v465Pick">WAIT</strong></div><div class="gm-cell"><span>WINS</span><strong id="v465Win">0</strong></div><div class="gm-cell"><span>LOSSES</span><strong id="v465Loss">0</strong></div><div class="gm-cell"><span>ACCURACY</span><strong id="v465Accuracy">—</strong></div><div class="gm-cell"><span>GRADED HANDS</span><strong id="v465Sample">0</strong></div><div class="gm-cell"><span>WAITS / 5s RESPONSE</span><strong><span id="v465Wait" style="display:inline;font-size:17px;color:white">0</span> / <span id="v465Latency" style="display:inline;font-size:16px;color:white">—</span></strong></div></div>
+ <div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div><div id="v484LibraryInfo" class="gm-description">Full library learning: scanning all saved RED and BLACK shoes (locally).</div>
  <details style="margin-top:10px"><summary style="font-size:12px;cursor:pointer;color:#a7c5ff">Connection settings</summary>
  <div class="gm-description">Enter your hosted HTTPS proxy URL and its separate access token. <b>Never enter your Google Gemini API key here.</b> The proxy stores that private key.</div>
  <input id="v465Endpoint" class="gm-url" placeholder="https://your-server.onrender.com/gemini" aria-label="Secure Gemini proxy URL" autocomplete="off" spellcheck="false">
@@ -22409,22 +22710,222 @@ function addUI(){
  </details>
  <label class="gm-control" style="margin-top:10px"><input type="checkbox" id="v465Auto"> Analyze each new hand automatically (when enabled)</label>
  <div class="gm-buttons"><button id="v465Analyze" type="button">Analyze Current Hand</button><button id="v465Reset" type="button">Reset Gemini Accuracy Only</button></div>
- <div class="gm-note"><span id="v465Last">Not graded yet</span>. Ties are excluded from accuracy. WAITs count separately. Undo reverses the most recent matching Gemini grade. When enabled, live history and a few historical shoe segments are sent to your Google Gemini proxy. Switch OFF to disconnect immediately; original AI logic stays unchanged.</div>`;
+ <div class="gm-note"><span id="v465Last">Not graded yet</span>. Ties are excluded from accuracy. WAITs count separately. Undo reverses the most recent matching Gemini grade. When enabled, live history, aggregate library behavior, and up to 14 historical segments go to your Google Gemini proxy; raw full shoes remain on this device. Switch OFF to disconnect immediately; original AI logic stays unchanged.</div>`;
  target.insertAdjacentElement('afterend',e);
  $('v465Endpoint').value=endpoint;$('v469AccessToken').value=accessToken;
  $('v465On').checked=enabled;$('v465Auto').checked=auto;
- $('v465On').addEventListener('change',ev=>{enabled=!!ev.target.checked;settings();cancel();clearPending();paint();status(enabled?(ready()?'ON • independent Google Gemini experiment':'ON • enter HTTPS proxy URL and access token in connection settings'):'OFF • zero Gemini requests');if(enabled)queueAnalyze()});
+ $('v465On').addEventListener('change',ev=>{enabled=!!ev.target.checked;settings();cancel();ledger.learningPending=null;clearPending();paint();status(enabled?(ready()?'ON • independent Google Gemini experiment':'ON • enter HTTPS proxy URL and access token in connection settings'):'OFF • zero Gemini requests');if(enabled)queueAnalyze()});
  $('v465Auto').addEventListener('change',ev=>{auto=!!ev.target.checked;settings();if(enabled)queueAnalyze()});
  $('v465Save').addEventListener('click',()=>{const candidate=$('v465Endpoint').value.trim();const secret=$('v469AccessToken').value.trim();if(!usableUrl(candidate)){status('Enter an HTTPS proxy URL (or localhost for desktop testing).');return;}if(!localhostUrl(candidate)&&secret.length<24){status('Enter a separate proxy token of at least 24 characters. Never enter your Google API key.');return;}endpoint=candidate;accessToken=secret;settings();status('Connection saved. Try Analyze Current Hand after 6 hands; URL alone does not confirm Google access.');if(enabled)queueAnalyze();paint()});
  $('v465Forget').addEventListener('click',()=>{enabled=false;endpoint='';accessToken='';$('v465Endpoint').value='';$('v469AccessToken').value='';settings();cancel();clearPending();status('Gemini disconnected and proxy URL forgotten. Other AIs untouched.');paint()});
  $('v465Analyze').addEventListener('click',()=>{cancel();analyze()});
- $('v465Reset').addEventListener('click',()=>{if(!confirm('Reset ONLY Google Gemini accuracy (wins, losses, waits, ties)?'))return;ledger=blank();store();paint();status('Gemini accuracy reset; other AI counts unchanged.');});
+ $('v465Reset').addEventListener('click',()=>{if(!confirm('Reset ONLY Google Gemini accuracy (wins, losses, waits, ties)?'))return;ledger=blank();store();paint();status('Gemini accuracy and live adaptation reset; other AI counts unchanged.');});
  for(const id of ['undoBtn','clearBtn','sampleBtn'])$(id)?.addEventListener('click',()=>setTimeout(reconcile,60),false);
- lastSeen=sequence();paint();status(enabled?(ready()?'ON • proxy configured (connection not yet verified)':'ON • needs HTTPS proxy and token'):'OFF • existing AIs unaffected');
+ lastSeen=sequence();paint();const trained=v486Corpus().profile;show('v484LibraryInfo','Full-library learning ready: '+trained.shoes+' unique shoes • '+trained.observations+' historical contexts. Updating after each hand.');status(enabled?(ready()?'ON • proxy configured (connection not yet verified)':'ON • needs HTTPS proxy and token'):'OFF • existing AIs unaffected');
  if(enabled)queueAnalyze();
 }
-window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V484',independent:true,libraryPreview:()=>input().libraryEvidence};
+window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V489',independent:true,libraryPreview:()=>input().libraryEvidence,behaviorPreview:()=>v486FullLibrary(sequence()).summary};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addUI,{once:true});else addUI();
+})();
+</script>
+<!-- V489: independent full-library counterexample audit. This is local verification,
+     not a claim that Gemini remotely reasons with all raw shoes. Remote payload receives
+     bounded summary only; no changes to existing predictions or selections. -->
+<style id="v489-auditor-style">
+#v489CounterAudit{margin-top:11px;background:#101f2b;border:1px solid #598da6;border-radius:12px;padding:11px;color:#e7f3fa}
+#v489CounterAudit .ca-header{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#v489CounterAudit .ca-title{font-size:15px;font-weight:900}
+#v489CounterAudit .ca-status{font-size:11px;color:#bdd9ed;font-weight:800}
+#v489CounterAudit .ca-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:9px 0}
+#v489CounterAudit .ca-cell{background:#223646;border-radius:8px;padding:7px 4px;text-align:center;min-width:0}
+#v489CounterAudit .ca-cell span{font-size:9px;color:#c1d4e1;display:block}
+#v489CounterAudit .ca-cell strong{font-size:18px;display:block;overflow-wrap:anywhere}
+#v489CounterAudit .ca-brief{font-size:12px;line-height:1.55;margin-top:8px;color:#d3e8f5}
+#v489CounterAudit .ca-note{font-size:10px;line-height:1.45;color:#b4c9d5;margin-top:7px}
+#v489CounterAudit button{border:1px solid #698ea5;background:#224862;color:#fff;padding:9px;border-radius:8px;width:100%;margin-top:9px;font-weight:800}
+@media(max-width:440px){#v489CounterAudit .ca-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script id="v489-gemini-counterexample-auditor">
+(()=>{'use strict';
+if(window.__V489_COUNTEREXAMPLE_AUDITOR__)return;
+const $=id=>document.getElementById(id), KEY='baccarat-v489-counterexample-auditor';
+const fresh=()=>({wins:0,losses:0,waits:0,ties:0,warningCorrect:0,warningWrong:0,rows:[],pending:null,epoch:0,last:'No recorded counterexample results'});
+let st=fresh();
+try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&typeof x==='object'){
+ for(const k of ['wins','losses','waits','ties','warningCorrect','warningWrong','epoch'])if(Number.isSafeInteger(x[k])&&x[k]>=0)st[k]=x[k];
+ st.rows=Array.isArray(x.rows)?x.rows.slice(-300):[];st.last=String(x.last||st.last);
+}}catch(_){}st.pending=null; // Never persist future-hand predictions across a reload.
+const seq=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(c=>'PBT'.includes(c)).join('')}catch(_){return ''}};
+const flip=x=>x==='P'?'B':x==='B'?'P':x;
+const side=t=>{const s=String(t||'').trim().toUpperCase();const m=s.match(/^(?:LIKELY ANSWER|BEST PREDICTION)\s*:\s*(PLAYER|BANKER|WAIT)\b/);if(m)return m[1]==='PLAYER'?'P':m[1]==='BANKER'?'B':null;if(s==='P'||s==='PLAYER'||/^PLAYER\b/.test(s))return 'P';if(s==='B'||s==='BANKER'||/^BANKER\b/.test(s))return 'B';return null};
+const picks=[['Sequence V2','seqAiSide'],['Best Estimate','bestSide'],['Main Future','futureFinal'],['Pattern Recognizer','roadAiSide'],['Future Test 2','v360T2Pick'],['Gemini hybrid','v465Pick']];
+function consensus(){
+ const votes=[];for(const [name,id] of picks){const guess=side($(id)?.textContent);if(guess)votes.push({name,side:guess});}
+ // Snapshot the strongest three core predictors first. The other engines are supporting context.
+ const core=votes.filter(x=>['Sequence V2','Best Estimate','Main Future'].includes(x.name));
+ const base=core.length>=2?core:votes.filter(x=>x.name!=='Gemini hybrid');
+ const p=base.filter(v=>v.side==='P').length,b=base.filter(v=>v.side==='B').length;
+ const s=Math.max(p,b)>=2&&Math.abs(p-b)>=1?(p>b?'P':'B'):null;
+ return {side:s,coreVotes:base.length,agreeing:Math.max(p,b),allAgree:s!==null&&base.length>=2&&Math.min(p,b)===0,details:votes};
+}
+let libCache={key:'',rows:[]},auditCache={key:'',value:null};
+function corpus(){
+ const raw=[...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])];
+ const key=raw.map(x=>typeof x==='string'?x:String(x?.sequence||'')).join('|');
+ if(key===libCache.key)return libCache.rows;
+ const seen=new Set(),out=[];
+ for(const x of raw){const all=String(typeof x==='string'?x:x?.sequence||'').toUpperCase();if(!/^[PBT]{10,}$/.test(all)||seen.has(all))continue;seen.add(all);
+   const pb=all.replace(/T/g,''),indices=[];for(let i=0;i<all.length;i++)if(all[i]!=='T')indices.push(i);
+   if(pb.length>=10)out.push({pb,indices,raw:all});
+ }
+ libCache={key,rows:out};auditCache.key='';return out;
+}
+function compare(raw,baseline,force=false){
+ const shoes=corpus(),live=String(raw||''),pb=live.replace(/T/g,''),suffix=pb.slice(-16);
+ const cacheKey=live+'|'+libCache.key+'|'+String(baseline||'');
+ if(!force&&auditCache.key===cacheKey)return auditCache.value;
+ let found=0, exact=0, inverse=0,afterTie=0,totalP=0,totalB=0,qualified=0;const shortlist=[];
+ if(suffix.length>=8){
+  const lengths=[10,12,14,16].filter(n=>n<=suffix.length);
+  for(let i=0;i<shoes.length;i++){
+   const shoe=shoes[i];let best=null;
+   for(let pos=8;pos<shoe.pb.length;pos++){
+    const next=shoe.pb[pos]; // Outcome is not inspected until after the prefix match is scored.
+    for(const n of lengths){if(pos<n)continue;
+     const sample=shoe.pb.slice(pos-n,pos),end=suffix.slice(-n);
+     let direct=0,invert=0,tailD=0,tailI=0,shape=0,exactD=0,exactI=0;
+     for(let j=0;j<n;j++){
+       const w=j+1;
+       if(sample[j]===end[j]){direct+=w;exactD++;}else{invert+=w;exactI++;}
+       if(j>=n-5){if(sample[j]===end[j])tailD++;else tailI++;}
+       if(j>0&&(sample[j]===sample[j-1])===(end[j]===end[j-1]))shape++;
+     }
+     const total=n*(n+1)/2,inv=invert>direct,matched=Math.max(direct,invert)/total,tail=inv?tailI:tailD,exact=inv?exactI:exactD;
+     // Require recent suffix confirmation, not merely a distant high similarity.
+     if(exact<(n===10?10:n-1)||tail<5)continue;
+     // A historical tie occurring AFTER the matched prefix is not known at
+     // prediction time: never use it to favor a candidate on ordinary hands.
+     const isTie=shoe.indices[pos]-shoe.indices[pos-1]>1;
+     const afterTieContext=live.endsWith('T');
+     if(afterTieContext&&!isTie)continue;
+     const rhythm=shape/(n-1);
+     const score=Math.max(0,Math.min(1,.85*matched+.10*rhythm+.05*(tail/5)+.006*(n/16)));
+     if(score<.91)continue;
+     const aligned=inv?flip(next):next;
+     const candidate={shoe:i,next:aligned,kind:inv?'inverted':'direct',n,score,afterTie:afterTieContext&&isTie,matchedHands:n};
+     if(!best||candidate.score>best.score+1e-9||(Math.abs(candidate.score-best.score)<1e-9&&n>best.n))best=candidate;
+    }
+   }
+   if(!best)continue; // ONE representative occurrence / ONE vote per independent saved shoe.
+   found++;qualified++;if(best.kind==='inverted')inverse++;else exact++;
+   if(best.afterTie)afterTie++;
+   if(best.next==='P')totalP++;else totalB++;
+   shortlist.push(best);
+  }
+ }
+ shortlist.sort((a,b)=>b.score-a.score||b.n-a.n);
+ const opposite=baseline?(baseline==='P'?totalB:totalP):0;
+ const support=totalP+totalB,oppositeRate=support?opposite/support:null;
+ // Many pattern windows are tested. High support is descriptive, never evidence of
+ // nonrandom winning odds. Warn only when clear contradicting historical outcomes exist.
+ const warning=!!baseline&&support>=12&&opposite>=8&&oppositeRate>=.68&&shortlist.filter(x=>x.n>=12).length>=3;
+ const out={scannedShoes:shoes.length,qualifyingShoes:qualified,directMatches:exact,invertedMatches:inverse,
+   playerNext:totalP,bankerNext:totalB,baseline,opposite,oppositeRate,warning,afterTieMatches:afterTie,
+   matchingLong:shortlist.filter(x=>x.n>=12).length,
+   examples:shortlist.slice(0,6).map(x=>({matchedHands:x.n,kind:x.kind,score:Math.round(x.score*100),next:x.next}))};
+ auditCache={key:cacheKey,value:out};return out;
+}
+const store=()=>{try{localStorage.setItem(KEY,JSON.stringify({...st,pending:null}))}catch(_){}};
+const set=(id,v)=>{if($(id))$(id).textContent=String(v)};
+function paint(current){
+ const a=current||st.pending?.audit;const n=st.wins+st.losses;
+ set('v489Scanned',a?.scannedShoes??corpus().length);set('v489Matches',a?.qualifyingShoes??0);
+ set('v489Opposed',a?.opposite??0);set('v489Long',a?.matchingLong??0);
+ set('v489Win',st.wins);set('v489Loss',st.losses);set('v489Accuracy',n?(100*st.wins/n).toFixed(1)+'%':'—');
+ set('v489Warnings',st.warningCorrect+' confirmed / '+st.warningWrong+' not confirmed');
+ set('v489AuditState',st.pending?.warning?'HISTORICAL DISAGREEMENT':st.pending?.baseline?'Evidence comparison':'WAIT / no consensus');
+ if(st.pending?.audit){const r=st.pending.audit;
+  const fraction=r.oppositeRate===null?'—':(100*r.oppositeRate).toFixed(1)+'%';
+  set('v489Summary', 'Core AI direction: '+(st.pending.baseline==='P'?'PLAYER':st.pending.baseline==='B'?'BANKER':'No consensus')+
+    '. Distinct shoe matches: '+r.qualifyingShoes+'; opposing historical outcomes: '+r.opposite+' ('+fraction+'). '+
+    r.directMatches+' direct / '+r.invertedMatches+' inverted, '+r.afterTieMatches+' after-tie contexts. '+
+    (st.pending.warning?'FLAG: historical examples contradict the core AI direction.':'No strong contradiction flag at this hand.') );
+ }else set('v489Summary','Waiting for pre-hand evidence. Auditor is independent of the other AI predictions.');
+ set('v489Last',st.last);
+}
+function arm(){
+ const before=seq();if(st.pending?.before===before){paint();return st.pending;}
+ const base=consensus(),audit=compare(before,base.side);
+ st.pending={before,baseline:base.side,warning:audit.warning,audit,core:base.details,epoch:st.epoch};paint();return st.pending;
+}
+function settle(actual){
+ if(!['P','B','T'].includes(actual))return;
+ const before=seq(),lock=st.pending?.before===before?st.pending:null;
+ const row={before,after:before+actual,actual,epoch:st.epoch,verdict:'WAIT',warned:false};
+ if(actual==='T'){st.ties++;row.verdict='TIE';}
+ else if(lock?.warning&&lock.baseline){
+  // A correct counterexample means the AI consensus was WRONG. This is the
+  // auditor's independent accuracy, not Gemini's directional win rate.
+  row.warned=true;row.verdict=lock.baseline!==actual?'WIN':'LOSS';
+  if(row.verdict==='WIN'){st.wins++;st.warningCorrect++;}
+  else{st.losses++;st.warningWrong++;}
+ }else{st.waits++;}
+ st.last='Hand '+(before.length+1)+' '+actual+': '+row.verdict+(row.warned?' (flagged '+lock.baseline+' consensus)':' (no warning)');
+ st.rows.push(row);if(st.rows.length>300)st.rows.shift();st.pending=null;store();paint();
+}
+let scheduled=null,lastSeen='';
+function scheduleArm(delay=260){clearTimeout(scheduled);scheduled=setTimeout(()=>{scheduled=null;arm();},delay)}
+function afterCommit(){lastSeen=seq();st.pending=null;scheduleArm(330);}
+function reconcile(){const current=seq(),last=st.rows.at(-1),previous=lastSeen;lastSeen=current;
+ if(last&&last.after===previous&&last.before===current&&previous.length===current.length+1){
+   st.rows.pop();if(last.verdict==='WIN'){st.wins=Math.max(0,st.wins-1);st.warningCorrect=Math.max(0,st.warningCorrect-1)}
+   if(last.verdict==='LOSS'){st.losses=Math.max(0,st.losses-1);st.warningWrong=Math.max(0,st.warningWrong-1)}
+   if(last.verdict==='WAIT')st.waits=Math.max(0,st.waits-1);
+   if(last.verdict==='TIE')st.ties=Math.max(0,st.ties-1);
+   st.last='Most recent counterexample grade undone';store();
+ }
+ st.pending=null;clearTimeout(scheduled);scheduleArm(320);
+}
+function resetOnly(){st.wins=0;st.losses=0;st.waits=0;st.ties=0;st.warningCorrect=0;st.warningWrong=0;
+ st.rows=[];st.epoch++;st.last='Counterexample accuracy reset (library unchanged)';store();paint();}
+function previewForGemini(raw){const live=String(raw||seq()),base=consensus(),r=compare(live,base.side);
+ return {version:'V489',method:'local full-library historical counterexample search',scannedDistinctShoes:r.scannedShoes,
+   baseline:base.side,coreVotes:base.coreVotes,agreeingVotes:base.agreeing,
+   qualifyingIndependentShoes:r.qualifyingShoes,opposingOutcomes:r.opposite,
+   opposingShare:r.oppositeRate===null?null:+r.oppositeRate.toFixed(3),
+   directMatches:r.directMatches,invertedMatches:r.invertedMatches,
+   longerMatches:r.matchingLong,afterTieMatches:r.afterTieMatches,
+   warning:r.warning,examples:r.examples,
+   caveat:'Observational examples; multiple-comparison bias, no verified betting advantage.'};
+}
+function install(){
+ if($('v489CounterAudit'))return;
+ const p=document.createElement('section');p.id='v489CounterAudit';p.setAttribute('aria-label','Gemini Counterexample Auditor');
+ p.innerHTML=`<div class="ca-header"><div class="ca-title">Gemini Counterexample Auditor • V489</div><div id="v489AuditState" class="ca-status">Loading...</div></div>
+ <div class="ca-note">Challenges existing AI agreement using historical outcomes from every distinct loaded RED and BLACK shoe, including sliding and inverted matches. Local audit runs even if the Gemini proxy is offline; a bounded summary is included in Gemini requests. Does not override existing AI calls.</div>
+ <div class="ca-grid"><div class="ca-cell"><span>LIBRARY SHOES</span><strong id="v489Scanned">0</strong></div><div class="ca-cell"><span>QUALIFIED MATCHES</span><strong id="v489Matches">0</strong></div><div class="ca-cell"><span>OPPOSING EXAMPLES</span><strong id="v489Opposed">0</strong></div><div class="ca-cell"><span>LONG MATCHES</span><strong id="v489Long">0</strong></div></div>
+ <div id="v489Summary" class="ca-brief">Waiting for the current shoe.</div>
+ <div class="ca-grid"><div class="ca-cell"><span>WARNINGS CONFIRMED</span><strong id="v489Win">0</strong></div><div class="ca-cell"><span>FALSE WARNINGS</span><strong id="v489Loss">0</strong></div><div class="ca-cell"><span>WARNING ACCURACY</span><strong id="v489Accuracy">—</strong></div><div class="ca-cell"><span>WARNING RECORD</span><strong id="v489Warnings" style="font-size:10px">0 / 0</strong></div></div>
+ <div id="v489Last" class="ca-note">No grades yet</div><button type="button" id="v489Reset">Reset Counterexample Accuracy Only</button>
+ <div class="ca-note">Warnings count as correct only if the locked core AI direction loses the NEXT Player/Banker hand. Ties are skipped; results entered after Undo are reconciled. These are descriptive results, not certified confidence or gambling advice.</div>`;
+ const host=$('v465Gemini')||document.querySelector('.app');if(!host)return;
+ host.appendChild(p);
+ $('v489Reset')?.addEventListener('click',()=>{if(window.confirm('Reset ONLY counterexample warning accuracy? Saved shoes and other AIs are unchanged.'))resetOnly();});
+ for(const id of ['undoBtn','clearBtn','sampleBtn'])$(id)?.addEventListener('click',()=>setTimeout(reconcile,130),false);
+ lastSeen=seq();arm();
+ // UI can update after an asynchronous AI render. Recheck the current hand at a
+ // low periodic frequency, NOT a 150ms polling loop; never recompute on same data.
+ let stamp='';setInterval(()=>{if(document.visibilityState==='hidden')return;
+ const base=consensus();corpus();const next=seq()+'|'+base.side+'|'+JSON.stringify(base.details)+'|'+libCache.key;
+ if(next!==stamp){stamp=next;if(st.pending?.before===seq())armFromUpdatedConsensus();else scheduleArm(120);}
+ },2300);
+}
+function armFromUpdatedConsensus(){const before=seq(),base=consensus(),audit=compare(before,base.side);
+ if(st.pending?.before!==before)return;
+ st.pending={before,baseline:base.side,warning:audit.warning,audit,core:base.details,epoch:st.epoch};paint();
+}
+window.__V489_COUNTEREXAMPLE_AUDITOR__={version:'V489',arm,settle,afterCommit,reconcile,resetOnly,stats:()=>JSON.parse(JSON.stringify(st)),previewForGemini,analyze:(raw,base)=>compare(raw,base),refreshLibrary:()=>{libCache.key='';auditCache.key='';scheduleArm(1);}};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 </script>
 <!-- V468 BAIP-style selector: locally observed model picks and chronological accuracy only.
