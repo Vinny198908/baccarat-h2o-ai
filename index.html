@@ -1,3 +1,4 @@
+<!-- V492: BAIP now searches the full saved library independently; separate pre-hand grading and visible match evidence. -->
 <!-- V491 FIX: Render all supported Streak Signals from startup even when AI UI elements load later; no prediction engine changes. -->
 <!-- V490: Add all current visible prediction AIs to V422 streak monitor; counterexample WARNINGS separate. No engine logic modified. -->
 <!-- V487: Honest strong-match qualification and always-on local adaptation while Gemini is enabled. -->
@@ -90,7 +91,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V491 • Streak Signals Visible for Every AI • Gemini Counterexample Auditor • All-In Baccarat Dashboard</title>
+<title>V493 • Gemini Full-Library Recognition • BAIP Independent • All-In Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -588,7 +589,7 @@ body { overscroll-behavior-y: none; }
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V491 • ALL AI STREAK ROWS VISIBLE + GEMINI COUNTEREXAMPLES</div>
+<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V493 • GEMINI SHOE RECOGNITION + ALL AI STREAK ROWS</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
@@ -12735,9 +12736,10 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       try{window.__BAIP_V468__?.arm?.()}catch(e){}
       try{window.__V471_AFTER_TIE_AI__?.arm?.()}catch(e){}
-      busy=false;
+      // Keep the queue reserved while handing off to the next scheduled result.
+      // Otherwise a fresh click can overtake an older queued result.
       const queued=pendingResults.shift();
-      if(queued) setTimeout(()=>commit(queued.actual,queued.isPreview),0);
+      if(queued) setTimeout(()=>commit(queued.actual,queued.isPreview,true),0);
       return;
     }
     // V135 CHROME ROOT INPUT ARCHITECTURE:
@@ -12791,9 +12793,13 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         if(j>=jobs.length){
           try{window.__BAIP_V468__?.arm?.()}catch(e){}
           try{window.__V471_AFTER_TIE_AI__?.arm?.()}catch(e){}
-          busy=false;
           const queued=pendingResults.shift();
-          if(queued) setTimeout(()=>commit(queued.actual,queued.isPreview),0);
+          if(queued){setTimeout(()=>commit(queued.actual,queued.isPreview,true),0);}
+          else{
+            busy=false;
+            const banner=document.getElementById('v494InputQueue');
+            if(banner)banner.textContent='All entered hands processed.';
+          }
           return;
         }
         const fn=jobs[j++];
@@ -12817,19 +12823,29 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     },900);
   }
 
-  function commit(actual, isPreview){
+  function commit(actual, isPreview, fromQueue=false){
     if(!['P','B','T'].includes(actual)) return;
     const now=Date.now();
     // Live hands are many seconds apart. Reject rapid repeat taps so one physical
     // button press cannot become two committed baccarat hands or two accuracy settlements.
-    if(lastPhysicalInputActual===actual && now-lastPhysicalInputAt<300) return;
-    if(now-lastPhysicalInputAt<120) return;
-    lastPhysicalInputAt=now; lastPhysicalInputActual=actual;
-    if(busy){
-      // Do not let a UI double-tap build an unbounded transaction queue. Preserve at most
-      // one genuinely distinct pending result; newer distinct input replaces stale queued work.
-      pendingResults.length=0;
+    if(!fromQueue){
+      // Apply physical-debounce ONLY to actual user clicks. A previously accepted
+      // queued click must never be rejected a second time when it is drained.
+      if(lastPhysicalInputActual===actual && now-lastPhysicalInputAt<220) return;
+      if(now-lastPhysicalInputAt<90) return;
+      lastPhysicalInputAt=now;lastPhysicalInputActual=actual;
+    }
+    if(busy && !fromQueue){
+      // Never overwrite earlier valid clicks. They must all be committed, in order,
+      // so the road, BAIP, and Gemini are graded against the same hand sequence.
+      if(pendingResults.length>=40){
+        const banner=document.getElementById('v494InputQueue');
+        if(banner)banner.textContent='Input queue full: pause entry until earlier hands finish processing.';
+        return;
+      }
       pendingResults.push({actual,isPreview:!!isPreview,queuedAt:now});
+      const banner=document.getElementById('v494InputQueue');
+      if(banner)banner.textContent=pendingResults.length+' hand(s) queued for ordered processing.';
       return;
     }
     const beforeLen=Array.isArray(state?.hands)?state.hands.length:0;
@@ -13268,6 +13284,40 @@ status.style.cssText='position:fixed;right:8px;bottom:8px;z-index:2147483647;bac
 status.textContent='Core loaded • starting AI modules…';
 function mountStatus(){ if(document.body&&!status.isConnected)document.body.appendChild(status); }
 mountStatus();
+// Inputs entered while modules are still initializing must not bypass the
+// authoritative pre-result grading queue. Buffer them, then replay in order.
+const earlyHandQueue=[];
+let replaying=false,replayEvent=false;
+document.addEventListener('click',ev=>{
+  const el=ev.target?.closest?.('.main-buttons [data-result], #previewP, #previewB');
+  if(!el||replayEvent)return;
+  if(!window.__V102_FREEZE_COUNT_FIX__||replaying||earlyHandQueue.length){
+    ev.preventDefault();ev.stopPropagation();ev.stopImmediatePropagation();
+    if(earlyHandQueue.length>=40){
+      status.textContent='STARTUP INPUT QUEUE FULL: do not enter more hands yet.';
+      return;
+    }
+    earlyHandQueue.push(el);
+    status.textContent=earlyHandQueue.length+' early hand(s) safely queued during initialization.';
+  }
+},true);
+function flushEarlyHands(){
+  if(replaying||!window.__V102_FREEZE_COUNT_FIX__||!earlyHandQueue.length)return;
+  replaying=true;
+  const one=()=>{
+    if(!earlyHandQueue.length){
+      replaying=false;status.textContent='Early hand queue processed; normal input ready.';
+      setTimeout(()=>{if(!earlyHandQueue.length)status.remove()},1800);
+      return;
+    }
+    const el=earlyHandQueue.shift();
+    try{replayEvent=true;el.click();}catch(e){console.warn('Startup hand replay',e)}
+    finally{replayEvent=false;}
+    status.textContent=earlyHandQueue.length+' startup hand(s) remaining.';
+    setTimeout(one,300);
+  };
+  one();
+}
 const nodes=[...document.querySelectorAll('script[type="application/x-v127-deferred"][data-v127-order]')]
   .sort((a,b)=>Number(a.dataset.v127Order)-Number(b.dataset.v127Order));
 let i=0,failed=[];
@@ -13276,7 +13326,10 @@ function runOne(){
     status.textContent=failed.length?`Loaded with ${failed.length} isolated module error${failed.length===1?'':'s'}`:'All AI modules loaded';
     window.__V129_PROGRESSIVE_STARTUP__.complete=true;
     window.__V129_PROGRESSIVE_STARTUP__.failed=failed.slice();
-    setTimeout(()=>{try{status.remove()}catch(e){}},1800);
+    if(earlyHandQueue.length){
+      status.textContent='Replaying '+earlyHandQueue.length+' early hand(s) through accuracy queue…';
+      setTimeout(flushEarlyHands,30);
+    }else setTimeout(()=>{try{status.remove()}catch(e){}},1800);
     // V133: coalesce one final paint instead of synchronously re-running the full wrapper chain.
     clearTimeout(window.__v133FinalRenderTimer);
     window.__v133FinalRenderTimer=setTimeout(()=>{try{if(typeof window.render==='function')window.render()}catch(e){console.warn('V133 final render',e)}},120);
@@ -22638,14 +22691,120 @@ function v486Hybrid(geminiSide,library){
  return {side,source:'85% full-library behavior + 15% Gemini direction'};
 }
 
+// V493: Gemini independent, transparent saved-shoe recognition.
+// This is pattern retrieval, NOT a prediction probability; each unique shoe counts once.
+function v493LibrarySearch(rawInput){
+ const raw=String(rawInput||'').toUpperCase().replace(/[^PBT]/g,'');
+ const live=raw.replace(/T/g,'');
+ const all=[...(Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[]),
+   ...(Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[])];
+ const unique=new Set(), matches=[];
+ const flip=s=>s.replace(/[PB]/g,c=>c==='P'?'B':'P');
+ const allowed=['EXACT RAW PREFIX','EXACT P/B PREFIX','SLIDING DIRECT','SLIDING INVERTED','NEAR DIRECT','NEAR INVERTED'];
+ const priority={'EXACT RAW PREFIX':0,'EXACT P/B PREFIX':1,'SLIDING DIRECT':2,'SLIDING INVERTED':2,'NEAR DIRECT':3,'NEAR INVERTED':3};
+ for(let i=0;i<all.length;i++){
+   const shoe=all[i];
+   const histRaw=String(typeof shoe==='string'?shoe:shoe?.sequence||'').toUpperCase();
+   if(!/^[PBT]{8,}$/.test(histRaw)||unique.has(histRaw))continue;
+   unique.add(histRaw);
+   const hist=histRaw.replace(/T/g,'');
+   if(hist.length<7||live.length<4)continue;
+   const id=String(typeof shoe==='string'?`library-${i+1}`:shoe?.id||`library-${i+1}`);
+   const color=String(typeof shoe==='string'?'unknown':shoe?.shoeColor||shoe?.__color||(i<(state.redPatternLibrary||[]).length?'red':'black'));
+   let best=null;
+   function offer(type, start, length, mismatches){
+     // The stored continuation is never used to calculate a match score.
+     if(start+length>hist.length)return;
+     const weight=(4-priority[type])*100000+length*100-(mismatches||0)*10;
+     const v={id,color,type,offset:start,matchedHands:length,misMatches:mismatches||0,
+       savedShoeHands:hist.length,hasSavedContinuation:start+length<hist.length,weight};
+     if(!best||v.weight>best.weight)best=v;
+   }
+   // Exact sequence comparison includes T positions, unlike P/B-only modes.
+   if(raw.length>=6&&histRaw.startsWith(raw))offer('EXACT RAW PREFIX',0,live.length,0);
+   if(live.length>=6&&hist.startsWith(live))offer('EXACT P/B PREFIX',0,live.length,0);
+   // Whole observed P/B prefix in any position of a saved shoe.
+   for(const [type,target] of (live.length>=6?[['SLIDING DIRECT',live],['SLIDING INVERTED',flip(live)]]:[])){
+     let from=0,pos;
+     while((pos=hist.indexOf(target,from))!==-1){
+       if(pos+target.length<hist.length)offer(type,pos,target.length,0);
+       from=pos+1;
+     }
+   }
+   // Near matches compare the observed tail against a past-only context.
+   // Require last 4 observed results to match exactly to avoid loose retrieval.
+   const maxLen=Math.min(18,live.length,hist.length-1);
+   const sizes=[maxLen,maxLen-2,maxLen-4,12,10,8].filter((n,j,a)=>n>=8&&n<=maxLen&&a.indexOf(n)===j);
+   for(const n of sizes){
+     const current=live.slice(-n);
+     for(let end=n;end<hist.length;end++){
+       const segment=hist.slice(end-n,end);
+       for(const inv of [false,true]){
+         const compared=inv?flip(segment):segment;
+         if(compared.slice(-4)!==current.slice(-4))continue;
+         let missed=0;
+         for(let j=0;j<n-4;j++)if(compared[j]!==current[j])missed++;
+         const maximum=n>=16?2:1;
+         if(missed>maximum)continue;
+         if(missed===0)offer(inv?'SLIDING INVERTED':'SLIDING DIRECT',end-n,n,0);
+         else offer(inv?'NEAR INVERTED':'NEAR DIRECT',end-n,n,missed);
+       }
+     }
+   }
+   if(best){delete best.weight;matches.push(best);}
+ }
+ matches.sort((a,b)=>priority[a.type]-priority[b.type]||b.matchedHands-a.matchedHands||a.misMatches-b.misMatches||a.id.localeCompare(b.id));
+ const count=type=>matches.filter(m=>m.type===type).length;
+ const prefix=matches.filter(m=>m.type==='EXACT RAW PREFIX'||m.type==='EXACT P/B PREFIX');
+ return {version:493,scannedShoes:unique.size,liveHands:raw.length,livePBHands:live.length,
+   exactRawPrefixShoes:count('EXACT RAW PREFIX'),exactPBPrefixShoes:count('EXACT P/B PREFIX'),
+   prefixShoes:prefix.length,slidingDirectShoes:count('SLIDING DIRECT'),
+   slidingInvertedShoes:count('SLIDING INVERTED'),
+   nearShoes:count('NEAR DIRECT')+count('NEAR INVERTED'),
+   matchingShoes:matches.length,best:matches[0]||null,topMatches:matches.slice(0,8),
+   note:'Similar historical patterns and saved-shoe continuations are not evidence of a predictive betting advantage.'};
+}
+function v493RefreshSearch(snapshot){
+ const res=snapshot||v493LibrarySearch(sequence());
+ const brief=$('v493SearchStatus');
+ if(brief){
+   const b=res.best;
+   brief.textContent=res.liveHands<6
+     ?`Library index: ${res.scannedShoes} distinct saved shoes. Enter 6 P/B results for comparison.`
+     :b?`Searched ${res.scannedShoes} distinct shoes • ${res.matchingShoes} matched • top: ${b.type} / ${b.matchedHands} P/B hands • ID ${b.id}`
+       :`Searched ${res.scannedShoes} distinct shoes • no sufficiently close historical context.`;
+ }
+ const list=$('v493SearchList');
+ if(list){list.textContent='';
+   for(const m of res.topMatches){
+     const li=document.createElement('li');
+     li.textContent=`${m.id} (${m.color}) • ${m.type} • ${m.matchedHands} P/B hands • position ${m.offset+1}${m.misMatches?' • '+m.misMatches+' mismatch':''}`;
+     list.appendChild(li);
+   }
+   if(!res.topMatches.length){const li=document.createElement('li');li.textContent='No qualifying saved-shoe match yet.';list.appendChild(li);}
+ }
+ return res;
+}
+
 function input(){
  const raw=sequence();const hands=(state.hands||[]).filter(h=>h&&['P','B','T'].includes(h.r));
  const roads={};try{for(const [name,offset] of [['bigEye',1],['small',2],['cockroach',3]])roads[name]=deriveRoad(hands,offset).slice(-25).join('');}catch(e){}
  const evidence=v484DeepLibrary(raw,roads);
+ const recognition=v493LibrarySearch(raw);
+ v493RefreshSearch(recognition);
  const learned=v486FullLibrary(raw);
  return {__localLearned:learned,libraryLearnedBehavior:learned.summary,sequence:raw.slice(-100),handCount:raw.length,shoeColor:String(state.currentShoeColor||'unspecified'),
    ignoreTiesInLibrarySearch:(()=>{try{return localStorage.getItem('v452_ignore_ties')==='1'}catch(e){return false}})(),
-   derivedRoads:roads,counterexampleAudit:(window.__V489_COUNTEREXAMPLE_AUDITOR__?.previewForGemini?.(raw)||null),libraryMatchSummary:evidence.libraryMatchSummary,
+   derivedRoads:roads,counterexampleAudit:(window.__V489_COUNTEREXAMPLE_AUDITOR__?.previewForGemini?.(raw)||null),libraryMatchSummary:{...evidence.libraryMatchSummary,
+    searchIndexVersion:493,scannedShoes:recognition.scannedShoes,
+    exactRawPrefixShoes:recognition.exactRawPrefixShoes,exactPBPrefixShoes:recognition.exactPBPrefixShoes,
+    slidingDirectShoes:recognition.slidingDirectShoes,slidingInvertedShoes:recognition.slidingInvertedShoes,
+    nearShoes:recognition.nearShoes,
+    topHistoricalMatches:recognition.topMatches.slice(0,5).map(m=>({id:m.id,color:m.color,type:m.type,
+      matchedHands:m.matchedHands,offset:m.offset,mismatches:m.misMatches})),
+    historicalPlayerVotePct:learned.summary.historicalPlayerVotePercent,
+    distinctHistoricalMotifs:learned.summary.distinctMotifs,
+    caution:'Match identification is not evidence of next-hand predictability.'},
    libraryEvidence:{version:1,scannedShoes:evidence.scannedShoes,
     qualifyingShoes:evidence.qualifyingShoes,examples:evidence.examples}};
 }
@@ -22658,7 +22817,7 @@ async function analyze(){
  // A past/late response must never be counted or shown as the next-hand prediction.
  clearPending();const token=++taskId;
  const controller=new AbortController();inflight=controller;
- const timeout=setTimeout(()=>controller.abort(),5000);
+ const timeout=setTimeout(()=>controller.abort(),9500);
  const payload=input();
  const learned=payload.__localLearned;delete payload.__localLearned;
  // Snapshot local learning before the hand is revealed, so future results never leak.
@@ -22666,7 +22825,7 @@ async function analyze(){
  show('v484LibraryInfo','Full library learned: '+learned.summary.scannedShoes+' unique shoes • '+learned.summary.trainingObservations+' historical contexts • '+learned.summary.qualifyingShoes+' matching shoes • '+learned.summary.adaptiveLiveSamples+' recent live grades.');
  /* old UI update retired: */
 
- const start=performance.now();status('Contacting Gemini through your proxy (5s maximum)…');paint();
+ const start=performance.now();status('Contacting Gemini through your proxy (up to 9.5s)…');paint();
  try{
    const headers={'Content-Type':'application/json'};if(accessToken)headers.Authorization='Bearer '+accessToken;
    const response=await fetch(endpoint,{method:'POST',mode:'cors',headers,body:JSON.stringify(payload),signal:controller.signal,cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
@@ -22681,7 +22840,13 @@ async function analyze(){
          extra=' • '+err.error;
        }
      }catch(_ignored){}
-     throw new Error('Proxy HTTP '+response.status+extra);
+     const hint=response.status===401?' • proxy access token rejected':
+       response.status===403?' • origin blocked by backend CORS policy':
+       response.status===413?' • request too large for proxy':
+       response.status===429?' • request limit exceeded':
+       response.status===504?' • backend Gemini timeout':
+       response.status===502?' • Google request failed upstream':'';
+     throw new Error('Proxy HTTP '+response.status+hint+extra);
    }
    const data=await response.json();
    if(token!==taskId||pre!==sequence()||!enabled)return;
@@ -22702,10 +22867,13 @@ async function analyze(){
  }catch(e){
    if(token!==taskId||pre!==sequence()||!enabled)return;
    clearPending();
-   status(e?.name==='AbortError'?'Gemini timed out after 5 seconds; other AIs unaffected.':'Gemini unavailable: '+String(e?.message||e).slice(0,140));
+   const errorText=String(e?.message||e);
+   status(e?.name==='AbortError'?'Gemini timed out after 9.5 seconds; check the Render proxy timeout or Google connectivity. No pick was recorded.':
+      e?.name==='TypeError'?'Gemini request blocked or network unavailable. If using the hosted software, check proxy allowed origins/CORS and the HTTPS URL.':
+      'Gemini unavailable: '+errorText.slice(0,180));
  }finally{clearTimeout(timeout);if(inflight===controller)inflight=null;paint();}
 }
-function queueAnalyze(){cancel();if(!enabled)return;
+function queueAnalyze(){cancel();v493RefreshSearch();if(!enabled)return;
  const pre=sequence();
  if(pre.replace(/T/g,'').length>=8){
    const local=v486FullLibrary(pre);
@@ -22738,7 +22906,7 @@ function settle(actual){
  store();show('v465Pick','WAIT');show('v465Reason','Previous prediction settled. Next result not yet analyzed.');
  paint();
 }
-function afterCommit(){lastSeen=sequence();if(enabled)queueAnalyze();else paint();}
+function afterCommit(){lastSeen=sequence();v493RefreshSearch();if(enabled)queueAnalyze();else paint();}
 function reconcile(){
  const current=sequence();if(current===lastSeen)return;
  // Undo may remove the most recently graded hand; remove that exact ledger row only.
@@ -22758,21 +22926,24 @@ function reconcile(){
    }
  }
  if((current.length===0&&prev.length>0)||(!prev.startsWith(current)&&!current.startsWith(prev))){ledger.adaptiveRows=[];ledger.learningPending=null;store();}
- cancel();clearPending();paint();if(enabled)queueAnalyze();
+ cancel();clearPending();paint();v493RefreshSearch();if(enabled)queueAnalyze();
 }
 function addUI(){
  const target=$('v452TieMode')||document.querySelector('.app');if(!target)return;
  const e=document.createElement('section');e.id='v465Gemini';e.setAttribute('aria-label','Google Gemini independent analyzer');
  e.innerHTML=`<div class="gm-head"><div class="gm-title">Gemini + Entire Library • Live Adaptive Test</div><label class="gm-control"><input type="checkbox" id="v465On"> ON / OFF</label></div>
- <div class="gm-description">V489 Gemini + Full-Library Adaptive Analyzer: learns context transitions from EVERY distinct saved RED and BLACK shoe, checks sliding and inverted matches, and gradually adjusts pattern weights using completed live hands. Full-library behavior has 85% influence when strongly qualified; Gemini direction 15%. Weak matching evidence produces WAIT. Sends summaries and up to 14 selected segments through your existing proxy (not full raw shoes). Historical similarity is not a proven betting edge.</div>
- <div class="gm-grid"><div class="gm-cell"><span>NEXT ADAPTIVE CALL</span><strong id="v465Pick">WAIT</strong></div><div class="gm-cell"><span>WINS</span><strong id="v465Win">0</strong></div><div class="gm-cell"><span>LOSSES</span><strong id="v465Loss">0</strong></div><div class="gm-cell"><span>ACCURACY</span><strong id="v465Accuracy">—</strong></div><div class="gm-cell"><span>GRADED HANDS</span><strong id="v465Sample">0</strong></div><div class="gm-cell"><span>WAITS / 5s RESPONSE</span><strong><span id="v465Wait" style="display:inline;font-size:17px;color:white">0</span> / <span id="v465Latency" style="display:inline;font-size:16px;color:white">—</span></strong></div></div>
- <div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div><div id="v484LibraryInfo" class="gm-description">Full library learning: scanning all saved RED and BLACK shoes (locally).</div>
+ <div class="gm-description">V493 Gemini + Saved-Shoe Recognition: learns context transitions from EVERY distinct saved RED and BLACK shoe, checks sliding and inverted matches, and gradually adjusts pattern weights using completed live hands. Full-library behavior has 85% influence when strongly qualified; Gemini direction 15%. Weak matching evidence produces WAIT. Sends summaries and up to 14 selected segments through your existing proxy (not full raw shoes). Historical similarity is not a proven betting edge.</div>
+ <div class="gm-grid"><div class="gm-cell"><span>NEXT ADAPTIVE CALL</span><strong id="v465Pick">WAIT</strong></div><div class="gm-cell"><span>WINS</span><strong id="v465Win">0</strong></div><div class="gm-cell"><span>LOSSES</span><strong id="v465Loss">0</strong></div><div class="gm-cell"><span>ACCURACY</span><strong id="v465Accuracy">—</strong></div><div class="gm-cell"><span>GRADED HANDS</span><strong id="v465Sample">0</strong></div><div class="gm-cell"><span>WAITS / RESPONSE TIME</span><strong><span id="v465Wait" style="display:inline;font-size:17px;color:white">0</span> / <span id="v465Latency" style="display:inline;font-size:16px;color:white">—</span></strong></div></div>
+ <div id="v494InputQueue" class="gm-description" aria-live="polite" style="color:#bbffdf">Input queue ready.</div><div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div><div id="v484LibraryInfo" class="gm-description">Full library learning: scanning all saved RED and BLACK shoes (locally).</div><div id="v493SearchStatus" class="gm-description" style="margin-top:7px;color:#c6eeff">Scanning distinct saved shoes…</div>
+ <details style="margin-top:5px"><summary style="font-size:12px;color:#a7c5ff;cursor:pointer">Gemini shoe matches (inspect IDs)</summary>
+ <ol id="v493SearchList" style="font-size:11px;line-height:1.5;padding-left:20px"></ol>
+ <div class="gm-note">Exact prefix means the saved shoe's previous hands match. It does not prove the live shoe will continue identically.</div></details>
  <details style="margin-top:10px"><summary style="font-size:12px;cursor:pointer;color:#a7c5ff">Connection settings</summary>
  <div class="gm-description">Enter your hosted HTTPS proxy URL and its separate access token. <b>Never enter your Google Gemini API key here.</b> The proxy stores that private key.</div>
  <input id="v465Endpoint" class="gm-url" placeholder="https://your-server.onrender.com/gemini" aria-label="Secure Gemini proxy URL" autocomplete="off" spellcheck="false">
  <label class="gm-description" style="display:block;margin-top:9px" for="v469AccessToken">Private proxy access token (not Google API key)</label>
  <input id="v469AccessToken" class="gm-url" type="password" placeholder="Your separate 24+ character proxy token" aria-label="Private proxy access token" autocomplete="off" spellcheck="false">
- <div class="gm-buttons"><button type="button" id="v465Save">Save Connection</button><button type="button" id="v465Forget">Disconnect / Forget Connection</button></div>
+ <div class="gm-buttons"><button type="button" id="v465Save">Save Connection</button><button type="button" id="v494CheckProxy">Check Proxy Health</button><button type="button" id="v465Forget">Disconnect / Forget Connection</button></div>
  </details>
  <label class="gm-control" style="margin-top:10px"><input type="checkbox" id="v465Auto"> Analyze each new hand automatically (when enabled)</label>
  <div class="gm-buttons"><button id="v465Analyze" type="button">Analyze Current Hand</button><button id="v465Reset" type="button">Reset Gemini Accuracy Only</button></div>
@@ -22783,14 +22954,30 @@ function addUI(){
  $('v465On').addEventListener('change',ev=>{enabled=!!ev.target.checked;settings();cancel();ledger.learningPending=null;clearPending();paint();status(enabled?(ready()?'ON • independent Google Gemini experiment':'ON • enter HTTPS proxy URL and access token in connection settings'):'OFF • zero Gemini requests');if(enabled)queueAnalyze()});
  $('v465Auto').addEventListener('change',ev=>{auto=!!ev.target.checked;settings();if(enabled)queueAnalyze()});
  $('v465Save').addEventListener('click',()=>{const candidate=$('v465Endpoint').value.trim();const secret=$('v469AccessToken').value.trim();if(!usableUrl(candidate)){status('Enter an HTTPS proxy URL (or localhost for desktop testing).');return;}if(!localhostUrl(candidate)&&secret.length<24){status('Enter a separate proxy token of at least 24 characters. Never enter your Google API key.');return;}endpoint=candidate;accessToken=secret;settings();status('Connection saved. Try Analyze Current Hand after 6 hands; URL alone does not confirm Google access.');if(enabled)queueAnalyze();paint()});
+ $('v494CheckProxy').addEventListener('click',async()=>{
+   const candidate=$('v465Endpoint')?.value.trim()||endpoint;
+   if(!usableUrl(candidate)){status('Proxy health: enter a valid HTTPS endpoint first.');return;}
+   try{
+     const health=new URL('/health',candidate).href;
+     status('Checking proxy health (this does not send your shoes)…');
+     const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),9000);
+     try{
+       const res=await fetch(health,{method:'GET',mode:'cors',signal:controller.signal,cache:'no-store'});
+       if(!res.ok){status('Proxy health HTTP '+res.status+'. Backend must allow this website origin.');return;}
+       const data=await res.json();
+       status('Proxy health: '+(data.ready?'configured':'missing required server configuration')+
+         ' • model '+String(data.model||'unknown')+'. This verifies proxy readiness only, NOT a successful Gemini prediction.');
+     }finally{clearTimeout(timer);}
+   }catch(e){status('Proxy health not readable (CORS/network/timeout). The server must explicitly allow this website origin.');}
+ });
  $('v465Forget').addEventListener('click',()=>{enabled=false;endpoint='';accessToken='';$('v465Endpoint').value='';$('v469AccessToken').value='';settings();cancel();clearPending();status('Gemini disconnected and proxy URL forgotten. Other AIs untouched.');paint()});
  $('v465Analyze').addEventListener('click',()=>{cancel();analyze()});
  $('v465Reset').addEventListener('click',()=>{if(!confirm('Reset ONLY Google Gemini accuracy (wins, losses, waits, ties)?'))return;ledger=blank();store();paint();status('Gemini accuracy and live adaptation reset; other AI counts unchanged.');});
  for(const id of ['undoBtn','clearBtn','sampleBtn'])$(id)?.addEventListener('click',()=>setTimeout(reconcile,60),false);
- lastSeen=sequence();paint();const trained=v486Corpus().profile;show('v484LibraryInfo','Full-library learning ready: '+trained.shoes+' unique shoes • '+trained.observations+' historical contexts. Updating after each hand.');status(enabled?(ready()?'ON • proxy configured (connection not yet verified)':'ON • needs HTTPS proxy and token'):'OFF • existing AIs unaffected');
+ lastSeen=sequence();paint();v493RefreshSearch();const trained=v486Corpus().profile;show('v484LibraryInfo','Full-library learning ready: '+trained.shoes+' unique shoes • '+trained.observations+' historical contexts. Updating after each hand.');status(enabled?(ready()?'ON • proxy configured (connection not yet verified)':'ON • needs HTTPS proxy and token'):'OFF • existing AIs unaffected');
  if(enabled)queueAnalyze();
 }
-window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V489',independent:true,libraryPreview:()=>input().libraryEvidence,behaviorPreview:()=>v486FullLibrary(sequence()).summary};
+window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V496',independent:true,searchPreview:(raw)=>v493LibrarySearch(raw==null?sequence():raw),libraryPreview:()=>input().libraryEvidence,behaviorPreview:()=>v486FullLibrary(sequence()).summary};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addUI,{once:true});else addUI();
 })();
 </script>
@@ -22994,138 +23181,153 @@ window.__V489_COUNTEREXAMPLE_AUDITOR__={version:'V489',arm,settle,afterCommit,re
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 </script>
-<!-- V468 BAIP-style selector: locally observed model picks and chronological accuracy only.
-     NO external BAIP/OpenAI API; NO changes to existing AI decisions. -->
+<!-- V492: Independent BAIP library-search engine. No other model outputs are used. -->
 <script id="v468-baip-selection">
 (()=>{'use strict';
 if(window.__BAIP_V468__)return;
-const KEY='baccarat-baip-selector-v468';
+const KEY='baccarat-baip-library-v492';
 const $=id=>document.getElementById(id);
-const entries=[
- ['Sequence AI V2','seqAiSide'],
- ['Best Estimate','bestSide'],
- ['Best Estimate 2','v331BE2Side'],
- ['Main Future Road','futureFinal'],
- ['Main Future Test 2','v360T2Pick'],
- ['Derived Road AI','v358DerivedResult'],
- ['AI Pattern Recognizer','roadAiSide'],
- ['Bead History AI','beadHistSide'],
- ['8-Hand Bead + 3-Road','v388TriSide'],
- ['Main Road Only','v284Pick'],
- ['Saved Shoe Recognition','v419Pick'],
- ['Main Future Awareness V460','v460Action'],
- ['ML Trainer (qualified display)','mlv307Pick'],
- ['Google Gemini (when connected)','v465Pick']
-];
-const blank=()=>({on:true,w:0,l:0,wait:0,ties:0,observed:{},rows:[],pending:null,epoch:0,last:'No selector results graded yet'});
+const blank=()=>({on:true,inverted:true,w:0,l:0,wait:0,ties:0,epoch:0,rows:[],pending:null,last:'No independent library results graded yet'});
 let z=blank();
-try{const v=JSON.parse(localStorage.getItem(KEY)||'null');if(v&&typeof v==='object'){
- z.on=v.on!==false;
- for(const k of ['w','l','wait','ties','epoch'])if(Number.isInteger(v[k])&&v[k]>=0)z[k]=v[k];
- z.observed=v.observed&&typeof v.observed==='object'?v.observed:{};
- z.rows=Array.isArray(v.rows)?v.rows.slice(-300):[];
- z.last=String(v.last||z.last);
-}}
-catch(_){}
-z.pending=null; // A new browser session may have a different hand history; never re-use an old pick.
-const sequence=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(x=>x==='P'||x==='B'||x==='T').join('')}catch(_){return ''}};
-function side(v){const t=String(v||'').trim().toUpperCase();if(/\bWAIT\b|\bNONE\b|\bRESOLVED\b|\bPENDING\b/.test(t))return null;
- if(t==='P'||t==='PLAYER'||/^PLAYER\b/.test(t)||/^LIKELY ANSWER:\s*PLAYER\b/.test(t))return 'P';
- if(t==='B'||t==='BANKER'||/^BANKER\b/.test(t)||/^LIKELY ANSWER:\s*BANKER\b/.test(t))return 'B';return null;}
-function picks(){const o={};for(const [name,id] of entries){const el=$(id);const p=el?side(el.textContent):null;
-  if(p)o[name]=p;}return o;}
-function save(){try{localStorage.setItem(KEY,JSON.stringify({...z,pending:null}))}catch(_){}}
-const set=(id,v)=>{if($(id))$(id).textContent=String(v)};
-function lowerBound(a){const n=a.length,w=a.filter(x=>x==='W').length;if(!n)return 0;
- const p=w/n,k=1.96,den=1+k*k/n;
- return (p+k*k/(2*n)-k*Math.sqrt((p*(1-p)+k*k/(4*n))/n))/den;
+try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&typeof x==='object'){
+ z.on=x.on!==false;z.inverted=x.inverted!==false;
+ for(const k of ['w','l','wait','ties','epoch'])if(Number.isInteger(x[k])&&x[k]>=0)z[k]=x[k];
+ z.rows=Array.isArray(x.rows)?x.rows.slice(-350):[];z.last=String(x.last||z.last);
+}}catch(_){}
+z.pending=null; // Never resurrect an ungraded pick after an app reload.
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({...z,pending:null}))}catch(_){}};
+const set=(id,v)=>{const el=$(id);if(el)el.textContent=String(v)};
+const rawSequence=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(x=>x==='P'||x==='B'||x==='T').join('')}catch(_){return ''}};
+const ignoreTies=()=>{try{return localStorage.getItem('v452_ignore_ties')==='1'}catch(_){return false}};
+const clean=(s,skipTies)=>{let q=String(s||'').toUpperCase().replace(/[^PBT]/g,'');return skipTies?q.replace(/T/g,''):q};
+const inverse=s=>String(s).replace(/[PB]/g,x=>x==='P'?'B':'P');
+
+// Full scan of BOTH on-device Red/Black libraries. Exact duplicate sequences cannot vote twice.
+function library(skipTies){
+ const red=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[];
+ const black=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[];
+ const unique=new Set(),all=[];let duplicates=0,invalid=0;
+ for(const row of [...red,...black]){
+  const original=clean(typeof row==='string'?row:row?.sequence,false);
+  if(original.length<5){invalid++;continue;}
+  // Normalize tie-switch representation for search, but dedupe by original shoe identity.
+  if(unique.has(original)){duplicates++;continue;}
+  unique.add(original);
+  const sequence=skipTies?original.replace(/T/g,''):original;
+  if(sequence.length>=5)all.push(sequence);else invalid++;
+ }
+ return {all,scanned:all.length,duplicates,invalid,red:red.length,black:black.length};
 }
-function candidates(live){const c=[];for(const [name] of entries){const p=live[name];if(!p)continue;
- const a=Array.isArray(z.observed[name])?z.observed[name].slice(-20):[];
- const w=a.filter(v=>v==='W').length,n=a.length;
- c.push({name,side:p,n,w,l:n-w,lb:lowerBound(a),rate:n?w/n:0});}
- return c.sort((a,b)=>b.lb-a.lb||b.n-a.n||a.name.localeCompare(b.name));}
-function selection(live){const all=candidates(live),eligible=all.filter(c=>c.n>=12);
- return {all,leader:eligible[0]||null};}
-function show(){const n=z.w+z.l;set('v468Win',z.w);set('v468Loss',z.l);set('v468Rate',n?(100*z.w/n).toFixed(1)+'%':'—');set('v468Graded',n);
+function search(input){
+ const skipTies=ignoreTies();const cur=clean(input,skipTies);const lib=library(skipTies);
+ const summary={side:null,scanned:lib.scanned,duplicates:lib.duplicates,invalid:lib.invalid,red:lib.red,black:lib.black,used:0,k:0,exact:0,inverted:0,p:0,b:0,share:0.5,reason:'',tieMode:skipTies?'IGNORE':'INCLUDE',invertedOn:z.inverted};
+ if(cur.length<4){summary.reason='Need at least 4 entered non-ignored results to search historical continuations.';return summary;}
+ if(!lib.scanned){summary.reason='No saved shoes are available in this device’s Red/Black library.';return summary;}
+ // Scan longest context first. Shorter contexts are considered only if the longer tier
+ // fails to support 5 DISTINCT historical shoes (not 5 overlapping windows).
+ for(let k=Math.min(12,cur.length);k>=4;k--){
+  const suffix=cur.slice(-k),inv=z.inverted?inverse(suffix):null;
+  let used=0,p=0,b=0,exact=0,inverted=0;
+  for(const s of lib.all){
+   if(s.length<=k)continue;
+   let pWindow=0,bWindow=0,normalHit=false,inverseHit=false;
+   // Each shoe is allowed at most ONE vote; its matching continuations are averaged.
+   for(let i=0;i+k<s.length;i++){
+    const next=s[i+k];if(next!=='P'&&next!=='B')continue;
+    const segment=s.slice(i,i+k);
+    const normal=segment===suffix;
+    const mirror=!normal&&inv!==null&&segment===inv;
+    if(!normal&&!mirror)continue;
+    if(normal)normalHit=true;else inverseHit=true;
+    const result=mirror?inverse(next):next;
+    if(result==='P')pWindow++;else bWindow++;
+   }
+   const n=pWindow+bWindow;
+   if(!n)continue;
+   used++;p+=pWindow/n;b+=bWindow/n;
+   if(normalHit)exact++;if(inverseHit)inverted++;
+  }
+  if(used<5)continue;
+  const share=p/(p+b);
+  Object.assign(summary,{used,k,exact,inverted,p,b,share});
+  // 65% here is an EXPLORATORY agreement threshold, not a calibrated win probability.
+  summary.side=share>=0.65?'P':share<=0.35?'B':null;
+  summary.reason=summary.side?
+   'Exploratory library continuation; pattern frequency does not demonstrate predictive advantage.':
+   'Library matches disagree or show too little separation; no independent BAIP call.';
+  return summary;
+ }
+ summary.reason='Searched all saved shoes, but no 4–12-hand context had 5 different shoes with a known next P/B result.';
+ return summary;
+}
+function details(s){
+ if(!s)return 'Searching saved shoes…';
+ const counts=`${s.scanned} unique shoes searched (${s.red} Red + ${s.black} Black saved; ${s.duplicates} exact duplicates skipped)`;
+ const matching=s.used?` • ${s.used} matching shoes on ${s.k}-hand sliding context • ${s.exact} normal / ${s.inverted} inverted`:' • no sufficiently supported context';
+ return counts+matching+` • ties ${s.tieMode.toLowerCase()} • inverted ${s.invertedOn?'on':'off'}`;
+}
+function show(){
+ const n=z.w+z.l;set('v468Win',z.w);set('v468Loss',z.l);set('v468Rate',n?(100*z.w/n).toFixed(1)+'%':'—');set('v468Graded',n);
  set('v468Last',z.last);if($('v468Enabled'))$('v468Enabled').checked=z.on;
- const cur=sequence();const p=z.pending&&z.pending.before===cur?z.pending:null;
- set('v468Name',z.on?(p?.name||'No eligible active AI'):'OFF — selector disabled');
- set('v468Pick',z.on&&p?.side?(p.side==='P'?'PLAYER':'BANKER'):'WAIT');
- const rank=selection(picks());
- const list=$('v468Candidates');if(list){list.replaceChildren();for(const c of rank.all.slice(0,5)){
-  const div=document.createElement('div');div.textContent=c.name+': '+c.w+'W / '+c.l+'L (last '+c.n+' graded)'+(c.n>=12?' • eligible':' • needs '+(12-c.n));list.appendChild(div);
- }}
- const evidence=p?.name?z.observed[p.name]||[]:[];
- const status=!z.on?'Turn ON to resume monitoring. No underlying AI is affected.':
-  p?.side?'Locked before hand '+(p.before.length+1)+' • '+evidence.length+' recent graded observations for '+p.name+'. Selection is PROVISIONAL and not a verified betting edge.':
-  rank.all.length?'WAIT: No currently predicting AI has 12 independently graded calls in this selector. This is a research-only selection, not a probability forecast.':
-  'WAIT: No existing AI currently displays a valid Player/Banker result.';
- set('v468Reason',status);
+ if($('v468Inverted'))$('v468Inverted').checked=z.inverted;
+ const before=rawSequence(),pending=z.pending&&z.pending.before===before?z.pending:null;
+ set('v468Name',z.on?'INDEPENDENT RED + BLACK LIBRARY':'OFF — library search disabled');
+ set('v468Pick',z.on&&pending?.side?(pending.side==='P'?'PLAYER':'BANKER'):'WAIT');
+ const scan=pending?.scan||search(before);
+ set('v468Reason',!z.on?'Monitoring switched off; existing AI modules are unchanged.':
+  (pending?.side?`Locked BEFORE hand ${before.length+1}. `:'WAIT. ')+scan.reason);
+ set('v468LibraryInfo',details(scan));
+ set('v468LibraryCounts',scan.used?`Matched shoe votes: P ${scan.p.toFixed(1)} / B ${scan.b.toFixed(1)} • observed share ${Math.round(scan.share*100)}% P (NOT a win probability).`:'No qualified independent library result.');
 }
-function arm(){const before=sequence();if(z.pending&&z.pending.before===before){show();return;}
- const live=z.on?picks():{},rank=selection(live),leader=z.on?rank.leader:null;
- z.pending={before,name:leader?.name||null,side:leader?.side||null,models:live,epoch:z.epoch};
- show();
+function arm(){const before=rawSequence();if(z.pending&&z.pending.before===before){show();return;}
+ const scan=search(before);z.pending={before,side:z.on?scan.side:null,scan,epoch:z.epoch};show();
 }
-function settle(actual){if(!['P','B','T'].includes(actual))return;if(!z.on){z.pending=null;return;}
- const before=sequence();
- // Never look at the current result to choose the selected AI: use only pre-result locked picks.
- const pending=z.pending&&z.pending.before===before?z.pending:null;
- const row={before,after:before+actual,actual,graded:[],epoch:z.epoch,outcome:'WAIT'};
+function settle(actual){if(!['P','B','T'].includes(actual))return;
+ const before=rawSequence();const p=z.pending&&z.pending.before===before?z.pending:null;
+ const row={before,after:before+actual,actual,outcome:'WAIT',epoch:z.epoch,side:p?.side||null};
+ if(!z.on){z.pending=null;return;}
  if(actual==='T'){z.ties++;row.outcome='TIE';}
- else {
-  for(const [name,guess] of Object.entries(pending?.models||{})){
-   if(!['P','B'].includes(guess))continue;
-   const history=Array.isArray(z.observed[name])?z.observed[name]:[];
-   const removed=history.length>=20?history.shift():null;
-   history.push(guess===actual?'W':'L');z.observed[name]=history;
-   row.graded.push({name,removed});
-  }
-  if(pending?.side&&pending?.name){row.outcome=pending.side===actual?'WIN':'LOSS';
-    if(row.outcome==='WIN')z.w++;else z.l++;
-  }else{z.wait++;row.outcome='WAIT';}
- }
- z.last='Hand '+(before.length+1)+' '+actual+': '+row.outcome+(pending?.name?' ('+pending.name+' chose '+pending.side+')':'');
- z.rows.push(row);if(z.rows.length>300)z.rows.shift();z.pending=null;save();
- set('v468Pick','WAIT');show();
+ else if(p?.side){row.outcome=p.side===actual?'WIN':'LOSS';if(row.outcome==='WIN')z.w++;else z.l++;}
+ else{z.wait++;}
+ z.last='Hand '+(before.length+1)+' '+actual+': '+row.outcome+(p?.side?' (BAIP library '+p.side+')':'');
+ z.rows.push(row);if(z.rows.length>350)z.rows.shift();z.pending=null;save();show();
 }
-function afterCommit(){z.pending=null;set('v468Pick','WAIT');set('v468Reason','Result recorded. Updating existing AI displays before selecting another.');}
-function reconcile(){const cur=sequence();const last=z.rows.at(-1);
+function afterCommit(){z.pending=null;set('v468Pick','WAIT');set('v468Reason','Hand recorded. Searching saved history for the next independent result.');}
+function reconcile(){const cur=rawSequence(),last=z.rows.at(-1);
  if(last&&last.after.length===cur.length+1&&last.after.startsWith(cur)&&last.before===cur){
-  z.rows.pop();for(const item of last.graded.slice().reverse()){
-   const a=z.observed[item.name];if(!Array.isArray(a)||!a.length)continue;
-   a.pop();if(item.removed==='W'||item.removed==='L')a.unshift(item.removed);
-  }
-  if(last.epoch===z.epoch){if(last.outcome==='WIN')z.w=Math.max(0,z.w-1);if(last.outcome==='LOSS')z.l=Math.max(0,z.l-1);if(last.outcome==='WAIT')z.wait=Math.max(0,z.wait-1);}
-  if(last.outcome==='TIE')z.ties=Math.max(0,z.ties-1);
-  z.last='Last selector result undone';
- } else if(last&&cur.length<last.after.length){
-  // More than one hand rewound, or shoe reset: don't guess or replay obsolete predictions.
-  z.last='History changed; stale selector prediction cleared';
- }
- z.pending=null;save();show();setTimeout(arm,420);
+  z.rows.pop();if(last.epoch===z.epoch){
+   if(last.outcome==='WIN')z.w=Math.max(0,z.w-1);
+   if(last.outcome==='LOSS')z.l=Math.max(0,z.l-1);
+   if(last.outcome==='WAIT')z.wait=Math.max(0,z.wait-1);
+   if(last.outcome==='TIE')z.ties=Math.max(0,z.ties-1);
+  }z.last='Previous BAIP library outcome undone';
+ }else if(last&&cur.length<last.after.length){z.last='Shoe history changed; previous BAIP lock cleared';}
+ z.pending=null;save();arm();
 }
-function resetOnly(){z.w=0;z.l=0;z.wait=0;z.ties=0;z.epoch++;
- z.last='Selector accuracy reset (candidate observation history preserved)';save();show();}
+function resetOnly(){z.w=0;z.l=0;z.wait=0;z.ties=0;z.epoch++;z.pending=null;z.rows=[];z.last='Independent BAIP library accuracy reset';save();arm();}
 function install(){if($('v468Selector'))return;
- const e=document.createElement('section');e.id='v468Selector';e.setAttribute('aria-label','BAIP style independent active AI selection');
- e.innerHTML=`<div class="sel-header"><div class="sel-title">🎯 BAIP-Style Active AI Selector V468</div><label class="sel-toggle"><input id="v468Enabled" type="checkbox" checked> ON / OFF</label></div>
- <div class="sel-note">Automatically highlights one existing AI using only its previously graded calls (up to 20 per AI). At least 12 grades and a current P/B display required. No outside BAIP service or new prediction engine.</div>
- <div class="sel-main"><div style="font-size:10px;color:#baccde">SELECTED EXISTING AI • RESEARCH ONLY</div><div id="v468Name">Loading…</div><div id="v468Pick">WAIT</div><div id="v468Reason">Waiting for the current AI outputs.</div></div>
- <div class="sel-grid"><div class="sel-tile"><span>SELECTOR WINS</span><strong id="v468Win">0</strong></div><div class="sel-tile"><span>SELECTOR LOSSES</span><strong id="v468Loss">0</strong></div><div class="sel-tile"><span>ACCURACY</span><strong id="v468Rate">—</strong></div><div class="sel-tile"><span>GRADED PICKS</span><strong id="v468Graded">0</strong></div></div>
- <div class="sel-note" style="margin-top:9px"><b>Current ranked candidates (most recent 20):</b></div><div id="v468Candidates"></div>
- <button type="button" id="v468Reset">Reset Selector Accuracy Only</button>
- <div class="sel-note" id="v468Last">No selector results graded yet</div>
- <div class="sel-note">Ties are skipped, WAITs not counted as losses, undo reverses the latest grade. Selection is provisional, not evidence of an advantage over the Banker baseline. Your underlying AIs and their counters are not changed.</div>`;
+ const el=document.createElement('section');el.id='v468Selector';el.setAttribute('aria-label','BAIP independent full-library research analyzer');
+ el.innerHTML=`<div class="sel-header"><div class="sel-title">🎯 BAIP Independent Library Search V496</div><label class="sel-toggle"><input id="v468Enabled" type="checkbox" checked> ON / OFF</label></div>
+ <div class="sel-note">BAIP now searches your saved Red and Black shoes DIRECTLY. It does not copy any other AI prediction. All matching windows are historical observations, not guaranteed next-hand outcomes.</div>
+ <div class="sel-main"><div style="font-size:10px;color:#baccde">INDEPENDENT HISTORICAL SIGNAL • RESEARCH ONLY</div><div id="v468Name">Loading library…</div><div id="v468Pick">WAIT</div><div id="v468Reason">Scanning…</div></div>
+ <div class="sel-grid"><div class="sel-tile"><span>BAIP WINS</span><strong id="v468Win">0</strong></div><div class="sel-tile"><span>BAIP LOSSES</span><strong id="v468Loss">0</strong></div><div class="sel-tile"><span>ACCURACY</span><strong id="v468Rate">—</strong></div><div class="sel-tile"><span>GRADED PICKS</span><strong id="v468Graded">0</strong></div></div>
+ <div class="sel-note" style="margin-top:9px"><b>FULL LIBRARY SCAN:</b></div><div class="sel-note" id="v468LibraryInfo">Scanning…</div><div class="sel-note" id="v468LibraryCounts">—</div>
+ <label class="sel-toggle" style="margin-top:9px"><input id="v468Inverted" type="checkbox" checked> Also search inverted Player/Banker patterns</label>
+ <button type="button" id="v468Refresh">Refresh Library Search (current locked signal preserved)</button>
+ <button type="button" id="v468Reset">Reset BAIP Library Accuracy Only</button>
+ <div class="sel-note" id="v468Last">New independent accuracy starts at 0; previous selector history is preserved separately.</div>
+ <div class="sel-note">Search reads your on-device library, ignores identical duplicates, and gives each matched shoe one vote. At least 5 distinct matched shoes and 65% agreement are required to show an exploratory P/B continuation. WAIT and ties are not losses. Picks are frozen before the hand; undo reverses the latest graded outcome. This is NOT a validated gambling advantage.</div>`;
  const host=$('v423TrustPanel')||$('v422StreakPanel')||document.querySelector('.app');
- if(host===document.querySelector('.app'))host.prepend(e);else host.insertAdjacentElement('beforebegin',e);
+ if(!host)return;
+ if(host===document.querySelector('.app'))host.prepend(el);else host.insertAdjacentElement('beforebegin',el);
  $('v468Enabled')?.addEventListener('change',ev=>{z.on=!!ev.target.checked;z.pending=null;save();arm();});
- $('v468Reset')?.addEventListener('click',()=>{if(confirm('Reset only BAIP-style selector wins, losses, and accuracy? Other AI accuracy and ranking history will stay.'))resetOnly();});
+ $('v468Inverted')?.addEventListener('change',ev=>{z.inverted=!!ev.target.checked;save();show();});
+ $('v468Refresh')?.addEventListener('click',()=>show());
+ $('v468Reset')?.addEventListener('click',()=>{if(confirm('Reset independent BAIP Library wins, losses, and accuracy only? Other AI scores and the old BAIP selector history will remain unchanged.'))resetOnly();});
  for(const id of ['undoBtn','clearBtn','sampleBtn'])$(id)?.addEventListener('click',()=>setTimeout(reconcile,100),false);
  arm();
 }
-window.__BAIP_V468__={arm,settle,afterCommit,reconcile,stats:()=>JSON.parse(JSON.stringify({...z,pending:z.pending})),resetOnly,version:'V468',independent:true};
+window.__BAIP_V468__={arm,settle,afterCommit,reconcile,stats:()=>JSON.parse(JSON.stringify({...z,pending:z.pending})),resetOnly,inspect:input=>search(input??rawSequence()),version:'V496',independent:true,libraryDirect:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
 })();
 </script>
