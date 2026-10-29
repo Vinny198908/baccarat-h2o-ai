@@ -106,7 +106,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V513 • Big Eye Precision Reversal Research • Baccarat Dashboard</title>
+<title>V514 • Exact Main Road Pattern AI + V513 Big Eye Research • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -567,6 +567,7 @@ body { overscroll-behavior-y: none; }
 #v445AfterTieAI .at-disclaimer{font-size:10px;color:#a5bdd2;line-height:1.4;margin-top:9px}
 @media(max-width:480px){#v445AfterTieAI .at-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
+<style id="v514-exact-pattern-ui">#roadPreviewAiPanel #v506Coverage,#roadPreviewAiPanel #v428V160Status{display:none!important}</style>
 </head>
 <!-- V451: Broaden 8-hand/road matching and relax historical AI qualification with minimum vote margins. Historical agreement is not a betting edge. -->
 <body>
@@ -16269,7 +16270,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setTimeout(install,1200);
 })();
 </script>
-<!-- V506: AI Pattern Recognizer wider RESEARCH coverage, original engines untouched. -->
+<!-- V506: old research control retained but hidden by V514; exact-only behavior applies. -->
 <style id="v506-pattern-style">
 #v506Coverage {margin:8px 0;padding:8px 10px;border:1px solid #526880;border-radius:9px;background:#182536;font-size:12px;line-height:1.4;color:#e4f1ff}
 #v506Coverage strong {display:block;margin-bottom:3px}
@@ -16628,228 +16629,110 @@ function recentDecisionState(){
   const rec=a.slice(-6),wins=rec.reduce((x,v)=>x+v,0),acc=rec.length?wins/rec.length:.5;
   return {n:a.length,lossStreak,recentN:rec.length,recentAcc:acc,defensive:lossStreak>=2};
 }
-function patternRecognizerSignal(){
-  const seq=livePB(), raw=currentSequence(), shoes=lib();
-  settleFamilyRuntime(seq);
-  settleDecisionRuntime(seq);
-
-  if(seq.length<6){
-    return {side:null,qualified:false,strength:0,pPct:50,bPct:50,edge:0,matches:0,quality:0,bestLen:0,bestSimilarity:0,
-      roadMatches:0,beadMatches:0,roadVotes:0,roadsAgree:0,
-      waitReason:`WAIT: need at least 6 P/B hands for adaptive pattern recognition (${seq.length}/6).`,
-      patternRecognizer:true,adaptiveLiveShoe:true,version:249};
+// V514: Exact Main Road Library Search. No approximate, inverted, bead, or derived-road votes.
+// A Main Road is a lossless representation of the Banker/Player sequence for this purpose.
+// Scan EVERY selected-color saved shoe at EVERY historical offset, but allow each
+// deduplicated shoe only one independent vote. Ties do not form Main Road cells.
+function exactMainRoadLibrarySearch(seq,shoes){
+  const empty={scanned:shoes.length,total:0,ambiguous:0,eligible:0,
+    window:0,peak:0,player:0,banker:0,agreement:0,matches:[],
+    reason:'WAIT: no exact Main Road matches in the selected library.'};
+  if(seq.length<6)return {...empty,reason:`WAIT: need at least 6 Banker/Player hands (${seq.length}/6).`};
+  const maxCheck=Math.min(seq.length,24),best=[];
+  let ambiguous=0,peak=0;
+  for(let si=0;si<shoes.length;si++){
+    const hist=String(shoes[si]?.sequence||'').replace(/[^PB]/g,'');
+    if(hist.length<7)continue;
+    let bestLen=0,bestNext=null,conflict=false,bestAt=-1;
+    for(let pos=6;pos<hist.length;pos++){
+      const next=hist[pos];if(next!=='P'&&next!=='B')continue;
+      let len=0;
+      while(len<maxCheck && pos-len-1>=0 && hist[pos-len-1]===seq[seq.length-len-1])len++;
+      if(len<6)continue;
+      if(len>bestLen){bestLen=len;bestNext=next;conflict=false;bestAt=pos;}
+      else if(len===bestLen && next!==bestNext){conflict=true;}
+    }
+    if(!bestLen)continue;
+    peak=Math.max(peak,bestLen);
+    if(conflict){ambiguous++;continue;}
+    best.push({shoe:si,k:bestLen,next:bestNext,pos:bestAt});
   }
-
-  const live=liveMainPattern(seq);
-  const discovered=historicalMainPattern(seq,shoes);
-  const hist=v488OriginalHistoricalMainPattern(seq,shoes);
-  const bead=beadPattern(raw, v510RawShoes());
-  const roads=derivedConfirmation();
-  const adapt=adaptiveWeights(seq,hist,bead,roads);
-  const reg=adapt.reg||regimeProfile(seq);
-
-  const sources=[];
-  let p=0,b=0,w=0;
-
-  const use=(name,x,base,key)=>{
-    if(!x?.vote?.n)return;
-    const q=clamp((x.quality||0)/100,.25,1);
-    const trust=familyTrust(key);
-    const ww=base*q*trust.factor;
-    p+=x.vote.p*ww;
-    b+=x.vote.b*ww;
-    w+=ww;
-    sources.push({
-      name,key,weight:ww,quality:x.quality||0,trust,
-      side:sideOfVote(x),edge:x.vote.edge||0
-    });
-  };
-
-  // Historical memory remains the anchor, but the CURRENT LIVE SHOE is now a
-  // real adaptive influence instead of unused code.
-  use('SAVED SHOE HISTORY',hist,adapt.histW,'hist');
-  use('BEAD PLATE PATTERN',bead,adapt.beadW,'bead');
-
-  if(roads.vote.n){
-    const roadQuality=Math.round(clamp(roads.vote.edge*70 + roads.agree*8,0,100));
-    const roadObj={vote:roads.vote,quality:roadQuality};
-    const base=adapt.roadsW*clamp(.45+roads.ready*.18,.45,1);
-    use('3 DERIVED ROADS',roadObj,base,'roads');
-  }
-
-  // Live source weight rises in transition/chop, but stays bounded so it cannot
-  // overpower historical evidence by itself.
-  const liveBase = reg.regime==='TRANSITION' ? .28 :
-                   reg.regime==='CHOP' ? .24 :
-                   reg.regime==='RUN/TREND' ? .22 : .20;
-  use('LIVE SHOE FLOW',live,liveBase,'live');
-
-  // V428: Optional V160 historical-row confirmation. Existing 4-source gates
-  // remain unchanged: V160 cannot qualify a WAIT on its own.
-  const v160=window.__v428PatternV160?.match(seq.join(''))||null;
-  if(v160?.side && v160.n>=5){
-    const voteWeight=Math.min(.10,.045+.0025*v160.n);
-    const agreement=v160.agreement/100;
-    p+=voteWeight*(v160.p/v160.n);
-    b+=voteWeight*(v160.b/v160.n);
-    w+=voteWeight;
-    // Not appended to sources: V160 is correlated with saved-shoe history.
-  }
-
-
-  // Strong matching independent shoes can CONFIRM an established history direction
-  // with at most 7% supplementary influence. Contradictions never flip a call.
-  const extraSide=sideOfVote(discovered),baseSide=sideOfVote(hist);
-  if(discovered.strong>=4 && discovered.matches>=6 && discovered.vote.edge>=.25 && extraSide===baseSide){
-    const bonus=.07; p+=bonus*discovered.vote.p;b+=bonus*discovered.vote.b;w+=bonus;
-  }
-
-  if(!liveRuntime.pending || liveRuntime.pending.handN!==seq.length){
-    liveRuntime.pending={
-      handN:seq.length,
-      live:sideOfVote(live),
-      hist:sideOfVote(hist),
-      bead:sideOfVote(bead),
-      roads:sideOfVote(roads)
-    };
-  }
-
-  if(!w){
-    return {side:null,qualified:false,strength:0,pPct:50,bPct:50,edge:0,matches:0,quality:0,bestLen:0,bestSimilarity:0,
-      roadMatches:0,beadMatches:0,roadVotes:roads.ready,roadsAgree:roads.agree,
-      waitReason:'WAIT: no usable live or saved pattern evidence yet.',
-      patternRecognizer:true,adaptiveLiveShoe:true,version:249,live,hist,bead,roads};
-  }
-
-  p/=w;b/=w;
-  const z=p+b||1;
-  const pPct=Math.round(100*p/z), bPct=100-pPct;
-  const edge=Math.abs(pPct-bPct);
-  const candidate=pPct>bPct?'P':bPct>pPct?'B':null;
-
-  const qDen=sources.reduce((a,x)=>a+(Number(x.weight)||0),0);
-  const quality=Math.round(clamp(
-    qDen ? sources.reduce((a,x)=>a+(Number(x.quality)||0)*(Number(x.weight)||0),0)/qDen : 0,
-    0,100
-  ));
-
-  const decision=recentDecisionState();
-  // V506: carefully expand research-call coverage. Historical evidence is still
-  // required. Do not count correlated sliding/inverted searches as another road.
-  const expanded=window.__V506_PATTERN_COVERAGE__?.enabled!==false;
-  const ready=sources.filter(x=>x.side==='P'||x.side==='B');
-  const support=ready.filter(x=>x.side===candidate);
-  const oppose=ready.filter(x=>x.side&&x.side!==candidate);
-  const histSide=sideOfVote(hist);
-  const liveSide=sideOfVote(live);
-  const histStrength=histSide==='P'?hist.vote.p:histSide==='B'?hist.vote.b:0;
-
-  const independentlyStrong=expanded && hist.matches>=10 && hist.bestLen>=8 &&
-    histStrength>=.64 && quality>=24 && edge>=5;
-  const rankedConfirm=expanded && discovered.matches>=8 && discovered.strong>=4 &&
-    discovered.vote.edge>=.25 && extraSide===candidate && support.length>=2;
-  // A broader (but explicitly exploratory) path when history is nearly split
-  // and the live-shoe and bead readings independently suggest the same side.
-  const weakHistoryOverride=expanded && hist.vote.n && histStrength<=.56 &&
-    edge>=7 && quality>=40 && support.length>=2 &&
-    liveSide===candidate && sideOfVote(bead)===candidate &&
-    discovered.matches>=6;
-  let minEdge=0,minQuality=9;
-  if(decision.defensive){minEdge=2;minQuality=13;}
-
-  let waitReason='',tier='';
-  if(!candidate)waitReason='WAIT: Player and Banker adaptive pattern scores are tied.';
-  else if(!hist.vote.n)waitReason='WAIT: saved-shoe history is not ready; live flow cannot qualify by itself.';
-  else if(histSide!==candidate && !rankedConfirm && !weakHistoryOverride)waitReason='WAIT: historical consensus does not support the combined candidate.';
-  else if(ready.length<2 && !independentlyStrong)waitReason=`WAIT: only ${ready.length} of 4 pattern sources are ready; need at least 2.`;
-  else if(oppose.length>=3)waitReason='WAIT: three independent pattern sources oppose the candidate.';
-  else if(support.length<2 && !independentlyStrong)waitReason='WAIT: fewer than two independent pattern sources support the candidate.';
-  else if(histStrength<.50)waitReason=`WAIT: saved-history consensus is below 50%.`;
-  else {
-    // Strong 3-of-4 confirmation is the preferred gate.
-    if(support.length>=3){
-      tier='A+';
-      if(edge<minEdge)waitReason=`WAIT: 3-of-4 confirmation edge is ${edge} points; need ${minEdge}+.`;
-      else if(quality<minQuality)waitReason=`WAIT: 3-of-4 pattern quality is ${quality}/100; need ${minQuality}+.`;
-    } else {
-      // Selective 2-of-3/4 path: history must agree, and the second source must
-      // be either live flow, Bead Plate, or a real derived-road majority.
-      tier='A';
-      const secondStrong =
-        (liveSide===candidate && live.quality>=(expanded?6:10)) ||
-        (sideOfVote(bead)===candidate && bead.quality>=(expanded?6:10)) ||
-        (sideOfVote(roads)===candidate && roads.ready>=2 && roads.agree>=2);
-      if(!secondStrong && !independentlyStrong)waitReason='WAIT: 2-source agreement is not strong enough to qualify.';
-      else if(edge<Math.max(1,minEdge))waitReason=`WAIT: selective 2-source edge is ${edge} points; need ${Math.max(1,minEdge)}+.`;
-      else if(quality<Math.max(expanded?9:11,minQuality))waitReason=`WAIT: selective 2-source quality is ${quality}/100; need ${Math.max(expanded?9:11,minQuality)}+.`;
-      else if(!secondStrong)tier='A- RESEARCH';
+  // Use the longest exact trailing window supported by enough independent shoes.
+  // No call is made just because a single shoe happened to match perfectly.
+  let group=[],windowLen=0;
+  for(let k=Math.min(peak,24);k>=6;k--){
+    const eligible=best.filter(x=>x.k>=k);
+    if(eligible.length >= (k>=8?3:5)){
+      windowLen=k;group=eligible;break;
     }
   }
-
-  // Transition is no longer an automatic WAIT. It may qualify only when live
-  // flow and history agree and overall support is strong.
-  if(!waitReason && reg.regime==='TRANSITION'){
-    if(liveSide!==candidate && !(expanded && sideOfVote(bead)===candidate && hist.matches>=10 && histStrength>=.64))waitReason='WAIT: live shoe transition conflicts with historical direction.';
-    else if(support.length<2 && !independentlyStrong)waitReason='WAIT: transition requires at least 2 agreeing pattern sources.';
-    else if(edge<1)waitReason=`WAIT: transition edge is ${edge} points; need 1+.`;
-    else if(quality<12)waitReason=`WAIT: transition quality is ${quality}/100; need 12+.`;
-    else tier=tier==='A- RESEARCH'?tier:'A+';
-  }
-
-  if(!waitReason && histSide!==candidate)tier='A- RESEARCH';
-  if(!waitReason && support.length<2)tier='A- RESEARCH';
-  let side=waitReason?null:candidate;
+  const player=group.filter(x=>x.next==='P').length;
+  const banker=group.length-player;
+  const agreement=group.length?Math.max(player,banker)/group.length:0;
+  const result={scanned:shoes.length,total:best.length,ambiguous,eligible:group.length,
+    window:windowLen,peak,player,banker,agreement,matches:group};
+  if(!windowLen)return {...result,reason:`WAIT: ${best.length} independent shoes had an exact match, but not enough agreed on a sufficiently long window.`};
+  if(player===banker || agreement<.72 || Math.abs(player-banker)<2)
+    return {...result,reason:`WAIT: exact ${windowLen}-hand matches split ${player} Player / ${banker} Banker; need at least 72% agreement and a 2-shoe margin.`};
+  return {...result,side:player>banker?'P':'B',reason:''};
+}
+function patternRecognizerSignal(){
+  const seq=livePB(),shoes=lib();
+  settleFamilyRuntime(seq);
+  settleDecisionRuntime(seq);
+  const hit=exactMainRoadLibrarySearch(seq,shoes);
+  const n=hit.eligible||0,pPct=n?Math.round(100*hit.player/n):50,bPct=n?100-pPct:50;
+  const side=hit.side||null,edge=Math.abs(pPct-bPct);
+  const strength=side?Math.round(hit.agreement*100):0;
   if(side&&(!decisionRuntime.pending||decisionRuntime.pending.handN!==seq.length)){
     decisionRuntime.pending={handN:seq.length,side};
   }
-
-  const strength=side?clamp(Math.round(50+edge*.60+quality*.24+(support.length>=3?3:0)),54,91):0;
-
+  const vote=n?{p:hit.player/n,b:hit.banker/n,edge:Math.abs(hit.player-hit.banker)/n,n}:{p:.5,b:.5,edge:0,n:0};
   return {
-    side,candidate,qualified:!!side,strength,pPct,bPct,edge,quality,
-    matches:hist.matches||0,
-    bestLen:hist.bestLen||0,
-    bestSimilarity:Math.round((hist.bestSim||0)*100),
-    roadMatches:hist.matches||0,beadMatches:bead.matches||0,
-    roadVotes:roads.ready,roadsAgree:roads.agree,
-    beadReady:(bead.matches||0)>0,
-    beadP:Math.round(bead.vote.p*100),beadB:Math.round(bead.vote.b*100),
-    waitReason,patternRecognizer:true,adaptiveLiveShoe:true,version:506,tier,expandedCoverage:expanded,
-    live,hist,bead,roads,sources,adapt,
-    sourceReady:ready.length,sourceSupport:support.length,sourceOppose:oppose.length,
-    oneVotePerHistoricalShoe:true,
-    searchStats:{scanned:discovered.scanned||0,direct:discovered.direct||0,inverted:discovered.inverted||0,strong:discovered.strong||0,candidates:discovered.candidates||0,rankedMatches:discovered.rankedMatches||[],secondarySide:discovered.vote.p>discovered.vote.b?'P':discovered.vote.b>discovered.vote.p?'B':null},
-    decision:recentDecisionState()
+    side,candidate:side,qualified:!!side,strength,pPct,bPct,edge,
+    quality:Math.round(Math.min(100,(hit.window||0)*3+Math.min(30,n*3))),
+    matches:n,bestLen:hit.window||0,bestSimilarity:hit.window?100:0,
+    roadMatches:n,beadMatches:0,roadVotes:0,roadsAgree:0,beadReady:false,
+    beadP:50,beadB:50,sourceReady:n?1:0,sourceSupport:n?1:0,sourceOppose:0,
+    waitReason:hit.reason||'',tier:side?'EXACT MAIN ROAD':'',
+    patternRecognizer:true,exactMainRoadOnly:true,adaptiveLiveShoe:false,
+    oneVotePerHistoricalShoe:true,slidingExactMatches:true,invertedMatches:false,
+    version:514,selectedColor:v510ScopeKey(),
+    hist:{vote,quality:0,matches:n,bestLen:hit.window||0,bestSim:hit.window?1:0},
+    searchStats:{scanned:hit.scanned,direct:n,inverted:0,strong:hit.matches.filter(x=>x.k>=11).length,
+      candidates:hit.total,ambiguous:hit.ambiguous,exactWindow:hit.window,peakWindow:hit.peak,
+      rankedMatches:hit.matches.slice(0,30).map(x=>({shoe:x.shoe,k:x.k,sim:100,next:x.next,inverted:false}))},
+    exact:hit,decision:recentDecisionState()
   };
 }
 
 function paint(){
-  const r=patternRecognizerSignal();
+  const r=patternRecognizerSignal(),hit=r.exact||{};
   const set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
   set('roadAiSide',r.side==='P'?'Player':r.side==='B'?'Banker':'WAIT');
-  set('roadAiStrength',r.side?r.strength+'%':'WAIT');
-  set('roadAiAgree',String(r.matches||0));set('roadAiP',r.pPct+'%');set('roadAiB',r.bPct+'%');set('roadAiEdge',r.edge+' pts');
+  set('roadAiStrength',r.side?r.strength+'%*':'WAIT');
+  set('roadAiAgree',String(r.matches||0));
+  set('roadAiP',r.pPct+'%');set('roadAiB',r.bPct+'%');set('roadAiEdge',r.edge+' pts');
   const panel=document.getElementById('roadPreviewAiPanel');
   if(panel){
-    const t=panel.querySelector('.analyzer-title');if(t)t.textContent='🧠 AI Pattern Recognizer V506 — More Calls + Full-Library Match Search';
-    const s=panel.querySelector('.analyzer-sub');if(s)s.innerHTML='<b>V488 ALL-SHOE MATCHING.</b> Searches the complete saved-shoe library for shifting exact, near-exact, and inverted P/B windows. Ranks independent shoes by match length and similarity; avoids counting duplicate windows as separate shoes. Bead Plate, live pattern, and 3 derived roads still confirm. Original history voting retained after held-out test; new direct/inverted matches are diagnostic evidence, not a guaranteed winning rate.';
+    const t=panel.querySelector('.analyzer-title');
+    if(t)t.textContent='🧠 AI Pattern Recognizer V514 — Exact Main Road Library Search';
+    const s=panel.querySelector('.analyzer-sub');
+    if(s)s.textContent='Matches only the exact trailing Banker/Player Main Road at any position in saved '+
+      (r.selectedColor==='combined'?'combined':r.selectedColor.toUpperCase())+
+      ' shoes. One independent vote per unique shoe. No fuzzy, inverted, bead, ML, or derived-road votes. *Percentage means agreement among matches, not proven win probability.';
   }
-  const v160note=document.getElementById('v428V160Status');
-  if(v160note){const m=window.__v428PatternV160?.match(livePB().join(''));
-    v160note.textContent=!window.__v428PatternV160?.ready()?'V160 assist: NOT BUILT — original Pattern Recognizer active. Press Build / Refresh Dataset V160 to enable optional matching.':m?.side?`V160 assist: ACTIVE • ${m.n} distinct historical shoes • ${m.side==='P'?'PLAYER':'BANKER'} ${m.agreement}% vote share • small auxiliary scoring weight • original qualification gates retained.`:'V160 assist: DATASET READY • no qualified historical similarity yet; original Pattern Recognizer active.';
-  }
-  const note=document.getElementById('roadAiNote');if(note){
-    const hp=r.hist||{},bp=r.bead||{},rd=r.roads||{},lv=r.live||{};
-    const regime=r.adapt?.reg?.regime||'MIXED';
-    const hs=r.searchStats||{};const searchText=` • history ${hs.scanned||0} shoes scanned / ${(hs.direct||0)+(hs.inverted||0)} top independent matches (${hs.direct||0} direct, ${hs.inverted||0} inverted; ${hs.strong||0} long)`;
+  const note=document.getElementById('roadAiNote');
+  if(note){
+    const t=`${hit.scanned||0} shoes searched • ${hit.total||0} independent exact-matched shoes • ${hit.ambiguous||0} contradictory shoes excluded • longest ${hit.peak||0} hands • voting window ${hit.window||0} hands • votes Player ${hit.player||0} / Banker ${hit.banker||0}`;
     note.textContent=r.side
-      ? `QUALIFIED ${r.tier||''}: ${regime}${searchText} • history ${Math.round(Math.max(hp.vote?.p||0,hp.vote?.b||0)*100)}% • live ${Math.round(Math.max(lv.vote?.p||0,lv.vote?.b||0)*100)}% • bead ${Math.round(Math.max(bp.vote?.p||0,bp.vote?.b||0)*100)}% • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0} • edge ${r.edge} • picks ${r.side==='P'?'PLAYER':'BANKER'}.`
-      : `${r.waitReason||'WAIT'} Regime ${regime}${searchText} • live quality ${lv.quality||0}/100 • bead matches ${bp.matches||0} • roads ${rd.agree||0}/${rd.ready||0} • support ${r.sourceSupport||0}/${r.sourceReady||0}.`;
+      ?`EXACT MATCH ${r.side==='P'?'PLAYER':'BANKER'} — ${t} • ${(hit.agreement*100).toFixed(0)}% match agreement (not prediction accuracy).`
+      :`${r.waitReason||'WAIT'} ${t}.`;
   }
   const counter=document.getElementById('v488PatternMatches');
-  if(counter){const h=r.searchStats||{};counter.textContent=`LIBRARY MATCH SCAN: ${h.scanned||0} shoes checked • ${(h.direct||0)+(h.inverted||0)} distinct top matches • ${h.strong||0} long (11+ hands) • ${h.inverted||0} inverted`; }
-  // Keep V73's existing roadpreview accuracy card compatible with the converted slot.
-  const c=panel?.querySelector('[data-v73-acc="roadpreview"]');if(c){const span=c.querySelector('span');if(span)span.textContent='Pattern Recognizer verified accuracy';}
+  if(counter)counter.textContent=`EXACT MAIN ROAD SCAN: ${hit.scanned||0} saved shoes • ${hit.total||0} distinct shoes matched • ${hit.window||0}-hand voting window • ${hit.eligible||0} eligible votes • 0 inverted/fuzzy matches`;
+  const c=panel?.querySelector('[data-v73-acc="roadpreview"]');
+  if(c){const span=c.querySelector('span');if(span)span.textContent='Pattern Recognizer verified accuracy';}
   return r;
 }
 
@@ -16864,13 +16747,11 @@ function bindRuntimeReset(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(boot,100);setTimeout(bindRuntimeReset,120)},{once:true});else {setTimeout(boot,100);setTimeout(bindRuntimeReset,120)}
 [350,900,1800,3000].forEach(ms=>setTimeout(()=>{boot();bindRuntimeReset()},ms));
-const api={version:'V488_FULL_LIBRARY_MATCH_SEARCH',replacesRoadPreview:true,compatibilityKey:'roadpreview',
-primarySources:['saved-pb-shoe-history','pb-only-bead-plate-pattern','live-shoe-pattern'],
-confirmation:['big-eye-boy','small-road','cockroach-road'],liveRegimeWindows:[5,10,20,30],
-extraLongWindowActive:true,trustAwareQualification:true,explicitNewShoeRuntimeReset:true,
-onlineFamilyTrust:true,boundedAdaptation:true,otherAiInputs:false,selectiveWait:true,
-oneVotePerHistoricalShoe:true,slidingAndInvertedMatches:true,livePatternEngineActive:true,preferredAgreement:'3-of-4',
-selectiveAgreement:'history-anchored-2-source',transitionCanQualify:true};
+const api={version:'V514_EXACT_MAIN_ROAD_LIBRARY',replacesRoadPreview:true,compatibilityKey:'roadpreview',
+primarySources:['exact-main-road-pb-suffix-library-search'],confirmation:[],
+minWindow:6,minIndependentShoes:3,oneVotePerHistoricalShoe:true,
+slidingExactMatches:true,invertedMatches:false,derivedRoadInput:false,beadInput:false,
+selectiveWait:true,otherAiInputs:false,accuracyCompatibilityKey:'roadpreview'};
 window.__V217_PATTERN_RECOGNIZER__=api;window.__V216_PATTERN_RECOGNIZER__=api;
 })();
 </script>
@@ -24147,3 +24028,5 @@ window.__V513_BIG_EYE_REVERSAL__={version:513,signal,paint,accuracy:acc,benchmar
 </script>
 </body>
 </html>
+
+<!-- V514: Existing AI Pattern Recognizer switched to exact Main Road saved-shoe matching. No other AIs changed. -->
