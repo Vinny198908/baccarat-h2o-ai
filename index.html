@@ -106,7 +106,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V514 • Exact Main Road Pattern AI + V513 Big Eye Research • Baccarat Dashboard</title>
+<title>V515 • Exact Main Road Pattern Tested Modes • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -16629,7 +16629,24 @@ function recentDecisionState(){
   const rec=a.slice(-6),wins=rec.reduce((x,v)=>x+v,0),acc=rec.length?wins/rec.length:.5;
   return {n:a.length,lossStreak,recentN:rec.length,recentAcc:acc,defensive:lossStreak>=2};
 }
-// V514: Exact Main Road Library Search. No approximate, inverted, bead, or derived-road votes.
+// V515: Keep the original V514 exact-match verdict as the conservative default.
+// Add an OPTIONAL, explicitly experimental more-calls mode. It still matches
+// exact P/B Main Road substrings only; no derived-road, inverted or fuzzy votes.
+const v515Mode={enabled:false};
+try{v515Mode.enabled=localStorage.getItem('v515PatternExperimentalMode')==='on'}catch(e){}
+window.__V515_PATTERN_MODE__=v515Mode;
+function v515ExtraExactMatches(best,peak){
+  for(let k=Math.min(peak,24);k>=5;k--){
+    const group=best.filter(x=>x.k>=k);
+    // Each deduplicated saved shoe may cast at most one vote.
+    if(group.length<5)continue;
+    const player=group.filter(x=>x.next==='P').length,banker=group.length-player;
+    const agreement=Math.max(player,banker)/group.length;
+    if(player===banker||agreement<.65||Math.abs(player-banker)<2)continue;
+    return {side:player>banker?'P':'B',window:k,eligible:group.length,player,banker,agreement};
+  }
+  return null;
+}
 // A Main Road is a lossless representation of the Banker/Player sequence for this purpose.
 // Scan EVERY selected-color saved shoe at EVERY historical offset, but allow each
 // deduplicated shoe only one independent vote. Ties do not form Main Road cells.
@@ -16644,11 +16661,11 @@ function exactMainRoadLibrarySearch(seq,shoes){
     const hist=String(shoes[si]?.sequence||'').replace(/[^PB]/g,'');
     if(hist.length<7)continue;
     let bestLen=0,bestNext=null,conflict=false,bestAt=-1;
-    for(let pos=6;pos<hist.length;pos++){
+    for(let pos=5;pos<hist.length;pos++){
       const next=hist[pos];if(next!=='P'&&next!=='B')continue;
       let len=0;
       while(len<maxCheck && pos-len-1>=0 && hist[pos-len-1]===seq[seq.length-len-1])len++;
-      if(len<6)continue;
+      if(len<5)continue;
       if(len>bestLen){bestLen=len;bestNext=next;conflict=false;bestAt=pos;}
       else if(len===bestLen && next!==bestNext){conflict=true;}
     }
@@ -16669,8 +16686,9 @@ function exactMainRoadLibrarySearch(seq,shoes){
   const player=group.filter(x=>x.next==='P').length;
   const banker=group.length-player;
   const agreement=group.length?Math.max(player,banker)/group.length:0;
-  const result={scanned:shoes.length,total:best.length,ambiguous,eligible:group.length,
-    window:windowLen,peak,player,banker,agreement,matches:group};
+  const research=v515ExtraExactMatches(best,peak);
+  const result={scanned:shoes.length,total:best.filter(x=>x.k>=6).length,ambiguous,eligible:group.length,
+    window:windowLen,peak,player,banker,agreement,matches:group,research};
   if(!windowLen)return {...result,reason:`WAIT: ${best.length} independent shoes had an exact match, but not enough agreed on a sufficiently long window.`};
   if(player===banker || agreement<.72 || Math.abs(player-banker)<2)
     return {...result,reason:`WAIT: exact ${windowLen}-hand matches split ${player} Player / ${banker} Banker; need at least 72% agreement and a 2-shoe margin.`};
@@ -16681,26 +16699,31 @@ function patternRecognizerSignal(){
   settleFamilyRuntime(seq);
   settleDecisionRuntime(seq);
   const hit=exactMainRoadLibrarySearch(seq,shoes);
-  const n=hit.eligible||0,pPct=n?Math.round(100*hit.player/n):50,bPct=n?100-pPct:50;
-  const side=hit.side||null,edge=Math.abs(pPct-bPct);
-  const strength=side?Math.round(hit.agreement*100):0;
+  const strictSide=hit.side||null;
+  const research=(!strictSide&&hit.research)||null;
+  const experimental=!!(v515Mode.enabled&&research&&research.side);
+  const active=experimental?research:hit;
+  const n=active.eligible||0,pPct=n?Math.round(100*active.player/n):50,bPct=n?100-pPct:50;
+  const side=strictSide||(experimental?research.side:null),edge=Math.abs(pPct-bPct);
+  const strength=side?Math.round(active.agreement*100):0;
   if(side&&(!decisionRuntime.pending||decisionRuntime.pending.handN!==seq.length)){
     decisionRuntime.pending={handN:seq.length,side};
   }
   const vote=n?{p:hit.player/n,b:hit.banker/n,edge:Math.abs(hit.player-hit.banker)/n,n}:{p:.5,b:.5,edge:0,n:0};
   return {
     side,candidate:side,qualified:!!side,strength,pPct,bPct,edge,
-    quality:Math.round(Math.min(100,(hit.window||0)*3+Math.min(30,n*3))),
-    matches:n,bestLen:hit.window||0,bestSimilarity:hit.window?100:0,
+    quality:Math.round(Math.min(100,(active.window||0)*3+Math.min(30,n*3))),
+    matches:n,bestLen:active.window||0,bestSimilarity:active.window?100:0,
     roadMatches:n,beadMatches:0,roadVotes:0,roadsAgree:0,beadReady:false,
     beadP:50,beadB:50,sourceReady:n?1:0,sourceSupport:n?1:0,sourceOppose:0,
-    waitReason:hit.reason||'',tier:side?'EXACT MAIN ROAD':'',
+    waitReason:side?'':(hit.reason||''),tier:experimental?'EXPERIMENTAL EXACT':side?'EXACT MAIN ROAD':'',
+    experimental,mode:v515Mode.enabled?'research':'conservative',shadow:research,
     patternRecognizer:true,exactMainRoadOnly:true,adaptiveLiveShoe:false,
     oneVotePerHistoricalShoe:true,slidingExactMatches:true,invertedMatches:false,
-    version:514,selectedColor:v510ScopeKey(),
-    hist:{vote,quality:0,matches:n,bestLen:hit.window||0,bestSim:hit.window?1:0},
+    version:515,selectedColor:v510ScopeKey(),
+    hist:{vote,quality:0,matches:n,bestLen:active.window||0,bestSim:active.window?1:0},
     searchStats:{scanned:hit.scanned,direct:n,inverted:0,strong:hit.matches.filter(x=>x.k>=11).length,
-      candidates:hit.total,ambiguous:hit.ambiguous,exactWindow:hit.window,peakWindow:hit.peak,
+      candidates:hit.total,ambiguous:hit.ambiguous,exactWindow:active.window,peakWindow:hit.peak,
       rankedMatches:hit.matches.slice(0,30).map(x=>({shoe:x.shoe,k:x.k,sim:100,next:x.next,inverted:false}))},
     exact:hit,decision:recentDecisionState()
   };
@@ -16716,21 +16739,43 @@ function paint(){
   const panel=document.getElementById('roadPreviewAiPanel');
   if(panel){
     const t=panel.querySelector('.analyzer-title');
-    if(t)t.textContent='🧠 AI Pattern Recognizer V514 — Exact Main Road Library Search';
+    if(t)t.textContent='🧠 AI Pattern Recognizer V515 — Exact Main Road Library Search';
     const s=panel.querySelector('.analyzer-sub');
-    if(s)s.textContent='Matches only the exact trailing Banker/Player Main Road at any position in saved '+
+    if(s)s.textContent='Exact trailing Banker/Player Main Road only, at any historical position in '+
       (r.selectedColor==='combined'?'combined':r.selectedColor.toUpperCase())+
-      ' shoes. One independent vote per unique shoe. No fuzzy, inverted, bead, ML, or derived-road votes. *Percentage means agreement among matches, not proven win probability.';
+      ' shoes. One vote per distinct shoe. No fuzzy, inverted, bead, ML or derived-road votes. '+
+      (v515Mode.enabled?'EXPERIMENTAL MODE: more calls, no proven advantage.':'CONSERVATIVE MODE: original V514 decision rules.')+
+      ' Match agreement is NOT expected win probability.';
+    let btn=document.getElementById('v515PatternModeButton');
+    if(!btn){
+      btn=document.createElement('button');btn.type='button';btn.id='v515PatternModeButton';
+      btn.className='tiny-btn';btn.style.cssText='margin:8px 0;padding:8px 12px;font-size:12px;max-width:100%;white-space:normal';
+      btn.addEventListener('click',()=>{
+        const newMode=!v515Mode.enabled;
+        const warning=newMode
+          ?'Enable EXPERIMENTAL extra exact-match calls? On the bundled 195-shoe sample, the additional predictions did not demonstrate better accuracy, and the later-shoe test performed below 50%. This is not a validated advantage. Switching modes will reset only AI Pattern Recognizer accuracy, so old and new strategies are not mixed.'
+          :'Return to conservative V514 calls? This will reset only AI Pattern Recognizer accuracy.';
+        if(!confirm(warning))return;
+        v515Mode.enabled=newMode;
+        try{localStorage.setItem('v515PatternExperimentalMode',newMode?'on':'off')}catch(e){}
+        try{window.__V323_BEST_PATTERN_ACCURACY__?.resetPattern?.()}catch(e){}
+        try{window.__V75_RESET_ALL_AI_ACCURACY__?.resetOne?.('roadpreview','AI Pattern Recognizer')}catch(e){}
+        resetDecisionRuntime(livePB());
+        try{window.__invalidateAISignalCacheV43?.()}catch(e){}
+        try{paint()}catch(e){}
+      });panel.appendChild(btn);
+    }
+    btn.textContent=v515Mode.enabled?'Mode: EXPERIMENTAL — switch back to conservative':'Mode: CONSERVATIVE — test more exact matches';
   }
   const note=document.getElementById('roadAiNote');
   if(note){
     const t=`${hit.scanned||0} shoes searched • ${hit.total||0} independent exact-matched shoes • ${hit.ambiguous||0} contradictory shoes excluded • longest ${hit.peak||0} hands • voting window ${hit.window||0} hands • votes Player ${hit.player||0} / Banker ${hit.banker||0}`;
     note.textContent=r.side
-      ?`EXACT MATCH ${r.side==='P'?'PLAYER':'BANKER'} — ${t} • ${(hit.agreement*100).toFixed(0)}% match agreement (not prediction accuracy).`
-      :`${r.waitReason||'WAIT'} ${t}.`;
+      ?`${r.experimental?'EXPERIMENTAL • NOT VERIFIED':'EXACT MATCH'} ${r.side==='P'?'PLAYER':'BANKER'} — ${t} • ${r.strength}% match agreement (NOT prediction accuracy). ${r.experimental?'Additional matches have not shown a reliable edge.':''}`
+      :`${r.waitReason||'WAIT'} ${t}.${hit.research?.side?' Experimental exact-match candidate: '+(hit.research.side==='P'?'PLAYER':'BANKER')+' from '+hit.research.eligible+' shoes at '+hit.research.window+' hands; not a qualified prediction.':''}`;
   }
   const counter=document.getElementById('v488PatternMatches');
-  if(counter)counter.textContent=`EXACT MAIN ROAD SCAN: ${hit.scanned||0} saved shoes • ${hit.total||0} distinct shoes matched • ${hit.window||0}-hand voting window • ${hit.eligible||0} eligible votes • 0 inverted/fuzzy matches`;
+  if(counter)counter.textContent=`EXACT MAIN ROAD SCAN: ${hit.scanned||0} saved shoes • ${hit.total||0} distinct 6+ hand matches • ${r.bestLen||0}-hand voting window • ${r.matches||0} eligible votes • 0 inverted/fuzzy matches${r.experimental?' • EXPERIMENTAL':''}`;
   const c=panel?.querySelector('[data-v73-acc="roadpreview"]');
   if(c){const span=c.querySelector('span');if(span)span.textContent='Pattern Recognizer verified accuracy';}
   return r;
@@ -16747,11 +16792,11 @@ function bindRuntimeReset(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(boot,100);setTimeout(bindRuntimeReset,120)},{once:true});else {setTimeout(boot,100);setTimeout(bindRuntimeReset,120)}
 [350,900,1800,3000].forEach(ms=>setTimeout(()=>{boot();bindRuntimeReset()},ms));
-const api={version:'V514_EXACT_MAIN_ROAD_LIBRARY',replacesRoadPreview:true,compatibilityKey:'roadpreview',
+const api={version:'V515_EXACT_MAIN_ROAD_TWO_MODES',replacesRoadPreview:true,compatibilityKey:'roadpreview',
 primarySources:['exact-main-road-pb-suffix-library-search'],confirmation:[],
-minWindow:6,minIndependentShoes:3,oneVotePerHistoricalShoe:true,
+minWindow:6,minIndependentShoes:3,experimentalWindow:5,experimentalMinIndependent:5,oneVotePerHistoricalShoe:true,
 slidingExactMatches:true,invertedMatches:false,derivedRoadInput:false,beadInput:false,
-selectiveWait:true,otherAiInputs:false,accuracyCompatibilityKey:'roadpreview'};
+selectiveWait:true,otherAiInputs:false,accuracyCompatibilityKey:'roadpreview',signal:patternRecognizerSignal,mode:v515Mode};
 window.__V217_PATTERN_RECOGNIZER__=api;window.__V216_PATTERN_RECOGNIZER__=api;
 })();
 </script>
@@ -21458,7 +21503,7 @@ window.addEventListener('pageshow',()=>{observed=history();armed={seq:observed,p
 repaint();window.__V404_HISTORY_GRADE__={scores,scan,repaint,version:404};
 })();
 </script>
-<!-- V502: New standalone research analyzer. Original AI decisions unchanged. -->
+<!-- V516: Big Eye ONLY library sliding + inverted research analyzer; unrelated AIs unchanged. -->
 <style id="v502-three-road-style">
 #v502ThreeRoads{margin:10px 0;padding:12px;border:1px solid #58b9a4;background:#0d2223;border-radius:14px;color:#eefcf6;font:13px system-ui}
 #v502ThreeRoads .v502head{font-size:17px;font-weight:900}
@@ -21471,9 +21516,9 @@ repaint();window.__V404_HISTORY_GRADE__={scores,scan,repaint,version:404};
 #v502ThreeRoads #v502Reset{width:100%;padding:11px;margin-top:9px;border:1px solid #78c6b8;background:#235154;color:white;border-radius:9px;font-weight:850}
 @media(max-width:400px){#v502ThreeRoads .v502grid{grid-template-columns:repeat(2,1fr)}}
 </style>
-<section id="v502ThreeRoads" aria-label="Three derived roads sliding and inverted research AI">
- <div class="v502head">THREE DERIVED ROADS • SLIDING + INVERTED (V502)</div>
- <p class="v502note">Independent research-only AI. Treats each derived road as its own main road; matches sliding red/blue windows and mirrored red/blue windows across saved shoes. Each saved shoe contributes at most one vote per road. Never uses a known current-shoe continuation. Predictions are exploratory, not a verified betting edge.</p>
+<section id="v502ThreeRoads" aria-label="Big Eye Road sliding and inverted historical matcher">
+ <div class="v502head">BIG EYE ROAD • SLIDING + INVERTED (V516)</div>
+ <p class="v502note">Independent research AI using <strong>only Big Eye Road</strong> structure. Searches your saved shoes for sliding exact and inverted red/blue patterns, then checks the historical next Banker/Player results. One vote per unique saved shoe, with no future-hand leakage. Small Road and Cockroach Road are not used.</p>
  <div class="v502grid">
   <div class="v502tile"><span>NEXT P/B</span><strong id="v502Pick">WAIT</strong></div>
   <div class="v502tile"><span>SHOES AVAILABLE</span><strong id="v502Count">—</strong></div>
@@ -21482,120 +21527,123 @@ repaint();window.__V404_HISTORY_GRADE__={scores,scan,repaint,version:404};
   <div class="v502tile"><span>WAITs</span><strong id="v502Waits">0</strong></div>
   <div class="v502tile"><span>AFTER-TIE W/L</span><strong id="v502After">0W–0L</strong></div>
  </div>
- <div id="v502Detail" aria-live="polite">Checking road matches…</div>
- <p class="v502note" id="v502Note">Checking qualifications…</p>
- <button id="v502Reset" type="button">Reset Three-Road Sliding + Inverted Accuracy</button>
- <p class="v502note">Derived-road red/blue marks are structural, not direct Banker/Player outcomes. Historical vote shares are not next-hand win probabilities.</p>
+ <div id="v502Detail" aria-live="polite">Looking for Big Eye Road library matches…</div>
+ <p class="v502note" id="v502Note">Checking saved shoe history…</p>
+ <button id="v502Reset" type="button">Reset Big Eye Road Sliding + Inverted Accuracy</button>
+ <p class="v502note">Big Eye red/blue marks describe structure, not Banker/Player. Exact or inverted pattern matches do not prove a betting edge.</p>
 </section>
 <script id="v502-three-road-engine">
-(function () {
+(function(){
  'use strict';
- // V502: Experimental three-road-as-main-road matcher, with sliding windows and mirrored derived colors.
- // No other AI is influenced by this module. One independent historical shoe contributes at most
- // one (possibly inverted) vote per derived road. Never use a known current-shoe continuation.
+ // V516 isolates one Big Eye Road matcher. Each stored historical shoe can vote at
+ // most once, even if several sliding positions match. Only pre-result prefixes
+ // are indexed. Mirroring red/blue patterns does NOT swap historical P/B labels.
  const $=id=>document.getElementById(id);
- const KEY='baccarat_v502_3roads_sliding_inverted_accuracy_v1';
- const roads=[['Big Eye Boy',1],['Small Road',2],['Cockroach Road',3]];
- const opposite=v=>v==='R'?'B':'R';
- const invert=s=>s.replace(/[RB]/g,c=>opposite(c));
+ const KEY='baccarat_v516_big_eye_sliding_inverted_accuracy_v1';
+ const MIN_HAND=12,MIN_MARKS=4,MAX_MARKS=8,MIN_SHOES=4,AGREE=.54,MIN_MARGIN=2;
  const seqOf=x=>String(typeof x==='string'?x:x?.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
- const pb=s=>s.replace(/T/g,'');
- const handObjects=s=>[...s].map(r=>({r}));
- const marks=(s,n)=>deriveRoad(handObjects(s),n).join('');
+ const pb=s=>String(s||'').replace(/T/g,'');
+ const marks=s=>deriveRoad([...s].map(r=>({r})),1).join('');
+ const invert=s=>s.replace(/[RB]/g,c=>c==='R'?'B':'R');
  const asPct=(a,b)=>b?(a/b*100).toFixed(1)+'%':'—';
  let saved;try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
  let stats={w:0,l:0,wait:0,afterW:0,afterL:0,...(saved?.stats||{})};
- let lastSeq='',pending=null,librarySig='',library=[],lastTickKey='';
- const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify({stats}))}catch(e){}};
- function readLive(){try{return (state.hands||[]).map(v=>typeof v==='string'?v:v?.r).filter(v=>['P','B','T'].includes(v)).join('')}catch(e){return ''}}
+ let lastSeq='',pending=null,lastTickKey='',libSignature='',library=[],index=new Map();
+ function persist(){try{localStorage.setItem(KEY,JSON.stringify({stats}))}catch(e){}}
+ function readLive(){try{return (state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(x=>x==='P'||x==='B'||x==='T').join('')}catch(e){return ''}}
  function prep(){
-  const pool=v510RawShoes();
-  const sig=pool.length+'|'+pool.map(x=>{const s=seqOf(x);return String(x?.id||'')+':'+s.length+':'+s.slice(-6)}).join('|');
-  if(sig===librarySig)return;
-  librarySig=sig;
-  const seen=new Set();const out=[];
-  for(const entry of pool){
-   const sequence=seqOf(entry),nonTie=pb(sequence);
-   if(nonTie.length<12||seen.has(nonTie))continue;
+  const raw=v510RawShoes();
+  // Scope participates in the cache key so RED/BLACK selection cannot reuse a
+  // cached COMBINED index. Sequence signatures catch restored/edited shoes.
+  const sig=v510ScopeKey()+'|'+raw.length+'|'+raw.map(sh=>{
+   const seq=seqOf(sh);return String(sh?.id||'')+':'+seq.length+':'+seq.slice(0,9)+':'+seq.slice(-9);
+  }).join('|');
+  if(sig===libSignature)return;
+  libSignature=sig;index=new Map();library=[];
+  const seen=new Set();
+  for(const entry of raw){
+   const nonTie=pb(seqOf(entry));
+   if(nonTie.length<MIN_HAND+1||seen.has(nonTie))continue;
    seen.add(nonTie);
-   out.push({sequence,nonTie,byRoad:roads.map(([name,offset])=>marks(sequence,offset))});
-  }
-  library=out;
- }
- function roadPrediction(prefix,idx,useInverted=true){
-  const roadNo=idx+1,cur=marks(prefix,roadNo);
-  const empty={name:roads[idx][0],side:null,marks:cur.length,support:0,red:0,blue:0,inverted:0,skippedKnown:0,why:''};
-  if(cur.length<5){empty.why='Not enough derived-road marks';return empty}
-  const predictedP=marks(prefix+'P',roadNo),predictedB=marks(prefix+'B',roadNo);
-  const cP=predictedP.length>cur.length?predictedP.at(-1):null;
-  const cB=predictedB.length>cur.length?predictedB.at(-1):null;
-  if(!cP||!cB||cP===cB){empty.why='Banker and Player do not create distinguishable next road colors';return empty;}
-  const livePB=pb(prefix), counts={R:0,B:0};let inverted=0, skippedKnown=0;
-  for(const sh of library){
-   // Leave-in safety: if a saved shoe already contains the exact observed prefix,
-   // its subsequent marks may disclose the target's future. Exclude its vote.
-   if(livePB.length>=8 && sh.nonTie.startsWith(livePB)) {skippedKnown++;continue}
-   const ref=sh.byRoad[idx];if(ref.length<6)continue;
-   let bestLen=0,best=null,bestFlip=false,conflict=false;
-   for(let n=Math.min(8,cur.length,ref.length-1);n>=4;n--){
-    if(bestLen>n)break;
-    const tail=cur.slice(-n);
-    for(let j=0;j+n<ref.length;j++){
-     const segment=ref.slice(j,j+n);
-     const flipped=useInverted && segment!==tail && invert(segment)===tail;
-     if(segment!==tail&&!flipped)continue;
-     const next=flipped?opposite(ref[j+n]):ref[j+n];
-     if(n>bestLen){bestLen=n;best=next;bestFlip=flipped;conflict=false}
-     else if(n===bestLen){
-      if(next!==best)conflict=true;
-      // Exact matches win only among equally strong and non-conflicting evidence.
-      if(!flipped&&bestFlip&&next===best)bestFlip=false;
-     }
+   const shoeId=library.length;
+   library.push(nonTie);
+   // Save known historical outcomes in the index only AFTER their own prefixes.
+   for(let pos=MIN_HAND;pos<nonTie.length;pos++){
+    const eye=marks(nonTie.slice(0,pos));
+    if(eye.length<MIN_MARKS)continue;
+    const side=nonTie[pos];
+    for(let n=MIN_MARKS;n<=Math.min(MAX_MARKS,eye.length);n++){
+     const key=n+'|'+eye.slice(-n);
+     let entries=index.get(key);if(!entries){entries=[];index.set(key,entries)}
+     entries.push({shoe:shoeId,side});
     }
    }
-   if(best&&!conflict){counts[best]++;if(bestFlip)inverted++}
   }
-  const support=counts.R+counts.B;Object.assign(empty,{support,red:counts.R,blue:counts.B,inverted,skippedKnown});
-  if(support<4){empty.why='Fewer than 4 distinct matching shoes';return empty}
-  const majority=counts.R>=counts.B?'R':'B';
-  if(Math.max(counts.R,counts.B)/support<.56 || Math.abs(counts.R-counts.B)<2){empty.why='Historical road-color votes are too close';return empty}
-  empty.side=cP===majority?'P':cB===majority?'B':null;
-  empty.why='One vote per independent shoe; includes sliding and inverted road-color matches';
-  return empty;
  }
- function predict(prefix,useInverted=true){
-  prep();
-  const rows=roads.map((_,i)=>roadPrediction(prefix,i,useInverted));
-  if(pb(prefix).length<12)return {side:null,rows,why:'Need 12 Player/Banker results before scoring',shoeCount:library.length};
-  const p=rows.filter(x=>x.side==='P').length,b=rows.filter(x=>x.side==='B').length;
-  const side=p>=2&&p>b?'P':b>=2&&b>p?'B':null;
-  return {side,rows,why:side?`${Math.max(p,b)} of 3 road models agree (correlated evidence)`:'Fewer than 2 roads agree on a qualified Banker/Player result',shoeCount:library.length};
+ function predict(prefix){
+  prep();const current=pb(prefix),eye=marks(current);
+  const result={side:null,shoeCount:library.length,scope:v510ScopeKey(),marks:eye.length,
+   support:0,player:0,banker:0,exact:0,inverted:0,ambiguous:0,skipped:0,agreement:0,why:''};
+  if(current.length<MIN_HAND){result.why=`Need ${MIN_HAND} Player/Banker results before scoring`;return result}
+  if(eye.length<MIN_MARKS){result.why=`Need ${MIN_MARKS} Big Eye marks before matching`;return result}
+  const matches=new Map(), maxLen=Math.min(MAX_MARKS,eye.length);
+  let skipped=0;
+  function visit(n,pattern,isInverted){
+   const entries=index.get(n+'|'+pattern)||[];
+   for(const e of entries){
+    const source=library[e.shoe];
+    // Leave-in protection: a stored shoe beginning with the entire visible live
+    // prefix could disclose its next actual hand; do not let it vote.
+    if(source.startsWith(current)){skipped++;continue}
+    const score=n*2+(isInverted?0:1);
+    const old=matches.get(e.shoe);
+    if(!old||score>old.score)matches.set(e.shoe,{score,sides:new Set([e.side]),flip:isInverted});
+    else if(score===old.score)old.sides.add(e.side);
+   }
+  }
+  for(let n=maxLen;n>=MIN_MARKS;n--){
+   const tail=eye.slice(-n);
+   visit(n,tail,false);
+   visit(n,invert(tail),true);
+  }
+  let player=0,banker=0,exact=0,inverted=0,ambiguous=0;
+  const minMatchedWindow=Math.min(7,eye.length);
+  for(const m of matches.values()){
+   if(m.score<minMatchedWindow*2)continue; // Favor longer recent Big Eye structures over weak four-mark repeats.
+   if(m.sides.size!==1){ambiguous++;continue}
+   if(m.sides.has('P'))player++;else banker++;
+   if(m.flip)inverted++;else exact++;
+  }
+  const support=player+banker,majority=Math.max(player,banker);
+  Object.assign(result,{support,player,banker,exact,inverted,ambiguous,skipped,agreement:support?majority/support:0});
+  if(support<MIN_SHOES){result.why=`Only ${support} long-window independent shoes matched; need ${MIN_SHOES}`;return result}
+  if(majority/support<AGREE||Math.abs(player-banker)<MIN_MARGIN){result.why='Library next-hand votes disagree; WAIT';return result}
+  result.side=player>banker?'P':'B';
+  result.why=`${support} unique shoes matched Big Eye sliding / inverted patterns; historical majority ${(result.agreement*100).toFixed(0)}% (not a calibrated win probability)`;
+  return result;
  }
- function paint(info){
-  const side=info.side==='P'?'PLAYER':info.side==='B'?'BANKER':'WAIT';
-  if($('v502Pick'))$('v502Pick').textContent=side;
-  if($('v502Count'))$('v502Count').textContent=info.shoeCount;
-  if($('v502Score'))$('v502Score').textContent=`${stats.w}W–${stats.l}L`;
-  if($('v502Accuracy'))$('v502Accuracy').textContent=asPct(stats.w,stats.w+stats.l);
-  if($('v502After'))$('v502After').textContent=`${stats.afterW}W–${stats.afterL}L (${asPct(stats.afterW,stats.afterW+stats.afterL)})`;
-  if($('v502Waits'))$('v502Waits').textContent=stats.wait;
-  if($('v502Note'))$('v502Note').textContent=info.why;
-  if($('v502Detail'))$('v502Detail').innerHTML=info.rows.map(z=>
-   `<div><strong>${z.name}</strong>: ${z.side==='P'?'PLAYER':z.side==='B'?'BANKER':'WAIT'} · ${z.support} shoes (${z.inverted} inverted) · ${z.red} red / ${z.blue} blue${z.side?'':' · '+z.why}</div>`).join('');
+ function paint(r){
+  $('v502Pick').textContent=r.side==='P'?'PLAYER':r.side==='B'?'BANKER':'WAIT';
+  $('v502Count').textContent=r.shoeCount+' ('+r.scope+')';
+  $('v502Score').textContent=`${stats.w}W–${stats.l}L`;
+  $('v502Accuracy').textContent=asPct(stats.w,stats.w+stats.l);
+  $('v502After').textContent=`${stats.afterW}W–${stats.afterL}L (${asPct(stats.afterW,stats.afterW+stats.afterL)})`;
+  $('v502Waits').textContent=stats.wait;
+  $('v502Note').textContent=r.why;
+  $('v502Detail').textContent=`Big Eye: ${r.marks} visible marks • ${r.support} matching shoes (${r.exact} exact, ${r.inverted} inverted, ${r.ambiguous} conflicting) • historical next P ${r.player} / B ${r.banker}`;
  }
  function check(){
   try{
-   const now=readLive();
-   const reds=v510RawShoes();
-   const blacks=[];
-   // Avoid expensive repeated library scans on iPhone while nothing has changed.
-   const tickKey=now+'|'+v510ScopeKey()+'|'+reds.length+'|'+blacks.length+'|'+reds.map(x=>String(x?.id||'')+':'+seqOf(x).length).join(',')+'|'+blacks.map(x=>String(x?.id||'')+':'+seqOf(x).length).join(',');
-   if(tickKey===lastTickKey)return;
-   lastTickKey=tickKey;
+   const now=readLive(),raw=v510RawShoes();
+   const key=now+'|'+v510ScopeKey()+'|'+raw.length+'|'+raw.map(x=>{
+    const s=seqOf(x);return String(x?.id||'')+':'+s.length+':'+s.slice(-9)
+   }).join(',');
+   if(key===lastTickKey)return;
+   lastTickKey=key;
    if(now!==lastSeq){
-    if(now.startsWith(lastSeq)&&now.length===lastSeq.length+1&&pending){
+    if(now.startsWith(lastSeq)&&now.length===lastSeq.length+1&&pending?.prefix===lastSeq){
      const actual=now.at(-1);
-     if(actual==='B'||actual==='P'){
+     if(actual==='P'||actual==='B'){
       if(pending.side==='P'||pending.side==='B'){
        if(pending.side===actual)stats.w++;else stats.l++;
        if(lastSeq.endsWith('T')){if(pending.side===actual)stats.afterW++;else stats.afterL++}
@@ -21605,26 +21653,20 @@ repaint();window.__V404_HISTORY_GRADE__={scores,scan,repaint,version:404};
     }
     lastSeq=now;
    }
-   const next=predict(now);
-   pending={side:next.side,prefix:now};
-   paint(next);
-  }catch(e){if($('v502Note'))$('v502Note').textContent='Research module error: '+String(e?.message||e).slice(0,150)}
+   const r=predict(now);pending={prefix:now,side:r.side};paint(r);
+  }catch(e){if($('v502Note'))$('v502Note').textContent='Big Eye matcher error: '+String(e?.message||e).slice(0,150)}
  }
  function reset(silent=false){
-  if(!silent&&!window.confirm('Reset Three-Road Sliding + Inverted accuracy? Saved shoes and entered hands will stay.'))return;
+  if(!silent&&!window.confirm('Reset Big Eye Road accuracy? Saved shoes and entered hands stay untouched.'))return;
   stats={w:0,l:0,wait:0,afterW:0,afterL:0};persist();lastTickKey='';check();
  }
  function init(){
   if(!$('v502Pick'))return;
-  lastSeq=readLive();
-  $('v502Reset').addEventListener('click',()=>reset());
-  check();
-  setInterval(check,650);
+  lastSeq=readLive();$('v502Reset').addEventListener('click',()=>reset());check();setInterval(check,750);
  }
- window.__V502_THREE_ROAD__={predict,reset,getStats:()=>({...stats}),librarySize:()=>library.length};
+ window.__V516_BIG_EYE__={predict,reset,getStats:()=>({...stats}),librarySize:()=>library.length,version:516};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
-
 </script>
 
 <!-- V406: Single master reset for AI accuracy only; shoe history and library remain untouched. -->
@@ -21703,7 +21745,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  ['Main Future Awareness V480','v460Action'],
  ['ML Trainer','mlv307Pick'],
  ['After-Tie AI','v445Pick'],['Google Gemini (Adaptive)','v465Pick'],
- ['Three Derived Roads Sliding + Inverted','v502Pick'],
+ ['Big Eye Road Sliding + Inverted','v502Pick'],
  ['Black Big Eye + Bead Signal V512','v512Pick'],
  ['Big Eye Precision Reversal V513','v513Pick']
  ];
@@ -22504,7 +22546,7 @@ const MODELS=[
  ['Bead Plate History AI','beadHistSide'],['Main Future Awareness','v277Action'],
  ['Main Future Awareness V480','v460Action'],['After-Tie AI','v445Pick'],
  ['Google Gemini (Adaptive)','v465Pick'],['ML Trainer','mlv307Pick'],
- ['Three Derived Roads Sliding + Inverted','v502Pick'],
+ ['Big Eye Road Sliding + Inverted','v502Pick'],
  ['Black Big Eye + Bead Signal V512','v512Pick'],
  ['Big Eye Precision Reversal V513','v513Pick']
 ];
@@ -24029,4 +24071,4 @@ window.__V513_BIG_EYE_REVERSAL__={version:513,signal,paint,accuracy:acc,benchmar
 </body>
 </html>
 
-<!-- V514: Existing AI Pattern Recognizer switched to exact Main Road saved-shoe matching. No other AIs changed. -->
+<!-- V515: Exact-only pattern V514 retained as conservative default. Experimental match expansion is optional; only Pattern AI changes. -->
