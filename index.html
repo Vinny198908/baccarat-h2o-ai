@@ -110,7 +110,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V524 • ML Road Trainer Repaired • Baccarat Dashboard</title>
+<title>V525 • ML Road Trainer Scoped Diagnostic • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -579,7 +579,7 @@ body { overscroll-behavior-y: none; }
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V524 • ML REPAIRED + SELECTIVE SHOE-MATCH • STRICT COLOR FILTER</div>
+<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V525 • ML SCOPE RETRAIN + VISIBLE VALIDATION • STRICT COLOR FILTER</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
@@ -24185,6 +24185,105 @@ if(!window.__v519MlAccuracyTimer)window.__v519MlAccuracyTimer=setInterval(()=>{
   if(document.visibilityState!=='hidden')paint();
 },600);
 window.__V519_ML_ACCURACY_FIX__={version:VERSION,paint,model,pending,nextHand,source:'V178 authoritative grading',predictionLogicChanged:false};
+})();
+</script>
+<!-- V525: ML scope-retrain and transparent validated-vs-research diagnostics.
+     Does NOT loosen qualification gates or modify other AI engines, libraries, or official grading. -->
+<style id="v525-ml-diagnostics-css">
+#v525MlDiagnostics {border:1px solid #51687d;border-radius:10px;padding:10px;margin:9px 0;background:rgba(30,49,69,.35);color:#e6f0f8;font-size:12px;line-height:1.55}
+#v525MlDiagnostics strong {font-size:13px;display:block;letter-spacing:.2px}
+#v525MlDiagnostics .v525sub {opacity:.86;margin-top:4px}
+</style>
+<script id="v525-ml-scope-retrain-diagnostics">
+(function(){
+'use strict';
+const VERSION=525;
+let activated=false,waiting=false,running=false,lastAutoKey='',lastKnownScope='',refreshTimer=0;
+const $=id=>document.getElementById(id);
+const safe=(fn,fb)=>{try{return fn()}catch(_){return fb}};
+const ap=()=>window.__mlRoadTrainerV3||window.__mlRoadTrainerV2;
+const mode=()=>safe(()=>v510ScopeKey(),'combined');
+const ignore=()=>safe(()=>typeof v452IgnoreTies==='function'?v452IgnoreTies():localStorage.getItem('v452_ignore_ties')==='1',false);
+const key=()=>[mode(),ignore()?'ignore':'count',safe(()=>v510RawShoes().length,0),window.__v510ScopeEpoch||0].join('|');
+const pc=n=>Number.isFinite(Number(n))?(Number(n)*100).toFixed(1)+'%':'—';
+const handN=()=>safe(()=>currentSequence().length,0);
+function box(){
+  const panel=$('mlRoadTrainerV155');if(!panel)return null;
+  let b=$('v525MlDiagnostics');
+  if(!b){b=document.createElement('div');b.id='v525MlDiagnostics';b.setAttribute('aria-live','polite');
+    const anchor=$('v524TrainMl');if(anchor?.parentNode===panel)anchor.insertAdjacentElement('afterend',b);else panel.appendChild(b);
+  }
+  return b;
+}
+function diagnosis(){
+  const api=ap();const report=safe(()=>api?.report?.(),null);
+  const sig=safe(()=>api?.signal?.(),{});
+  const reason=String(sig?.reason||'');
+  const missing=reason.includes('NOT TRAINED')||reason.includes('Training not complete')||reason.includes('ML training failed');
+  const mismatch=reason.includes('Selected shoe color changed')||reason.includes('Tie mode changed');
+  const reportValid=!!report&&!missing&&!mismatch;
+  let title,description;
+  if(running){title='ML TRAINING IN PROGRESS';description='Training with the currently selected '+mode().toUpperCase()+' shoe library.'}
+  else if(mismatch){title='ML NEEDS RETRAINING FOR '+mode().toUpperCase();description=reason}
+  else if(missing||!reportValid){title='ML NOT READY';description=reason||'Tap Train / Refresh ML from Saved Shoes.'}
+  else if(report.qualified||report.patternQualified){title='ML TRAINED — VALIDATED PATH AVAILABLE';description='Official predictions still appear only when the current hand clears the live evidence and confidence tests.'}
+  else{title='ML TRAINED — COLOR MODEL FAILED VALIDATION';description='The engine is running, but it did not demonstrate the required held-out improvement. The RAW LEAN is research only; official WAIT and 0W/0L are expected.'}
+  const test=reportValid?`Selected held-out ML: ${report.selective?.w||0}W–${report.selective?.l||0}L (${pc(report.selective?.rate)}, N=${report.selective?.n||0}) • same-call majority baseline: ${pc(report.selectedBaseline)} • Library matching: ${report.patternQualified?'PASS':'FAIL'}`:'';
+  const live=reportValid&&handN()>=6?`This hand: ${sig?.qualified?'OFFICIAL '+(sig.side==='P'?'PLAYER':'BANKER'):(sig?.analyzing?'SEARCHING':'WAIT')} • Raw lean: ${sig.rawSide==='P'?'PLAYER':sig.rawSide==='B'?'BANKER':'—'} • Model score: ${sig.confidence||0}%`:'';
+  return {title,description,test,live,reportValid,mismatch,missing};
+}
+function paint(){
+  const b=box();if(!b)return;
+  const d=diagnosis();
+  const html=`<strong>${d.title}</strong><div class="v525sub">${d.description}</div>${d.test?`<div class="v525sub">${d.test}</div>`:''}${d.live?`<div class="v525sub">${d.live}</div>`:''}<div class="v525sub">Official W/L counts <b>qualified, pre-result locked</b> calls only. A raw prediction is not verified betting evidence.</div>`;
+  if(b.innerHTML!==html)b.innerHTML=html;
+}
+function autoTrain(){
+  waiting=false;
+  if(!activated||running)return;
+  const api=ap();if(!api?.trainAndValidate)return;
+  const sig=safe(()=>api.signal(),{});
+  const r=String(sig.reason||'');
+  const needs=r.includes('NOT TRAINED')||r.includes('Selected shoe color changed')||r.includes('Tie mode changed')||r.includes('ML training failed');
+  if(!needs){paint();return}
+  const k=key();if(k===lastAutoKey)return;
+  lastAutoKey=k;running=true;paint();
+  // Defer from the click/hand commit: never block the synchronous results handler.
+  setTimeout(()=>{
+    try{api.trainAndValidate()}catch(e){console.warn('V525 ML scope training',e)}
+    finally{running=false;paint();
+      safe(()=>window.__V307_ML_SINGLE_OWNER__?.paint?.(),null);
+      safe(()=>window.__V519_ML_ACCURACY_FIX__?.paint?.(),null);
+      safe(()=>window.__V178_ACCURACY_COUNTS__?.arm?.(),null);
+    }
+  },80);
+}
+function schedule(){if(waiting||running)return;waiting=true;setTimeout(autoTrain,650)}
+function tick(){
+  const scope=key();
+  if(scope!==lastKnownScope){lastKnownScope=scope;activated=true;schedule()}
+  if(!activated&&handN()>=6){activated=true;schedule()}
+  if(!running)paint();
+}
+function boot(){
+  box();paint();lastKnownScope=key();
+  document.addEventListener('click',e=>{
+    const id=e.target?.closest?.('button')?.id||'';
+    if(['currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn'].includes(id)){
+      activated=true;setTimeout(schedule,400);
+    }
+    if(id==='v524TrainMl'||id==='mlBuild'){
+      activated=true;lastAutoKey='';setTimeout(paint,250);setTimeout(paint,1500);
+    }
+    if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn'))setTimeout(paint,500);
+  },false);
+  if(!window.__v525MlScopeTimer)window.__v525MlScopeTimer=setInterval(()=>{
+    if(document.visibilityState!=='hidden')tick();
+  },1800);
+  setTimeout(tick,500);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,4900),{once:true});else setTimeout(boot,4900);
+window.__V525_ML_SCOPED_HEALTH__={version:VERSION,diagnosis,paint,manualRetrain:()=>{activated=true;lastAutoKey='';schedule()},predictionLogicChanged:false,officialGradingChanged:false};
 })();
 </script>
 </body>
