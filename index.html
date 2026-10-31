@@ -1,4 +1,5 @@
 <!-- V522: Bead Plate History AI now honors global Ignore Ties for live and saved P/B-only search; tie-context only OFF; preserved saved shoes, roads, scoring and other AI engines. -->
+<!-- V524: Remove obsolete V259 ML API wrapper incompatible with V506 (families vs sources), keep genuine V506 held-out gating, add easy Train ML access and verified live grade display. Other engines and saved shoes untouched. -->
 <!-- V519: Stabilize qualified ML accuracy registration, preserve pre-result locks, restore live W/L visibility. -->
 <!-- V518: AI Pattern Recognizer only current Main Road and saved Main/Big Eye/Small histories. V517 Derived Road preserved. -->
 <!-- V513: Adds separately graded BLACK reversal-only variant and paired live Banker/streak benchmarks; V512 and existing AIs remain unchanged. -->
@@ -109,7 +110,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V521 • Selective Shoe-Match Accuracy Audit • Baccarat Dashboard</title>
+<title>V524 • ML Road Trainer Repaired • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -578,7 +579,7 @@ body { overscroll-behavior-y: none; }
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V521 • AUDITED SELECTIVE SHOE-MATCH + STRICT COLOR FILTER</div>
+<div style="font-size:12px;font-weight:900;color:#8ff0b3;margin-top:4px">V524 • ML REPAIRED + SELECTIVE SHOE-MATCH • STRICT COLOR FILTER</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
@@ -18068,6 +18069,11 @@ function api(){ return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null;
 function setText(id,v){ const e=document.getElementById(id); if(e)e.textContent=v; }
 function installSelective(){
   const a=api(); if(!a) return false;
+  // V524: This legacy V259 wrapper checks `sources`, but the active V506 API
+  // reports `families` and supports a separately held-out-qualified historical
+  // retrieval path. Wrapping V506 would suppress EVERY qualified pick and RAW lean.
+  // V506 already enforces its OWN unbiased held-out + live-evidence gates.
+  if(Number(a.version)>=506) return true;
   if(a.signal&&a.signal.__v259SelectiveFn) return true;
   const raw=a.signal?.bind(a); if(typeof raw!=='function') return false;
   a.__v259RawSignal=raw;
@@ -19692,7 +19698,8 @@ function liveRow(){
   liveRowCacheKey=cacheKey;liveRowCache=result;return result;
 }
 function signal(){
-  if(!runtime.trained||runtime.scopeKey!==v510ScopeKey())return {side:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.scopeKey!==v510ScopeKey()?'Selected shoe color changed — rebuild ML dataset for this color.':runtime.lastError||'Training not complete'};
+  if(!runtime.trained)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.lastError?'ML training failed: '+runtime.lastError:'ML NOT TRAINED — tap Train / Refresh ML from Saved Shoes in this panel.'};
+  if(runtime.scopeKey!==v510ScopeKey())return {side:null,qualified:false,confidence:0,status:'WAIT',reason:'Selected shoe color changed — retrain ML from Saved Shoes for this color.'};
   if(runtime.report?.tieMode!==(ignoreTies()?'IGNORE TIES':'ORIGINAL'))return {side:null,qualified:false,confidence:0,status:'WAIT',reason:'Tie mode changed: rebuild ML dataset.'};
   const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};
   // A result arriving during a search cancels the stale job at the next identity check.
@@ -19739,6 +19746,24 @@ function boot(){
   // V310 load stability: never run a full-library ML rebuild during initial page construction.
   // This keeps the 1.3 MB single-file app responsive and lets all panels finish mounting first.
   paint();
+  // V524: Keep full-library training manual for iPhone/iPad load stability,
+  // but make the existing training action directly accessible from the ML panel.
+  const panel=document.getElementById('mlRoadTrainerV155');
+  if(panel&&!document.getElementById('v524TrainMl')){
+    const button=document.createElement('button');
+    button.id='v524TrainMl';button.type='button';button.className='tiny-btn';
+    button.style.cssText='width:100%;margin:7px 0;padding:11px;background:#245b80;color:#fff;border:1px solid #6bb2dc;border-radius:10px;font-weight:800';
+    button.textContent='Train / Refresh ML from Saved Shoes';
+    button.addEventListener('click',()=>{
+      const build=document.getElementById('mlBuild');
+      if(!build){const reason=document.getElementById('mlv307Reason');if(reason)reason.textContent='ML dataset controls are still loading; try again after the page finishes loading.';return;}
+      button.disabled=true;button.textContent='TRAINING ML…';
+      try{build.click()}finally{setTimeout(()=>{button.disabled=false;button.textContent='Train / Refresh ML from Saved Shoes';paint();try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(e){}},350)}
+    });
+    const grade=document.getElementById('mlv203AccuracyBox');
+    if(grade?.parentNode===panel)panel.insertBefore(button,grade);
+    else panel.appendChild(button);
+  }
   const btn=document.getElementById('mlBuild');
   if(btn&&!btn.__v309){
     const old=btn.onclick;
@@ -24131,6 +24156,19 @@ function paint(){
   note.textContent=locked?'NEXT RESULT LOCKED: '+(p.side==='P'?'PLAYER':'BANKER')+' for hand #'+hand+'. Win or loss will be recorded when that result is entered.'
     :'Only qualified ML predictions locked BEFORE the result count. RAW LEAN and WAIT do not count as wins or losses.';
 }
+// V524: read-only immediate grade repaint after the existing authoritative settle.
+// This does NOT score a second time, call the ML, or modify any prediction.
+const originalSettle=window.__settleVerifiedPredictions;
+if(typeof originalSettle==='function'&&!originalSettle.__v524MlPaint){
+  const updateAfterSettle=function(actual){
+    let result;
+    try{return result=originalSettle.apply(this,arguments)}
+    finally{try{paint()}catch(_){} }
+  };
+  updateAfterSettle.__v524MlPaint=true;
+  updateAfterSettle.__base=originalSettle;
+  window.__settleVerifiedPredictions=updateAfterSettle;
+}
 // Core click commit already grades centrally before appending the result;
 // refresh shortly AFTER the commit. Do not grade in an extra click handler.
 document.addEventListener('click',function(e){
@@ -24143,8 +24181,9 @@ document.addEventListener('click',function(e){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(paint,250);setTimeout(paint,3100)},{once:true});
 else{setTimeout(paint,0);setTimeout(paint,3100)}
 if(!window.__v519MlAccuracyTimer)window.__v519MlAccuracyTimer=setInterval(()=>{
+  // V524: light, read-only sync; fixes the delayed 0W/0L display after grading.
   if(document.visibilityState!=='hidden')paint();
-},2500);
+},600);
 window.__V519_ML_ACCURACY_FIX__={version:VERSION,paint,model,pending,nextHand,source:'V178 authoritative grading',predictionLogicChanged:false};
 })();
 </script>
