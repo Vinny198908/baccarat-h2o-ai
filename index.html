@@ -1,3 +1,4 @@
+<!-- V526: ML-only tie-normalized training data, persistent opt-in scope retraining and visible status. Original V519 preserved otherwise. -->
 <!-- V519: Stabilize qualified ML accuracy registration, preserve pre-result locks, restore live W/L visibility. -->
 <!-- V518: AI Pattern Recognizer only current Main Road and saved Main/Big Eye/Small histories. V517 Derived Road preserved. -->
 <!-- V513: Adds separately graded BLACK reversal-only variant and paired live Banker/streak benchmarks; V512 and existing AIs remain unchanged. -->
@@ -108,7 +109,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V519 • ML Accuracy Repair • Baccarat Dashboard</title>
+<title>V526 • ML Scope & Training Repair • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -14671,8 +14672,18 @@ else boot();
 'use strict';
 const VERSION=160;
 function allShoes(){
-  const pools=v510RawShoes();
-  const seen=new Set(); return pools.filter(s=>s&&typeof s.sequence==='string'&&/^[PBT]+$/.test(s.sequence)&&!seen.has(s.sequence)&&seen.add(s.sequence));
+  // V526: deduplicate according to the exact P/B sequence presented to ML.
+  // Read-only normalization; never alter stored library shoes or their ties.
+  const pools=v510RawShoes(),ignore=(()=>{try{return localStorage.getItem('v452_ignore_ties')==='1'}catch(e){return false}})();
+  const seen=new Set(),out=[];
+  for(const s of pools){
+    if(!s||typeof s.sequence!=='string'||!/^[PBT]+$/.test(s.sequence))continue;
+    const sequence=ignore?s.sequence.replace(/T/g,''):s.sequence;
+    if(sequence.length<2||seen.has(sequence))continue;
+    seen.add(sequence);
+    out.push({...s,sequence});
+  }
+  return out;
 }
 function trans(a){let n=0;for(let i=1;i<a.length;i++)if(a[i]!==a[i-1])n++;return n}
 function run(a){if(!a.length)return 0;let n=1;for(let i=a.length-2;i>=0&&a[i]===a[a.length-1];i--)n++;return n}
@@ -24408,6 +24419,80 @@ if(!window.__v519MlAccuracyTimer)window.__v519MlAccuracyTimer=setInterval(()=>{
   if(document.visibilityState!=='hidden')paint();
 },2500);
 window.__V519_ML_ACCURACY_FIX__={version:VERSION,paint,model,pending,nextHand,source:'V178 authoritative grading',predictionLogicChanged:false};
+})();
+</script>
+<!-- V526: scoped ML retraining; intentionally does not change prediction gates or authoritative accuracy logic. -->
+<style id="v526-ml-scope-style">
+#v526MlTrainingControls{margin:9px 0;padding:11px;border:1px solid #5480a2;border-radius:11px;background:#182738;color:#eaf2fb;font-size:12px;line-height:1.45}
+#v526MlTrainingControls strong{display:block;font-size:14px;margin-bottom:4px}
+#v526MlTrainingControls .v526status{white-space:pre-wrap;margin:6px 0;color:#dce8f6}
+#v526MlTrainingControls button{width:100%;font-size:13px;font-weight:900;padding:11px;border-radius:9px;border:1px solid #75a6c5;background:#22577c;color:#fff;margin:5px 0}
+#v526MlTrainingControls button:disabled{opacity:.6}
+#v526MlTrainingControls .v526small{font-size:11px;color:#b5c9da;margin-top:5px}
+</style>
+<script id="v526-ml-scope-retrain-controller">
+(function(){
+'use strict';
+const V=526,FLAG='v526_ml_autoretrain_enabled', $=id=>document.getElementById(id);
+const api=()=>window.__V309_ML_INDEPENDENT_SHOE__;
+const signature=()=>{let t=false;try{t=localStorage.getItem('v452_ignore_ties')==='1'}catch(_){};const c=typeof v510ScopeKey==='function'?v510ScopeKey():'combined';return c+'|'+(t?'no ties':'with ties')};
+let running=false,lastRun='',lastSuccess='',lastError='',timer=null;
+function enabled(){try{return localStorage.getItem(FLAG)==='1'}catch(_){return false}}
+function setEnabled(){try{localStorage.setItem(FLAG,'1')}catch(_){}}
+function mount(){
+ const panel=$('mlRoadTrainerV155');if(!panel)return null;
+ let c=$('v526MlTrainingControls');if(c)return c;
+ c=document.createElement('div');c.id='v526MlTrainingControls';
+ c.innerHTML='<strong>ML TRAINING STATUS • V526</strong><div class="v526status" id="v526MlStatus">Checking dataset…</div><button type="button" id="v526TrainMl">TRAIN / REBUILD ML FOR THIS SHOE COLOR</button><div class="v526small">Train once, then automatically retrain on later shoe-color or Ignore Ties changes. Uses only saved shoes and never edits your library. Official predictions remain locked unless holdout testing passes.</div>';
+ panel.appendChild(c);
+ $('v526TrainMl').addEventListener('click',()=>{setEnabled();start('manual')});
+ return c;
+}
+function paint(){
+ if(!mount())return;
+ const e=$('v526MlStatus'),b=$('v526TrainMl'),mode=signature(),r=api()?.report?.();
+ if(b){b.disabled=running;b.textContent=running?'TRAINING ML — DO NOT CLOSE':'TRAIN / REBUILD ML FOR THIS SHOE COLOR'}
+ if(!e)return;
+ if(running){e.textContent='Building ML model using '+mode.toUpperCase()+'…';return}
+ if(lastError){e.textContent='ML BUILD ERROR: '+lastError+'\nSelected dataset: '+mode+'. Press Train / Rebuild to retry.';return}
+ if(lastSuccess!==mode||!r){e.textContent='NOT TRAINED FOR '+mode.toUpperCase()+'. Press Train / Rebuild ML to start. Existing shoe library is safe.';return}
+ const a=r.selective||{},p=r.patternTest||{},n=v=>Number.isFinite(Number(v))?Number(v):0;
+ e.textContent='READY • '+mode.toUpperCase()+' • '+r.uniqueShoes+' unique shoes • '+r.rows+' training rows\n'
+  +'ML held-out: '+n(a.w)+'W / '+n(a.l)+'L ('+(100*n(a.rate)).toFixed(1)+'%, N='+n(a.n)+') '+(r.qualified?'PASS':'FAIL')+'\n'
+  +'Pattern held-out: '+n(p.w)+'W / '+n(p.l)+'L ('+(100*n(p.rate)).toFixed(1)+'%, N='+n(p.n)+') '+(r.patternQualified?'PASS':'FAIL')+'\n'
+  +(r.qualified||r.patternQualified?'Qualified signals are possible when live evidence passes.':'Neither historical test passed; official picks stay WAIT. RAW LEAN is research only.');
+}
+function start(reason){
+ if(running||!api()?.trainAndValidate)return;
+ const mode=signature();
+ if(reason!=='manual'&&lastRun===mode)return;
+ lastRun=mode;running=true;lastError='';paint();
+ setTimeout(()=>{
+  try{
+    const r=api().trainAndValidate();
+    if(!r){const t=$('mlv307Reason')?.textContent||'';throw Error(t||'Dataset training returned no result')}
+    lastSuccess=mode;
+  }catch(e){lastError=String(e?.message||e);lastSuccess=''}
+  finally{running=false;paint();try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(_){};try{window.__V519_ML_ACCURACY_FIX__?.paint?.()}catch(_){};}
+ },60);
+}
+function initialize(){
+ mount();paint();
+ // Avoid expensive page-start training until the user has explicitly trained ML once.
+ // Then automatically re-train for changed color/tie scope, including after reload.
+ if(enabled())setTimeout(()=>start('auto'),700);
+ if(!timer)timer=setInterval(()=>{if(document.visibilityState==='hidden')return;
+  mount();if(enabled()&&!running&&lastRun!==signature())start('auto');else paint();
+ },3000);
+ document.addEventListener('click',e=>{
+  if(e.target?.closest?.('#mlBuild')){setEnabled();lastRun=signature();setTimeout(()=>{
+   const r=api()?.report?.(),mode=signature();if(r){lastSuccess=mode;lastRun=mode;lastError='';}paint();
+  },900)}
+ },true);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(initialize,4400),{once:true});
+else setTimeout(initialize,4400);
+window.__V526_ML_SCOPE_FIX__={version:V,signature,train:()=>{setEnabled();start('manual')},status:()=>({running,lastRun,lastSuccess,lastError}),predictionGatesUnchanged:true,authoritativeGradingUnchanged:true};
 })();
 </script>
 </body>
