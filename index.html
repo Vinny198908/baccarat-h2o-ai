@@ -118,7 +118,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V533 • Pattern Diagnostics + V532 Library • Baccarat Dashboard</title>
+<title>V538 • Improved P/B/T Controls • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -584,6 +584,46 @@ body { overscroll-behavior-y: none; }
 #v527SevenWinAI #v530ResearchValidation{margin-top:8px;color:#d6c9a7}
 </style>
 <style id="v514-exact-pattern-ui">#roadPreviewAiPanel #v506Coverage,#roadPreviewAiPanel #v428V160Status{display:none!important}</style>
+
+<!-- V539: exact sequence retrieval audit and Gemini prefix continuation fix. All prediction and grading rules unchanged. -->
+<!-- V538: larger equal-width P/B/T controls, compact auxiliary actions; layout only, game-input handlers preserved -->
+<style id="v538MobileInputDesign">
+  #v538InputDock{background:#191d24;border:1px solid #3b4450;padding:10px;border-radius:15px;}
+  #v538InputDock .v538-input-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 1px 8px;color:#c8d2e0;font-weight:850;font-size:11px;letter-spacing:.65px;white-space:nowrap;}
+  #v538InputDock .v538-entry-status{color:#f6d789;font-size:11px;letter-spacing:0;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #v538InputDock .main-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;}
+  #v538InputDock .big{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-height:81px;border:1px solid rgba(255,255,255,.27);border-radius:16px;color:white;cursor:pointer;touch-action:manipulation;-webkit-user-select:none;user-select:none;box-shadow:inset 0 2px 0 rgba(255,255,255,.18),0 4px 14px rgba(0,0,0,.35);transition:transform .09s,filter .09s;line-height:1.02;}
+  #v538InputDock .big.p{background:linear-gradient(155deg,#346df8,#1739b8);}
+  #v538InputDock .big.b{background:linear-gradient(155deg,#fa6256,#a82624);}
+  #v538InputDock .big.t{background:linear-gradient(155deg,#2aba67,#13753f);}
+  #v538InputDock .big:active{transform:scale(.965);filter:brightness(1.2);}
+  #v538InputDock .big:focus-visible,#v538InputDock .util:focus-visible,#v538InputDock .toggle:focus-visible{outline:3px solid #ffe19b;outline-offset:2px;}
+  #v538InputDock .v538-key{display:block;font-size:37px;line-height:1.05;font-weight:950;}
+  #v538InputDock .v538-key-label{font-size:10px;font-weight:850;letter-spacing:1.1px;opacity:.98;margin-top:3px;}
+  #v538InputDock .pair-row{margin:8px 0 0;gap:7px;}
+  #v538InputDock .toggle{min-height:33px;border-radius:9px;padding:6px 3px;font-size:11px;font-weight:750;touch-action:manipulation;}
+  #v538InputDock .toggle.active{background:#29313d;}
+  #v538InputDock .utility{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:7px;}
+  #v538InputDock .util{min-width:0;min-height:39px;font-size:12px;font-weight:800;padding:6px 2px;border-radius:9px;touch-action:manipulation;}
+  #v538InputDock .v538-undo{background:#665020;color:#ffe4a2;border:1px solid #b78e3a;font-size:13px;}
+  @media(max-width:699px){
+    body{padding-bottom:calc(225px + env(safe-area-inset-bottom))!important;}
+    #v538InputDock.controls{padding:8px 9px calc(8px + env(safe-area-inset-bottom))!important;border-radius:15px 15px 0 0!important;}
+    #v538InputDock .big{min-height:76px!important;}
+  }
+  @media(max-width:350px){
+    #v538InputDock .v538-input-heading{font-size:10px;}
+    #v538InputDock .v538-entry-status{font-size:10px;}
+    #v538InputDock .big{min-height:68px!important;}
+    #v538InputDock .v538-key{font-size:33px;}
+    #v538InputDock .util{font-size:10px;}
+    body{padding-bottom:calc(215px + env(safe-area-inset-bottom))!important;}
+  }
+  @media(min-width:700px){
+    #v538InputDock .main-buttons{gap:10px;}
+    #v538InputDock .big{min-height:82px;}
+  }
+</style>
 </head>
 <!-- V451: Broaden 8-hand/road matching and relax historical AI qualification with minimum vote margins. Historical agreement is not a betting edge. -->
 <body>
@@ -1153,22 +1193,23 @@ body { overscroll-behavior-y: none; }
 </div>
 </div>
 </div>
-<div class="controls">
-<div class="pair-row">
-<button class="toggle pp" id="ppBtn">P. Pair</button>
-<button class="toggle bp" id="bpBtn">B. Pair</button>
-<button class="toggle tiepair" id="specialBtn">Special</button>
+<div class="controls" id="v538InputDock">
+<div class="v538-input-heading"><span>ENTER HAND RESULT</span><span class="v538-entry-status" id="v538EntryStatus" aria-live="polite">Hand 1 · Last: —</span></div>
+<div class="main-buttons" role="group" aria-label="Record hand result">
+<button class="big p" data-result="P" type="button" aria-label="Enter Player result"><span class="v538-key">P</span><span class="v538-key-label">PLAYER</span></button>
+<button class="big b" data-result="B" type="button" aria-label="Enter Banker result"><span class="v538-key">B</span><span class="v538-key-label">BANKER</span></button>
+<button class="big t" data-result="T" type="button" aria-label="Enter Tie result"><span class="v538-key">T</span><span class="v538-key-label">TIE</span></button>
 </div>
-<div class="main-buttons">
-<button class="big p" data-result="P">P</button>
-<button class="big b" data-result="B">B</button>
-<button class="big t" data-result="T">T</button>
-<button class="big undo" id="undoBtn">↶</button>
+<div class="pair-row" role="group" aria-label="Optional pair and special results">
+<button class="toggle pp" id="ppBtn" type="button">P. Pair</button>
+<button class="toggle bp" id="bpBtn" type="button">B. Pair</button>
+<button class="toggle tiepair" id="specialBtn" type="button">Special</button>
 </div>
 <div class="utility">
-<button class="util" id="clearBtn">New Shoe</button>
-<button class="util" id="sampleBtn">Demo</button>
-<button class="util" id="saveBtn">Save</button>
+<button class="util v538-undo" id="undoBtn" type="button" aria-label="Undo last entered hand">↶ Undo</button>
+<button class="util" id="clearBtn" type="button">New Shoe</button>
+<button class="util" id="sampleBtn" type="button">Demo</button>
+<button class="util" id="saveBtn" type="button">Save</button>
 </div>
 </div>
 </div>
@@ -23442,7 +23483,7 @@ function v493LibrarySearch(rawInput){
      if(!best||v.weight>best.weight)best=v;
    }
    // Exact sequence comparison includes T positions, unlike P/B-only modes.
-   if(raw.length>=6&&histRaw.startsWith(raw))offer('EXACT RAW PREFIX',0,live.length,0);
+   if(raw.length>=6&&histRaw.length>raw.length&&histRaw.startsWith(raw)&&hist.length>live.length)offer('EXACT RAW PREFIX',0,live.length,0);
    if(live.length>=6&&hist.startsWith(live))offer('EXACT P/B PREFIX',0,live.length,0);
    // Whole observed P/B prefix in any position of a saved shoe.
    for(const [type,target] of (live.length>=6?[['SLIDING DIRECT',live],['SLIDING INVERTED',flip(live)]]:[])){
@@ -24364,13 +24405,10 @@ let running=false,lastRun='',lastSuccess='',lastError='',timer=null;
 function enabled(){try{return localStorage.getItem(FLAG)==='1'}catch(_){return false}}
 function setEnabled(){try{localStorage.setItem(FLAG,'1')}catch(_){}}
 function mount(){
- const panel=$('mlRoadTrainerV155');if(!panel)return null;
- let c=$('v526MlTrainingControls');if(c)return c;
- c=document.createElement('div');c.id='v526MlTrainingControls';
- c.innerHTML='<strong>ML TRAINING STATUS • V534</strong><div class="v526status" id="v526MlStatus">Checking dataset…</div><button type="button" id="v526TrainMl">TRAIN / REBUILD ML FOR THIS SHOE COLOR</button><div class="v526small">Automatically train from the selected color library after loading and retrain on color or Ignore Ties changes. Uses only saved shoes and never edits your library. Official predictions remain locked unless holdout testing passes.</div>';
- panel.appendChild(c);
- $('v526TrainMl').addEventListener('click',()=>{setEnabled();start('manual')});
- return c;
+ // V537: remove the extra blue training-status panel. This is UI-only:
+ // V526 automatic/scoped ML training still runs on startup, color and tie changes.
+ const c=$('v526MlTrainingControls');if(c)c.remove();
+ return $('mlRoadTrainerV155');
 }
 function paint(){
  if(!mount())return;
@@ -24423,6 +24461,313 @@ else setTimeout(initialize,4400);
 window.__V526_ML_SCOPE_FIX__={version:534,signature,train:()=>{setEnabled();start('manual')},status:()=>({running,lastRun,lastSuccess,lastError}),predictionGatesUnchanged:true,authoritativeGradingUnchanged:true};
 })();
 </script>
+<!-- V537: no duplicate training panel; pre-result raw-lean research accuracy. Official WAIT grading unchanged. -->
+<style id="v537-ml-raw-accuracy-style">
+#mlRoadTrainerV155 #v526MlTrainingControls {display:none!important}
+#mlRoadTrainerV155 #v537RawCounter {display:block!important;margin-top:11px}
+#mlRoadTrainerV155 #v537RawCounter .analyzer-grid {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px}
+#mlRoadTrainerV155 #v537RawCounter .analyzer-card {display:block!important;min-width:0}
+#mlRoadTrainerV155 #v537RawCounter .v537Heading {font-size:13px;font-weight:850;color:#dce9f7}
+#mlRoadTrainerV155 #v537RawCounter .v537Explanation {font-size:11px;color:#b9c8d8;line-height:1.4;margin-top:5px}
+#mlRoadTrainerV155 #v537RawReset {width:100%;margin-top:7px}
+</style>
+<script id="v537-ml-raw-accuracy-script">
+(function(){
+'use strict';
+const VERSION=537, $=id=>document.getElementById(id);
+function history(){try{return (state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(x=>x==='P'||x==='B'||x==='T').join('')}catch(_){return ''}}
+function color(){return String(state?.currentShoeColor||'none')}
+function ignore(){try{return localStorage.getItem('v452_ignore_ties')==='1'}catch(_){return false}}
+function data(){
+  if(!state.mlRawResearchV537||typeof state.mlRawResearchV537!=='object')state.mlRawResearchV537={wins:0,losses:0,pending:null,ledger:[],session:1};
+  const x=state.mlRawResearchV537;
+  x.wins=Number(x.wins)||0;x.losses=Number(x.losses)||0;
+  if(!Array.isArray(x.ledger))x.ledger=[];
+  if(!Number.isInteger(x.session))x.session=1;
+  return x;
+}
+function save(){try{persist()}catch(e){console.warn('V537 raw-lean accuracy save',e)}}
+function rawSide(z){
+  const s=z?.rawSide||z?.displaySide;
+  return s==='P'||s==='B'?s:null;
+}
+function modelSignal(){try{return window.__V309_ML_INDEPENDENT_SHOE__?.signal?.()||null}catch(_){return null}}
+function arm(z){
+  const x=data(),seq=history(),hand=seq.length+1,mode=ignore(),scope=color();
+  // An already shown pre-result prediction is immutable until the outcome.
+  if(x.pending&&x.pending.hand===hand&&x.pending.prefix===seq&&x.pending.color===scope&&x.pending.ignoreTies===mode&&x.pending.session===x.session)return;
+  if(x.pending)x.pending=null;
+  const side=rawSide(z||modelSignal());
+  if(!side){paint();return}
+  // Lock only a current trained signal; never infer a prediction from WAIT or old text.
+  x.pending={side,hand,prefix:seq,color:scope,ignoreTies:mode,session:x.session,lockedAt:Date.now()};
+  save();paint();
+}
+function settle(actual){
+  if(actual!=='P'&&actual!=='B'&&actual!=='T')return;
+  const x=data(),p=x.pending,seq=history(),hand=seq.length+1;
+  if(!p||p.hand!==hand||p.prefix!==seq||p.color!==color()||p.ignoreTies!==ignore()||p.session!==x.session)return;
+  // A tie voids the predicted hand, including when Ignore Ties is enabled.
+  x.pending=null;
+  if(actual==='P'||actual==='B'){
+    const win=p.side===actual;
+    if(win)x.wins++;else x.losses++;
+    x.ledger.push({hand,prefix:seq,actual,side:p.side,win,session:x.session,lockedAt:p.lockedAt});
+    if(x.ledger.length>150)x.ledger.splice(0,x.ledger.length-150);
+  }
+  save();paint();
+}
+function afterUndo(){
+  const x=data(),seq=history(),hand=seq.length+1;
+  // Roll back only the last actual recorded hand of this exact current shoe.
+  const e=x.ledger[x.ledger.length-1];
+  if(e&&e.session===x.session&&e.hand===hand&&e.prefix===seq){
+    x.ledger.pop();
+    if(e.win)x.wins=Math.max(0,x.wins-1);else x.losses=Math.max(0,x.losses-1);
+  }
+  x.pending=null;save();paint();
+  setTimeout(()=>arm(),180);
+}
+function afterClear(before){
+  if(before>0&&history().length===0){const x=data();x.session++;x.pending=null;save();paint()}
+  setTimeout(()=>arm(),180);
+}
+function reset(){
+  if(!confirm('Reset only the ML RAW LEAN research accuracy? Official ML accuracy and saved shoes stay unchanged.'))return;
+  const x=data();x.wins=0;x.losses=0;x.pending=null;x.ledger=[];save();paint();setTimeout(()=>arm(),100);
+}
+function mount(){
+  const panel=$('mlRoadTrainerV155');if(!panel)return null;
+  let box=$('v537RawCounter');
+  if(!box){
+    box=document.createElement('section');box.id='v537RawCounter';
+    box.innerHTML='<div class="v537Heading">RAW LEAN ACCURACY — RESEARCH ONLY</div>'+
+      '<div class="analyzer-grid">'+
+      '<div class="analyzer-card"><span>RAW LEAN ACCURACY</span><strong id="v537RawRate">—</strong></div>'+
+      '<div class="analyzer-card"><span>WINS / LOSSES</span><strong id="v537RawWL">0W / 0L</strong></div>'+
+      '<div class="analyzer-card"><span>GRADED RESULTS</span><strong id="v537RawN">N=0</strong></div>'+
+      '<div class="analyzer-card"><span>NEXT HAND LOCK</span><strong id="v537RawLock">—</strong></div></div>'+
+      '<div class="v537Explanation" id="v537RawNote">The displayed Banker/Player raw lean is graded only if it was locked before the result. Ties are skipped. This is NOT a validated betting signal.</div>'+
+      '<button class="tiny-btn" type="button" id="v537RawReset">Reset Raw Lean Accuracy</button>';
+    // Keep one visible ML accuracy section beneath the official accuracy / reset.
+    const anchor=$('mlv203Reset')||$('mlv203AccuracyBox');
+    if(anchor?.parentNode===panel)anchor.insertAdjacentElement('afterend',box);else panel.appendChild(box);
+    $('v537RawReset').addEventListener('click',reset);
+  }
+  return box;
+}
+function put(id,v){const el=$(id);if(el&&el.textContent!==v)el.textContent=v}
+function paint(){
+  if(!mount())return;
+  const x=data(),n=x.wins+x.losses,p=x.pending,locked=p&&p.hand===history().length+1&&p.prefix===history()&&p.color===color()&&p.ignoreTies===ignore()&&p.session===x.session;
+  put('v537RawRate',n?(100*x.wins/n).toFixed(1)+'%':'—');
+  put('v537RawWL',x.wins+'W / '+x.losses+'L');
+  put('v537RawN','N='+n);
+  put('v537RawLock',locked?(p.side==='P'?'PLAYER':'BANKER')+' #'+p.hand:'—');
+  put('v537RawNote',locked?'Locked before next result • ties not counted • raw lean is NOT a validated betting signal.':'Waiting for a fresh ML raw lean. No unshown or WAIT result will be graded.');
+}
+function boot(){
+  mount();paint();
+  // The real core commit invokes this function BEFORE state.hands.push().
+  const prev=window.__settleVerifiedPredictions;
+  if(typeof prev==='function'&&!prev.__v537Raw){
+    const wrapped=function(actual){try{settle(actual)}catch(e){console.warn('V537 raw score',e)}return prev.apply(this,arguments)};
+    wrapped.__v537Raw=true;wrapped.__base=prev;window.__settleVerifiedPredictions=wrapped;
+  }
+  const oldArm=window.__armVerifiedPredictions;
+  if(typeof oldArm==='function'&&!oldArm.__v537Raw){
+    const wrapped=function(){const r=oldArm.apply(this,arguments);try{arm()}catch(e){}return r};
+    wrapped.__v537Raw=true;wrapped.__base=oldArm;window.__armVerifiedPredictions=wrapped;
+  }
+  $('undoBtn')?.addEventListener('click',()=>setTimeout(afterUndo,0));
+  $('clearBtn')?.addEventListener('click',(()=>{return function(){const old=history().length;setTimeout(()=>afterClear(old),0)}})(),true);
+  $('mlv203Reset')?.addEventListener('click',()=>setTimeout(paint,100));
+  // A validated pick has its own official model. This research channel is independent.
+  // Its data is read from the current ML signal, not from displayed text or old cached rows.
+  if(!window.__v537RawTimer)window.__v537RawTimer=setInterval(()=>{
+    if(document.visibilityState==='hidden')return;
+    const x=data(),seq=history();
+    if(!x.pending||x.pending.hand!==seq.length+1||x.pending.prefix!==seq){
+      try{arm()}catch(_){}
+    }else paint();
+  },2600);
+  setTimeout(()=>{arm();paint()},400);
+  setTimeout(()=>{arm();paint()},5200);
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,5500),{once:true});else setTimeout(boot,5500);
+window.__V537_ML_RAW_RESEARCH__={version:VERSION,arm,settle,paint,getStats:()=>{const x=data();return {wins:x.wins,losses:x.losses,pending:x.pending,session:x.session}},reset};
+})();
+</script>
+
+
+<!-- V538: status mirror only; reads hand history without changing it -->
+<script id="v538EntryStatusScript">
+(function(){
+  'use strict';
+  const status=document.getElementById('v538EntryStatus');
+  if(!status)return;
+  let prior='';
+  function refresh(){
+    try{
+      const hands=(typeof state!=='undefined'&&Array.isArray(state.hands))?state.hands:[];
+      const last=hands.length?hands[hands.length-1].r:null;
+      const label=last==='P'?'PLAYER':last==='B'?'BANKER':last==='T'?'TIE':'—';
+      const next='Hand '+(hands.length+1)+' · Last: '+label;
+      if(next!==prior){status.textContent=next;prior=next;}
+    }catch(_){}
+  }
+  const entryAction='[data-result],#previewP,#previewB,#undoBtn,#clearBtn,#sampleBtn,#applyScanBtn,#redShoeReset,#blackShoeReset';
+  document.addEventListener('click',function(e){
+    if(e.target?.closest?.(entryAction)){
+      queueMicrotask(refresh);
+      setTimeout(refresh,50);
+      setTimeout(refresh,350);
+    }
+  },true);
+  // Dedicated listeners also update after actions that stop bubbling.
+  document.querySelectorAll(entryAction).forEach(function(btn){
+    btn.addEventListener('click',function(){queueMicrotask(refresh);setTimeout(refresh,120);},false);
+  });
+  refresh();
+  setTimeout(refresh,600);
+  setInterval(function(){if(document.visibilityState!=='hidden')refresh();},550);
+})();
+</script>
+
+<!-- V539: Verifiable exact sequence retrieval diagnostic. Display-only: no AI picks, probability estimates, grades, or locks changed. -->
+<style id="v539SequenceAuditStyle">
+#v539SequenceAudit{margin-top:11px;padding:10px;border:1px solid #56677e;border-radius:10px;background:#102232;color:#edf2fb;font-size:12px;line-height:1.55}
+#v539SequenceAudit summary{cursor:pointer;font-weight:800;font-size:13px;touch-action:manipulation;padding:5px 0}
+#v539SequenceAudit .v539dim{color:#b7cadb}
+#v539SequenceAudit .v539match{padding:7px 0;border-top:1px solid #34475a;word-break:break-word}
+#v539SequenceAudit .v539seq{font-family:ui-monospace,Consolas,monospace;font-weight:700;overflow-wrap:anywhere}
+#v539SequenceAudit button{font-size:12px;min-height:38px;padding:7px 10px;background:#1a3b56;border:1px solid #819caf;color:white;border-radius:7px;margin-top:8px}
+</style>
+<script id="v539VerifiedSequenceRetrieval">
+(function(){
+'use strict';
+const VERSION=539;
+const el=id=>document.getElementById(id);
+const flip=s=>String(s||'').replace(/[PB]/g,x=>x==='P'?'B':'P');
+const raw=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'');
+const scope=()=>typeof v510ScopeKey==='function'?v510ScopeKey():'combined';
+const ignoring=()=>typeof v452IgnoreTies==='function'&&v452IgnoreTies();
+const live=()=>{try{return currentSequence().join('')}catch(e){return ''}};
+const library=()=>{try{return v510RawShoes()}catch(e){return []}};
+const lengthOptions=[18,16,14,12,10,8];
+function audit(liveOverride,libraryOverride,options){
+  const seq=raw(liveOverride==null?live():liveOverride);
+  const saved=Array.isArray(libraryOverride)?libraryOverride:library();
+  const ignore=options&&typeof options.ignoreTies==='boolean'?options.ignoreTies:ignoring();
+  const label=options?.scope||scope();
+  const query=ignore?seq.replace(/T/g,''):seq;
+  const seen=new Set(),found=[];
+  let scanned=0,skippedLivePrefix=0,ambiguous=0,tooShort=0;
+  const pool=Array.isArray(saved)?saved:[];
+  for(let i=0;i<pool.length;i++){
+    const sh=pool[i],unfiltered=raw(typeof sh==='string'?sh:sh?.sequence||'');
+    const hist=ignore?unfiltered.replace(/T/g,''):unfiltered;
+    if(hist.length<9){tooShort++;continue;}
+    if(seen.has(hist))continue;
+    seen.add(hist);scanned++;
+    // Crucial: if the SAME saved completed shoe is the current live prefix,
+    // do not show its future cards/results as independent predictive evidence.
+    if(query.length>=8&&hist.length>query.length&&hist.startsWith(query)){
+      skippedLivePrefix++;continue;
+    }
+    if(query.length<8)continue;
+    let best=null,conflict=false;
+    const maxK=Math.min(query.length,hist.length-1,18);
+    for(const k of lengthOptions){
+      if(k>maxK)continue;
+      const target=query.slice(-k),invertedTarget=flip(target);
+      for(const inv of [false,true]){
+        const expected=inv?invertedTarget:target;
+        let from=0,at;
+        while((at=hist.indexOf(expected,from))>=0){
+          from=at+1;
+          const end=at+k;if(end>=hist.length)continue;
+          const storedNext=hist[end],next=inv?flip(storedNext):storedNext;
+          const rank=k*100+(inv?0:1);
+          const candidate={id:String(typeof sh==='string'?`saved-${i+1}`:sh.id||`saved-${i+1}`),
+            index:i,sourceColor:String(sh?.shoeColor||sh?.__color||label),
+            position:at+1,length:k,inverted:inv,matched:target,storedMatched:hist.slice(at,end),
+            storedNext,next,rank};
+          if(!best||candidate.rank>best.rank){best=candidate;conflict=false;}
+          else if(candidate.rank===best.rank&&candidate.next!==best.next){conflict=true;}
+        }
+      }
+      if(best)break; // Exact LONGEST tier first, never replace with a shorter lookalike.
+    }
+    if(best){if(conflict){ambiguous++;continue}found.push(best)}
+  }
+  const matched=found.sort((a,b)=>b.rank-a.rank||a.index-b.index);
+  const p=matched.filter(x=>x.next==='P').length;
+  const b=matched.filter(x=>x.next==='B').length;
+  const t=matched.filter(x=>x.next==='T').length;
+  const direct=matched.filter(x=>!x.inverted).length;
+  const inverted=matched.length-direct;
+  return {version:VERSION,scope:label,tieMode:ignore?'IGNORE TIES ON: T removed':'IGNORE TIES OFF: T positions kept',
+    live:query,scanned,tooShort,skippedLivePrefix,ambiguous,exactMatches:matched.length,
+    direct,inverted,p,b,t,matched,top:matched.slice(0,10),
+    note:'An exact historical context match is not an accuracy estimate or a prediction. No AI pick or score is changed.'};
+}
+function mount(){
+  const panel=el('roadPreviewAiPanel');if(!panel)return null;
+  let host=el('v539SequenceAudit');if(host)return host;
+  host=document.createElement('details');host.id='v539SequenceAudit';
+  const summary=document.createElement('summary');summary.textContent='Verify exact saved-shoe sequences (tap to inspect)';host.appendChild(summary);
+  const message=document.createElement('div');message.id='v539SequenceAuditInfo';message.className='v539dim';host.appendChild(message);
+  const result=document.createElement('div');result.id='v539SequenceAuditResults';host.appendChild(result);
+  const button=document.createElement('button');button.type='button';button.textContent='Recheck saved-shoe matches';
+  button.addEventListener('click',()=>refresh(true));host.appendChild(button);
+  host.addEventListener('toggle',()=>{if(host.open)refresh(true)});
+  panel.appendChild(host);return host;
+}
+let lastKey='';
+function refresh(force){
+  const host=mount();if(!host||!host.open)return;
+  const histories=library();const seq=live();
+  // Fingerprint excludes unrelated AI scores; invalidated on import, toggle,
+  // saved shoe edits, color switch, and every new result.
+  let fingerprint='';try{fingerprint=window.__V534_ML_LIBRARY_FINGERPRINT__?.()||''}catch(e){}
+  const key=[scope(),ignoring()?'1':'0',seq,fingerprint].join('|');
+  if(!force&&key===lastKey)return;
+  lastKey=key;
+  const result=audit(seq,histories);
+  const info=el('v539SequenceAuditInfo'),target=el('v539SequenceAuditResults');
+  if(!info||!target)return;
+  info.textContent=`${result.scope.toUpperCase()} • ${result.tieMode} • live sequence ${result.live.length} hands • ${result.scanned} distinct saved shoes scanned • ${result.exactMatches} shoes with exact historical suffix continuations (${result.direct} direct / ${result.inverted} inverted). ${result.skippedLivePrefix} identical live-prefix shoes excluded to prevent peeking ahead.`;
+  target.replaceChildren();
+  const line=document.createElement('div');line.className='v539match';
+  line.textContent=result.live.length<8?'Enter at least 8 recorded results before checking exact sequence matches.':
+    `Historical next results among exact matches: ${result.p} Player / ${result.b} Banker / ${result.t} Tie. ${result.ambiguous} conflicting-shoe matches excluded. These are NOT verified odds.`;
+  target.appendChild(line);
+  for(const m of result.top){
+    const box=document.createElement('div');box.className='v539match';
+    const a=document.createElement('div');a.textContent=`${m.id} • ${m.sourceColor} • ${m.inverted?'INVERTED':'DIRECT'} exact ${m.length}-hand match at saved position ${m.position}`;
+    const b=document.createElement('div');b.className='v539seq';b.textContent=`Live tail: ${m.matched} | Saved: ${m.storedMatched}`;
+    const c=document.createElement('div');c.textContent=`Recorded next result in that shoe: ${m.next==='P'?'PLAYER':m.next==='B'?'BANKER':'TIE'}`;
+    box.append(a,b,c);target.appendChild(box);
+  }
+  if(!result.top.length&&result.live.length>=8){
+    const empty=document.createElement('div');empty.className='v539match';empty.textContent='No exact 8–18-hand continuations found. Other AIs may still show weaker approximate matches; those must not be represented as exact matches.';target.appendChild(empty);
+  }
+  const fine=document.createElement('div');fine.className='v539dim';fine.textContent=result.note;target.appendChild(fine);
+}
+function schedule(){setTimeout(()=>refresh(false),100)}
+function boot(){
+  mount();
+  const root=el('v538EntryStatus');
+  if(root&&typeof MutationObserver==='function')new MutationObserver(schedule).observe(root,{childList:true,characterData:true,subtree:true});
+  document.addEventListener('click',e=>{if(e.target?.closest?.('#v452TieToggle,[data-result],#undoBtn,#clearBtn,#redShoeReset,#blackShoeReset,[id*="color" i],[id*="Color"]'))schedule()},true);
+  document.addEventListener('change',schedule,true);
+  window.__V539_EXACT_SEQUENCE_AUDIT__={version:VERSION,audit,refresh,displayOnly:true};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1300),{once:true});else setTimeout(boot,1300);
+})();
+</script>
+
 </body>
 </html>
 
