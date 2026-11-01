@@ -1,3 +1,7 @@
+<!-- V536: protect official ML grid against legacy renderReport innerHTML replacement, repair missing pick children. -->
+<!-- V535: retired V224-V226 conflicting ML UI mutation, restored canonical WAIT/pick immediately, preserved V519 accuracy. -->
+<!-- V534: ML trained on loading, duplicate training owners removed, failed search gate no longer blocks validated ML, cached features + specific WAIT diagnostics. -->
+<!-- V533: Pattern Recognizer search memoization + visible diagnostics. No betting gates or accuracy logic changed. -->
 <!-- V532: Tie-ignore applies read-only to ALL shared library-search entry points, derived-road history and auxiliary match sources; originals preserved. -->
 <!-- V531: AI Pattern Recognizer: weighted agreement gate 63% to 62%, maintain 5 independent shoes, 4 agreeing, 2-shoe margin, tri-road evidence & pre-result accuracy. All other modules retained from V530. -->
 <!-- V530: Keep official 7-Win verification gate, but expose independent, pre-commit graded exploratory picks and held-out performance. No changes to other AI logic or libraries. -->
@@ -114,7 +118,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V532 • Tie-Free Library Search More Calls • Baccarat Dashboard</title>
+<title>V533 • Pattern Diagnostics + V532 Library • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -2250,6 +2254,18 @@ function v510RawShoes(){
   // V532: all AI reads, even those calling this older "Raw" API, honor ON.
   return v458SearchView(source);
 }
+function v534MLLibraryFingerprint(){
+  // Detect imports, removals, edits and changes of selected shoe-color data.
+  // Read only; never insert, delete or rewrite any saved shoe.
+  const shoes=v510RawShoes(), n=shoes.length;
+  let h=2166136261;
+  for(const sh of shoes){
+    const key=String(sh?.id||'')+'|'+String(sh?.sequence||'');
+    for(let i=0;i<key.length;i++)h=Math.imul(h^key.charCodeAt(i),16777619);
+  }
+  return n+':'+(h>>>0).toString(36);
+}
+window.__V534_ML_LIBRARY_FINGERPRINT__=v534MLLibraryFingerprint;
 function v510SearchShoes(){return v510RawShoes();}
 // Auxiliary stores without a verified color are NOT safe in selected mode.
 function v510AuxShoes(name){
@@ -17108,7 +17124,7 @@ function v518FindMatch(liveProfile,history,position){
   }
   return best;
 }
-function v518Search(liveSeq,shoes){
+function v518SearchCore(liveSeq,shoes){
   const live=v518Prepare(liveSeq.join(''));
   const empty={scanned:0,total:0,ambiguous:0,eligible:0,player:0,banker:0,
     agreement:0,window:0,peak:0,matches:[],reason:'WAIT — no qualifying Main + Big Eye + Small Road matches.'};
@@ -17156,6 +17172,23 @@ function v518Search(liveSeq,shoes){
     return {...out,reason:`WAIT — ${player} Player / ${banker} Banker continuation matches; need 4 supporting shoes, a 2-shoe margin and 62% weighted agreement.`};
   return {...out,side:p>b?'P':'B',reason:''};
 }
+// V533: expensive tri-road scan must not repeat for every panel refresh/AI read.
+// The library array is stable until its content or shoe color changes; prefix changes
+// on a new hand. This cache changes ONLY performance, not match eligibility.
+const v533PatternMemo={shoes:null,prefix:null,result:null,searches:0,hits:0,lastMs:0};
+function v518Search(liveSeq,shoes){
+  const prefix=liveSeq.join('');
+  if(v533PatternMemo.shoes===shoes && v533PatternMemo.prefix===prefix && v533PatternMemo.result){
+    v533PatternMemo.hits++;return v533PatternMemo.result;
+  }
+  const start=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
+  const result=v518SearchCore(liveSeq,shoes);
+  v533PatternMemo.shoes=shoes;v533PatternMemo.prefix=prefix;v533PatternMemo.result=result;
+  v533PatternMemo.searches++;
+  v533PatternMemo.lastMs=Math.round((typeof performance!=='undefined'&&performance.now?performance.now():Date.now())-start);
+  return result;
+}
+window.__V533_PATTERN_DIAGNOSTICS__={version:533,stats:()=>({searches:v533PatternMemo.searches,hits:v533PatternMemo.hits,lastMs:v533PatternMemo.lastMs}),predictionLogicChanged:false};
 function patternRecognizerSignal(){
   const seq=livePB(),shoes=lib();
   settleDecisionRuntime(seq);
@@ -17206,6 +17239,22 @@ function paint(){
     note.textContent=r.side
       ?`${r.side==='P'?'PLAYER':'BANKER'} — ${t} • ${r.strength}% matching-shoe agreement, NOT predicted odds.`
       :`${r.waitReason||'WAIT'} ${t}.`;
+  }
+  // Always expose why the official prediction is WAIT. This makes an empty
+  // library, a genuinely undecided sample and a rendering problem distinguishable.
+  if(panel){
+    let debug=document.getElementById('v533PatternDiagnostic');
+    if(!debug){debug=document.createElement('div');debug.id='v533PatternDiagnostic';debug.className='analyzer-sub';
+      debug.style.cssText='font-size:12px;line-height:1.55;margin-top:9px;padding:10px;border:1px solid #697b91;border-radius:8px;color:#ecf2fa;background:#172737;white-space:pre-wrap';
+      panel.appendChild(debug);}
+    const stats=window.__V533_PATTERN_DIAGNOSTICS__.stats();
+    const liveHands=livePB().length;
+    const decision=r.side?`CALL ${r.side==='P'?'PLAYER':'BANKER'}`:'WAIT — NOT QUALIFIED';
+    const diagnostic=hit.scanned===0?'Library unavailable in this selected color. Check Library Status / shoe color.':
+      hit.eligible===0?'No matched independent shoes.':
+      !r.side?'P/B historical votes disagree or fail minimum agreement. The AI is deliberately choosing WAIT.':
+      'Historical consensus only; this is not a validated win probability.';
+    debug.textContent=`AI PATTERN V533 • ${decision}\nLive P/B hands: ${liveHands} • ${r.selectedColor.toUpperCase()} saved shoes scanned: ${hit.scanned||0}\nEligible matches: ${hit.eligible||0} • Player shoes: ${hit.player||0} • Banker shoes: ${hit.banker||0}\nWeighted agreement: ${Math.round(100*(hit.agreement||0))}% (needs 62%, 5 shoes, 4 supporting, 2-shoe margin)\n${diagnostic}\nEngine scan: ${stats.lastMs} ms • same-hand cached reads: ${stats.hits}`;
   }
   const counter=document.getElementById('v488PatternMatches');
   if(counter)counter.textContent=`V518 LIBRARY SCAN: Main Road + Big Eye + Small Road ONLY • ${hit.scanned||0} distinct shoes • ${hit.total||0} matches • ${r.matches||0} votes • ${r.searchStats.direct} direct / ${r.searchStats.inverted} inverted • peak Main window ${hit.peak||0} hands`;
@@ -17400,13 +17449,6 @@ window.__V223_FINAL_SCAN__={version:VERSION,patternResetDelegated:true,mlAccurac
 <!-- V224 — requested UI cleanup: remove Universal Chop display, move Independent Road AI there, compact ML display -->
 <style id="v224-ui-cleanup">
 #universalChopV173{display:none!important}
-#mlRoadTrainerV155 .analyzer-sub{display:none!important}
-#mlRoadTrainerV155 .analyzer-grid > .analyzer-card:nth-child(n+3){display:none!important}
-#mlRoadTrainerV155 #mlv203AccuracyBox,
-#mlRoadTrainerV155 #mlv203Reset,
-#mlRoadTrainerV155 #mlv170Note,
-#mlRoadTrainerV155 #mlv204AfterTie{display:none!important}
-#mlRoadTrainerV155 .analyzer-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 </style>
 <script id="v224-ui-cleanup-script">
 (function(){
@@ -17422,15 +17464,7 @@ function apply(){
     }
     if(chop)chop.remove();
   }catch(e){}
-  try{
-    const panel=document.getElementById('mlRoadTrainerV155');
-    if(panel){
-      const grid=panel.querySelector('.analyzer-grid');
-      if(grid){Array.from(grid.children).forEach((el,i)=>{el.style.display=i<2?'':'none'});grid.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';}
-      ['mlv203AccuracyBox','mlv203Reset','mlv170Note','mlv204AfterTie'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
-      panel.querySelectorAll('.analyzer-sub').forEach(e=>e.style.display='none');
-    }
-  }catch(e){}
+  // V535: no ML UI edits; V307 is the official display owner.
 }
 const old=window.render;
 if(typeof old==='function'&&!old.__v224UiCleanup){
@@ -17444,41 +17478,13 @@ window.__V224_UI_CLEANUP__={version:224,universalChopDisplayRemoved:true,indepen
 </script>
 <!-- V225 — final scan hardening: stable compact ML UI + hidden chop panel + layout guard -->
 <style id="v225-final-scan-fix">
-/* Keep the Universal Chop engine's logic available, but never render its UI card. */
-#universalChopV173{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
-/* ML Road Trainer: only the two requested live outputs remain visible. */
-#mlRoadTrainerV155 .analyzer-sub,
-#mlRoadTrainerV155 #mlv203AccuracyBox,
-#mlRoadTrainerV155 #mlv203Reset,
-#mlRoadTrainerV155 #mlv170Note,
-#mlRoadTrainerV155 #mlv204AfterTie{display:none!important}
-#mlRoadTrainerV155 .analyzer-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-#mlRoadTrainerV155 .analyzer-grid>.analyzer-card{display:none!important}
-#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:has(#mlv170Pick),
-#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:has(#mlv170Conf){display:block!important}
-/* Fallback while the V170 live cards are being rebuilt. */
-#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:nth-child(1):not(:has(#mlv170Pick)):not(:has(#mlv170Conf)),
-#mlRoadTrainerV155 .analyzer-grid>.analyzer-card:nth-child(2):not(:has(#mlv170Pick)):not(:has(#mlv170Conf)){display:none!important}
+#universalChopV173{display:none!important;height:0!important}
 </style>
 <script id="v225-final-scan-fix-script">
 (function(){
 'use strict';
 const VERSION=225;
-function compactML(){
-  const panel=document.getElementById('mlRoadTrainerV155');
-  if(!panel)return false;
-  panel.querySelectorAll('.analyzer-sub').forEach(e=>e.style.display='none');
-  ['mlv203AccuracyBox','mlv203Reset','mlv170Note','mlv204AfterTie'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none'});
-  const grid=panel.querySelector('.analyzer-grid');
-  if(grid){
-    grid.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';
-    Array.from(grid.children).forEach(card=>{
-      const keep=!!(card.querySelector?.('#mlv170Pick')||card.querySelector?.('#mlv170Conf'));
-      card.style.display=keep?'':'none';
-    });
-  }
-  return true;
-}
+function compactML(){return true} // V535: disabled legacy ML hiding.
 function placeIndependentRoad(){
   const pattern=document.getElementById('chartPatternRecognizerV156')||document.getElementById('roadPreviewAiPanel');
   const road=document.querySelector('.road-predict-panel');
@@ -17507,41 +17513,20 @@ window.__V225_FINAL_SCAN__={version:VERSION,syntaxChecked:true,duplicateIdsCheck
 </script>
 <!-- V226: restore ML live accuracy controls while keeping compact ML header -->
 <style id="v226-ml-accuracy-restore-style">
-#mlRoadTrainerV155 #mlv203AccuracyBox{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin-top:8px!important}
-#mlRoadTrainerV155 #mlv203AccuracyBox>.analyzer-card{display:block!important}
-#mlRoadTrainerV155 #mlv203Reset{display:inline-block!important}
-#mlRoadTrainerV155 #mlv204AfterTie{display:block!important}
-#mlRoadTrainerV155 #mlv170Note{display:none!important}
-/* Keep only Live Prediction + Live Confidence in the main ML metrics grid. */
-#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox)>.analyzer-card{display:none!important}
-#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox)>.analyzer-card:has(#mlv170Pick),
-#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox)>.analyzer-card:has(#mlv170Conf){display:block!important}
-#mlRoadTrainerV155>.analyzer-grid:not(#mlv203AccuracyBox){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+/* V535: retired old hiding rules; V307 owns picks, V519 owns ML accuracy. */
 </style>
 <script id="v226-ml-accuracy-restore-runtime">
 (function(){
 'use strict';
 const VERSION=226;
 function restore(){
-  const panel=document.getElementById('mlRoadTrainerV155'); if(!panel)return false;
-  try{window.__V203_ML_UNLOCK__&&window.render?.call?.(window)}catch(e){}
-  const box=document.getElementById('mlv203AccuracyBox');
-  const reset=document.getElementById('mlv203Reset');
-  const tie=document.getElementById('mlv204AfterTie');
-  if(box){box.style.setProperty('display','grid','important');box.querySelectorAll('.analyzer-card').forEach(c=>c.style.setProperty('display','block','important'));}
-  if(reset)reset.style.setProperty('display','inline-block','important');
-  if(tie)tie.style.setProperty('display','block','important');
-  const note=document.getElementById('mlv170Note'); if(note)note.style.setProperty('display','none','important');
-  const grids=[...panel.querySelectorAll(':scope > .analyzer-grid')].filter(g=>g.id!=='mlv203AccuracyBox');
-  grids.forEach(g=>{g.style.gridTemplateColumns='repeat(2,minmax(0,1fr))';g.querySelectorAll(':scope > .analyzer-card').forEach(card=>{const keep=!!(card.querySelector('#mlv170Pick')||card.querySelector('#mlv170Conf'));card.style.setProperty('display',keep?'block':'none','important');});});
-  return !!(box&&reset);
+  // V535: no full-app re-render, no old inline style hiding.
+  // V519 owns counting; V307 owns the live prediction card.
+  try{window.__V519_ML_ACCURACY_FIX__?.paint?.()}catch(e){}
+  try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(e){}
+  return !!document.getElementById('mlRoadTrainerV155');
 }
-function boot(){
-  restore();
-  [150,500,1200,2500,5000].forEach(ms=>setTimeout(restore,ms));
-  if(!window.__v226MlRestoreTimer)window.__v226MlRestoreTimer=setInterval(()=>{if(document.visibilityState!=='hidden')restore();},15000);
-}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(restore,400),{once:true});else setTimeout(restore,400);
 window.__V226_ML_DISPLAY__={version:VERSION,kept:['LIVE PREDICTION','LIVE CONFIDENCE','LIVE ACCURACY','WINS / LOSSES','COUNT','NEXT LOCK','AFTER TIE ACCURACY','RESET ML ACCURACY'],hidden:['validation stats','target pace','validation notes','live authority','unseen shoes','all test calls','selective test','selective N','baseline','live gate'],predictionLogicChanged:false};
 })();
 </script>
@@ -19276,12 +19261,29 @@ function installQualifiedAccuracy(){
   // RAW LEAN is never lockable through this qualified-only registrar.
 }
 function ensure(){
-  const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return null;
+  let panel=document.getElementById('mlRoadTrainerV155');
+  if(!panel){
+    const anchor=document.getElementById('presetFingerprintGateV145')||document.querySelector('.analyzer');
+    if(!anchor?.parentNode)return null;
+    panel=document.createElement('section');panel.id='mlRoadTrainerV155';panel.className='analyzer';
+    panel.innerHTML='<div class="analyzer-title">ML Road Trainer</div><div class="analyzer-sub">Initializing…</div>';
+    anchor.parentNode.insertBefore(panel,anchor);
+  }
   const title=panel.querySelector('.analyzer-title');if(title)title.textContent='🧠 ML Road Trainer V506 — 6-Second Library Search';
   const sub=panel.querySelector('.analyzer-sub');if(sub&&!sub.id)sub.textContent='Six-second maximum nonblocking historical search; qualified official calls require unseen-shoe validation. RAW LEAN is separate and is not counted as an official prediction.';
+  // A legacy ML renderer writes panel.querySelector('.analyzer-grid').innerHTML.
+  // Reserve the FIRST grid as a hidden legacy sink, never as our official display.
+  let legacy=panel.querySelector(':scope > .analyzer-grid:not(#mlv307Canonical):not(#mlv203AccuracyBox)');
+  if(!legacy){
+    legacy=document.createElement('div');legacy.id='v536LegacyMlGrid';legacy.className='analyzer-grid';
+    const first=panel.querySelector(':scope > .analyzer-grid');
+    if(first)panel.insertBefore(legacy,first);else panel.appendChild(legacy);
+  }
   let box=document.getElementById('mlv307Canonical');
   if(!box){
     box=document.createElement('div');box.id='mlv307Canonical';box.className='analyzer-grid';box.style.marginTop='8px';
+  }
+  if(!box.querySelector('#mlv307Pick')){
     box.innerHTML=`
       <div class="analyzer-card"><span>OFFICIAL ML PICK</span><strong id="mlv307Pick">WAIT</strong></div>
       <div class="analyzer-card"><span>MODEL SCORE (NOT ODDS)</span><strong id="mlv307Conf">—</strong></div>
@@ -19289,15 +19291,21 @@ function ensure(){
       <div class="analyzer-card"><span>PLAYER / BANKER</span><strong id="mlv307Split">—</strong></div>
       <div class="analyzer-card"><span>LIVE EVIDENCE</span><strong id="mlv307Evidence">—</strong></div>
       <div class="analyzer-card"><span>QUALIFICATION</span><strong id="mlv307Gate">WAIT</strong></div>`;
-    const accBox=document.getElementById('mlv203AccuracyBox');if(accBox&&accBox.parentNode===panel)panel.insertBefore(box,accBox);else panel.appendChild(box);
-    const note=document.createElement('div');note.id='mlv307Reason';note.className='analyzer-sub';note.style.marginTop='8px';
-    if(box.nextSibling)panel.insertBefore(note,box.nextSibling);else panel.appendChild(note);
+    if(!box.isConnected){const accBox=document.getElementById('mlv203AccuracyBox');if(accBox&&accBox.parentNode===panel)panel.insertBefore(box,accBox);else panel.appendChild(box);}
+    let note=document.getElementById('mlv307Reason');if(!note){note=document.createElement('div');note.id='mlv307Reason';note.className='analyzer-sub';note.style.marginTop='8px';if(box.nextSibling)panel.insertBefore(note,box.nextSibling);else panel.appendChild(note);}
   }
   // Remove V306's duplicate live box; V307 is the sole live-result owner.
   try{document.getElementById('mlv306LiveResultBox')?.remove();document.getElementById('mlv306LiveReason')?.remove()}catch(e){}
-  // Hide legacy ML summary grids but preserve the verified-accuracy grid and V307 canonical grid.
-  panel.querySelectorAll(':scope > .analyzer-grid').forEach(g=>{g.style.display=(g.id==='mlv307Canonical'||g.id==='mlv203AccuracyBox')?'':'none'});
-  const accBox=document.getElementById('mlv203AccuracyBox');if(accBox){accBox.style.display=''; if(box.nextSibling!==document.getElementById('mlv307Reason')){} }
+  // V535: make canonical grid visible despite any residual legacy inline overrides.
+  panel.querySelectorAll(':scope > .analyzer-grid').forEach(g=>{
+    const current=(g.id==='mlv307Canonical'||g.id==='mlv203AccuracyBox');
+    g.style.setProperty('display',current?'grid':'none','important');
+    if(current)g.querySelectorAll(':scope > .analyzer-card').forEach(card=>card.style.setProperty('display','block','important'));
+  });
+  const accBox=document.getElementById('mlv203AccuracyBox');if(accBox)accBox.style.setProperty('display','grid','important');
+  box.querySelectorAll('.analyzer-card').forEach(card=>card.style.setProperty('display','block','important'));
+  box.style.setProperty('display','grid','important');
+  panel.style.setProperty('display','block','important');
   const reset=document.getElementById('mlv203Reset');if(reset){reset.style.display='';reset.textContent='Reset ML Accuracy'}
   return panel;
 }
@@ -19322,8 +19330,12 @@ function boot(){
   // Repaint ML only after meaningful controls are used.
   document.addEventListener('click',e=>{if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#mlBuild,#mlv203Reset'))setTimeout(paint,120)},true);
   [400,1800].forEach(ms=>setTimeout(paint,ms));
+  // Refresh the visible ML card while training and async library search finish.
+  if(!window.__v535MlVisibleTimer)window.__v535MlVisibleTimer=setInterval(()=>{
+    if(document.visibilityState!=='hidden')paint();
+  },2400);
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,2800),{once:true});else setTimeout(boot,2800);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(paint,0);setTimeout(boot,500)},{once:true});else{setTimeout(paint,0);setTimeout(boot,500)};
 window.__V307_ML_SINGLE_OWNER__={version:VERSION,paint,qualifiedOnlyAccuracy:true,rawLeanVisible:true,legacyRendererUiSuppressed:true};
 })();
 </script>
@@ -19608,12 +19620,15 @@ const tail=(s,n)=>String(s||'').slice(-n);
 const bucket=n=>{n=Number(n)||0;return n>=8?'8+':n>=6?'6-7':n>=4?'4-5':n>=2?'2-3':String(n)};
 const bin=(x,steps=5)=>Math.round(clamp(Number(x)||0,0,1)*steps)/steps;
 function rf(s){s=String(s||'').replace(/T/g,'');let o='';for(let i=1;i<s.length;i++)o+=s[i]===s[i-1]?'R':'F';return o;}
+const FEATURE_CACHE=new WeakMap();
 function features(r){
   const tieFree=ignoreTies();
+  const cached=FEATURE_CACHE.get(r);
+  if(cached&&cached.mode===tieFree)return cached.value;
   const pb10=String(r.pb_tail_10||''),pb6=String(r.pb_tail_6||'');
   const bead=String(r.bead_tail_10||r.bead_tail_6||'').replace(tieFree?/T/g:/(?!)/g,'');
   const tr=bin(r.recent8_transition_rate,5),bal=Math.sign((Number(r.prior_player_count)||0)-(Number(r.prior_banker_count)||0));
-  return {
+  const value={
     sequence:{s4:tail(pb6,4),s6:tail(pb6,6),s8:tail(pb10,8),s10:tail(pb10,10),shape6:tail(rf(pb10),6),shape9:tail(rf(pb10),9)},
     rhythm:{r1:`${r.phase}|${r.regime}|${r.last_non_tie}`,r2:`${r.phase}|${r.current_streak_side}|${bucket(r.current_streak_len)}`,r3:`${r.phase}|${tr}|${r.last_non_tie}`,r4:`${r.regime}|${tail(rf(pb10),5)}|${bucket(r.current_streak_len)}`},
     bead:{b6:tail(bead,6),b8:tail(bead,8),b10:tail(bead,10),ties:tieFree?'':`${r.phase}|${Math.min(3,Number(r.prior_tie_count)||0)}|${tail(bead,5)}`},
@@ -19621,6 +19636,8 @@ function features(r){
     roads:{e4:tail(r.big_eye_tail_8,4),e6:tail(r.big_eye_tail_8,6),s4:tail(r.small_road_tail_8,4),s6:tail(r.small_road_tail_8,6),c4:tail(r.cockroach_tail_8,4),c6:tail(r.cockroach_tail_8,6),combo:`${tail(r.big_eye_tail_8,3)}|${tail(r.small_road_tail_8,3)}|${tail(r.cockroach_tail_8,3)}`},
     context:{c1:`${String(r.shoe_color||'').toLowerCase()}|${r.phase}|${r.regime}`,c2:`${r.phase}|${bal}|${r.last_non_tie}|${bucket(r.current_streak_len)}`,c3:`${r.phase}|${r.support_ready_count}|${r.support_agreement_red}|${tr}`}
   };
+  FEATURE_CACHE.set(r,{mode:tieFree,value});
+  return value;
 }
 function train(rows){
   const first=features(rows[0]||{}),M={};
@@ -19825,7 +19842,9 @@ function startLiveScan(row){
 function trainAndValidate(){
   try{++scanToken;
     const api=window.__mlTrainingDatasetV160||window.__mlTrainingDatasetV159;if(!api?.build)throw new Error('ML Training Dataset V160 unavailable');
-    const recent=window.__mlDatasetV159;const x=recent?.scopeKey===v510ScopeKey() && recent?.rows?.length && Date.now()-(window.__mlDatasetRefreshAt||0)<5000 ? recent : api.build();window.__mlDatasetV159=x;if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique shoes');
+    // Always rebuild the source after an import or mode change; V160 is cheap
+    // compared with training and this avoids stale training rows.
+    const x=api.build();window.__mlDatasetV159=x;if((x.shoes||[]).length<20)throw new Error('Need at least 20 unique shoes');
     const sp=split(x),base=train(sp.train),weights=familyWeights(base,sp.val),vp=preds(base,weights,sp.val),cutoff=cutoffFor(vp,sp.valShoes),tp=preds(base,weights,sp.test),overall=acc(tp);
     const selRows=tp.filter(z=>z.families>=2&&z.independent>=4&&z.agreement>=.56&&z.evidence>=1.4&&z.confidence>=cutoff),selective=acc(selRows);
     const pb=sp.train.filter(r=>r.target_pb==='P'||r.target_pb==='B'),pc=pb.filter(r=>r.target_pb==='P').length,trainMajority=pc>=pb.length/2?'P':'B';
@@ -19841,7 +19860,7 @@ function trainAndValidate(){
     const testIndex=patternIndex([...sp.train,...sp.val]);
     const patternTest=evaluatePattern(testIndex,sp.test,patternRule,trainMajority);
     const patternQualified=patternRule.n>=24&&patternRule.rate>=.53&&patternTest.n>=Math.max(24,sp.testShoes*3)&&patternTest.rate>=.53&&patternTest.rate>=patternTest.sameCallBaseline+.012;
-    runtime={trained:true,scopeKey:v510ScopeKey(),qualified,model:train(x.rows),weights,cutoff,lastError:'',lastSignal:null,patterns:patternIndex(x.rows),patternRule,patternQualified,scan:null,report:{version:VERSION,architecture:'6-family ML + held-out gated sliding/inverted shoe search',analysisLimitMs:MAX_ANALYSIS_MS,patternRule,patternTest,patternQualified,tieMode:ignoreTies()?'IGNORE TIES':'ORIGINAL',uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,valShoes:sp.valShoes,testShoes:sp.testShoes,overall,selective,baseline,selectedBaseline,cutoff,weights,qualified,reason:(qualified||patternQualified)?'At least one ML pathway passed held-out qualification.':'Neither ML pathway passed held-out qualification — official WAIT.'}};
+    runtime={trained:true,scopeKey:v510ScopeKey(),libraryFingerprint:v534MLLibraryFingerprint(),qualified,model:train(x.rows),weights,cutoff,lastError:'',lastSignal:null,patterns:patternIndex(x.rows),patternRule,patternQualified,scan:null,report:{version:VERSION,architecture:'6-family ML + held-out gated sliding/inverted shoe search',analysisLimitMs:MAX_ANALYSIS_MS,patternRule,patternTest,patternQualified,tieMode:ignoreTies()?'IGNORE TIES':'ORIGINAL',uniqueShoes:x.shoes.length,rows:x.rows.length,trainShoes:sp.trainShoes,valShoes:sp.valShoes,testShoes:sp.testShoes,overall,selective,baseline,selectedBaseline,cutoff,weights,qualified,reason:(qualified||patternQualified)?'At least one ML pathway passed held-out qualification.':'Neither ML pathway passed held-out qualification — official WAIT.'}};
     paint();return runtime.report;
   }catch(e){runtime.trained=false;runtime.qualified=false;runtime.lastError=String(e?.message||e);paint();return null;}
 }
@@ -19862,10 +19881,14 @@ function liveRow(){
 function signal(){
   if(!runtime.trained||runtime.scopeKey!==v510ScopeKey())return {side:null,qualified:false,confidence:0,status:'WAIT',reason:runtime.scopeKey!==v510ScopeKey()?'Selected shoe color changed — rebuild ML dataset for this color.':runtime.lastError||'Training not complete'};
   if(runtime.report?.tieMode!==(ignoreTies()?'IGNORE TIES':'ORIGINAL'))return {side:null,qualified:false,confidence:0,status:'WAIT',reason:'Tie mode changed: rebuild ML dataset.'};
+  if(runtime.libraryFingerprint!==v534MLLibraryFingerprint())return {side:null,qualified:false,confidence:0,status:'WAIT',reason:'Saved shoe library changed — ML retraining required.'};
   const r=liveRow();if(r.prior_hands<WARMUP)return {side:null,qualified:false,confidence:0,status:'WAIT',reason:`Need ${WARMUP-r.prior_hands} more hands.`};
   // A result arriving during a search cancels the stale job at the next identity check.
-  if(runtime.patterns)startLiveScan(r);
-  const pending=runtime.patterns&&!runtime.scan?.ready;
+  // V534: a historically failed retrieval pathway must never block a
+  // separately validated ML prediction. Only search if retrieval passed
+  // validation on shoes the index did not train on.
+  if(runtime.patternQualified&&runtime.patterns)startLiveScan(r);
+  const pending=!!(runtime.patternQualified&&runtime.patterns&&!runtime.scan?.ready);
   const z=predict(runtime.model,runtime.weights,r),conf=Math.max(z.p,1-z.p),raw=z.p>=.5?'P':'B';
   const modelOK=runtime.qualified&&z.families>=2&&z.independent>=4&&z.agreement>=.56&&z.evidence>=1.4&&conf>=runtime.cutoff;
   const m=runtime.scan?.hit||{side:null,edge:0,agreement:0,independent:0,exact:0,inverted:0};
@@ -19879,8 +19902,10 @@ function signal(){
   const reason=pending?'SEARCHING: nonblocking library analysis, maximum 6 seconds; no official result yet.'
     :conflict?'WAIT: two independently validated paths disagree.'
     :qualified?(modelOK&&matchOK?'QUALIFIED: ML and historical retrieval agree.':modelOK?'QUALIFIED: independent-shoe ML gate passed.':'QUALIFIED: separately validated library matching gate passed.')
-    :'WAIT: historical search or ML has not cleared validation and live support.';
-  return runtime.lastSignal={side,displaySide,rawSide:raw,qualified,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:+z.evidence.toFixed(2),independentShoes:z.independent,agreement:+(z.agreement*100).toFixed(1),cutoff:+(runtime.cutoff*100).toFixed(1),matchShoes:m.independent,matchAgreement:+(m.agreement*100).toFixed(1),matchExact:m.exact,matchInverted:m.inverted,analyzing:!!pending,elapsedMs:runtime.scan?.elapsed||0,timedOut:!!runtime.scan?.timedOut,reason,report:runtime.report};
+    :(!runtime.qualified&&!runtime.patternQualified)?'WAIT: neither ML nor library retrieval passed held-out shoe validation. RAW LEAN is not an official prediction.'
+    :runtime.qualified&&!modelOK?'WAIT: validated ML trained, but current hand does not meet model score, family agreement or independent-shoe evidence gates.'
+    :'WAIT: historical retrieval did not meet independent-shoe match gates.';
+  return runtime.lastSignal={side,displaySide,rawSide:raw,qualified,modelPassedHoldout:!!runtime.qualified,searchPassedHoldout:!!runtime.patternQualified,modelLiveEligible:!!modelOK,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:+z.evidence.toFixed(2),independentShoes:z.independent,agreement:+(z.agreement*100).toFixed(1),cutoff:+(runtime.cutoff*100).toFixed(1),matchShoes:m.independent,matchAgreement:+(m.agreement*100).toFixed(1),matchExact:m.exact,matchInverted:m.inverted,analyzing:!!pending,elapsedMs:runtime.scan?.elapsed||0,timedOut:!!runtime.scan?.timedOut,reason,report:runtime.report};
 }
 function paint(){
   const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;
@@ -19907,24 +19932,15 @@ function boot(){
   // V310 load stability: never run a full-library ML rebuild during initial page construction.
   // This keeps the 1.3 MB single-file app responsive and lets all panels finish mounting first.
   paint();
-  const btn=document.getElementById('mlBuild');
-  if(btn&&!btn.__v309){
-    const old=btn.onclick;
-    btn.onclick=function(){
-      try{old&&old.call(this)}catch(e){}
-      const n=document.getElementById('mlv307Reason');
-      if(n)n.textContent='Training V506 on your library…';
-      setTimeout(()=>{trainAndValidate();paint();},80);
-    };
-    btn.__v309=true;
-  }
+  // V534: V526 is the ONLY training-button controller. Do not wrap
+  // the V160 dataset onclick here or perform a second full training pass.
   const n=document.getElementById('mlv307Reason');
-  if(n&&!runtime.trained)n.textContent='V506 ready — tap Build / Refresh Dataset to train. Startup training is disabled so the full index can load cleanly.';
+  if(n&&!runtime.trained)n.textContent='ML display ready. Training automatically begins after initial interface setup; RAW LEAN never counts as an official pick.';
   // V311: one delayed repaint only; no startup interval.
   setTimeout(paint,1200);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,3900),{once:true});else setTimeout(boot,3900);
-window.__V309_ML_INDEPENDENT_SHOE__={version:VERSION,trainAndValidate,signal,report:()=>runtime.report,analysisLimitMs:MAX_ANALYSIS_MS,searchStatus:()=>runtime.scan,patternResult:()=>runtime.scan?.hit};
+window.__V309_ML_INDEPENDENT_SHOE__={version:VERSION,trainAndValidate,signal,report:()=>runtime.trained?runtime.report:null,status:()=>({trained:runtime.trained,scope:runtime.scopeKey,modelQualified:runtime.qualified,patternQualified:runtime.patternQualified,error:runtime.lastError}),analysisLimitMs:MAX_ANALYSIS_MS,searchStatus:()=>runtime.scan,patternResult:()=>runtime.scan?.hit};
 })();
 </script>
 <script id="v311-deep-load-stability-marker">
@@ -24343,7 +24359,7 @@ window.__V519_ML_ACCURACY_FIX__={version:VERSION,paint,model,pending,nextHand,so
 'use strict';
 const V=526,FLAG='v526_ml_autoretrain_enabled', $=id=>document.getElementById(id);
 const api=()=>window.__V309_ML_INDEPENDENT_SHOE__;
-const signature=()=>{let t=false;try{t=localStorage.getItem('v452_ignore_ties')==='1'}catch(_){};const c=typeof v510ScopeKey==='function'?v510ScopeKey():'combined';return c+'|'+(t?'no ties':'with ties')};
+const signature=()=>{let t=false;try{t=localStorage.getItem('v452_ignore_ties')==='1'}catch(_){};const c=typeof v510ScopeKey==='function'?v510ScopeKey():'combined';return c+'|'+(t?'no ties':'with ties')+'|'+(typeof v534MLLibraryFingerprint==='function'?v534MLLibraryFingerprint():'no-library')};
 let running=false,lastRun='',lastSuccess='',lastError='',timer=null;
 function enabled(){try{return localStorage.getItem(FLAG)==='1'}catch(_){return false}}
 function setEnabled(){try{localStorage.setItem(FLAG,'1')}catch(_){}}
@@ -24351,21 +24367,21 @@ function mount(){
  const panel=$('mlRoadTrainerV155');if(!panel)return null;
  let c=$('v526MlTrainingControls');if(c)return c;
  c=document.createElement('div');c.id='v526MlTrainingControls';
- c.innerHTML='<strong>ML TRAINING STATUS • V526</strong><div class="v526status" id="v526MlStatus">Checking dataset…</div><button type="button" id="v526TrainMl">TRAIN / REBUILD ML FOR THIS SHOE COLOR</button><div class="v526small">Train once, then automatically retrain on later shoe-color or Ignore Ties changes. Uses only saved shoes and never edits your library. Official predictions remain locked unless holdout testing passes.</div>';
+ c.innerHTML='<strong>ML TRAINING STATUS • V534</strong><div class="v526status" id="v526MlStatus">Checking dataset…</div><button type="button" id="v526TrainMl">TRAIN / REBUILD ML FOR THIS SHOE COLOR</button><div class="v526small">Automatically train from the selected color library after loading and retrain on color or Ignore Ties changes. Uses only saved shoes and never edits your library. Official predictions remain locked unless holdout testing passes.</div>';
  panel.appendChild(c);
  $('v526TrainMl').addEventListener('click',()=>{setEnabled();start('manual')});
  return c;
 }
 function paint(){
  if(!mount())return;
- const e=$('v526MlStatus'),b=$('v526TrainMl'),mode=signature(),r=api()?.report?.();
+ const e=$('v526MlStatus'),b=$('v526TrainMl'),mode=signature(),modeLabel=mode.split('|').slice(0,2).join(' • '),r=api()?.report?.();
  if(b){b.disabled=running;b.textContent=running?'TRAINING ML — DO NOT CLOSE':'TRAIN / REBUILD ML FOR THIS SHOE COLOR'}
  if(!e)return;
- if(running){e.textContent='Building ML model using '+mode.toUpperCase()+'…';return}
- if(lastError){e.textContent='ML BUILD ERROR: '+lastError+'\nSelected dataset: '+mode+'. Press Train / Rebuild to retry.';return}
- if(lastSuccess!==mode||!r){e.textContent='NOT TRAINED FOR '+mode.toUpperCase()+'. Press Train / Rebuild ML to start. Existing shoe library is safe.';return}
+ if(running){e.textContent='Building ML model using '+modeLabel.toUpperCase()+'…';return}
+ if(lastError){e.textContent='ML BUILD ERROR: '+lastError+'\nSelected dataset: '+modeLabel+'. Press Train / Rebuild to retry.';return}
+ if(lastSuccess!==mode||!r){e.textContent='NOT TRAINED FOR '+modeLabel.toUpperCase()+'. Press Train / Rebuild ML to start. Existing shoe library is safe.';return}
  const a=r.selective||{},p=r.patternTest||{},n=v=>Number.isFinite(Number(v))?Number(v):0;
- e.textContent='READY • '+mode.toUpperCase()+' • '+r.uniqueShoes+' unique shoes • '+r.rows+' training rows\n'
+ e.textContent='READY • '+modeLabel.toUpperCase()+' • '+r.uniqueShoes+' unique shoes • '+r.rows+' training rows\n'
   +'ML held-out: '+n(a.w)+'W / '+n(a.l)+'L ('+(100*n(a.rate)).toFixed(1)+'%, N='+n(a.n)+') '+(r.qualified?'PASS':'FAIL')+'\n'
   +'Pattern held-out: '+n(p.w)+'W / '+n(p.l)+'L ('+(100*n(p.rate)).toFixed(1)+'%, N='+n(p.n)+') '+(r.patternQualified?'PASS':'FAIL')+'\n'
   +(r.qualified||r.patternQualified?'Qualified signals are possible when live evidence passes.':'Neither historical test passed; official picks stay WAIT. RAW LEAN is research only.');
@@ -24374,11 +24390,14 @@ function start(reason){
  if(running||!api()?.trainAndValidate)return;
  const mode=signature();
  if(reason!=='manual'&&lastRun===mode)return;
+ const shoes=typeof v510RawShoes==='function'?v510RawShoes().length:0;
+ if(shoes<20){lastError='Only '+shoes+' saved shoes in this selection. Import or select at least 20 shoes; ML will retry automatically.';paint();return;}
  lastRun=mode;running=true;lastError='';paint();
  setTimeout(()=>{
   try{
     const r=api().trainAndValidate();
-    if(!r){const t=$('mlv307Reason')?.textContent||'';throw Error(t||'Dataset training returned no result')}
+    if(!r){const t=api()?.status?.()?.error||$('mlv307Reason')?.textContent||'';throw Error(t||'Dataset training returned no result')}
+    if(signature()!==mode)throw Error('Shoe color or tie mode changed during ML training. Rebuilding for current selection.');
     lastSuccess=mode;
   }catch(e){lastError=String(e?.message||e);lastSuccess=''}
   finally{running=false;paint();try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(_){};try{window.__V519_ML_ACCURACY_FIX__?.paint?.()}catch(_){};}
@@ -24388,19 +24407,20 @@ function initialize(){
  mount();paint();
  // Avoid expensive page-start training until the user has explicitly trained ML once.
  // Then automatically re-train for changed color/tie scope, including after reload.
- if(enabled())setTimeout(()=>start('auto'),700);
+ if(!enabled())setEnabled();
+ // Still train when browser storage is blocked or unavailable.
+ // This startup action uses only existing in-memory saved shoes.
+ setTimeout(()=>start('auto'),1800);
  if(!timer)timer=setInterval(()=>{if(document.visibilityState==='hidden')return;
-  mount();if(enabled()&&!running&&lastRun!==signature())start('auto');else paint();
+  mount();if(!running&&lastRun!==signature())start('auto');else paint();
  },3000);
  document.addEventListener('click',e=>{
-  if(e.target?.closest?.('#mlBuild')){setEnabled();lastRun=signature();setTimeout(()=>{
-   const r=api()?.report?.(),mode=signature();if(r){lastSuccess=mode;lastRun=mode;lastError='';}paint();
-  },900)}
+  if(e.target?.closest?.('#mlBuild')){setEnabled();setTimeout(()=>start('manual'),90);}
  },true);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(initialize,4400),{once:true});
 else setTimeout(initialize,4400);
-window.__V526_ML_SCOPE_FIX__={version:V,signature,train:()=>{setEnabled();start('manual')},status:()=>({running,lastRun,lastSuccess,lastError}),predictionGatesUnchanged:true,authoritativeGradingUnchanged:true};
+window.__V526_ML_SCOPE_FIX__={version:534,signature,train:()=>{setEnabled();start('manual')},status:()=>({running,lastRun,lastSuccess,lastError}),predictionGatesUnchanged:true,authoritativeGradingUnchanged:true};
 })();
 </script>
 </body>
