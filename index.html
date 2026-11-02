@@ -1,3 +1,5 @@
+<!-- V550: Derived Road official call-frequency gate loosened: V517 match filter 0.60/0.52/0.68 -> 0.55/0.47/0.62, 6/4/60 -> 3/2/51.5. No new AI panel or separate experimental bets. Main, Sequence V2, ML, saved shoes unchanged. Backtesting is research only and not a predictive edge. -->
+<!-- V547: Main Road DISPLAY only: when a same-side streak descends into a blocked square, place its next result diagonally down-right beside the blocking Player/Banker, then continue horizontal from that new row. Preserve existing occupied positions, ties, analytics and Gemini V545. -->
 <!-- V545: Gemini reads all distinct red+black saved shoes, tie-free requests and matching when ignore-ties ON; robust next-P/B grading after ties; local fallback and separate remote inference. -->
 <!-- V536: protect official ML grid against legacy renderReport innerHTML replacement, repair missing pick children. -->
 <!-- V535: retired V224-V226 conflicting ML UI mutation, restored canonical WAIT/pick immediately, preserved V519 accuracy. -->
@@ -48,7 +50,6 @@
 <!-- V463: bead history backup library and low-sample exploratory display; 8-hand bead-only fallback labeled, no other AI logic changed. -->
 <!-- V462: display exploratory bead-history leans without claiming betting reliability; accuracy grading retained. -->
 <!-- V456: Main Future Road Test 2 display immediately before Sequence AI V2. Layout only. -->
-<!-- V455: Independent sliding-window and inverted P/B library search added to assisted Best Estimate panel; original Best Estimate, Test 2 and Sequence V2 untouched. -->
 <!-- V450 FOUR SIGNAL HAND DISPLAY: immediate stale-pick clearing on new P/B/T input; original grading and qualification preserved. -->
 <!-- V449 BEAD HISTORY: qualified exact prefix or PB prefix; insufficient exact evidence falls through to wider independent-shoe matching; 6+ step motifs and conservative 6-shoe/4-support gates. ML V448 unchanged. -->
 <!-- V428: optional V160 historical-row vote assist for AI Pattern Recognizer; limited auxiliary score influence, original gates preserved; requires Build/Refresh. -->
@@ -120,7 +121,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V538 • Improved P/B/T Controls • Baccarat Dashboard</title>
+<title>V552 • Guarded Full-Shoe Learning Lab • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -755,9 +756,9 @@ body { overscroll-behavior-y: none; }
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
 <div class="scoreboard">
-<div class="road-mode-bar"><span class="road-mode-title">Main Road display</span><div class="road-mode-switches"><button type="button" class="road-mode-btn active" data-road-mode="down" id="roadModeDown">Down-first ↓</button><button type="button" class="road-mode-btn" data-road-mode="standard" id="roadModeStandard">Standard Big Road</button></div></div>
+<div class="road-mode-bar"><span class="road-mode-title">Main Road • collision-aware downward streaks</span></div>
 <div class="road-wrap"><div class="road road--exact" id="bigRoad"></div></div>
-<div class="road-mode-hint" id="roadModeHint">Down-first: results fill downward in each column before moving right; predictions are unchanged.</div>
+<div class="road-mode-hint" id="roadModeHint">When downward space is occupied, the next same-side result goes down-right beside the blocker. Existing circles stay put. Prediction engines are unchanged.</div>
 </div>
 <div class="layout">
 <div>
@@ -1817,22 +1818,58 @@ function bigRoadPositions(hands){
   return placeRoadSequence(base,h=>h.r).map((x,i)=>({...x,ties:tiesByIndex[i]||0}));
 }
 
-// Display ONLY: unlike the standard Big Road, this presentation fills the
-// next empty square DOWN before advancing right, regardless of P/B switching.
-// Do not reuse these cells for derived roads or predictions: those must keep
-// using bigRoadPositions(), which implements the standard Big Road.
-let __roadDisplayModeV544 = 'down';
-function downFirstRoadPositions(hands){
-  return bigRoadPositions(hands).map((x,i)=>({...x,col:Math.floor(i/6),row:i%6}));
+// V547 DISPLAY-ONLY All-In collision rule. For screenshot sequence
+// PP BB PPPPPPP BBBBBBB: Player's 7th ball is (column 4, row 6).
+// Banker goes down (column 4, rows 1-5); its next ball must go to
+// (column 5, row 6), RIGHT NEXT TO that Player, not across row 5.
+// Never move the existing Player or reinterpret the stored game history.
+// DO NOT use these display coordinates for AI / derived road calculations:
+// bigRoadPositions and placeRoadSequence retain their original logic.
+function allInCollisionRoadPositions(hands){
+  const base=hands.filter(h=>h && (h.r==='P'||h.r==='B'));
+  const tiesByIndex=[];
+  let nonTieIndex=-1;
+  hands.forEach(h=>{
+    if(h.r==='T'){
+      if(nonTieIndex>=0)tiesByIndex[nonTieIndex]=(tiesByIndex[nonTieIndex]||0)+1;
+    }else if(h.r==='P'||h.r==='B') nonTieIndex++;
+  });
+  const occupied=new Set(),result=[];
+  let col=-1,row=0,last=null,streakStartCol=-1,turnedRight=false;
+  base.forEach((h,i)=>{
+    if(h.r!==last){
+      let candidate=streakStartCol+1;
+      while(occupied.has(`${candidate},0`))candidate++;
+      streakStartCol=candidate;
+      col=candidate;row=0;turnedRight=false;
+    }else if(!turnedRight && row<5 && !occupied.has(`${col},${row+1}`)){
+      // Straight down whenever the next row in this column is free.
+      row++;
+    }else if(!turnedRight && row<5){
+      // The next row is blocked. Step DOWN AND RIGHT to the first empty
+      // square on that lower row, directly next to the blocking circle.
+      const nextRow=row+1;
+      let candidate=col+1;
+      while(occupied.has(`${candidate},${nextRow}`))candidate++;
+      col=candidate;row=nextRow;turnedRight=true;
+    }else{
+      // At the sixth row, or after a collision, extend horizontally there.
+      col++;
+      while(occupied.has(`${col},${row}`))col++;
+      turnedRight=true;
+    }
+    occupied.add(`${col},${row}`);
+    result.push({...h,col,row,ties:tiesByIndex[i]||0});
+    last=h.r;
+  });
+  return result;
 }
 
 function renderRoad(){
   const road=document.getElementById('bigRoad');
   if(!road) return;
   road.classList.add('road--exact');
-  const pos=__roadDisplayModeV544==='standard'
-    ?bigRoadPositions(state.hands)
-    :downFirstRoadPositions(state.hands);
+  const pos=allInCollisionRoadPositions(state.hands);
   const maxCol=Math.max(19,...pos.map(x=>x.col));
   const cols=maxCol+2;
   road.style.gridTemplateColumns=`repeat(${cols}, var(--big-road-cell))`;
@@ -1869,24 +1906,8 @@ function renderRoad(){
   road.replaceChildren(fragment);
 }
 
-function setRoadDisplayModeV544(mode){
-  __roadDisplayModeV544=mode==='standard'?'standard':'down';
-  document.querySelectorAll('[data-road-mode]').forEach(btn=>{
-    const on=btn.dataset.roadMode===__roadDisplayModeV544;
-    btn.classList.toggle('active',on);
-    btn.setAttribute('aria-pressed',on?'true':'false');
-  });
-  const hint=document.getElementById('roadModeHint');
-  if(hint) hint.textContent=__roadDisplayModeV544==='down'
-    ?'Down-first: results fill downward in each column before moving right; predictions are unchanged.'
-    :'Standard Big Road: same-side streaks descend; at row 6 they form a horizontal tail. Predictions are unchanged.';
-  renderRoad();
-}
-
-// Default to the explicitly requested DOWN-first display each time the file
-// opens. Users can still compare with the traditional baccarat Big Road.
-document.getElementById('roadModeDown')?.addEventListener('click',()=>setRoadDisplayModeV544('down'));
-document.getElementById('roadModeStandard')?.addEventListener('click',()=>setRoadDisplayModeV544('standard'));
+// V547: no ambiguous mode toggle: always use collision-aware display.
+// This does not change the internal standard-road positions used by AIs.
 
 function buildBigRoadColumns(hands){
   const base=hands.filter(h=>h.r!=='T');
@@ -5234,7 +5255,7 @@ function renderAdaptiveDerivedMain(){
       : 'Adaptive confidence: — • WAIT / conflicting or weak Main Road continuations');
   }
 
-  const w=x.roads.map(r=>{
+  const w=(Array.isArray(x.roads)?x.roads:[]).map(r=>{
     const label=r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach';
     if(!r.enabled) return `${label} OFF`;
     const signal=r.side==='P'?'P':r.side==='B'?'B':'WAIT';
@@ -6865,7 +6886,7 @@ renderLibraryBackupStatus();
 
     agree.textContent=`Agreement: ${x.winner} of 3 roads • Player ${x.pVotes} / Banker ${x.bVotes}`;
     const wt=document.getElementById('derivedIndependentWeights');
-    if(wt) wt.textContent='Live road weights: '+x.roads.map(r=>`${r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach'} ${Math.round((r.reliability??.5)*100)}%`).join(' • ');
+    if(wt) wt.textContent='Live road weights: '+(Array.isArray(x.roads)?x.roads:[]).map(r=>`${r.key==='eye'?'Eye':r.key==='small'?'Small':'Roach'} ${Math.round((r.reliability??.5)*100)}%`).join(' • ');
     conf.textContent=x.side
       ? `Adaptive road confidence: ${x.confidence}%`
       : 'Adaptive road confidence: — • WAIT / conflicting mapped continuations';
@@ -7307,7 +7328,7 @@ renderLibraryBackupStatus();
     }
     try{
       const x=adaptiveDerivedMainSignal(),g=document.getElementById('selectiveLiveV12Grid');
-      if(g)g.innerHTML=x.roads.map(r=>`<div class="analyzer-card"><span>${r.key==='eye'?'Big Eye':r.key==='small'?'Small Road':'Roach Road'}</span><strong>${Math.round(r.weight*100)/100}×</strong><small>Library ${Math.round(r.priorReliability*100)}% • Live ${r.liveN?Math.round(r.liveReliability*100)+'% N='+r.liveN:'building'}</small></div>`).join('');
+      if(g)g.innerHTML=(Array.isArray(x.roads)?x.roads:[]).map(r=>`<div class="analyzer-card"><span>${r.key==='eye'?'Big Eye':r.key==='small'?'Small Road':'Roach Road'}</span><strong>${Math.round(r.weight*100)/100}×</strong><small>Library ${Math.round(r.priorReliability*100)}% • Live ${r.liveN?Math.round(r.liveReliability*100)+'% N='+r.liveN:'building'}</small></div>`).join('');
       const n=document.getElementById('selectiveLiveV12Note');
       if(n)n.textContent=x.side?`QUALIFIED: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.confidence}% signal strength • ${Math.round(x.edge*100)}% weighted road edge`:(x.waitReason||'WAIT');
     }catch(e){}
@@ -8539,7 +8560,7 @@ renderLibraryBackupStatus();
     if(sub)sub.textContent='Stable early-shoe learning + progressive live takeover. N=1–3 is shrink-protected; N=4–6 gains authority; N=7–10+ can override library priors when verified live evidence persists. Regime shifts and recent hit/miss streaks are bounded so the AI adapts without chasing noise.';
     try{
       const x=adaptiveDerivedMainSignal(),g=document.getElementById('selectiveLiveV12Grid');
-      if(g)g.innerHTML=x.roads.map(r=>`<div class="analyzer-card"><span>${label(r.key)}</span><strong>${Math.round(r.weight*100)/100}×</strong><small>Library ${Math.round(r.priorReliability*100)}% • Live ${r.liveN?Math.round(r.liveReliability*100)+'% N='+r.liveN:'building'} • Takeover ${Math.round((r.liveInfluence||0)*100)}%</small></div>`).join('');
+      if(g)g.innerHTML=(Array.isArray(x.roads)?x.roads:[]).map(r=>`<div class="analyzer-card"><span>${label(r.key)}</span><strong>${Math.round(r.weight*100)/100}×</strong><small>Library ${Math.round(r.priorReliability*100)}% • Live ${r.liveN?Math.round(r.liveReliability*100)+'% N='+r.liveN:'building'} • Takeover ${Math.round((r.liveInfluence||0)*100)}%</small></div>`).join('');
       const n=document.getElementById('selectiveLiveV12Note');
       if(n)n.textContent=x.side?`A-GRADE QUALIFIED: ${x.side==='P'?'PLAYER':'BANKER'} • ${x.confidence}% signal strength • ${Math.round(x.edge*100)}% weighted edge • live maturity ${x.avgLiveN.toFixed(1)}`:(x.waitReason||'WAIT');
     }catch(e){}
@@ -11560,7 +11581,7 @@ setTimeout(paint,950);
 (function(){
 'use strict';
 if(typeof derivedRoadSequenceAI!=='function' || typeof activePatternLibrary!=='function')return;
-const VERSION=517, minHands=10;
+const VERSION=550, minHands=10;
 const norm=s=>String(s||'').toUpperCase().replace(/[^PBT]/g,'').replace(/T/g,'');
 const flip=s=>s==='P'?'B':'P';
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
@@ -11659,12 +11680,12 @@ function roadSimilarity(livePrep,histPrep,at){
 function matchingCandidate(livePrep,histPrep,at){
   const live=livePrep.sequence,hist=histPrep.sequence;
   const road=roadSimilarity(livePrep,histPrep,at);
-  if(road.used<2 || road.similarity<.60)return null;
+  if(road.used<2 || road.similarity<.55)return null;
   const rhythm=rhythmSimilarity(live,hist,at);
-  if(rhythm<.52)return null;
+  if(rhythm<.47)return null;
   const bead=beadVertical(live,hist,at);
   const similarity=.70*road.similarity+.25*rhythm+.05*bead;
-  if(similarity<.68)return null;
+  if(similarity<.62)return null;
   // Historic P/B inversion and sliding locations are naturally supported by
   // repeat/switch transformations. Inverting P/B does NOT invert derived
   // road red/blue colors, which represent structure rather than P/B sides.
@@ -11734,8 +11755,8 @@ function compute(){
   base.roadRhythmEvidence={matchingShoes:count,totalCandidateShoes:bestVotes.length,
     pCount,bCount,repeats,switches,meanSimilarity:count?simSum/count:0,
     weightedAgreement:agreement};
-  if(count<6 || Math.max(pCount,bCount)<4 || agreement<.60){
-    base.reason=`WAIT — ${count} unique ${color.toUpperCase()} library matches; ${pCount} Player / ${bCount} Banker historical rhythm continuations. Need six shoes, four agreeing, and 60% weighted agreement.`;
+  if(count<3 || Math.max(pCount,bCount)<2 || agreement<.515){
+    base.reason=`WAIT — ${count} unique ${color.toUpperCase()} library matches; ${pCount} Player / ${bCount} Banker historical rhythm continuations. Need 3 matching shoes, 2 agreeing, and 51.5% weighted agreement.`;
   }else{
     base.side=p>b?'P':'B';
     // A bounded signal-strength indicator, NEVER an observed accuracy / probability.
@@ -11758,15 +11779,15 @@ function paint(){
     const header=independent.querySelector('div[style*="font-weight:800"]');
     if(header)header.textContent='INDEPENDENT DERIVED ROAD AI — LIBRARY + RHYTHM ONLY';
     const explain=independent.querySelector('div[style*="margin-top:7px"]');
-    if(explain)explain.textContent='V517: Searches only saved shoes for matching Big Eye, Small, Cockroach and repeat/switch rhythm, including sliding locations and inverted P/B via repeat/switch. The chosen RED/BLACK library is respected. One vote per unique saved shoe. No other AI votes, road-rule fallback, or lookahead. WAIT when too few independent continuations agree. Signal is not a win probability.';
+    if(explain)explain.textContent='V550: More frequent REAL predictions. Searches only saved shoes for matching Big Eye, Small, Cockroach and repeat/switch rhythm, including sliding locations and inverted P/B via repeat/switch. The chosen RED/BLACK library is respected. One vote per unique saved shoe. No other AI votes, road-rule fallback, or lookahead. More frequent calls use looser gates (3 distinct shoes, 2 agreeing, 51.5% agreement). This is unverified and may increase losses; signal is not a win probability.';
     const wt=document.getElementById('derivedIndependentWeights');
-    if(wt)wt.textContent='Library rhythm weighting: 70% derived marks / 25% repeat-switch / 5% Bead rows';
+    if(wt)wt.textContent='Library matching: all three derived roads, 25% rhythm, 5% bead shape • more frequent calls';
   }
   const top=document.querySelector('.road-predict-title');
-  if(top)top.textContent='Derived Road AI V517 — Saved-Shoe Rhythm Only';
+  if(top)top.textContent='Derived Road AI V550 — Higher Call Frequency (3 Roads + Rhythm)';
   const details=document.getElementById('v511DerivedBeadEvidence');
   const s=compute(),m=s.roadRhythmEvidence||{};
-  if(details)details.textContent=`V517 LIBRARY ONLY • ${s.sourceColor.toUpperCase()} • ${s.matchedShoes||0} unique matches • ${m.pCount||0} P / ${m.bCount||0} B • no standalone Bead/road-rule fallback`;
+  if(details)details.textContent=`V550 LIBRARY ONLY • ${s.sourceColor.toUpperCase()} • ${s.matchedShoes||0} unique matches • ${m.pCount||0} P / ${m.bCount||0} B • no standalone Bead/road-rule fallback`;
   const l=document.getElementById('v358DerivedConfidence')?.parentElement?.querySelector('span');
   if(l)l.textContent='SIGNAL (NOT ODDS)';
 }
@@ -22529,76 +22550,6 @@ function paint(){ensure();if(!document.getElementById('v433BE2Study'))return;let
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',paint);else paint();setInterval(()=>{try{paint()}catch(_){}},1800);window.__V433_BE2_EXPERIMENT__={paint,calc,advisoryOnly:true};
 })();
 </script>
-<style id="v439style">#v439Panel{margin:9px 0;padding:12px;background:#16232b;border:2px solid #d8aa4e;border-radius:12px;color:#f6f8fb}#v439Panel h3{margin:0 0 7px;font-size:17px}#v439Panel p{font-size:11px;line-height:1.5;color:#c7d6df}#v439Panel .v439grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:8px 0}#v439Panel .v439tile{padding:8px 4px;text-align:center;background:#263b49;border-radius:8px}#v439Panel .v439tile b{font-size:18px;display:block}#v439Panel .v439tile small{font-size:9px}#v439Panel .v439line{padding:6px 0;border-top:1px solid #39505d;font-size:12px}#v439Panel button{background:#283f4f;border:1px solid #859caf;border-radius:8px;color:#fff;padding:9px;font-weight:800;width:100%;margin-top:7px}</style>
-<script id="v439shadow">
-(function(){'use strict';if(window.__V439_SHADOW__)return;
-const KEY='v455_best_estimate_assisted_grades_v1';
-const $=id=>document.getElementById(id);
-const root=document.createElement('section');root.id='v439Panel';
-root.innerHTML='<h3>V455 • Best Estimate 3 + Sliding / Inverted Search</h3><p>Original Best Estimate stays dominant. Independent sliding-window searches anywhere in the saved shoes include inverted P/B patterns. Road Test 2 and Sequence V2 remain supporting checks. They do not produce a result when the original Best Estimate says WAIT, or reverse its PLAYER/BANKER call. Research comparison, not a verified edge.</p><div class="v439grid"><div class="v439tile"><b id="v439Raw">WAIT</b><small>ORIGINAL BEST ESTIMATE</small></div><div class="v439tile"><b id="v439Road">WAIT</b><small>MAIN FUTURE ROAD TEST 2</small></div><div class="v439tile"><b id="v439Seq">WAIT</b><small>SEQUENCE V2</small></div><div class="v439tile"><b id="v439Alt">WAIT</b><small>ASSISTED NEXT RESULT</small></div><div class="v439tile"><b id="v455Slide">WAIT</b><small>SLIDING + INVERTED</small></div><div class="v439tile"><b id="v455Evidence">—</b><small>MATCH EVIDENCE</small></div><div class="v439tile"><b id="v439Agree">0 / 2</b><small>SUPPORTERS AGREE</small></div><div class="v439tile"><b id="v439Scores">—</b><small>SUPPORT STATUS</small></div></div><div class="v439line" id="v439RawWL">Original: 0W / 0L</div><div class="v439line" id="v439AltWL">Assisted: 0W / 0L</div><div class="v439line" id="v439Base">Assisted graded: 0</div><div class="v439line" id="v439Note">Using the original Best Estimate saved-shoe logic.</div><button id="v439Reset" type="button">Reset Assisted Accuracy</button>';
-const anchor=$('bestEstimateAccuracy')?.closest('.analyzer');if(anchor?.parentNode)anchor.insertAdjacentElement('afterend',root);else document.querySelector('.app')?.prepend(root);
-let logs=[];try{let v=JSON.parse(localStorage.getItem(KEY)||'[]');if(Array.isArray(v))logs=v.slice(-3000)}catch(e){}
-let last=null,pending=null;
-function seq(){try{return(state.hands||[]).map(h=>typeof h==='string'?h:h.r).filter(x=>x==='B'||x==='P'||x==='T').join('')}catch(e){return ''}}
-function safeCall(fn){try{return fn()}catch(e){return null}}
-function side(x){return ['P','B'].includes(x)?x:null}
-// V455: Independent one-vote-per-shoe sliding/inversion scan. Never edits stored records.
-function v455Scan(s){
- const pb=s.replace(/T/g,'');
- if(pb.length<8)return {side:null,n:0,inv:0,confidence:0};
- const library=safeCall(()=>typeof activePatternLibrary==='function'?activePatternLibrary():[])||[];
- const seen=new Set(),votes=[];
- for(const rec of library){
-   const raw=String(typeof rec==='string'?rec:(rec?.sequence||rec?.seq||'')).toUpperCase().replace(/[^PBT]/g,'');
-   if(seen.has(raw)||raw.length<10)continue;seen.add(raw);
-   const shoe=raw.replace(/T/g,'');if(shoe.length<10)continue;
-   let best=null;
-   for(const size of [10,8,6]){
-     if(pb.length<size||shoe.length<=size)continue;
-     const tail=pb.slice(-size);
-     for(let j=0;j+size<shoe.length;j++){
-       const part=shoe.slice(j,j+size),next=shoe[j+size];
-       for(const inverted of [false,true]){
-         const candidate=inverted?part.replace(/[PB]/g,c=>c==='P'?'B':'P'):part;
-         let match=0;for(let k=0;k<size;k++)if(candidate[k]===tail[k])match++;
-         if(match<size-1)continue;
-         const side=inverted?(next==='P'?'B':'P'):next;
-         const weight=(match/size)**4*(size/10)*(inverted?.82:1);
-         if(!best||weight>best.weight)best={side,weight,inverted,match,size};
-       }
-     }
-   }
-   if(best)votes.push(best);
- }
- let b=0,p=0,inv=0;for(const v of votes){if(v.side==='B')b+=v.weight;else p+=v.weight;if(v.inverted)inv++}
- const total=b+p,confidence=total?Math.max(b,p)/total:0;
- return {side:votes.length>=4&&confidence>=.60?(b>p?'B':'P'):null,n:votes.length,inv,confidence};
-}
-function snapshot(){
- const s=seq();
- // This is the same function the original Best Estimate analyzer uses; no alternate library scanner.
- const be=safeCall(()=>computeCombinedAnalyzer());
- const base=be?.qualified?side(be.side):null;
- // Only Test 2, never the original Main Future Road Test.
- const road2=safeCall(()=>typeof window.__V454_TEST2_SIGNAL__==='function'?window.__V454_TEST2_SIGNAL__():null);
- const road=side(road2?.side);
- const q=safeCall(()=>sequenceAISignal());const sq=side(q?.side);
- const sliding=v455Scan(s);
- const supports=[road,sq].filter(Boolean),agree=supports.filter(x=>x===base).length,opp=supports.filter(x=>x!==base).length;
- // Keep original Best Estimate dominant. When BOTH secondary engines oppose, abstain; never reverse.
- // Independent sliding search may flag caution, but never manufacture/reverse the base call.
- const slideConflict=base&&sliding.side&&sliding.side!==base&&sliding.n>=6&&sliding.confidence>=.72;
- const assisted=base&&(opp===2||slideConflict?null:base);
- return {s,base,road,sq,assisted,agree,active:supports.length,opp,sliding,slideConflict};
-}
-function fmt(x){return x==='P'?'PLAYER':x==='B'?'BANKER':'WAIT'}
-function tally(key){let w=0,l=0;for(const r of logs){if(r[key]&&['P','B'].includes(r.actual)){if(r[key]===r.actual)w++;else l++}}return {w,l,n:w+l,pct:w+l?(100*w/(w+l)).toFixed(1)+'%':'—'}}
-function paint(a){const raw=tally('base'),blend=tally('assisted');$('v455Slide').textContent=fmt(a.sliding?.side);$('v455Evidence').textContent=(a.sliding?.n||0)+' shoes / '+(a.sliding?.inv||0)+' inverted';$('v439Raw').textContent=fmt(a.base);$('v439Road').textContent=fmt(a.road);$('v439Seq').textContent=fmt(a.sq);$('v439Alt').textContent=fmt(a.assisted);$('v439Agree').textContent=`${a.agree} / ${a.active}`;$('v439Scores').textContent=a.opp===2||a.slideConflict?'CAUTION':a.active?'CONFIRM':'NO ASSIST';$('v439RawWL').textContent=`Original: ${raw.w}W / ${raw.l}L (${raw.pct})`;$('v439AltWL').textContent=`Assisted: ${blend.w}W / ${blend.l}L (${blend.pct})`;$('v439Base').textContent=`Assisted graded: ${blend.n}`;$('v439Note').textContent=!a.base?'Original Best Estimate says WAIT — no assisted prediction.':a.slideConflict?'Strong sliding/inverted historical evidence conflicts — caution WAIT.':a.opp===2?'Both supporting AIs disagree — caution WAIT.':'Original Best Estimate retained; sliding/inverted matching is independent historical evidence, not a verified edge.'}
-function scan(){const s=seq();if(last===null){last=s;pending=snapshot();paint(pending);return}if(s!==last){const appended=s.length===last.length+1&&s.startsWith(last);if(appended&&pending&&['P','B'].includes(s.at(-1))){logs.push({base:pending.base,assisted:pending.assisted,actual:s.at(-1)});logs=logs.slice(-3000);try{localStorage.setItem(KEY,JSON.stringify(logs))}catch(e){}}last=s;pending=snapshot();paint(pending);return}pending=snapshot();paint(pending)}
-function reset(){logs=[];try{localStorage.removeItem(KEY)}catch(e){}paint(snapshot())}
-$('v439Reset').addEventListener('click',reset);$('v406ResetAllAccuracy')?.addEventListener('click',reset);window.__V439_SHADOW__={scan,report:()=>({graded:tally('assisted').n,records:logs}),version:455,sliding:v455Scan};setInterval(scan,700);scan();
-})();
-</script>
 <script>
 // V444 after-tie library research — observational data, NOT automatic prediction override.
 (function(){
@@ -25080,6 +25031,420 @@ function boot(){
 }
 window.__V542_PATTERN_RESEARCH__={version:542,candidate,arm,settle,afterCommit,reconcile,reset:resetOnly,onScopeChange:()=>{pending=null;lastKey='';arm()},stats:()=>({...ledger,rows:[...ledger.rows]})};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,250),{once:true});else setTimeout(boot,250);
+})();
+
+</script>
+
+<style id="v549PatternCleanupStyles">
+#v488PatternMatches,
+#v539SequenceAudit,
+#v541PatternTrace,
+#v542PatternTest,
+[data-v451-mini] {
+  display: none !important;
+}
+</style>
+<script id="v549PatternCleanup">
+(function(){
+  function cleanup(){
+    try{
+      document.getElementById('v488PatternMatches')?.remove();
+      document.getElementById('v539SequenceAudit')?.remove();
+      document.getElementById('v541PatternTrace')?.remove();
+      document.getElementById('v542PatternTest')?.remove();
+      document.querySelectorAll('[data-v451-mini]').forEach(e=>e.remove());
+    }catch(e){}
+  }
+  function boot(){
+    cleanup();
+    if(typeof MutationObserver==='function'){
+      new MutationObserver(cleanup).observe(document.body,{childList:true,subtree:true});
+    }
+    setInterval(cleanup,1200);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();
+</script>
+
+
+<!-- V551: Independent, trained, simulation-only full-shoe learning laboratory. -->
+<script id="v552-FullShoeLearningLab">
+/* V552 FULL SHOE LEARNING LAB: causal live learning + leakage guard: isolated simulation-only trained statistical model.
+ * NOTE: descriptive changes in rhythm are NOT proven predictors or evidence of manipulation.
+ * Immutable training splits by shoe; features use only past P/B hands; T excluded when enabled.
+ */
+(function(){
+'use strict';
+const VERSION='552.0';
+const STORE='baccarat_v552_causal_model_v1';
+const AUDIT='baccarat_v552_paper_audit_v1';
+const $=id=>document.getElementById(id);
+const norm=v=>String(v||'').toUpperCase().replace(/[^PBT]/g,'');
+const pb=v=>norm(v).replace(/T/g,'');
+const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
+const sigm=x=>1/(1+Math.exp(-clamp(x,-25,25)));
+const safeRead=k=>{try{return JSON.parse(localStorage.getItem(k)||'null')}catch(e){return null}};
+const safeWrite=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){return false}};
+const sideName=v=>v==='B'?'BANKER':v==='P'?'PLAYER':'WAIT';
+const tick=()=>new Promise(ok=>setTimeout(ok,0));
+const sha=s=>{let h=2166136261;for(let i=0;i<s.length;i++)h=Math.imul(h^s.charCodeAt(i),16777619);return h>>>0};
+const currentScope=()=>{try{return typeof v510ScopeKey==='function'?v510ScopeKey():'combined'}catch(e){return 'combined'}};
+const ignoring=()=>{try{return typeof v452IgnoreTies==='function'&&v452IgnoreTies()}catch(e){return false}};
+function raw(){
+ try{
+  const col=typeof v510ScopeColor==='function'?v510ScopeColor():null;
+  const red=Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[];
+  const black=Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[];
+  return col==='red'?red.map(x=>({...x,__learnColor:'red'})):
+    col==='black'?black.map(x=>({...x,__learnColor:'black'})):
+    [...red.map(x=>({...x,__learnColor:'red'})),...black.map(x=>({...x,__learnColor:'black'}))];
+ }catch(e){return []}
+}
+function getShoes(){
+ const seen=new Set(),out=[];
+ for(const sh of raw()){
+  const seq=norm(sh?.sequence||sh?.seq||'');const q=pb(seq);
+  if(q.length<12||seen.has(q))continue; // one vote/training set per exact P/B shoe
+  seen.add(q);out.push({seq,q,color:sh.__learnColor,id:String(sh.id||'')});
+ }
+ return out;
+}
+// Hard exclusion: if a currently recorded shoe matches a saved shoe's FIRST TEN
+// P/B hands, no future portion of that saved shoe may enter a model making calls
+// on this active shoe. This can exclude unrelated lookalikes; it favors integrity.
+function trainingShoes(){
+ const shoes=getShoes(),live=pb(fullSeq()),prefix=live.length>=10?live.slice(0,10):'';
+ return {all:shoes,eligible:prefix?shoes.filter(sh=>!sh.q.startsWith(prefix)):shoes,
+  excluded:prefix?shoes.filter(sh=>sh.q.startsWith(prefix)).length:0,guard:prefix};
+}
+function fingerprint(shoes){
+ const keys=shoes.map(sh=>sh.color+':'+sh.q).sort();
+ let h=2166136261;
+ for(const x of keys){for(let i=0;i<x.length;i++)h=Math.imul(h^x.charCodeAt(i),16777619)}
+ return VERSION+'|'+(pb(fullSeq()).length>=10?pb(fullSeq()).slice(0,10):'no-live-guard')+'|'+currentScope()+'|'+(ignoring()?'ignore':'include')+'|'+keys.length+'|'+(h>>>0).toString(36);
+}
+function split(sh){return sha(sh.color+':'+sh.q+'|v551 holdout')%100<70?'train':
+  sha(sh.color+':'+sh.q+'|v551 holdout')%100<85?'validation':'test'};
+// Casino-derived road structures: red/blue are structural, NOT the outcome P/B.
+function derived(seq,off){
+ const cols=[];
+ for(let i=0;i<seq.length;i++){
+  const side=seq[i];if(!cols.length||cols[cols.length-1].side!==side)cols.push({side,len:1});
+  else cols[cols.length-1].len++;
+ }
+ const out=[];
+ for(let c=off;c<cols.length;c++){
+  for(let r=c===off?1:0;r<cols[c].len;r++){
+   let red;
+   if(r===0)red=cols[c-1].len===cols[c-1-off].len;
+   else {const z=cols[c-off].len;red=(z>=r+1)===(z>=r)}
+   out.push(red?1:-1);
+  }
+ }
+ return out;
+}
+const mean=(a)=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+const avgLast=(a,n)=>mean(a.slice(-n));
+function features(past,color){
+ const s=pb(past),n=s.length;
+ if(n<10)return null;
+ const a=[...s].map(x=>x==='B'?1:-1), runs=[];
+ for(const v of s){if(!runs.length||runs[runs.length-1][0]!==v)runs.push([v,1]);else runs[runs.length-1][1]++}
+ const switches=[];for(let i=1;i<s.length;i++)switches.push(s[i]!==s[i-1]?1:0);
+ const v=[color==='red'?1:0,Math.min(n,100)/100,n%2,(n%6)/6,(runs.length%6)/6,a[n-1],runs[runs.length-1][1]/10,Math.min(runs.length,20)/20];
+ for(const k of [2,3,4,5,8,12,20,35])v.push(avgLast(a,k));
+ for(const k of [3,5,10,20])v.push(switches.length?avgLast(switches,k):.5);
+ for(const k of [2,3,4])v.push((s.endsWith('B'.repeat(k))?1:0)-(s.endsWith('P'.repeat(k))?1:0));
+ for(const k of [1,2,3,4,5,6,7,8])v.push(n>=k+1&&s[n-1-k]===s[n-k]?1:0);
+ for(const off of [1,2,3]){
+  const d=derived(s,off),last=d.at(-1)||0;
+  v.push(last,avgLast(d,4),avgLast(d,10),d.length>1&&last===d[d.length-2]?1:0,Math.min(d.length,60)/60);
+ }
+ if(v.some(x=>!Number.isFinite(x)))throw Error('Invalid training features');
+ return v;
+}
+function fullSeq(){try{return state.hands.map(x=>x.r).filter(x=>['P','B','T'].includes(x)).join('')}catch(e){return ''}}
+function color(){try{return state.currentShoeColor==='red'?'red':'black'}catch(e){return 'black'}};
+function trapInfo(s){
+ s=pb(s);if(s.length<10)return {level:'Not enough hands',detail:'Collect at least 10 P/B results.'};
+ const sw=[...s].slice(1).map((v,i)=>v===s[i]?0:1),recent=avgLast(sw,8);
+ let tail=1;for(let i=s.length-1;i>0&&s[i]===s[i-1];i--)tail++;
+ const f=s.slice(-8),prev=s.slice(-16,-8);
+ const drift=prev.length===8?Math.abs(f.split('B').length-prev.split('B').length)/8:0;
+ const roads=[1,2,3].map(k=>derived(s,k).slice(-3));
+ const rs=roads.map(a=>a.length>=2?`${a[a.length-1]===1?'R':'B'}${a[a.length-2]===1?'R':'B'}`:'—').join(' / ');
+ let label='Routine pattern variation',desc='No specific pattern-break warning. This does not establish predictability.';
+ if(tail>=6){label='Long streak';desc=`The last ${tail} P/B results are identical; any continuation/reversal forecast remains uncertain.`}
+ else if(recent>=.875){label='Frequent alternation';desc='Recent results frequently switched sides. This does not predict a reversal.'}
+ else if(drift>=.625){label='Short-window rhythm shift';desc='Recent Banker/Player balance differs sharply from the prior eight results.'}
+ return {level:label,detail:desc,roads:rs,tail,switchRate:recent,drift};
+}
+function modelScore(model,x){
+ let z=model.bias;
+ for(let j=0;j<x.length;j++)z+=model.weights[j]*x[j];
+ return sigm(z);
+}
+// Strict prequential update. At index j, predict from s.slice(0,j), then
+// update on the already OBSERVED outcome s[j]. Never use a future hand.
+function adaptModel(base,observed,c){
+ const q=pb(observed),m={bias:base.bias,weights:base.weights.slice()};
+ const eta=.005,shrink=.05;
+ for(let j=10;j<q.length;j++){
+  const x=features(q.slice(0,j),c),y=q[j]==='B'?1:0;
+  const delta=modelScore(m,x)-y;
+  m.bias-=eta*delta;
+  for(let k=0;k<x.length;k++)m.weights[k]-=eta*(delta*x[k]+shrink*(m.weights[k]-base.weights[k]));
+ }
+ return m;
+}
+function baselineFrom(y){const b=y.reduce((a,z)=>a+z.y,0),p=(b+2)/(y.length+4);return Math.log(p/(1-p))}
+function loss(model,rows){if(!rows.length)return null;let sum=0;for(const r of rows){const p=clamp(modelScore(model,r.x),.00001,.99999);sum+=r.y?-Math.log(p):-Math.log(1-p)}return sum/rows.length}
+function auditRows(rows,model,threshold){
+ let w=0,l=0,opW=0,opL=0,picked=0,taken=0;
+ for(const r of rows){const p=modelScore(model,r.x);if(p>=threshold||p<=1-threshold){
+  taken++;const win=(p>.5?1:0)===r.y;if(win){w++;opL++}else{l++;opW++}
+ }else picked++}
+ return {wins:w,losses:l,oppositeWins:opW,oppositeLosses:opL,calls:taken,waits:picked,
+  coverage:rows.length?100*taken/rows.length:0,accuracy:taken?100*w/taken:null,total:rows.length};
+}
+function pairedBenchmark(rows,model,threshold){
+ let n=0,w=0,l=0,bW=0,bL=0,scoreError=0,baseError=0;
+ const base=.5;
+ for(const r of rows){const p=modelScore(model,r.x);if(p>=threshold||p<=1-threshold){
+  n++;const side=p>.5?1:0;if(side===r.y)w++;else l++;
+  if(r.y===1)bW++;else bL++;
+  scoreError+=(p-r.y)**2;baseError+=(base-r.y)**2;
+ }}
+ return {calls:n,wins:w,losses:l,bankerWins:bW,bankerLosses:bL,
+  brier:n?scoreError/n:null,flatBrier:n?baseError/n:null,
+  positiveOverBanker:(w-bW),moreAccurateThanBanker:w>bW};
+}
+function selectThreshold(model,validation){
+ let best=null;
+ for(const t of [.5,.52,.54,.56,.58]){
+  const r=auditRows(validation,model,t);
+  if(r.calls<100)continue;
+  // Tune on validation only. Penalize thin subsets. Never optimize on the test shoes.
+  const score=(r.accuracy-50)*Math.sqrt(r.calls/validation.length);
+  if(!best||score>best.score)best={t,score,stats:r};
+ }
+ return best||{t:.5,score:0,stats:auditRows(validation,model,.5)};
+}
+function bankerStats(rows){return {wins:rows.filter(x=>x.y===1).length,losses:rows.filter(x=>x.y===0).length}}
+function regimeAudit(model,rows,t){
+ const groups={early:[],middle:[],late:[],red:[],black:[],longStreak:[],shortStreak:[],highAlternation:[]};
+ for(const r of rows){
+  (r.x[1]<.25?groups.early:r.x[1]<.45?groups.middle:groups.late).push(r);
+  (r.x[0]===1?groups.red:groups.black).push(r);
+  (r.x[6]>=.5?groups.longStreak:groups.shortStreak).push(r);
+  if(r.x[16]>=.8)groups.highAlternation.push(r);
+ }
+ const out={};for(const [name,g] of Object.entries(groups))out[name]=auditRows(g,model,t);
+ return out;
+}
+function certifiedNot(){return 'No verified predictive edge. Simulation-only. Road-pattern warnings are descriptive, not proof of traps.'}
+function initialLedger(){return {rows:[],wins:0,losses:0,oppositeWins:0,oppositeLosses:0,waits:0,ties:0,shoeWins:0,shoeLosses:0,shoeKey:'',graded:0}}
+let ledger={...initialLedger(),...(safeRead(AUDIT)||{})};
+if(!Array.isArray(ledger.rows))ledger=initialLedger();
+let trained=null, modelKey='', pending=null,lastFull=null,lastShoeIdentity=null,training=false,liveReason='Waiting for model', timer=null,lastSeenFingerprint='', lastPaint='',lastColor='';
+function persistLedger(){safeWrite(AUDIT,ledger)}
+function resetLedger(){
+ if(!window.confirm('Reset ONLY Full-Shoe Learning Lab simulated W/L and opposite W/L? Saved shoes and other AI counters are unchanged.'))return;
+ ledger=initialLedger();pending=null;lastFull=fullSeq();persistLedger();arm();paint(true)
+}
+function resultColor(){const c=color();return currentScope()==='red'?'red':currentScope()==='black'?'black':c}
+function shoeIdentity(){return String(state?.currentShoeColor||'unset')+'|'+String(state?.shoeId||'');}
+function selection(){
+ const raw=fullSeq(),s=pb(raw),scope=currentScope(),c=resultColor();
+ if(training||!trained||trained.fingerprint!==modelKey||trained.fingerprint!==fingerprint(trainingShoes().eligible)||s.length<10)return {side:null,reason:s.length<10?'Needs 10 P/B results':(training?'Training model—paper WAIT':liveReason),score:null,trap:trapInfo(s)};
+ const x=features(s,c),adapted=adaptModel(trained.model,s,c),p=modelScore(adapted,x),t=trained.threshold;
+ const side=p>.5?'B':'P';
+ const qualifies=p>=t||p<=1-t;
+ const traps=trapInfo(s);
+ return {side:qualifies?side:null,lean:side,score:p,trap:traps,qualifies,
+  reason:qualifies?'Exploratory paper-only call; no established advantage.':'Low model separation; paper WAIT.'};
+}
+function arm(){
+ const before=fullSeq(),scope=currentScope()+'|'+String(ignoring());
+ const call=selection();
+ pending={before,scope,modelKey,shoeKey:shoeIdentity(),side:call.side,lean:call.lean,score:call.score};
+ if(!ledger.shoeKey||before===''){
+  const newKey=String(state?.currentShoeColor||'unset')+'|'+String(state?.shoeId||'');
+  if(before===''&&ledger.shoeKey!==newKey){ledger.shoeWins=ledger.shoeLosses=0;ledger.shoeKey=newKey;persistLedger()}
+ }
+}
+function settle(now){
+ const previous=lastFull;
+ const identity=shoeIdentity();
+ if(identity!==lastShoeIdentity){lastShoeIdentity=identity;lastFull=now;arm();paint(true);return;}
+ if(now===previous)return;
+ if(now===''&&previous.length>0){ledger.shoeWins=0;ledger.shoeLosses=0;ledger.shoeKey='';persistLedger()}
+ // Undo a recorded single hand. Never turn an undo into a fabricated prediction.
+ if(previous.length===now.length+1&&previous.startsWith(now)){
+  const latest=ledger.rows.at(-1);
+  if(latest?.after===previous&&latest.before===now&&latest.shoeKey===identity){
+   ledger.rows.pop();
+   if(latest.outcome==='WIN'){ledger.wins=Math.max(0,ledger.wins-1);ledger.oppositeLosses=Math.max(0,ledger.oppositeLosses-1);ledger.shoeWins=Math.max(0,ledger.shoeWins-1)}
+   else if(latest.outcome==='LOSS'){ledger.losses=Math.max(0,ledger.losses-1);ledger.oppositeWins=Math.max(0,ledger.oppositeWins-1);ledger.shoeLosses=Math.max(0,ledger.shoeLosses-1)}
+   else if(latest.outcome==='WAIT')ledger.waits=Math.max(0,ledger.waits-1);
+   else if(latest.outcome==='TIE')ledger.ties=Math.max(0,ledger.ties-1);
+   ledger.graded=Math.max(0,ledger.graded-1);persistLedger();
+  }
+ }else if(now.length===previous.length+1&&now.startsWith(previous)&&pending?.before===previous&&pending.shoeKey===identity&&pending.modelKey===modelKey&&pending.scope===currentScope()+'|'+String(ignoring())){
+  const actual=now.at(-1),side=pending.side;
+  const outcome=actual==='T'?'TIE':!side?'WAIT':actual===side?'WIN':'LOSS';
+  const key=previous+'|'+now+'|'+currentScope()+'|'+modelKey;
+  if(ledger.rows.at(-1)?.key!==key){
+   if(outcome==='TIE')ledger.ties++;
+   else if(outcome==='WAIT')ledger.waits++;
+   else if(outcome==='WIN'){ledger.wins++;ledger.oppositeLosses++;ledger.shoeWins++}
+   else {ledger.losses++;ledger.oppositeWins++;ledger.shoeLosses++}
+   ledger.graded++;ledger.rows.push({key,before:previous,after:now,side,actual,outcome,modelKey,shoeKey:identity});
+   if(ledger.rows.length>240)ledger.rows.shift();persistLedger();
+  }
+ }
+ lastFull=now;
+ arm();paint(true);
+}
+function elapsed(t){return t==null?'—':t.toFixed(1)+'%'}
+function paint(force){
+ if(!$('v551Lab'))return;
+ const sel=selection(),trap=sel.trap,stats=trained?.audit||null;
+ const title=$('v551Pick');const main=sel.side||sel.lean;
+ title.textContent=training?'TRAINING':trained?(sel.qualifies?'PAPER: '+sideName(main):'PAPER: WAIT'+(main?' (lean '+sideName(main)+')':'')):'PAPER: WAIT';
+ title.style.color=sel.side==='B'?'#ffbbb6':sel.side==='P'?'#b5c9ff':'#f0e9ba';
+ $('v551Status').textContent=training?liveReason:(trained?`${sel.reason} • Trained on ${trained.counts.train} distinct shoes, validated on ${trained.counts.validation} and held out ${trained.counts.test}.`:`${liveReason}`);
+ $('v551Trap').textContent='Shoe behavior: '+trap.level+' • '+trap.detail+(trap.roads?' • Three-road recent marks '+trap.roads:'');
+ const n=ledger.wins+ledger.losses;
+ $('v551Score').textContent=`PAPER: ${ledger.wins}W–${ledger.losses}L (${elapsed(n?100*ledger.wins/n:null)}) • Opposite ${ledger.oppositeWins}W–${ledger.oppositeLosses}L • WAIT ${ledger.waits} • Ties ${ledger.ties}`;
+ const x=$('v551Audit');if(stats){
+  const va=stats.validation,te=stats.test;
+  x.textContent=`MODEL: regularized logistic regression trained on historical hand prefixes only.\n`
+  +`Library scope: ${trained.scope} • Ties: ${ignoring()?'ignored':'P/B targets only'} • unique shoes ${trained.counts.total}\n`
+  +`Initial audit: train ${trained.counts.train} / validation ${trained.counts.validation} / untouched test ${trained.counts.test} SHOES.\n`
+  +`After audit, deployment model refits on ALL ${trained.counts.total} eligible shoes. Holdout results below refer to pre-refit model ONLY.\n`
+  +`Validation: ${va.wins}W–${va.losses}L, opposite ${va.oppositeWins}W–${va.oppositeLosses}L, coverage ${va.coverage.toFixed(1)}%.\n`
+  +`Held-out TEST: ${te.wins}W–${te.losses}L (${elapsed(te.accuracy)}), opposite ${te.oppositeWins}W–${te.oppositeLosses}L, coverage ${te.coverage.toFixed(1)}%.\n`
+  +`Test Banker-only baseline (every eligible hand): ${stats.banker.wins}W–${stats.banker.losses}L.\n`
+  +`On the SAME selected test hands: model ${stats.paired.wins}W–${stats.paired.losses}L, Banker-only ${stats.paired.bankerWins}W–${stats.paired.bankerLosses}L; Brier ${elapsed(stats.paired.brier==null?null:100*stats.paired.brier)} vs constant baseline ${elapsed(stats.paired.flatBrier==null?null:100*stats.paired.flatBrier)}.\n`
+  +`Held-out regime accuracies: early ${elapsed(stats.regimes?.early.accuracy)}, middle ${elapsed(stats.regimes?.middle.accuracy)}, late ${elapsed(stats.regimes?.late.accuracy)}, long-streak ${elapsed(stats.regimes?.longStreak.accuracy)}, high-alternation ${elapsed(stats.regimes?.highAlternation.accuracy)}. Small groups are unreliable.\n`
+  +`Fixed predeclared paper threshold: ${(100*trained.threshold).toFixed(1)}% model score (NOT calibrated betting odds).\n`
+  +`Active shoe guard: ${trained.excludedActive||0} saved shoes excluded by matching the first 10 live P/B hands (no future leakage). Slow causal adaptation: 0.005 per observed hand.\n`
+  +`Live PAPER calls: ${ledger.graded} outcomes, of which ${ledger.wins+ledger.losses} were scored non-tie predictions.\n`
+  +certifiedNot();
+ } else x.textContent='Model evaluation not available. No validated predictions.';
+}
+function mount(){
+ if($('v551Lab'))return;
+ const host=$('derivedIndependentFinal')||$('derivedRoadPredictionPanel')||document.querySelector('.analyzer')||document.body;
+ const section=document.createElement('section');section.id='v551Lab';
+ section.style.cssText='padding:13px;margin:14px 0;border:1px solid #5c8195;border-radius:12px;background:#152533;color:#edf3fc;font:13px system-ui;line-height:1.5;contain:layout;';
+ section.innerHTML=`<div style="font-weight:800;font-size:16px;margin-bottom:6px">Full-Shoe Learning Lab V552 <span style="font-size:11px;opacity:.76">SIMULATION ONLY</span></div>
+ <div id="v551Pick" style="font-weight:800;font-size:17px;margin-bottom:4px">PAPER: WAIT</div>
+ <div id="v551Status" style="font-size:12px;margin:5px 0">Checking saved shoes…</div>
+ <div id="v551Trap" style="font-size:12px;margin:6px 0;color:#cfdaeb">Shoe behavior: —</div>
+ <div id="v551Score" style="font-weight:700;padding:6px 0">PAPER: 0W–0L • Opposite 0W–0L</div>
+ <div style="font-size:11px;opacity:.85">No betting recommendation. Potential “traps” are descriptive rhythm changes, not established foresight.</div>
+ <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">
+  <button type="button" id="v551Train" style="padding:7px 10px;border-radius:7px">Rebuild from entire eligible library</button>
+  <button type="button" id="v551Reset" style="padding:7px 10px;border-radius:7px">Reset this lab’s paper results</button>
+ </div><details style="margin-top:7px"><summary style="cursor:pointer">Training audit, opposite results, and holdout performance</summary>
+ <pre id="v551Audit" style="white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.6 ui-monospace,monospace">Loading</pre></details>`;
+ host.parentNode?.insertBefore(section,host.nextSibling);
+ $('v551Train').addEventListener('click',()=>train(true));
+ $('v551Reset').addEventListener('click',resetLedger);
+}
+async function dataset(shoes){
+ const sets={train:[],validation:[],test:[]},counts={train:0,validation:0,test:0,total:shoes.length};
+ for(let i=0;i<shoes.length;i++){
+  const sh=shoes[i],bucket=split(sh);counts[bucket]++;
+  // Ties removed before constructing labels and roads. This is strict under ignore-ties ON.
+  for(let j=10;j<sh.q.length;j++){
+   sets[bucket].push({x:features(sh.q.slice(0,j),sh.color),y:sh.q[j]==='B'?1:0});
+  }
+  if(i%7===0){liveReason=`Preparing shoe ${i+1}/${shoes.length}`;paint();await tick()}
+ }
+ return {sets,counts};
+}
+function modelIsValid(obj){return obj&&obj.fingerprint&&obj.model&&Array.isArray(obj.model.weights)&&obj.model.weights.length===46&&obj.audit&&obj.counts}
+async function train(manual=false){
+ if(training)return;
+ const guard=trainingShoes(),shoes=guard.eligible,fp=fingerprint(shoes);
+ if(!manual&&trained?.fingerprint===fp)return;
+ if(!manual){const cached=safeRead(STORE);if(modelIsValid(cached)&&cached.fingerprint===fp){trained=cached;modelKey=fp;liveReason='Saved trained model loaded';arm();paint(true);return}}
+ training=true;const button=$('v551Train');if(button)button.disabled=true;
+ const originalKey=fp;liveReason='Splitting the library by whole shoes. No test leakage.';paint(true);
+ try{
+  if(shoes.length<20)throw Error('At least 20 distinct saved shoes needed for this laboratory split.');
+  const {sets,counts}=await dataset(shoes),tr=sets.train,va=sets.validation,te=sets.test;
+  if(tr.length<100||va.length<100||te.length<100)throw Error('Insufficient complete-shoe training/validation/test examples.');
+  const d=tr[0].x.length,baseBias=baselineFrom(tr),model={weights:Array(d).fill(0),bias:baseBias};
+  let bestModel={weights:[...model.weights],bias:model.bias},bestLoss=Infinity,bestEpoch=0,stale=0;
+  // Batch gradient descent with L2 shrinkage and validation-based early stopping.
+  // Validation labels are NEVER trained on; the test subset NEVER sets hyperparameters.
+  const lr=.75,lambda=.16;
+  for(let e=0;e<75;e++){
+   const g=Array(d).fill(0);let gb=0;
+   for(const row of tr){
+    const delta=modelScore(model,row.x)-row.y;gb+=delta;
+    for(let j=0;j<d;j++)g[j]+=delta*row.x[j];
+   }
+   model.bias-=lr*gb/tr.length;
+   for(let j=0;j<d;j++)model.weights[j]-=lr*(g[j]/tr.length+lambda*model.weights[j]);
+   if(e%3===2){
+    const value=loss(model,va);
+    if(e>=11&&value<bestLoss-0.000005){bestLoss=value;bestEpoch=e+1;bestModel={weights:[...model.weights],bias:model.bias};stale=0}
+    else if(e>=11)stale++;
+    liveReason=`Training model • validation check ${e+1}/75`;paint();await tick();
+    if(stale>=8)break;
+   }
+  }
+  // LOCKED threshold: prior validation selection could chase validation noise.
+  // 52% is an exploratory paper-display threshold, NOT a 52% win probability.
+  const threshold={t:.52,stats:auditRows(va,bestModel,.52)};
+  const paired=pairedBenchmark(te,bestModel,threshold.t);
+  const audit={validation:threshold.stats,test:auditRows(te,bestModel,threshold.t),banker:bankerStats(te),paired,
+    regimes:regimeAudit(bestModel,te,threshold.t),
+    examples:{train:tr.length,validation:va.length,test:te.length},scoreNote:certifiedNot()};
+  // After all three splits have been evaluated ONCE, fit on the complete library.
+  // The audit above remains an honest *pre-refit* holdout audit; never evaluate refit
+  // weights on those same test shoes and call that a holdout result.
+  const entire=[...tr,...va,...te];
+  const refit={weights:Array(d).fill(0),bias:baselineFrom(entire)};
+  for(let epoch=0;epoch<bestEpoch;epoch++){
+   const g=Array(d).fill(0);let gb=0;
+   for(const row of entire){const delta=modelScore(refit,row.x)-row.y;gb+=delta;for(let j=0;j<d;j++)g[j]+=delta*row.x[j]}
+   refit.bias-=lr*gb/entire.length;
+   for(let j=0;j<d;j++)refit.weights[j]-=lr*(g[j]/entire.length+lambda*refit.weights[j]);
+   if(epoch%4===3){liveReason=`Refitting on all ${shoes.length} unique shoes • pass ${epoch+1}/${bestEpoch}`;paint();await tick()}
+  }
+  // If library changed during asynchronous training, do NOT register a stale model.
+  if(fingerprint(trainingShoes().eligible)!==originalKey)throw Error('Saved library or active-shoe guard changed during training; automatic refresh will retry.');
+  const obj={version:VERSION,fingerprint:fp,scope:currentScope(),tieMode:ignoring(),model:refit,threshold:threshold.t,counts,audit,bestEpoch,excludedActive:guard.excluded,activeGuard:guard.guard,trainedAt:new Date().toISOString()};
+  trained=obj;modelKey=fp;
+  safeWrite(STORE,obj);liveReason=`Trained with all ${shoes.length} saved shoes after independent audit. No demonstrated betting edge.`;
+  arm();paint(true);
+ }catch(e){liveReason='Model unavailable: '+String(e.message||e);console.warn('V552 train',e);}
+ finally{training=false;if(button)button.disabled=false;arm();paint(true);if(fingerprint(trainingShoes().eligible)!==fp){lastSeenFingerprint='';setTimeout(()=>train(false),150)}}
+}
+function boot(){
+ mount();lastFull=fullSeq();lastShoeIdentity=shoeIdentity();arm();paint(true);
+ const force=()=>{if(training)return;const s=trainingShoes().eligible,fp=fingerprint(s);if(fp!==lastSeenFingerprint){lastSeenFingerprint=fp;train(false)} };
+ force();
+ timer=setInterval(()=>{
+  const now=fullSeq();
+  if(now!==lastFull){settle(now);force();}
+  const nextColor=resultColor();if(nextColor!==lastColor){lastColor=nextColor;arm();paint(true)}
+ },650);
+ setInterval(force,12000);
+ document.addEventListener('change',()=>{setTimeout(force,100)},true);
+ window.__V552_FULL_SHOE_LAB__={version:VERSION,rebuild:()=>train(true),features,derived,trapInfo,adaptModel,trainingShoes,
+  predict:selection,model:()=>trained,statistics:()=>({...ledger}),reset:resetLedger,training:()=>training,
+  onlySimulated:true};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,850),{once:true});
+else setTimeout(boot,850);
 })();
 
 </script>
