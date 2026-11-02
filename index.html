@@ -1,3 +1,4 @@
+<!-- V545: Gemini reads all distinct red+black saved shoes, tie-free requests and matching when ignore-ties ON; robust next-P/B grading after ties; local fallback and separate remote inference. -->
 <!-- V536: protect official ML grid against legacy renderReport innerHTML replacement, repair missing pick children. -->
 <!-- V535: retired V224-V226 conflicting ML UI mutation, restored canonical WAIT/pick immediately, preserved V519 accuracy. -->
 <!-- V534: ML trained on loading, duplicate training owners removed, failed search gate no longer blocks validated ML, cached features + specific WAIT diagnostics. -->
@@ -25,6 +26,7 @@
 <!-- V499: Replaced custom BAIP V468/V492 runtime with the externally hosted Baccarat Insight Dashboard Taskade access panel. No proprietary Taskade predictions, auto-sync, or automated backtests claimed. Original engines and saved library unchanged. -->
 <!-- V498: Removed V419 Saved Shoe Recognition, V420 Four-Signal Research Audit, and V421 Four-Signal Precision Monitor UI and runtimes. Removed from streak and after-tie tracking, preserving all other AI engines and saved library data. -->
 <!-- V492: BAIP now searches the full saved library independently; separate pre-hand grading and visible match evidence. -->
+<!-- V543: Add newer P/B AIs and separate experimental streaks; normalize TEST NEXT labels; no prediction logic changes. -->
 <!-- V491 FIX: Render all supported Streak Signals from startup even when AI UI elements load later; no prediction engine changes. -->
 <!-- V490: Add all current visible prediction AIs to V422 streak monitor; counterexample WARNINGS separate. No engine logic modified. -->
 <!-- V487: Honest strong-match qualification and always-on local adaptation while Gemini is enabled. -->
@@ -135,11 +137,25 @@
   .shoe{font-size:12px;color:var(--muted)}
   .scoreboard{background:#f8f9fb;border-radius:14px;overflow:hidden;border:1px solid #313740}
   .road-wrap{overflow-x:auto;overscroll-behavior-inline:contain}
-  .road{display:grid;grid-template-rows:repeat(6,28px);grid-auto-flow:column;grid-auto-columns:28px;min-width:100%;width:max-content;padding:8px;background:
+  .road{--big-road-cell:28px;display:grid;grid-template-rows:repeat(6,var(--big-road-cell));grid-auto-flow:column;grid-auto-columns:var(--big-road-cell);min-width:100%;width:max-content;padding:8px;background:
     linear-gradient(#dfe3e8 1px,transparent 1px),
     linear-gradient(90deg,#dfe3e8 1px,transparent 1px);
-    background-size:28px 28px;background-position:8px 8px}
+    background-size:var(--big-road-cell) var(--big-road-cell);background-position:8px 8px}
   .cell{width:28px;height:28px;display:flex;align-items:center;justify-content:center;position:relative}
+  #bigRoad .cell{width:var(--big-road-cell);height:var(--big-road-cell)}
+  /* V544: Build each road square as an actual grid item. Background gradients
+     were independent of the result elements and could visually drift. */
+  .road.road--exact{background:none;background-image:none;padding:0;gap:0;grid-auto-flow:row;align-content:start;justify-content:start;}
+  .road--exact .road-square{box-sizing:border-box;min-width:0;min-height:0;width:var(--big-road-cell);height:var(--big-road-cell);display:flex;align-items:center;justify-content:center;position:relative;background:#f8f9fb;border-right:1px solid #e0e4e9;border-bottom:1px solid #e0e4e9;}
+  .road--exact .road-square .mark{width:calc(var(--big-road-cell) - 7px);height:calc(var(--big-road-cell) - 7px);max-width:100%;max-height:100%;flex:none;position:relative;font-size:clamp(9px,calc(var(--big-road-cell) * .34),13px);box-sizing:border-box;}
+  .road--exact .road-square .pair-dot{z-index:1;}
+  .road-mode-bar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px;padding:6px 8px;background:#222a35;color:#edf1f6;}
+  .road-mode-title{font-size:11px;font-weight:800;}
+  .road-mode-switches{display:flex;gap:5px;flex-wrap:wrap;}
+  .road-mode-btn{background:#303b49;color:#ecf1f6;border:1px solid #657282;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;cursor:pointer;}
+  .road-mode-btn.active{background:#def0fc;border-color:#9abbd7;color:#182d40;}
+  .road-mode-hint{padding:3px 8px 6px;background:#222a35;color:#b6c6d4;font-size:10px;}
+
   .mark{width:23px;height:23px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:#fff}
   .mark.p{border:3px solid var(--p);color:var(--p)}
   .mark.b{border:3px solid var(--b);color:var(--b)}
@@ -347,7 +363,7 @@
   .warning{font-size:10px;line-height:1.3;color:#7f8996;text-align:center;padding:10px 4px 4px}
   @media (min-width:700px){
     .app{padding:12px}
-    .road{grid-template-rows:repeat(6,34px);grid-auto-columns:34px;background-size:34px 34px}
+    .road{--big-road-cell:34px}
     .cell{width:34px;height:34px}.mark{width:28px;height:28px}
     .layout{display:grid;grid-template-columns:1.5fr .8fr;gap:10px}
     .right{margin-top:0}
@@ -494,6 +510,7 @@ body { overscroll-behavior-y: none; }
 #v422StreakPanel .streak-title{font-size:18px;font-weight:900}
 #v422StreakPanel .streak-note{font-size:11px;line-height:1.4;color:#b5c4d5;margin:5px 0}
 #v422StreakRows{display:grid;gap:7px;margin-top:9px}
+.v422row[data-category="research"]{border-style:dashed;border-color:#788a9d}
 .v422row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #3d4b5e;background:#1b2938;border-radius:9px;padding:8px}
 .v422name{font-size:12px;font-weight:800}.v422sub{font-size:10px;color:#b5c4d5;margin-top:3px}
 .v422flags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
@@ -702,8 +719,8 @@ body { overscroll-behavior-y: none; }
 <div id="v423TrustTable"></div>
 </section>
 <section aria-label="AI Streak Signals" id="v422StreakPanel">
-<div class="streak-title">AI Streak Signals V491</div>
-<div class="streak-note">ALTERNATING = six consecutive graded calls W-L-W-L-W-L or L-W-L-W-L-W. HOT = 3 or more consecutive graded wins. Includes all available visible prediction AIs and a separately labeled counterexample-warning audit. These are historical performance alerts, not next-hand win probabilities.</div>
+<div class="streak-title">AI Streak Signals V543 • All Current Predictors</div>
+<div class="streak-note">ALTERNATING = six consecutive graded calls W-L-W-L-W-L or L-W-L-W-L-W. HOT = 3 or more consecutive graded wins. Includes the newly added 7-Win and Pattern experimental tests as separate tracked rows, plus newer standalone analyzers and a separately labeled counterexample-warning audit. These are historical performance alerts, not next-hand win probabilities.</div>
 <div class="streak-note" id="v491StreakCoverage">Checking available analyzers…</div>
 <div aria-live="polite" class="streak-note" id="v422Summary">Monitoring upcoming graded predictions.</div>
 <div id="v422StreakRows"></div>
@@ -738,7 +755,9 @@ body { overscroll-behavior-y: none; }
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
 <div class="scoreboard">
-<div class="road-wrap"><div class="road" id="bigRoad"></div></div>
+<div class="road-mode-bar"><span class="road-mode-title">Main Road display</span><div class="road-mode-switches"><button type="button" class="road-mode-btn active" data-road-mode="down" id="roadModeDown">Down-first ↓</button><button type="button" class="road-mode-btn" data-road-mode="standard" id="roadModeStandard">Standard Big Road</button></div></div>
+<div class="road-wrap"><div class="road road--exact" id="bigRoad"></div></div>
+<div class="road-mode-hint" id="roadModeHint">Down-first: results fill downward in each column before moving right; predictions are unchanged.</div>
 </div>
 <div class="layout">
 <div>
@@ -1798,26 +1817,76 @@ function bigRoadPositions(hands){
   return placeRoadSequence(base,h=>h.r).map((x,i)=>({...x,ties:tiesByIndex[i]||0}));
 }
 
-function renderRoad(){
-  const road=document.getElementById('bigRoad'); road.innerHTML='';
-  const pos=bigRoadPositions(state.hands);
-  const maxCol=Math.max(19,...pos.map(x=>x.col));
-  road.style.gridTemplateColumns=`repeat(${maxCol+2}, 28px)`;
-  pos.forEach(x=>{
-    const cell=document.createElement('div'); cell.className='cell';
-    cell.style.gridColumn=(x.col+1); cell.style.gridRow=(x.row+1);
-    const m=document.createElement('div'); m.className='mark '+x.r.toLowerCase(); m.textContent=x.r;
-    if(x.ties){ const t=document.createElement('span'); t.textContent=x.ties; t.style.cssText='position:absolute;font-size:8px;color:#159447;font-weight:900'; m.appendChild(t); }
-    if(x.pp){const d=document.createElement('i');d.className='pair-dot pp';cell.appendChild(d)}
-    if(x.bp){const d=document.createElement('i');d.className='pair-dot bp';cell.appendChild(d)}
-    cell.appendChild(m); road.appendChild(cell);
-  });
-  const tiesOnly=state.hands.filter(h=>h.r==='T').length;
-  if(!pos.length && tiesOnly){
-    const cell=document.createElement('div'); cell.className='cell'; cell.style.gridColumn=1;cell.style.gridRow=1;
-    const m=document.createElement('div');m.className='mark t';m.textContent='T';cell.appendChild(m);road.appendChild(cell);
-  }
+// Display ONLY: unlike the standard Big Road, this presentation fills the
+// next empty square DOWN before advancing right, regardless of P/B switching.
+// Do not reuse these cells for derived roads or predictions: those must keep
+// using bigRoadPositions(), which implements the standard Big Road.
+let __roadDisplayModeV544 = 'down';
+function downFirstRoadPositions(hands){
+  return bigRoadPositions(hands).map((x,i)=>({...x,col:Math.floor(i/6),row:i%6}));
 }
+
+function renderRoad(){
+  const road=document.getElementById('bigRoad');
+  if(!road) return;
+  road.classList.add('road--exact');
+  const pos=__roadDisplayModeV544==='standard'
+    ?bigRoadPositions(state.hands)
+    :downFirstRoadPositions(state.hands);
+  const maxCol=Math.max(19,...pos.map(x=>x.col));
+  const cols=maxCol+2;
+  road.style.gridTemplateColumns=`repeat(${cols}, var(--big-road-cell))`;
+  road.style.gridTemplateRows='repeat(6, var(--big-road-cell))';
+
+  // Render a REAL square for every cell, rather than placing circles over a
+  // separately painted grid. This eliminates mismatched circle/grid offsets
+  // at different zoom levels and phone sizes.
+  const occupied=new Map(pos.map(x=>[`${x.col},${x.row}`,x]));
+  const fragment=document.createDocumentFragment();
+  const tieOnly=!pos.length && state.hands.some(h=>h.r==='T');
+  for(let row=0;row<6;row++){
+    for(let col=0;col<cols;col++){
+      const square=document.createElement('div');
+      square.className='road-square';
+      const x=occupied.get(`${col},${row}`);
+      const h=x||(tieOnly&&row===0&&col===0?{r:'T',ties:0}:null);
+      if(h){
+        const m=document.createElement('div');
+        m.className='mark '+h.r.toLowerCase();
+        m.textContent=h.r;
+        if(h.ties){
+          const t=document.createElement('span');t.textContent=h.ties;
+          t.style.cssText='position:absolute;bottom:-2px;right:0;font-size:8px;color:#159447;font-weight:900;';
+          m.appendChild(t);
+        }
+        if(h.pp){const d=document.createElement('i');d.className='pair-dot pp';square.appendChild(d)}
+        if(h.bp){const d=document.createElement('i');d.className='pair-dot bp';square.appendChild(d)}
+        square.appendChild(m);
+      }
+      fragment.appendChild(square);
+    }
+  }
+  road.replaceChildren(fragment);
+}
+
+function setRoadDisplayModeV544(mode){
+  __roadDisplayModeV544=mode==='standard'?'standard':'down';
+  document.querySelectorAll('[data-road-mode]').forEach(btn=>{
+    const on=btn.dataset.roadMode===__roadDisplayModeV544;
+    btn.classList.toggle('active',on);
+    btn.setAttribute('aria-pressed',on?'true':'false');
+  });
+  const hint=document.getElementById('roadModeHint');
+  if(hint) hint.textContent=__roadDisplayModeV544==='down'
+    ?'Down-first: results fill downward in each column before moving right; predictions are unchanged.'
+    :'Standard Big Road: same-side streaks descend; at row 6 they form a horizontal tail. Predictions are unchanged.';
+  renderRoad();
+}
+
+// Default to the explicitly requested DOWN-first display each time the file
+// opens. Users can still compare with the traditional baccarat Big Road.
+document.getElementById('roadModeDown')?.addEventListener('click',()=>setRoadDisplayModeV544('down'));
+document.getElementById('roadModeStandard')?.addEventListener('click',()=>setRoadDisplayModeV544('standard'));
 
 function buildBigRoadColumns(hands){
   const base=hands.filter(h=>h.r!=='T');
@@ -2330,6 +2399,7 @@ function v510ModeChanged(){
     try{window.__V269_REGIME_LIBRARY_LEARNING__?.build?.()}catch(e){}
     try{window.__V270_UNIVERSAL_TIE_LEARNING__?.build?.()}catch(e){}
     try{window.__V527_SEVEN_WIN_AI__?.onScopeChange?.()}catch(e){}
+    try{window.__V542_PATTERN_RESEARCH__?.onScopeChange?.()}catch(e){}
     try{window.__GEMINI_V465__?.onScopeChange?.()}catch(e){}
   },0);
 }
@@ -13530,6 +13600,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       ()=>{try{window.__V489_COUNTEREXAMPLE_AUDITOR__?.settle?.(actual)}catch(e){console.warn('V489 counterexample audit grading isolated',e)}},
       // V527: grade only the pre-result locked 7-Win Opportunity AI call.
       ()=>{try{window.__V527_SEVEN_WIN_AI__?.settle?.(actual)}catch(e){console.warn('V527 7-win settle',e)}},
+      ()=>{try{window.__V542_PATTERN_RESEARCH__?.settle?.(actual)}catch(e){console.warn('V542 Pattern research settle',e)}},
       ()=>{try{settleGPTMirrorPrediction(actual)}catch(e){console.warn('V135 Mirror settle',e)}},
       // V324: Best Estimate + AI Pattern must settle inside the ONE authoritative
       // result transaction. V102 blocks all legacy result listeners, so grading them
@@ -13582,6 +13653,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){console.warn('V384 Bead History queued arm',e)}
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       try{window.__V527_SEVEN_WIN_AI__?.arm?.()}catch(e){}
+      try{window.__V542_PATTERN_RESEARCH__?.arm?.()}catch(e){}
       // Keep the queue reserved while handing off to the next scheduled result.
       // Otherwise a fresh click can overtake an older queued result.
       const queued=pendingResults.shift();
@@ -13638,6 +13710,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       const next=()=>{
         if(j>=jobs.length){
           try{window.__V527_SEVEN_WIN_AI__?.arm?.()}catch(e){}
+      try{window.__V542_PATTERN_RESEARCH__?.arm?.()}catch(e){}
           const queued=pendingResults.shift();
           if(queued){setTimeout(()=>commit(queued.actual,queued.isPreview,true),0);}
           else{
@@ -13708,6 +13781,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         try{window.__GEMINI_V465__?.afterCommit()}catch(e){}
         try{window.__V489_COUNTEREXAMPLE_AUDITOR__?.afterCommit?.()}catch(e){}
         try{window.__V527_SEVEN_WIN_AI__?.afterCommit?.()}catch(e){}
+        try{window.__V542_PATTERN_RESEARCH__?.afterCommit?.()}catch(e){}
         if(!isPreview){
           state.pp=state.bp=state.special=false;
           document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
@@ -16781,14 +16855,16 @@ const livePB=()=>pb(rawSeq());
 let v488LibKey='', v488LibCache=[];
 const lib=()=>{try{
   const raw=v510RawShoes();
-  const key=raw.map(x=>String(x?.sequence||'')).join('|');
+  // V541: invalidate the trace when a shoe ID/color changes as well as its sequence.
+  // Metadata only; matching and prediction data are unchanged.
+  const key=raw.map(x=>[String(x?.id||''),String(x?.shoeColor||''),String(x?.sequence||'')].join('~')).join('|');
   if(key===v488LibKey)return v488LibCache;
   v488LibKey=key;
   const seen=new Set();v488LibCache=[];
   for(const x of raw){
     const s=String(x?.sequence||'').toUpperCase().replace(/[^PB]/g,'');
     if(s.length<7||seen.has(s))continue;
-    seen.add(s);v488LibCache.push({sequence:s,shoeColor:x.shoeColor||null});
+    seen.add(s);v488LibCache.push({id:String(x?.id||'saved-'+(v488LibCache.length+1)),sequence:s,shoeColor:x.shoeColor||null});
   }
   return v488LibCache;
 }catch(e){return []}};
@@ -17195,7 +17271,14 @@ function v518SearchCore(liveSeq,shoes){
     // Avoid an arbitrary vote when the same shoe has two equally strong
     // matches followed by opposite results.
     if(runner&&runner.next!==top.next&&runner.rank>=top.rank*.985){ambiguous++;continue;}
-    best.push({...top,shoeIndex:scanned-1});
+    best.push({...top,shoeIndex:scanned-1,
+      // V541 trace metadata: exact source position and recorded outcome,
+      // never used for scoring, qualification or voting.
+      shoeId:String(shoe?.id||'saved-'+scanned),
+      shoeColor:String(shoe?.shoeColor||''),
+      historicalTail:hist.slice(top.position-top.k,top.position),
+      liveTail:live.sequence.slice(-top.k),
+      storedNext:hist[top.position]});
   }
   best.sort((a,b)=>b.rank-a.rank);
   const topRank=best[0]?.rank||0;
@@ -22245,10 +22328,17 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  ['7-Win Opportunity AI','v527Pick'],['Google Gemini (Adaptive)','v465Pick'],
  ['Big Eye Road Sliding + Inverted','v502Pick'],
  ['Black Big Eye + Bead Signal V512','v512Pick'],
- ['Big Eye Precision Reversal V513','v513Pick']
+ ['Big Eye Precision Reversal V513','v513Pick'],
+ // Newer independent P/B predictors and separately scored research candidates.
+ ['Exact Bead + 3-Road Historical Match','v278Pick'],
+ ['Main Road Only Future AI','v284Pick'],
+ ['7-Win Opportunity AI (EXPERIMENTAL TEST)','v530TestPick'],
+ ['AI Pattern Recognizer (EXPERIMENTAL TEST)','v542PatternPick']
  ];
- const streakExcluded=new Set(['Historical Three-Road']);
- const KEY='baccarat-v422-streak-history';let journal={}, last=null, snapshots={},lastGrade=null;
+ const streakExcluded=new Set(['Historical Three-Road','Historical Single-Road']);
+ // Research picks have their own streak histories, never enter the reliability leaderboard.
+ const streakResearch=new Set(['7-Win Opportunity AI (EXPERIMENTAL TEST)','AI Pattern Recognizer (EXPERIMENTAL TEST)']);
+ const KEY='baccarat-v422-streak-history';let journal={}, last=null, snapshots={},gradeStack=[];
  for(const [name] of models)journal[name]=[];
  try{const v=JSON.parse(localStorage.getItem(KEY)||'{}');for(const [name] of models)if(Array.isArray(v[name]))journal[name]=v[name].filter(x=>x==='W'||x==='L').slice(-20)}catch(e){}
  const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(journal))}catch(e){}};
@@ -22274,10 +22364,12 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  }catch(_){}}
 
  function seq(){return Array.isArray(state?.hands)?state.hands.map(x=>typeof x==='string'?x:x?.r).filter(x=>['P','B','T'].includes(x)).join(''):''}
- function side(v){const t=String(v||'').trim().toUpperCase();if(/\bWAIT\b|\bNONE\b|\bRESOLVED\b/.test(t))return null;
-  if(t==='P'||t==='PLAYER'||t.startsWith('PLAYER —')||t.startsWith('PLAYER •')||/^LIKELY ANSWER:\s*PLAYER\b/.test(t))return 'P';
-  if(t==='B'||t==='BANKER'||t.startsWith('BANKER —')||t.startsWith('BANKER •')||/^LIKELY ANSWER:\s*BANKER\b/.test(t))return 'B';
-  return null;
+ function side(v){const t=String(v||'').trim().toUpperCase();
+  // Do not grade WAIT, raw lean, or advisory hold as a qualified directional call.
+  if(/\bWAIT\b|\bNONE\b|\bRESOLVED\b|\bNO SIGNAL\b|\bHOLD\b/.test(t))return null;
+  // V542 exploratory labels use `TEST NEXT: PLAYER` rather than only `PLAYER`.
+  const m=/^(?:(?:TEST\s+NEXT|LIKELY\s+ANSWER|NEXT)\s*:\s*)?(PLAYER|BANKER|P|B)\b/.exec(t);
+  return m?(m[1]==='PLAYER'||m[1]==='P'?'P':'B'):null;
  }
  function capture(){const o={};for(const [name,id] of models){
    if(name==='Google Gemini (Adaptive)' && !document.getElementById('v465On')?.checked){o[name]=null;continue;}
@@ -22300,6 +22392,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
    if(!$(id) && name!=='ML Trainer')left.querySelector('.v422sub').textContent+=' • awaiting AI display initialization';
    else if(a.length===0 && name!=='ML Trainer')left.querySelector('.v422sub').textContent+=' • waiting for next qualified prediction';
    if(name==='Main Future Awareness V480'){left.querySelector('.v422sub').textContent+=' • research/advisory signal';}
+   if(streakResearch.has(name)){left.querySelector('.v422sub').textContent+=' • EXPERIMENTAL / NOT VERIFIED';row.dataset.category='research';}
    if(name==='ML Trainer'){
      const original=left.querySelector('.v422sub').textContent;
      left.querySelector('.v422sub').textContent=original+' • qualified ML calls only';
@@ -22340,12 +22433,12 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   if(coverage){
     const active=models.filter(([name])=>!streakExcluded.has(name));
     const mounted=active.filter(([name,id])=>!!$(id)||name==='ML Trainer').length;
-    coverage.textContent='Tracking '+active.length+' prediction analyzers + 1 separate warning auditor • '+mounted+'/'+active.length+' prediction displays initialized';
+    coverage.textContent='Tracking '+active.length+' directional monitors (including '+streakResearch.size+' separate research tests) + 1 warning auditor • '+mounted+'/'+active.length+' displays initialized';
   }
   $('v422Summary').textContent=hot+' AI(s)/audits on 3+ consecutive confirmations • '+alt+' alternating over last 6 graded events. Ties and WAIT are ignored; undo and bulk shoe changes are not graded.';
   // Research-only ranking: sample floor, actual graded outcomes, and CURRENT prediction availability.
   // Streaks do not boost the ranking and a good historical rank is not a validated predictive edge.
-  const ranked=models.filter(([name,id])=>!streakExcluded.has(name)).map(([name,id])=>{
+  const ranked=models.filter(([name,id])=>!streakExcluded.has(name)&&!streakResearch.has(name)).map(([name,id])=>{
    const a=(journal[name]||[]).slice(-20),n=a.length,w=a.filter(v=>v==='W').length;
    const pick=name==='ML Trainer'?(snapshots[name]||null):side($(id)?.textContent);
    // Wilson 95% lower bound prevents a tiny or lucky sample from dominating.
@@ -22377,19 +22470,29 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
      return {name,n,w,l:n-w,rate:n?(100*w/n).toFixed(1)+'%':'—',pick:name==='ML Trainer'?(snapshots[name]||null):side($(id)?.textContent)};});
    const heading=document.createElement('div');heading.style.cssText='font-weight:800;margin:8px 0 3px';heading.textContent='Individual AI accuracy • most recent 20 graded calls';table.appendChild(heading);
    for(const x of allRows){const r=document.createElement('div');r.className='rank';
-    const left=document.createElement('span');left.textContent=x.name+' • '+(x.pick==='P'?'P':x.pick==='B'?'B':x.pick==='RAW'?'Raw ML':'WAIT');
+    const left=document.createElement('span');left.textContent=x.name+' • '+(x.pick==='P'?'P':x.pick==='B'?'B':x.pick==='RAW'?'Raw ML':'WAIT')+(streakResearch.has(x.name)?' • RESEARCH ONLY':'');
     const right=document.createElement('strong');right.textContent=x.w+'W / '+x.l+'L • '+x.rate+' (N '+x.n+')';
     r.append(left,right);table.appendChild(r)}
   }
 
  }
  function scan(){try{const cur=seq();if(last===null){last=cur;snapshots=capture();paint();return}
-  if(cur!==last){if(lastGrade&&lastGrade.after===last&&lastGrade.before===cur){
-    for(const [name,verdict] of lastGrade.updated){if(journal[name]?.at(-1)===verdict)journal[name].pop()}
-    lastGrade=null;persist();
-   }
-   if(cur.length===last.length+1&&cur.startsWith(last)){
-    const actual=cur.slice(-1),updated=[];if(actual==='P'||actual==='B')for(const [name] of models){const p=snapshots[name];if(p){const grade=p===actual?'W':'L';journal[name].push(grade);journal[name]=journal[name].slice(-20);updated.push([name,grade])}}lastGrade={before:last,after:cur,updated};persist();
+  if(cur!==last){
+   const prev=gradeStack.at(-1);
+   const undo=prev&&prev.after===last&&prev.before===cur;
+   if(undo){
+    gradeStack.pop();
+    for(const [name,verdict] of prev.updated){if(journal[name]?.at(-1)===verdict)journal[name].pop()}
+    persist();
+   }else if(cur.length===last.length+1&&cur.startsWith(last)){
+    const actual=cur.slice(-1),updated=[];
+    if(actual==='P'||actual==='B')for(const [name] of models){const p=snapshots[name];if(p){const grade=p===actual?'W':'L';journal[name].push(grade);journal[name]=journal[name].slice(-20);updated.push([name,grade])}}
+    // Ties and WAIT produce no W/L but still need an undo-stack event.
+    gradeStack.push({before:last,after:cur,updated});
+    if(gradeStack.length>80)gradeStack.shift();persist();
+   }else{
+    // Shoe clears, imports, and bulk history edits are not new graded hands.
+    gradeStack=[];
    }
    last=cur;snapshots=capture();paint();return;
   }
@@ -22405,8 +22508,8 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  $('v422Reset')?.addEventListener('click',reset);
  function reset(){for(const [name] of models)journal[name]=[];resetWarningView();persist();paint()}
  $('v406ResetAllAccuracy')?.addEventListener('click',reset);
- window.__V422_STREAK__={reset,scan,version:491,models:models.filter(([name])=>!streakExcluded.has(name)).map(x=>x[0]),
-   inspect:()=>({version:491,models:models.filter(([name])=>!streakExcluded.has(name)).map(x=>x[0]),
+ window.__V422_STREAK__={reset,scan,version:543,models:models.filter(([name])=>!streakExcluded.has(name)).map(x=>x[0]),
+   inspect:()=>({version:543,models:models.filter(([name])=>!streakExcluded.has(name)).map(x=>x[0]),research:[...streakResearch],
     visible:[...document.querySelectorAll('#v422StreakRows .v422name')].map(x=>x.textContent),
     waiting:models.filter(([name,id])=>!streakExcluded.has(name)&&!$(id)&&name!=='ML Trainer').map(x=>x[0]),
     calls:Object.fromEntries(models.filter(([name])=>!streakExcluded.has(name)).map(([name])=>[name,(journal[name]||[]).length]))}),
@@ -22547,6 +22650,7 @@ $('v439Reset').addEventListener('click',reset);$('v406ResetAllAccuracy')?.addEve
  const blank=()=>({w:0,l:0,wait:0,ties:0,shadowW:0,shadowL:0,shadowShoeW:0,shadowShoeL:0,rows:[],last:'',shoeSignature:'',shoeW:0,shoeL:0});
  let ledger=blank();try{const x=JSON.parse(localStorage.getItem(KEY)||'null');if(x&&typeof x==='object')ledger={...blank(),...x,rows:Array.isArray(x.rows)?x.rows.slice(-450):[]}}catch(e){}
  const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(ledger))}catch(e){}};
+ if(ledger.researchVersion!==542){ledger.shadowW=0;ledger.shadowL=0;ledger.shadowShoeW=0;ledger.shadowShoeL=0;ledger.researchVersion=542;save();}
  let catalog=[],index=new Map(),cacheKey='',validation=null,validationResearch=null,validationKey='',pending=null,lastArm='',lastPaint=0;
  let liveValidation={n:0,w:0,l:0,bankerW:0,shoes:0};
  // The index is a read-only view of genuinely saved shoes. One historical shoe
@@ -22607,7 +22711,7 @@ $('v439Reset').addEventListener('click',reset);$('v406ResetAllAccuracy')?.addEve
  // Fixed before looking at the held-out results; no shoe contributes two votes.
  function researchCandidate(q){
   if(!q||!(q.lean==='P'||q.lean==='B'))return null;
-  return q.n>=12 && q.agreement>=.60 && Math.abs(q.b-q.p)>=4 ? q.lean : null;
+  return q.n>=10 && q.agreement>=.58 && Math.abs(q.b-q.p)>=3 ? q.lean : null;
  }
  // Chronological, unseen-shoe validation. Test shoes never contribute match votes.
  // Fixed parameters: no optimizing thresholds on validation outcomes.
@@ -22723,8 +22827,8 @@ $('v439Reset').addEventListener('click',reset);$('v406ResetAllAccuracy')?.addEve
  function ensure(){
   let p=$('v527SevenWinAI');if(p)return p;
   p=document.createElement('section');p.id='v527SevenWinAI';p.className='v527-panel';
-  p.innerHTML=`<div class="v527-heading"><strong>7-Win Opportunity AI • V530</strong><span id="v527Status">VALIDATING</span></div>
-  <div class="v527-info">Research AI now displays its next experimental Banker/Player prediction when history provides enough independent matches. <b>No seven-win guarantee or proven predictive edge.</b></div>
+  p.innerHTML=`<div class="v527-heading"><strong>7-Win Opportunity AI • V542 (higher test coverage)</strong><span id="v527Status">VALIDATING</span></div>
+  <div class="v527-info">Research AI now displays MORE experimental Banker/Player test picks with a 10-shoe / 58% agreement / 3-vote margin threshold. <b>No seven-win guarantee or proven predictive edge.</b></div>
   <div class="v530-research-panel"><div class="v527-grid"><div><small>EXPERIMENTAL NEXT PICK</small><strong id="v530TestPick">WAIT</strong></div><div><small>TEST W / L</small><strong id="v530TestWL">0W–0L</strong></div><div><small>TEST ACCURACY</small><strong id="v530TestRate">—</strong></div><div><small>THIS SHOE • TEST W / L</small><strong id="v530TestShoe">0W–0L</strong></div></div><div class="v527-sub" id="v530TestNote">Unvalidated research prediction. Not a verified betting signal. Only pre-hand displayed picks count; ties are excluded from W/L.</div></div>
   <div class="v527-grid"><div><small>VERIFIED NEXT CALL</small><strong id="v527Pick">WAIT</strong></div><div><small>VERIFIED SHOE WINS</small><strong id="v527Shoe">0 / 7 WINS</strong></div><div><small>VERIFIED W / L</small><strong id="v527WL">0W–0L</strong></div><div><small>VERIFIED ACCURACY</small><strong id="v527Rate">—</strong></div></div>
   <div class="v527-info" id="v527Evidence">Checking saved-shoe evidence…</div>
@@ -22750,7 +22854,7 @@ $('v439Reset').addEventListener('click',reset);$('v406ResetAllAccuracy')?.addEve
   const testN=ledger.shadowW+ledger.shadowL;
   $('v530TestRate').textContent=testN?(100*ledger.shadowW/testN).toFixed(1)+'%':'—';
   $('v530TestShoe').textContent=ledger.shadowShoeW+'W–'+ledger.shadowShoeL+'L';
-  $('v530TestNote').textContent=testSide?`RESEARCH ONLY • ${q.n} independent matches • ${Math.round(100*q.agreement)}% vote agreement (NOT success probability). Not verified for betting.`:`EXPERIMENTAL WAIT • Needs 10 P/B hands, 12 matched shoes, at least 60% agreement, and 4-vote margin. No forced picks.`;
+  $('v530TestNote').textContent=testSide?`RESEARCH ONLY • ${q.n} independent matches • ${Math.round(100*q.agreement)}% vote agreement (NOT success probability). Not verified for betting.`:`EXPERIMENTAL WAIT • Needs 10 P/B hands, 10 independent matches, at least 58% agreement, and a 3-vote margin. Test picks are not verified.`;
   $('v527Status').textContent=!validation?'BUILDING':verified?'HISTORICAL GATE PASSED':'UNVALIDATED • WAIT';
   $('v527Shoe').textContent=Math.min(7,ledger.shoeW)+' / 7 WINS'+(ledger.shoeW>=7?' (GOAL REACHED)':'');
   $('v527WL').textContent=ledger.w+'W–'+ledger.l+'L';
@@ -22770,7 +22874,7 @@ $('v439Reset').addEventListener('click',reset);$('v406ResetAllAccuracy')?.addEve
   // Only rebuild if saved library actually changes, never on every entered hand.
   setInterval(()=>{try{const list=library();if(fingerprint(list)!==cacheKey){refresh(true);arm()}}catch(e){}},10000);
  }
- window.__V527_SEVEN_WIN_AI__={settle,afterCommit,arm,reconcile,reset,onScopeChange:()=>{pending=null;lastArm='';refresh(true);arm()},refreshLibrary:()=>{refresh(true);arm()},stats:()=>({...ledger,rows:[...ledger.rows]}),validation:()=>validation,assess:(raw=view())=>pick(raw,index),version:'V530'};
+ window.__V527_SEVEN_WIN_AI__={settle,afterCommit,arm,reconcile,reset,onScopeChange:()=>{pending=null;lastArm='';refresh(true);arm()},refreshLibrary:()=>{refresh(true);arm()},stats:()=>({...ledger,rows:[...ledger.rows]}),validation:()=>validation,assess:(raw=view())=>pick(raw,index),version:'V542'};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
 </script>
@@ -23185,6 +23289,11 @@ let enabled=false,endpoint='',accessToken='',auto=true,inflight=null,scheduled=n
 try{const c=JSON.parse(localStorage.getItem(STORAGE+'-settings')||'{}');enabled=c.enabled===true;endpoint=String(c.endpoint||'').trim();accessToken=String(c.accessToken||'');auto=c.auto!==false;}catch(e){}
 let lastSeen='',lastRequestMs=null;
 const sequence=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h.r).filter(x=>['P','B','T'].includes(x)).join('')}catch(e){return ''}};
+// V545: Gemini uses both RED and BLACK saved stores independently of the other AIs' color selector.
+// This is a read-only view; the actual saved data and other analyzers stay unchanged.
+const v545FullShoes=()=>v458SearchView([...(Array.isArray(state.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state.blackPatternLibrary)?state.blackPatternLibrary:[])]);
+const v545Seq=raw=>v452IgnoreTies()?String(raw||'').replace(/T/g,''):String(raw||'');
+const v545ScopeKey=()=>v452IgnoreTies()?'all-red-black-no-ties':'all-red-black-with-ties';
 const usableUrl=x=>{try{const u=new URL(x);return u.protocol==='https:'||(u.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(u.hostname));}catch(e){return false}};
 const localhostUrl=x=>{try{const u=new URL(x);return ['localhost','127.0.0.1','[::1]'].includes(u.hostname)}catch(e){return false}};
 const ready=()=>usableUrl(endpoint)&&(localhostUrl(endpoint)||accessToken.length>=24);
@@ -23198,9 +23307,15 @@ function paint(){
   show('v465Sample',count+' graded');show('v465Wait',ledger.waits);
   show('v465Latency',lastRequestMs==null?'—':lastRequestMs+' ms');
   show('v465Last',ledger.last);
+  const rows=(ledger.rows||[]).filter(r=>r.verdict==='WIN'||r.verdict==='LOSS');
+  const countOf=fn=>({w:rows.filter(r=>fn(r)&&r.verdict==='WIN').length,l:rows.filter(r=>fn(r)&&r.verdict==='LOSS').length});
+  const local=countOf(r=>r.source==='LOCAL LIBRARY');
+  const remote=countOf(r=>r.source&&r.source!=='LOCAL LIBRARY');
+  const older=countOf(r=>!r.source);
+  show('v545SourceStats','Graded by source • GOOGLE / HYBRID '+remote.w+'W–'+remote.l+'L • LOCAL ONLY '+local.w+'W–'+local.l+'L'+(older.w+older.l?' • Previous versions '+older.w+'W–'+older.l+'L':'')+'. The headline W/L includes every source.');
   if($('v465On'))$('v465On').checked=enabled;
   if($('v465Auto'))$('v465Auto').checked=auto;
-  const b=$('v465Analyze');if(b)b.disabled=!enabled||!ready()||!!inflight;
+  const b=$('v465Analyze');if(b)b.disabled=!enabled||!!inflight;
 }
 function status(message){show('v465Status',message);}
 function clearPending(){ledger.pending=null;store();show('v465Pick','WAIT');show('v465Reason','No pre-committed Gemini prediction for the next hand.');}
@@ -23212,7 +23327,7 @@ function v484DeepLibrary(raw, roads) {
   const livePB=String(raw||'').replace(/T/g,'');
  // Six or seven P/B results offer too many chance matches in a large library.
  // Gemini can still analyze them, but library examples start at 8 P/B hands.
- const all=v510RawShoes();
+ const all=v545FullShoes();
  const used=new Set(), ranked=[];
  const flip=s=>s.replace(/[PB]/g,c=>c==='P'?'B':'P');
  const lastT=raw.endsWith('T');
@@ -23228,13 +23343,13 @@ function v484DeepLibrary(raw, roads) {
    if(!/^[PBT]{8,}$/.test(rawHist)||used.has(rawHist))continue;
    used.add(rawHist);
    const histPB=rawHist.replace(/T/g,'');
-   if(histPB.length<9||livePB.length<8)continue;
+   if(histPB.length<8||livePB.length<7)continue;
    const pbRawIndices=[];
    for(let idx=0;idx<rawHist.length;idx++)if(rawHist[idx]!=='T')pbRawIndices.push(idx);
    const pre=[];
-   for(let pos=8;pos<histPB.length;pos++){
+   for(let pos=7;pos<histPB.length;pos++){
      const n=Math.min(16,livePB.length,pos), eight=Math.min(8,n);
-     if(n<8)continue;
+     if(n<7)continue;
      const segment=histPB.slice(pos-n,pos);
      for(const inverted of [false,true]){
        const compare=inverted?flip(segment):segment;
@@ -23249,7 +23364,7 @@ function v484DeepLibrary(raw, roads) {
        }
        // Keep chance matches out of the primary candidate set. Sliding and inverse
        // are supported; near-return requires a strong 11/12 bead alignment plus roads.
-       const mustMatch=Math.min(10,livePB.length);
+       const mustMatch=Math.min(8,livePB.length);
        let last12Hits=0;const twelve=Math.min(12,n);
        for(let k=0;k<twelve;k++)if(compare[n-1-k]===livePB[livePB.length-1-k])last12Hits++;
        const near=livePB.length>=12&&n>=12&&last12Hits>=11&&consecutive>=4;
@@ -23309,7 +23424,7 @@ function v484DeepLibrary(raw, roads) {
 let v486Cache={signature:'',shoes:[],profile:null};
 function v486Flip(s){return s.replace(/[PB]/g,c=>c==='P'?'B':'P');}
 function v486Corpus(){
- const all=v510RawShoes();
+ const all=v545FullShoes();
  const records=[],unique=new Set(),signatureParts=[];
  for(const shoe of all){
    const raw=(typeof shoe==='string'?shoe:shoe?.sequence||'').toUpperCase();
@@ -23346,7 +23461,7 @@ function v486Corpus(){
  return v486Cache;
 }
 function v486LiveReliability(raw){
- const rows=(ledger.adaptiveRows||[]).filter(r=>r.scopeKey===v510ScopeKey()&&raw.startsWith(r.after)).slice(-24);
+ const rows=(ledger.adaptiveRows||[]).filter(r=>r.scopeKey===v545ScopeKey()&&v545Seq(raw).startsWith(v545Seq(r.after))).slice(-24);
  const keys=['direct','inverted','rhythm','afterTie'];const weights={},stats={};
  for(const key of keys){
    let w=0,l=0;
@@ -23372,10 +23487,10 @@ function v486FullLibrary(raw){
    const hist=shoe.pb;let best=null;
    // Read the next outcome only after measuring the past-only matching prefix.
    // All 195 shoes inform the baseline, but fewer qualify as true local matches.
-   if(last.length<8)continue;
-   for(let pos=8;pos<hist.length;pos++){
+   if(last.length<6)continue;
+   for(let pos=6;pos<hist.length;pos++){
      const n=Math.min(last.length,pos,16);
-     if(n<8)continue;
+     if(n<6)continue;
      consideredWindows++;
      const part=hist.slice(pos-n,pos),current=last.slice(-n);
      let hits=0,invertedHits=0,shapeHits=0,den=0;
@@ -23392,7 +23507,7 @@ function v486FullLibrary(raw){
      const tailN=Math.min(12,n);
      let recentExact=0;
      for(let k=0;k<tailN;k++)if(part[n-1-k]===(inverted?v486Flip(current[n-1-k]):current[n-1-k]))recentExact++;
-     const needed=tailN>=12?11:tailN>=10?9:8;
+     const needed=tailN>=12?10:tailN>=10?8:tailN>=8?7:tailN;
      if(recentExact<needed)continue;
      let streak=1;for(let j=pos-2;j>=0&&hist[j]===hist[pos-1];j--)streak++;
      let liveStreak=1;for(let j=livePB.length-2;j>=0&&livePB[j]===livePB.at(-1);j--)liveStreak++;
@@ -23402,7 +23517,7 @@ function v486FullLibrary(raw){
      const recentFit=(part.slice(-4)===(inverted?v486Flip(current.slice(-4)):current.slice(-4)));
      const score=.66*bead+.19*shape+.09*runFit+.06*(1-Math.min(1,Math.abs(phase-Math.min(2,Math.floor(shoe.indices[pos]/26)))/2))
        +(ignoring?0:(tieFit?.025:-.055))+(recentFit?.025:-.04);
-     if(score<.76)continue;
+     if(score<.73)continue;
      const mode=!ignoring&&rawEndingTie&&historicalTie?'afterTie':shape>=.85&&bead<.77?'rhythm':inverted?'inverted':'direct';
      const side=mode==='rhythm'?(hist[pos]===hist[pos-1]?livePB.at(-1):(livePB.at(-1)==='P'?'B':'P'))
        :(inverted?v486Flip(hist[pos]):hist[pos]);
@@ -23419,9 +23534,10 @@ function v486FullLibrary(raw){
  const base=profile.outcomes.player+profile.outcomes.banker;
  const basePlayer=base?profile.outcomes.player/base:.5;
  // Shrink low-support searches against the complete-library baseline.
- const playerShare=(totals.p+15*basePlayer)/(votes+15);
+ const playerShare=(totals.p+8*basePlayer)/(votes+8);
  const support=matchingShoes;
- const localValid=support>=8&&votes>=1.2&&Math.abs(playerShare-.5)>=.055;
+ // V545 exploratory threshold: still one best vote per distinct shoe, never based on raw match counts alone.
+ const localValid=support>=5&&votes>=.55&&Math.abs(playerShare-.5)>=.035;
  const modes={};const modePicks={};
  for(const [name,v] of Object.entries(perMode)){
    const total=v.p+v.b;
@@ -23437,21 +23553,34 @@ function v486FullLibrary(raw){
    frequentMotifs:profile.sampleMotifs,liveHand:raw.length,liveLastSix:livePB.slice(-6),
    afterTieNow:rawEndingTie,matchedPlayerWeight:+totals.p.toFixed(3),
    matchedBankerWeight:+totals.b.toFixed(3),historicalPlayerVotePercent:+(100*playerShare).toFixed(1),
-   independentMatchingShoes:matchingShoes,adaptiveLiveSamples:prior.samples,
+   independentMatchingShoes:matchingShoes,qualifiedResearchLean:localValid,adaptiveLiveSamples:prior.samples,
    liveReliability:prior.stats,modeVotes:modes,
    disclaimer:'Historical similarity is not a calibrated next-hand probability.'},
    valid:localValid,lean,playerShare,modePicks};
 }
+// Remote picks are not silently suppressed by the local library qualification gate.
+// No calibrated chance of winning is asserted by these experimental directions.
 function v486Hybrid(geminiSide,library){
- if(!library.valid)return {side:'WAIT',source:'WAIT: library votes are split or strong support is insufficient'};
- const remoteP=geminiSide==='P'?1:geminiSide==='B'?0:null;
- // The full-library model has majority influence; the proxy remains independent.
- if(remoteP===null){
-   return {side:Math.abs(library.playerShare-.5)>=.065?library.lean:'WAIT',source:'Full-library only; Gemini WAIT'};
+ const remoteValid=geminiSide==='P'||geminiSide==='B';
+ if(!library.valid){
+   return remoteValid?{side:geminiSide,source:'Gemini-only exploratory call (full library scanned; insufficient supporting matches)'}
+     :{side:'WAIT',source:'WAIT: insufficient local evidence and Gemini did not choose a side'};
  }
- const blended=.85*library.playerShare+.15*(remoteP===1?.65:.35);
- const side=Math.abs(blended-.5)>=.035?(blended>.5?'P':'B'):'WAIT';
- return {side,source:'85% full-library behavior + 15% Gemini direction'};
+ if(!remoteValid)return {side:library.lean,source:'Local full-library research lean; Gemini returned WAIT'};
+ // Give the real Gemini directional result an actual, but bounded influence.
+ const blended=.80*library.playerShare+.20*(geminiSide==='P'?.60:.40);
+ const side=Math.abs(blended-.5)>=.018?(blended>.5?'P':'B'):'WAIT';
+ return {side,source:side==='WAIT'?'WAIT: library and Gemini conflict':'Gemini + full-library exploratory blend'};
+}
+// Distinct label and preserved pre-hand locking if the proxy is down or slow.
+function v545PublishLocal(pre,learned){
+ const key=v545Seq(pre),side=learned.valid?learned.lean:'WAIT';
+ ledger.pending=side==='WAIT'?null:{side,handN:key.length,prefix:key,source:'LOCAL LIBRARY'};
+ show('v465Pick',side==='P'?'PLAYER • LOCAL':side==='B'?'BANKER • LOCAL':'WAIT');
+ show('v465Reason',side==='WAIT'
+   ?'Full RED+BLACK library scanned; no qualifying independent-shoe vote. WAIT (not a forced bet).'
+   :'LOCAL LIBRARY research lean, not a Google Gemini response • '+learned.summary.qualifyingShoes+' distinct matching shoes • P/B-only matching '+(v452IgnoreTies()?'ON':'OFF')+' • historical P share '+(100*learned.playerShare).toFixed(1)+'% (NOT win probability)');
+ store();return side!=='WAIT';
 }
 
 // V493: Gemini independent, transparent saved-shoe recognition.
@@ -23459,7 +23588,7 @@ function v486Hybrid(geminiSide,library){
 function v493LibrarySearch(rawInput){
  const raw=(v452IgnoreTies()?String(rawInput||'').replace(/T/g,''):String(rawInput||'')).toUpperCase().replace(/[^PBT]/g,'');
  const live=raw.replace(/T/g,'');
- const all=v510RawShoes();
+ const all=v545FullShoes();
  const unique=new Set(), matches=[];
  const flip=s=>s.replace(/[PB]/g,c=>c==='P'?'B':'P');
  const allowed=['EXACT RAW PREFIX','EXACT P/B PREFIX','SLIDING DIRECT','SLIDING INVERTED','NEAR DIRECT','NEAR INVERTED'];
@@ -23483,7 +23612,7 @@ function v493LibrarySearch(rawInput){
      if(!best||v.weight>best.weight)best=v;
    }
    // Exact sequence comparison includes T positions, unlike P/B-only modes.
-   if(raw.length>=6&&histRaw.length>raw.length&&histRaw.startsWith(raw)&&hist.length>live.length)offer('EXACT RAW PREFIX',0,live.length,0);
+   if(!v452IgnoreTies()&&raw.length>=6&&histRaw.length>raw.length&&histRaw.startsWith(raw)&&hist.length>live.length)offer('EXACT RAW PREFIX',0,live.length,0);
    if(live.length>=6&&hist.startsWith(live))offer('EXACT P/B PREFIX',0,live.length,0);
    // Whole observed P/B prefix in any position of a saved shoe.
    for(const [type,target] of (live.length>=6?[['SLIDING DIRECT',live],['SLIDING INVERTED',flip(live)]]:[])){
@@ -23549,15 +23678,15 @@ function v493RefreshSearch(snapshot){
 }
 
 function input(){
- const raw=sequence();const hands=(state.hands||[]).filter(h=>h&&['P','B','T'].includes(h.r));
+ const raw=v545Seq(sequence());const hands=(state.hands||[]).filter(h=>h&&['P','B'].includes(h.r)||(!v452IgnoreTies()&&h?.r==='T'));
  const roads={};try{for(const [name,offset] of [['bigEye',1],['small',2],['cockroach',3]])roads[name]=deriveRoad(hands,offset).slice(-25).join('');}catch(e){}
  const evidence=v484DeepLibrary(raw,roads);
  const recognition=v493LibrarySearch(raw);
  v493RefreshSearch(recognition);
  const learned=v486FullLibrary(raw);
- return {__localLearned:learned,libraryLearnedBehavior:learned.summary,sequence:raw.slice(-100),handCount:raw.length,shoeColor:String(state.currentShoeColor||'unspecified'),
+ return {__localLearned:learned,libraryLearnedBehavior:learned.summary,sequence:raw.slice(-100),handCount:raw.length,shoeColor:'combined RED+BLACK',
    ignoreTiesInLibrarySearch:(()=>{try{return localStorage.getItem('v452_ignore_ties')==='1'}catch(e){return false}})(),
-   derivedRoads:roads,counterexampleAudit:(window.__V489_COUNTEREXAMPLE_AUDITOR__?.previewForGemini?.(raw)||null),libraryMatchSummary:{...evidence.libraryMatchSummary,
+   derivedRoads:roads,counterexampleAudit:(v452IgnoreTies()?null:(window.__V489_COUNTEREXAMPLE_AUDITOR__?.previewForGemini?.(raw)||null)),libraryMatchSummary:{...evidence.libraryMatchSummary,
     searchIndexVersion:493,scannedShoes:recognition.scannedShoes,
     exactRawPrefixShoes:recognition.exactRawPrefixShoes,exactPBPrefixShoes:recognition.exactPBPrefixShoes,
     slidingDirectShoes:recognition.slidingDirectShoes,slidingInvertedShoes:recognition.slidingInvertedShoes,
@@ -23573,21 +23702,23 @@ function input(){
 
 async function analyze(){
  scheduled=null;
- if(!enabled||!ready()||inflight)return;
- const pre=sequence(), colorScope=v510ScopeKey();
- if(pre.length<6){status('Waiting for at least 6 recorded hands.');return;}
+ if(!enabled||inflight)return;
+ const pre=sequence(), colorScope=v545ScopeKey();
+ if(v545Seq(pre).length<6){status('Waiting for at least 6 recorded hands.');return;}
  // A past/late response must never be counted or shown as the next-hand prediction.
- clearPending();const token=++taskId;
- const controller=new AbortController();inflight=controller;
- const timeout=setTimeout(()=>controller.abort(),9500);
+ const token=++taskId;
  const payload=input();
  const learned=payload.__localLearned;delete payload.__localLearned;
  // Snapshot local learning before the hand is revealed, so future results never leak.
- ledger.learningPending={before:pre,modePicks:learned.modePicks};
+ ledger.learningPending={before:v545Seq(pre),modePicks:learned.modePicks};
  show('v484LibraryInfo','Full library learned: '+learned.summary.scannedShoes+' unique shoes • '+learned.summary.trainingObservations+' historical contexts • '+learned.summary.qualifyingShoes+' matching shoes • '+learned.summary.adaptiveLiveSamples+' recent live grades.');
  /* old UI update retired: */
 
- const start=performance.now();status('Contacting Gemini through your proxy (up to 9.5s)…');paint();
+ const localLocked=v545PublishLocal(pre,learned);
+ if(!ready()){status('Gemini proxy not connected • '+(localLocked?'LOCAL library-only research call locked.':'No qualifying local call; WAIT.')+' Google Gemini has not been contacted.');paint();return;}
+ const controller=new AbortController();inflight=controller;
+ const timeout=setTimeout(()=>controller.abort(),9500);
+ const start=performance.now();status('Local library scanned • contacting Google Gemini (up to 9.5s)…');paint();
  try{
    const headers={'Content-Type':'application/json'};if(accessToken)headers.Authorization='Bearer '+accessToken;
    const response=await fetch(endpoint,{method:'POST',mode:'cors',headers,body:JSON.stringify(payload),signal:controller.signal,cache:'no-store',redirect:'error',referrerPolicy:'no-referrer'});
@@ -23611,13 +23742,13 @@ async function analyze(){
      throw new Error('Proxy HTTP '+response.status+hint+extra);
    }
    const data=await response.json();
-   if(token!==taskId||pre!==sequence()||colorScope!==v510ScopeKey()||!enabled)return;
+   if(token!==taskId||v545Seq(pre)!==v545Seq(sequence())||colorScope!==v545ScopeKey()||!enabled)return;
    const side=String(data.prediction||data.side||'WAIT').trim().toUpperCase();
    if(!['P','B','WAIT'].includes(side))throw new Error('Invalid Gemini prediction in proxy response');
    lastRequestMs=Math.round(performance.now()-start);
    const combined=v486Hybrid(side,learned);
    const decided=combined.side;
-   ledger.pending=decided==='WAIT'?null:{side:decided,handN:pre.length,prefix:pre};
+   ledger.pending=decided==='WAIT'?null:{side:decided,handN:v545Seq(pre).length,prefix:v545Seq(pre),source:combined.source};
    store();show('v465Pick',decided==='P'?'PLAYER':decided==='B'?'BANKER':'WAIT');
    show('v465Reason',combined.source+' • independent matching shoes '+learned.summary.qualifyingShoes+' • known saved prefixes excluded '+learned.summary.excludedExactPrefix+' • Gemini '+side+' • Local '+learned.lean+
      ' ('+(learned.playerShare*100).toFixed(1)+'% historical P vote, not win chance). '+
@@ -23627,48 +23758,49 @@ async function analyze(){
      (supported?' Proxy confirmed '+(Number(data.acceptedExamples)||0)+' selected examples.':' Proxy has NOT confirmed using the aggregate behavior summary (local hybrid still uses it).')+
      ' Experimental only; no verified betting edge.');
  }catch(e){
-   if(token!==taskId||pre!==sequence()||colorScope!==v510ScopeKey()||!enabled)return;
-   clearPending();
+   if(token!==taskId||v545Seq(pre)!==v545Seq(sequence())||colorScope!==v545ScopeKey()||!enabled)return;
+   // Preserve a qualifying local pre-hand lock if the external Gemini service fails.
    const errorText=String(e?.message||e);
-   status(e?.name==='AbortError'?'Gemini timed out after 9.5 seconds; check the Render proxy timeout or Google connectivity. No pick was recorded.':
-      e?.name==='TypeError'?'Gemini request blocked or network unavailable. If using the hosted software, check proxy allowed origins/CORS and the HTTPS URL.':
-      'Gemini unavailable: '+errorText.slice(0,180));
+   status(e?.name==='AbortError'?'Google Gemini timed out after 9.5 seconds; '+(ledger.pending?'local library research call remains locked.':'no qualifying prediction was locked.'): 
+      e?.name==='TypeError'?'Gemini network/CORS unavailable • '+(ledger.pending?'local library research call remains locked.':'WAIT.'):
+      'Gemini unavailable: '+errorText.slice(0,120)+(ledger.pending?' • local library research call remains locked.':''));
  }finally{clearTimeout(timeout);if(inflight===controller)inflight=null;paint();}
 }
 function queueAnalyze(){cancel();v493RefreshSearch();if(!enabled)return;
  const pre=sequence();
- if(pre.replace(/T/g,'').length>=8){
+ if(v545Seq(pre).length>=6){
    const local=v486FullLibrary(pre);
-   ledger.learningPending={before:pre,modePicks:local.modePicks};
+   ledger.learningPending={before:v545Seq(pre),modePicks:local.modePicks};
    store();
    show('v484LibraryInfo','Full library learning ('+local.summary.scannedShoes+' saved shoes) • '+local.summary.trainingObservations+' contexts • '+local.summary.qualifyingShoes+' strong independent matches • '+local.summary.adaptiveLiveSamples+' recent live learning samples.');
  }
- if(!ready()){status('Local library adapting. Connect the Gemini proxy for hybrid calls; no Gemini prediction is active.');return;}
- if(!auto){status('Local learning active. Press Analyze Hand to request a Gemini prediction.');return;}
+ if(!auto){status('Full library ready. Auto OFF; press Analyze Current Hand for a local research call and optional Gemini request.');return;}
  scheduled=setTimeout(analyze,60);
 }
 // Called only by the authoritative PRE-COMMIT result queue.
 function settle(actual){
  if(!['P','B','T'].includes(actual))return; if(!enabled&&!ledger.pending)return;
+ // When ties are ignored, they do not settle, cancel, or consume the pending next P/B call.
+ if(actual==='T'&&v452IgnoreTies())return;
  const before=sequence();cancel();const lock=ledger.pending;ledger.pending=null;
  const learn=ledger.learningPending;ledger.learningPending=null;
- if(learn?.before===before&&actual!=='T'&&Object.keys(learn.modePicks||{}).length){
+ if(learn?.before===v545Seq(before)&&actual!=='T'&&Object.keys(learn.modePicks||{}).length){
    if(!Array.isArray(ledger.adaptiveRows))ledger.adaptiveRows=[];
-   ledger.adaptiveRows.push({before,after:before+actual,actual,picks:learn.modePicks,scopeKey:v510ScopeKey()});
+   ledger.adaptiveRows.push({before:v545Seq(before),after:v545Seq(before+actual),actual,picks:learn.modePicks,scopeKey:v545ScopeKey()});
    if(ledger.adaptiveRows.length>80)ledger.adaptiveRows.shift();
  }
  let verdict='UNSCORED';
  if(actual==='T'){ledger.ties++;verdict='TIE';}
- else if(lock&&lock.handN===before.length&&lock.prefix===before&&['P','B'].includes(lock.side)){
+ else if(lock&&lock.handN===v545Seq(before).length&&lock.prefix===v545Seq(before)&&['P','B'].includes(lock.side)){
    if(lock.side===actual){ledger.wins++;verdict='WIN';}else{ledger.losses++;verdict='LOSS';}
- }else if(ready()&&before.replace(/T/g,'').length>=8){ledger.waits++;verdict='WAIT';}
- ledger.last='Hand '+(before.length+1)+' '+actual+': '+verdict+(lock?' ('+lock.side+' predicted)':' (no locked pick)');
- if(verdict!=='UNSCORED')ledger.rows.push({before,after:before+actual,actual,verdict,side:lock?.side||null});
+ }else if(enabled&&v545Seq(before).length>=6){ledger.waits++;verdict='WAIT';}
+ ledger.last='Hand '+(before.length+1)+' '+actual+': '+verdict+(lock?' ('+lock.side+' predicted • '+(lock.source||'previous version')+')':' (no locked pick)');
+ if(verdict!=='UNSCORED')ledger.rows.push({before,after:before+actual,actual,verdict,side:lock?.side||null,source:lock?.source||null});
  if(ledger.rows.length>300)ledger.rows.shift();
  store();show('v465Pick','WAIT');show('v465Reason','Previous prediction settled. Next result not yet analyzed.');
  paint();
 }
-function afterCommit(){lastSeen=sequence();v493RefreshSearch();if(enabled)queueAnalyze();else paint();}
+function afterCommit(){lastSeen=sequence();v493RefreshSearch();if(v452IgnoreTies()&&sequence().endsWith('T')){paint();return;}if(enabled)queueAnalyze();else paint();}
 function reconcile(){
  const current=sequence();if(current===lastSeen)return;
  // Undo may remove the most recently graded hand; remove that exact ledger row only.
@@ -23676,7 +23808,7 @@ function reconcile(){
  if(prev.length===current.length+1&&prev.startsWith(current)){
    // Undo must reverse local training even without a proxy/graded row.
    const lr=ledger.adaptiveRows?.at(-1);
-   if(lr&&lr.after===prev&&lr.before===current){ledger.adaptiveRows.pop();store();}
+   if(lr&&lr.after===v545Seq(prev)&&lr.before===v545Seq(current)){ledger.adaptiveRows.pop();store();}
    const r=ledger.rows.at(-1);
    if(r&&r.after===prev&&r.before===current){ledger.rows.pop();
 
@@ -23693,10 +23825,10 @@ function reconcile(){
 function addUI(){
  const target=$('v452TieMode')||document.querySelector('.app');if(!target)return;
  const e=document.createElement('section');e.id='v465Gemini';e.setAttribute('aria-label','Google Gemini independent analyzer');
- e.innerHTML=`<div class="gm-head"><div class="gm-title">Gemini + Entire Library • Live Adaptive Test</div><label class="gm-control"><input type="checkbox" id="v465On"> ON / OFF</label></div>
- <div class="gm-description">V493 Gemini + Saved-Shoe Recognition: learns context transitions from EVERY distinct saved RED and BLACK shoe, checks sliding and inverted matches, and gradually adjusts pattern weights using completed live hands. Full-library behavior has 85% influence when strongly qualified; Gemini direction 15%. Exact saved-shoe prefixes are for recognition only, not predictive votes. Weak matching evidence produces WAIT. Sends summaries and up to 14 selected segments through your existing proxy (not full raw shoes). Historical similarity is not a proven betting edge.</div>
- <div class="gm-grid"><div class="gm-cell"><span>NEXT ADAPTIVE CALL</span><strong id="v465Pick">WAIT</strong></div><div class="gm-cell"><span>WINS</span><strong id="v465Win">0</strong></div><div class="gm-cell"><span>LOSSES</span><strong id="v465Loss">0</strong></div><div class="gm-cell"><span>ACCURACY</span><strong id="v465Accuracy">—</strong></div><div class="gm-cell"><span>GRADED HANDS</span><strong id="v465Sample">0</strong></div><div class="gm-cell"><span>WAITS / RESPONSE TIME</span><strong><span id="v465Wait" style="display:inline;font-size:17px;color:white">0</span> / <span id="v465Latency" style="display:inline;font-size:16px;color:white">—</span></strong></div></div>
- <div id="v494InputQueue" class="gm-description" aria-live="polite" style="color:#bbffdf">Input queue ready.</div><div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div><div id="v484LibraryInfo" class="gm-description">Full library learning: scanning all saved RED and BLACK shoes (locally).</div><div id="v493SearchStatus" class="gm-description" style="margin-top:7px;color:#c6eeff">Scanning distinct saved shoes…</div>
+ e.innerHTML=`<div class="gm-head"><div class="gm-title">Gemini + Full RED/BLACK Library • V545</div><label class="gm-control"><input type="checkbox" id="v465On"> ON / OFF</label></div>
+ <div class="gm-description">V493 Gemini + Saved-Shoe Recognition: Scans every distinct saved RED and BLACK shoe even if the other AIs use a selected shoe color. Ignore Ties ON removes ties from Gemini matching, request sequence, derived-road input and grading. Sliding/inverted matches each receive at most one vote per saved shoe. A qualified local library-only research call appears while Gemini is slow/offline and is clearly labeled LOCAL. Google Gemini calls are labeled separately. Uncertain results remain WAIT. Historical similarity is not a proven betting advantage.</div>
+ <div class="gm-grid"><div class="gm-cell"><span>NEXT ADAPTIVE CALL</span><strong id="v465Pick">WAIT</strong></div><div class="gm-cell"><span>ALL CALL WINS</span><strong id="v465Win">0</strong></div><div class="gm-cell"><span>ALL CALL LOSSES</span><strong id="v465Loss">0</strong></div><div class="gm-cell"><span>ACCURACY</span><strong id="v465Accuracy">—</strong></div><div class="gm-cell"><span>GRADED HANDS</span><strong id="v465Sample">0</strong></div><div class="gm-cell"><span>WAITS / RESPONSE TIME</span><strong><span id="v465Wait" style="display:inline;font-size:17px;color:white">0</span> / <span id="v465Latency" style="display:inline;font-size:16px;color:white">—</span></strong></div></div>
+ <div id="v494InputQueue" class="gm-description" aria-live="polite" style="color:#bbffdf">Input queue ready.</div><div id="v465Status" role="status">Not connected.</div><div id="v465Reason">Waiting for connection and at least 6 hands.</div><div id="v484LibraryInfo" class="gm-description">Full library learning: scanning all saved RED and BLACK shoes (locally).</div><div id="v545SourceStats" class="gm-description" style="color:#b6d6f5">Graded by source: no results yet.</div><div id="v493SearchStatus" class="gm-description" style="margin-top:7px;color:#c6eeff">Scanning distinct saved shoes…</div>
  <details style="margin-top:5px"><summary style="font-size:12px;color:#a7c5ff;cursor:pointer">Gemini shoe matches (inspect IDs)</summary>
  <ol id="v493SearchList" style="font-size:11px;line-height:1.5;padding-left:20px"></ol>
  <div class="gm-note">Exact prefix means the saved shoe's previous hands match. It does not prove the live shoe will continue identically.</div></details>
@@ -23709,7 +23841,7 @@ function addUI(){
  </details>
  <label class="gm-control" style="margin-top:10px"><input type="checkbox" id="v465Auto"> Analyze each new hand automatically (when enabled)</label>
  <div class="gm-buttons"><button id="v465Analyze" type="button">Analyze Current Hand</button><button id="v465Reset" type="button">Reset Gemini Accuracy Only</button></div>
- <div class="gm-note"><span id="v465Last">Not graded yet</span>. Ties are excluded from accuracy. WAITs count separately. Undo reverses the most recent matching Gemini grade. When enabled, live history, aggregate library behavior, and up to 14 historical segments go to your Google Gemini proxy; raw full shoes remain on this device. Switch OFF to disconnect immediately; original AI logic stays unchanged.</div>`;
+ <div class="gm-note"><span id="v465Last">Not graded yet</span>. Ties are excluded from accuracy. WAITs count separately. Undo reverses the most recent matching Gemini grade. When connected and enabled, live P/B history, aggregate library behavior, and up to 14 historical segments go to your Google Gemini proxy; raw full shoes remain on this device. Switch OFF to disconnect immediately; original AI logic stays unchanged.</div>`;
  target.insertAdjacentElement('afterend',e);
  $('v465Endpoint').value=endpoint;$('v469AccessToken').value=accessToken;
  $('v465On').checked=enabled;$('v465Auto').checked=auto;
@@ -23736,10 +23868,10 @@ function addUI(){
  $('v465Analyze').addEventListener('click',()=>{cancel();analyze()});
  $('v465Reset').addEventListener('click',()=>{if(!confirm('Reset ONLY Google Gemini accuracy (wins, losses, waits, ties)?'))return;ledger=blank();store();paint();status('Gemini accuracy and live adaptation reset; other AI counts unchanged.');});
  for(const id of ['undoBtn','clearBtn','sampleBtn'])$(id)?.addEventListener('click',()=>setTimeout(reconcile,60),false);
- lastSeen=sequence();paint();v493RefreshSearch();const trained=v486Corpus().profile;show('v484LibraryInfo','Full-library learning ready: '+trained.shoes+' unique shoes • '+trained.observations+' historical contexts. Updating after each hand.');status(enabled?(ready()?'ON • proxy configured (connection not yet verified)':'ON • needs HTTPS proxy and token'):'OFF • existing AIs unaffected');
+ lastSeen=sequence();paint();v493RefreshSearch();const trained=v486Corpus().profile;show('v484LibraryInfo','Full RED+BLACK library indexed: '+trained.shoes+' unique shoes • '+trained.observations+' P/B contexts • Ignore Ties '+(v452IgnoreTies()?'ON':'OFF')+'.');status(enabled?(ready()?'ON • proxy configured (connection not yet verified)':'ON • local library available; connect HTTPS Gemini proxy for remote analysis'):'OFF • existing AIs unaffected');
  if(enabled)queueAnalyze();
 }
-window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,onScopeChange:()=>{cancel();clearPending();ledger.learningPending=null;store();paint();queueAnalyze()},stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V496',independent:true,searchPreview:(raw)=>v493LibrarySearch(raw==null?sequence():raw),libraryPreview:()=>input().libraryEvidence,behaviorPreview:()=>v486FullLibrary(sequence()).summary};
+window.__GEMINI_V465__={settle,afterCommit,reconcile,analyze,paint,onScopeChange:()=>{cancel();clearPending();ledger.learningPending=null;store();paint();queueAnalyze()},stats:()=>JSON.parse(JSON.stringify(ledger)),disconnect:()=>{enabled=false;cancel();clearPending();settings();paint()},version:'V545',independent:true,searchPreview:(raw)=>v493LibrarySearch(raw==null?sequence():raw),libraryPreview:()=>input().libraryEvidence,behaviorPreview:()=>v486FullLibrary(sequence()).summary};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addUI,{once:true});else addUI();
 })();
 </script>
@@ -24768,6 +24900,189 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
+
+<!-- V542: expand 7-win exploratory coverage only; add pre-hand-graded Pattern exploratory candidate, unchanged official validation and other AI rules. -->
+<!-- V541: actual Pattern AI voting provenance, not a second predictor.
+     Research integrity change: no modifications to pick/WAIT criteria, rank or weights. -->
+<style id="v541PatternTraceStyles">
+#v541PatternTrace{margin:9px 0;padding:8px 10px;border:1px solid #526a7c;border-radius:9px;background:#122535;color:#e8f0fa;font-size:12px;line-height:1.5}
+#v541PatternTrace summary{cursor:pointer;font-weight:750;padding:4px 0;touch-action:manipulation}
+#v541PatternTrace .v541row{border-top:1px solid #344e62;padding:8px 0;overflow-wrap:anywhere}
+#v541PatternTrace .v541mono{font-family:ui-monospace,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}
+#v541PatternTrace .v541muted{color:#bdd1e1}
+</style>
+<script id="v541PatternActualVoteTrace">
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+let lastStamp='';
+function setup(){
+  const host=$('roadPreviewAiPanel');if(!host)return null;
+  let details=$('v541PatternTrace');if(details)return details;
+  details=document.createElement('details');details.id='v541PatternTrace';
+  const title=document.createElement('summary');title.textContent='Check the actual library matches used by Pattern AI';
+  details.appendChild(title);
+  const rows=document.createElement('div');rows.id='v541PatternRows';details.appendChild(rows);
+  details.addEventListener('toggle',()=>{if(details.open)paint(true)});
+  host.appendChild(details);return details;
+}
+function label(side){return side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT'}
+function make(tag,cls,value){const e=document.createElement(tag);if(cls)e.className=cls;e.textContent=String(value);return e}
+function paint(force){
+  const host=setup();if(!host||!host.open)return;
+  let r;
+  try{r=window.roadPreviewAISignal?.()}catch(e){return}
+  if(!r?.patternRecognizer)return;
+  const seq=(()=>{try{return currentSequence().filter(x=>x==='P'||x==='B').join('')}catch(e){return ''}})();
+  const used=r.exact?.matches||[];
+  const stamp=[seq,r.selectedColor,r.side,used.length,used.map(m=>m.shoeId+':'+m.position+':'+m.k+':'+m.next+':'+m.historicalTail).join('|')].join('!');
+  if(!force&&stamp===lastStamp)return;lastStamp=stamp;
+  const rows=$('v541PatternRows');if(!rows)return;rows.replaceChildren();
+  rows.appendChild(make('div','v541muted',`Official Pattern AI: ${label(r.side)} • ${r.matches} independent saved-shoe votes • ${r.selectedColor.toUpperCase()} selected shoe library. These are historical matches, NOT probabilities or a guaranteed outcome.`));
+  if(!used.length){rows.appendChild(make('div','v541row','No qualifying historical votes in this hand. The AI should display WAIT unless other existing gates apply.'));return}
+  for(const m of used.slice(0,8)){
+    const row=make('div','v541row','');
+    const source=make('div','',`${m.shoeId||'unknown shoe'} • ${m.shoeColor||r.selectedColor} • ${m.inverted?'INVERTED':'DIRECT'} • ${m.k}-hand window at saved hand ${m.position+1}`);
+    source.style.fontWeight='700';row.appendChild(source);
+    const actual=String(m.historicalTail||'');
+    const translated=m.inverted?actual.replace(/[PB]/g,c=>c==='P'?'B':'P'):actual;
+    row.appendChild(make('div','v541mono',`Live:   ${m.liveTail||seq.slice(-m.k)}`));
+    row.appendChild(make('div','v541mono',`Saved:  ${actual}${m.inverted?' (inverted as '+translated+')':''}`));
+    const same=Array.from(translated).reduce((a,c,i)=>a+(c===(m.liveTail||'')[i]?1:0),0);
+    row.appendChild(make('div','v541muted',`${same}/${m.k} matching P/B positions • Big Eye ${(m.eye*100).toFixed(0)}% • Small ${(m.small*100).toFixed(0)}% • recorded next: ${label(m.storedNext)} → vote ${label(m.next)}`));
+    rows.appendChild(row);
+  }
+  if(used.length>8)rows.appendChild(make('div','v541muted',`Showing 8 of ${used.length} actual votes. Other matches are not shown here.`));
+  rows.appendChild(make('div','v541muted','Approximate matches are labeled by their actual P/B agreement. A matching historical outcome is not evidence that the next live result is predictable.'));
+}
+function boot(){
+  setup();
+  const status=$('v538EntryStatus');
+  if(status&&typeof MutationObserver==='function')new MutationObserver(()=>{setTimeout(()=>paint(false),50)}).observe(status,{childList:true,subtree:true,characterData:true});
+  document.addEventListener('change',()=>setTimeout(()=>paint(false),100),true);
+  // An open trace is cheap because the existing V533 matcher caches same-hand results.
+  setInterval(()=>{if(document.visibilityState!=='hidden')paint(false)},2200);
+  window.__V541_PATTERN_ACTUAL_MATCH_TRACE__={version:541,paint,displayOnly:true};
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,1900),{once:true});else setTimeout(boot,1900);
+})();
+</script>
+
+<script id="v542PatternResearch">
+(()=>{
+'use strict';
+if(window.__V542_PATTERN_RESEARCH__)return;
+const $=id=>document.getElementById(id);
+const KEY='baccarat_v542_pattern_research_ledger_v1';
+const pb=()=>{try{return currentSequence().join('').replace(/[^PB]/g,'')}catch(e){return ''}};
+const full=()=>{try{return originalCurrentSequence().join('')}catch(e){return pb()}};
+const scope=()=>typeof v510ScopeKey==='function'?v510ScopeKey():'combined';
+const ignore=()=>typeof v452IgnoreTies==='function'&&v452IgnoreTies();
+const fresh=()=>({w:0,l:0,wait:0,ties:0,shoeW:0,shoeL:0,shoeSignature:'',rows:[],last:''});
+let ledger=fresh();
+try{const obj=JSON.parse(localStorage.getItem(KEY)||'null');if(obj&&typeof obj==='object')ledger={...fresh(),...obj,rows:Array.isArray(obj.rows)?obj.rows.slice(-400):[]}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(ledger))}catch(e){}};
+let pending=null,lastKey='';
+function candidate(r){
+ const matches=r?.exact?.matches||[];
+ if(pb().length<10)return {side:null,n:0,reason:'Needs at least 10 Player/Banker hands.'};
+ const peak=matches[0]?.rank||0;
+ let p=0,b=0,pc=0,bc=0;
+ for(const x of matches){
+  if(!peak)continue;
+  const weight=Math.pow(x.rank/peak,3);
+  if(x.next==='P'){p+=weight;pc++;}else if(x.next==='B'){b+=weight;bc++;}
+ }
+ const n=pc+bc,agree=n?Math.max(p,b)/(p+b):0;
+ const side=n>=4&&Math.max(pc,bc)>=3&&Math.abs(pc-bc)>=1&&agree>=.60?(p>b?'P':'B'):null;
+ return {side,n,pc,bc,agree,reason:side?'Test candidate from '+n+' independent shoes. Historical voting is not a win probability.':
+  'TEST WAIT: requires 4 distinct matches, 3 agreeing shoes, and 60% weighted agreement.'};
+}
+const shoeSig=()=>[state?.currentShoeColor||'unknown',state?.shoeId||''].join('|');
+function ensureShoe(){const sig=shoeSig();if(full().length===0&&(sig!==ledger.shoeSignature||ledger.shoeW||ledger.shoeL)){
+ ledger.shoeSignature=sig;ledger.shoeW=ledger.shoeL=0;save();
+}}
+function setup(){
+ const host=$('roadPreviewAiPanel');if(!host)return null;
+ let section=$('v542PatternTest');if(section)return section;
+ section=document.createElement('section');section.id='v542PatternTest';
+ section.style.cssText='margin-top:10px;border:1px solid #677c92;border-radius:10px;padding:12px;background:#1c2b39;color:#f2f6fb;font:13px system-ui;';
+ const title=document.createElement('div');title.style.cssText='font-size:15px;font-weight:750;margin-bottom:7px';
+ title.textContent='Pattern AI — More Calls (EXPERIMENTAL TEST)';section.appendChild(title);
+ const summary=document.createElement('div');summary.style.cssText='display:flex;flex-wrap:wrap;gap:12px;font-size:14px;font-weight:700';
+ for(const [id,text] of [['v542PatternPick','TEST NEXT: WAIT'],['v542PatternWL','0W–0L'],['v542PatternAcc','Accuracy: —'],['v542PatternShoe','This shoe: 0W–0L']]){
+  const item=document.createElement('span');item.id=id;item.textContent=text;summary.appendChild(item);
+ }section.appendChild(summary);
+ const note=document.createElement('div');note.id='v542PatternNote';note.style.cssText='font-size:12px;margin-top:8px;line-height:1.5';section.appendChild(note);
+ const reset=document.createElement('button');reset.id='v542PatternReset';reset.type='button';reset.textContent='Reset Pattern TEST Accuracy Only';
+ reset.style.cssText='margin-top:9px;padding:8px 12px;border-radius:8px';reset.addEventListener('click',()=>{
+  if(window.confirm('Reset only Pattern exploratory TEST W/L? Official Pattern accuracy and saved shoes stay unchanged.'))resetOnly();
+ });section.appendChild(reset);
+ const warning=document.createElement('div');warning.style.cssText='opacity:.82;font-size:11px;line-height:1.4;margin-top:7px';
+ warning.textContent='These extra calls are unverified research predictions, not recommended wagers. Official Pattern AI WAIT decisions and scores remain unchanged; ties do not count as wins or losses.';
+ section.appendChild(warning);host.appendChild(section);return section;
+}
+function paint(){if(!setup())return;
+ const valid=pending&&pending.before===pb()&&pending.fullBefore===full()&&pending.scope===scope()&&pending.ignore===ignore()?pending:null;
+ const x=valid?.choice||{side:null,n:0,reason:'Preparing research candidate…'};
+ const call=$('v542PatternPick');call.textContent='TEST NEXT: '+(x.side==='P'?'PLAYER':x.side==='B'?'BANKER':'WAIT');
+ call.style.color=x.side==='B'?'#ffaea9':x.side==='P'?'#b8caff':'#e2e8f2';
+ $('v542PatternWL').textContent=ledger.w+'W–'+ledger.l+'L';
+ $('v542PatternAcc').textContent='Accuracy: '+(ledger.w+ledger.l?(100*ledger.w/(ledger.w+ledger.l)).toFixed(1)+'%':'—');
+ $('v542PatternShoe').textContent='This shoe: '+ledger.shoeW+'W–'+ledger.shoeL+'L';
+ $('v542PatternNote').textContent=x.reason+' • '+(x.n||0)+' contributing saved shoes • '+(x.pc||0)+' Player / '+(x.bc||0)+' Banker • WAITs: '+ledger.wait+' • ties: '+ledger.ties+' • last: '+(ledger.last||'none');
+}
+function arm(){
+ try{
+  ensureShoe();const before=pb(),fullBefore=full(),k=[before,fullBefore,scope(),ignore()].join('|');
+  if(k===lastKey&&pending){paint();return pending;}
+  lastKey=k;
+  const r=window.roadPreviewAISignal?.();
+  const choice=candidate(r);
+  pending={choice,before,fullBefore,scope:scope(),ignore:ignore()};
+  paint();return pending;
+ }catch(e){console.warn('Pattern V542 experimental arm',e);pending=null;paint();return null}
+}
+function settle(actual){
+ if(!['P','B','T'].includes(actual))return;
+ const lock=pending;if(!lock||lock.before!==pb()||lock.fullBefore!==full()||lock.scope!==scope()||lock.ignore!==ignore())return;
+ const key=lock.fullBefore+'|'+actual;
+ if(ledger.rows.at(-1)?.key===key)return;
+ let result='WAIT';
+ if(actual==='T'){ledger.ties++;result='TIE';}
+ else if(lock.choice.side==='P'||lock.choice.side==='B'){
+  result=lock.choice.side===actual?'WIN':'LOSS';
+  if(result==='WIN'){ledger.w++;ledger.shoeW++;}else{ledger.l++;ledger.shoeL++;}
+ }else ledger.wait++;
+ ledger.rows.push({key,before:lock.fullBefore,after:lock.fullBefore+actual,actual,side:lock.choice.side,result});
+ if(ledger.rows.length>400)ledger.rows.shift();
+ ledger.last=result+' ('+(lock.choice.side||'WAIT')+' vs '+actual+')';
+ pending=null;lastKey='';save();paint();
+}
+function afterCommit(){pending=null;lastKey='';arm()}
+function reconcile(){
+ const row=ledger.rows.at(-1),now=full();
+ if(row&&row.before===now&&row.after.length===now.length+1){
+  if(row.result==='WIN'){ledger.w=Math.max(0,ledger.w-1);ledger.shoeW=Math.max(0,ledger.shoeW-1);}
+  if(row.result==='LOSS'){ledger.l=Math.max(0,ledger.l-1);ledger.shoeL=Math.max(0,ledger.shoeL-1);}
+  if(row.result==='WAIT')ledger.wait=Math.max(0,ledger.wait-1);
+  if(row.result==='TIE')ledger.ties=Math.max(0,ledger.ties-1);
+  ledger.rows.pop();ledger.last='Last result undone';save();
+ }
+ pending=null;lastKey='';arm();
+}
+function resetOnly(){ledger=fresh();ledger.shoeSignature=shoeSig();pending=null;lastKey='';save();arm()}
+function boot(){
+ setup();arm();
+ for(const id of ['undoBtn','clearBtn','newShoeBtn'])$(id)?.addEventListener('click',()=>setTimeout(reconcile,160));
+ document.addEventListener('change',()=>setTimeout(()=>{pending=null;lastKey='';arm()},100),true);
+ window.addEventListener('focus',()=>{if(!pending)arm()});
+}
+window.__V542_PATTERN_RESEARCH__={version:542,candidate,arm,settle,afterCommit,reconcile,reset:resetOnly,onScopeChange:()=>{pending=null;lastKey='';arm()},stats:()=>({...ledger,rows:[...ledger.rows]})};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,250),{once:true});else setTimeout(boot,250);
+})();
+
+</script>
 </body>
 </html>
 
