@@ -1,3 +1,4 @@
+<!-- V556: Full-Shoe Learning Lab official postcommit grading and immediate stale-pick clearing. Every eligible P/B hand gets an explicitly paper-only prediction after 10 P/B results. No betting edge claimed; all other AIs and saved library unchanged. -->
 <!-- V555: Main Future Awareness V277 & V480 pre-result quality gating, separate research leans, no unvalidated bead reversals, stricter historical support, one-issue vote accounting and sliding memoization. Original main future and Sequence V2 unchanged; does not establish predictive edge. -->
 <!-- V554: Bead History active-library-only plus qualified margin+independent support; BEA2 three-hand streak decision repair; Main Future Road Test 2 selected library, better candidates, reliable pre-commit grading. Other original AIs and saved shoes untouched. Historical signal percentages are NOT verified odds. -->
 <!-- V550: Derived Road official call-frequency gate loosened: V517 match filter 0.60/0.52/0.68 -> 0.55/0.47/0.62, 6/4/60 -> 3/2/51.5. No new AI panel or separate experimental bets. Main, Sequence V2, ML, saved shoes unchanged. Backtesting is research only and not a predictive edge. -->
@@ -123,7 +124,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V554 • Three-AI Matching and Grading Repair • Baccarat Dashboard</title>
+<title>V556 • Full-Shoe Learning Lab Accuracy Fix • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -660,7 +661,7 @@ body { overscroll-behavior-y: none; }
 
 <!-- V553: Always-visible learning lab entry point. The V552 learning model mounts into this slot. -->
 <section id="v551Lab" aria-label="Full-Shoe Learning Lab V552" style="margin:10px 0 12px;padding:13px;border:2px solid #6ca9c6;border-radius:12px;background:#152533;color:#edf3fc;font:13px system-ui;line-height:1.5">
- <div style="font-weight:900;font-size:17px">NEW AI • Full-Shoe Learning Lab V552</div>
+ <div style="font-weight:900;font-size:17px">NEW AI • Full-Shoe Learning Lab V556</div>
  <div style="font-size:11px;color:#f7df92;font-weight:800">Corrected Full-Shoe Learning Engine • SIMULATION ONLY</div>
  <div style="font-size:12px;margin-top:8px">Initializing learning lab. If this message remains, the learning module has not started.</div>
 </section>
@@ -13804,12 +13805,17 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     if(lastTxnKey===txnKey) return;
     lastTxnKey=txnKey;
     busy=true;
+    // V556: clear the Full-Shoe Lab's prior headline only for an accepted input.
+    // Keep its pre-hand locked candidate intact for authoritative grading.
+    try{window.__V552_FULL_SHOE_LAB__?.beforeCommit?.()}catch(e){console.warn('V556 lab prepare',e)}
     // V135: return from the click immediately. The pre-result accuracy ledgers settle
     // as a time-sliced queue, then the hand commits once and the UI refresh is staged.
     settleAllQueued(actual,()=>{
       try{
         state.hands.push({r:actual,pp:isPreview?false:!!state.pp,bp:isPreview?false:!!state.bp,special:isPreview?false:!!state.special,ts:Date.now()});
         state.scanSnapshot=null;
+        // V556: grade and arm the lab against THIS committed hand, not delayed polling.
+        try{window.__V552_FULL_SHOE_LAB__?.afterCommit?.()}catch(e){console.warn('V556 lab commit',e)}
         // V465: queue an optional asynchronous Gemini request AFTER the actual hand is stored.
         try{window.__GEMINI_V465__?.afterCommit()}catch(e){}
         try{window.__V489_COUNTEREXAMPLE_AUDITOR__?.afterCommit?.()}catch(e){}
@@ -25161,7 +25167,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
  */
 (function(){
 'use strict';
-const VERSION='552.0';
+const VERSION='552.0',PATCH='556.0'; // reuse eligible trained model cache; no pointless refit
 const STORE='baccarat_v552_causal_model_v1';
 const AUDIT='baccarat_v552_paper_audit_v1';
 const $=id=>document.getElementById(id);
@@ -25332,7 +25338,7 @@ function certifiedNot(){return 'No verified predictive edge. Simulation-only. Ro
 function initialLedger(){return {rows:[],wins:0,losses:0,oppositeWins:0,oppositeLosses:0,waits:0,ties:0,shoeWins:0,shoeLosses:0,shoeKey:'',graded:0}}
 let ledger={...initialLedger(),...(safeRead(AUDIT)||{})};
 if(!Array.isArray(ledger.rows))ledger=initialLedger();
-let trained=null, modelKey='', pending=null,lastFull=null,lastShoeIdentity=null,training=false,liveReason='Waiting for model', timer=null,lastSeenFingerprint='', lastPaint='',lastColor='';
+let trained=null, modelKey='', pending=null,lastFull=null,lastShoeIdentity=null,training=false,liveReason='Waiting for model', timer=null,lastSeenFingerprint='', lastPaint='',lastColor='', committing=false;
 function persistLedger(){safeWrite(AUDIT,ledger)}
 function resetLedger(){
  if(!window.confirm('Reset ONLY Full-Shoe Learning Lab simulated W/L and opposite W/L? Saved shoes and other AI counters are unchanged.'))return;
@@ -25344,16 +25350,17 @@ function selection(){
  const raw=fullSeq(),s=pb(raw),scope=currentScope(),c=resultColor();
  if(training||!trained||trained.fingerprint!==modelKey||trained.fingerprint!==fingerprint(trainingShoes().eligible)||s.length<10)return {side:null,reason:s.length<10?'Needs 10 P/B results':(training?'Training model—paper WAIT':liveReason),score:null,trap:trapInfo(s)};
  const x=features(s,c),adapted=adaptModel(trained.model,s,c),p=modelScore(adapted,x),t=trained.threshold;
- const side=p>.5?'B':'P';
- const qualifies=p>=t||p<=1-t;
+ const side=p>=.5?'B':'P';
+ const qualifies=Number.isFinite(p); // V556: don't suppress all paper calls near 50/50
+ const lowSeparation=p<t&&p>1-t;
  const traps=trapInfo(s);
- return {side:qualifies?side:null,lean:side,score:p,trap:traps,qualifies,
-  reason:qualifies?'Exploratory paper-only call; no established advantage.':'Low model separation; paper WAIT.'};
+ return {side:qualifies?side:null,lean:side,score:p,trap:traps,qualifies,lowSeparation,
+  reason:!qualifies?'Invalid score; WAIT':lowSeparation?'LOW SEPARATION: experimental paper pick, not a betting signal.':'Exploratory paper-only call; no established advantage.'};
 }
 function arm(){
  const before=fullSeq(),scope=currentScope()+'|'+String(ignoring());
  const call=selection();
- pending={before,scope,modelKey,shoeKey:shoeIdentity(),side:call.side,lean:call.lean,score:call.score};
+ pending={before,scope,modelKey,shoeKey:shoeIdentity(),side:call.side,lean:call.lean,score:call.score,armedBeforeResult:true};
  if(!ledger.shoeKey||before===''){
   const newKey=String(state?.currentShoeColor||'unset')+'|'+String(state?.shoeId||'');
   if(before===''&&ledger.shoeKey!==newKey){ledger.shoeWins=ledger.shoeLosses=0;ledger.shoeKey=newKey;persistLedger()}
@@ -25396,13 +25403,15 @@ function elapsed(t){return t==null?'—':t.toFixed(1)+'%'}
 function paint(force){
  if(!$('v551Lab'))return;
  const sel=selection(),trap=sel.trap,stats=trained?.audit||null;
- const title=$('v551Pick');const main=sel.side||sel.lean;
- title.textContent=training?'TRAINING':trained?(sel.qualifies?'PAPER: '+sideName(main):'PAPER: WAIT'+(main?' (lean '+sideName(main)+')':'')):'PAPER: WAIT';
- title.style.color=sel.side==='B'?'#ffbbb6':sel.side==='P'?'#b5c9ff':'#f0e9ba';
- $('v551Status').textContent=training?liveReason:(trained?`${sel.reason} • Trained on ${trained.counts.train} distinct shoes, validated on ${trained.counts.validation} and held out ${trained.counts.test}.`:`${liveReason}`);
+ const title=$('v551Pick');const main=sel.side;
+ // Never show the previous completed hand's pick as if it were a fresh call.
+ title.textContent=committing?'NEXT: UPDATING…':training?'PAPER: TRAINING / WAIT':(main?'PAPER NEXT #'+(state.hands.length+1)+': '+sideName(main):'PAPER NEXT #'+(state.hands.length+1)+': WAIT');
+ title.style.color=main==='B'?'#ffbbb6':main==='P'?'#b5c9ff':'#f0e9ba';
+ $('v551Status').textContent=committing?'Processing accepted hand before showing the next call…':(training?liveReason:(trained?`${sel.reason} • Trained on ${trained.counts.train} distinct shoes, validated on ${trained.counts.validation} and held out ${trained.counts.test}.`:`${liveReason}`));
  $('v551Trap').textContent='Shoe behavior: '+trap.level+' • '+trap.detail+(trap.roads?' • Three-road recent marks '+trap.roads:'');
  const n=ledger.wins+ledger.losses;
  $('v551Score').textContent=`PAPER: ${ledger.wins}W–${ledger.losses}L (${elapsed(n?100*ledger.wins/n:null)}) • Opposite ${ledger.oppositeWins}W–${ledger.oppositeLosses}L • WAIT ${ledger.waits} • Ties ${ledger.ties}`;
+ for(const [id,value] of [['v556Wins',ledger.wins],['v556Losses',ledger.losses],['v556Accuracy',elapsed(n?100*ledger.wins/n:null)]]){const el=$(id);if(el)el.textContent=value;}
  const x=$('v551Audit');if(stats){
   const va=stats.validation,te=stats.test;
   x.textContent=`MODEL: regularized logistic regression trained on historical hand prefixes only.\n`
@@ -25414,7 +25423,7 @@ function paint(force){
   +`Test Banker-only baseline (every eligible hand): ${stats.banker.wins}W–${stats.banker.losses}L.\n`
   +`On the SAME selected test hands: model ${stats.paired.wins}W–${stats.paired.losses}L, Banker-only ${stats.paired.bankerWins}W–${stats.paired.bankerLosses}L; Brier ${elapsed(stats.paired.brier==null?null:100*stats.paired.brier)} vs constant baseline ${elapsed(stats.paired.flatBrier==null?null:100*stats.paired.flatBrier)}.\n`
   +`Held-out regime accuracies: early ${elapsed(stats.regimes?.early.accuracy)}, middle ${elapsed(stats.regimes?.middle.accuracy)}, late ${elapsed(stats.regimes?.late.accuracy)}, long-streak ${elapsed(stats.regimes?.longStreak.accuracy)}, high-alternation ${elapsed(stats.regimes?.highAlternation.accuracy)}. Small groups are unreliable.\n`
-  +`Fixed predeclared paper threshold: ${(100*trained.threshold).toFixed(1)}% model score (NOT calibrated betting odds).\n`
+  +`Held-out audit threshold: ${(100*trained.threshold).toFixed(1)}% model score. Live paper calls now display all finite model picks after 10 P/B hands, including LOW SEPARATION. These are NOT calibrated betting odds.\n`
   +`Active shoe guard: ${trained.excludedActive||0} saved shoes excluded by matching the first 10 live P/B hands (no future leakage). Slow causal adaptation: 0.005 per observed hand.\n`
   +`Live PAPER calls: ${ledger.graded} outcomes, of which ${ledger.wins+ledger.losses} were scored non-tie predictions.\n`
   +certifiedNot();
@@ -25425,12 +25434,17 @@ function mount(){
  // The prior implementation buried the lab below the Derived Road analyzer.
  const section=$('v551Lab')||document.createElement('section');section.id='v551Lab';
  section.style.cssText='padding:13px;margin:10px 0 12px;border:2px solid #6ca9c6;border-radius:12px;background:#152533;color:#edf3fc;font:13px system-ui;line-height:1.5;contain:layout;';
- section.innerHTML=`<div style="font-weight:900;font-size:17px;margin-bottom:3px">NEW AI • Full-Shoe Learning Lab V552</div><div style="font-weight:800;font-size:11px;color:#f7df92;margin-bottom:7px">Corrected Full-Shoe Learning Engine • SIMULATION ONLY</div>
- <div id="v551Pick" style="font-weight:800;font-size:17px;margin-bottom:4px">PAPER: WAIT</div>
+ section.innerHTML=`<div style="font-weight:900;font-size:17px;margin-bottom:3px">NEW AI • Full-Shoe Learning Lab V556</div><div style="font-weight:800;font-size:11px;color:#f7df92;margin-bottom:7px">Corrected Full-Shoe Learning Engine • SIMULATION ONLY</div>
+ <div id="v551Pick" style="font-weight:800;font-size:17px;margin-bottom:4px">PAPER NEXT: WAIT</div>
  <div id="v551Status" style="font-size:12px;margin:5px 0">Checking saved shoes…</div>
  <div id="v551Trap" style="font-size:12px;margin:6px 0;color:#cfdaeb">Shoe behavior: —</div>
  <div id="v551Score" style="font-weight:700;padding:6px 0">PAPER: 0W–0L • Opposite 0W–0L</div>
- <div style="font-size:11px;opacity:.85">No betting recommendation. Potential “traps” are descriptive rhythm changes, not established foresight.</div>
+ <div id="v556AccuracyGrid" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:5px 0 8px;text-align:center">
+  <div style="background:#213545;padding:8px 4px;border-radius:8px"><div style="font-size:10px">PAPER WINS</div><strong id="v556Wins" style="font-size:23px">0</strong></div>
+  <div style="background:#213545;padding:8px 4px;border-radius:8px"><div style="font-size:10px">PAPER LOSSES</div><strong id="v556Losses" style="font-size:23px">0</strong></div>
+  <div style="background:#213545;padding:8px 4px;border-radius:8px"><div style="font-size:10px">ACCURACY</div><strong id="v556Accuracy" style="font-size:23px">—</strong></div>
+ </div>
+ <div style="font-size:11px;opacity:.85">Paper-only picks start after 10 P/B hands. Low separation is still shown but is not confidence or betting evidence. No guaranteed edge.</div>
  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0">
   <button type="button" id="v551Train" style="padding:7px 10px;border-radius:7px">Rebuild from entire eligible library</button>
   <button type="button" id="v551Reset" style="padding:7px 10px;border-radius:7px">Reset this lab’s paper results</button>
@@ -25518,17 +25532,35 @@ async function train(manual=false){
 function boot(){
  mount();lastFull=fullSeq();lastShoeIdentity=shoeIdentity();arm();paint(true);
  const force=()=>{if(training)return;const s=trainingShoes().eligible,fp=fingerprint(s);if(fp!==lastSeenFingerprint){lastSeenFingerprint=fp;train(false)} };
+ const beforeCommit=()=>{
+  committing=true;
+  const title=$('v551Pick');if(title){title.textContent='NEXT: UPDATING…';title.style.color='#f0e9ba'}
+  const status=$('v551Status');if(status)status.textContent='Waiting for the accepted hand to be committed…';
+ };
+ const afterCommit=()=>{
+  // Called only AFTER authoritative state.hands.push; grade old locked call once.
+  // This catches rapid queued entries and both P/B preview controls.
+  const now=fullSeq();if(now!==lastFull)settle(now);
+  committing=false;
+  force();paint(true);
+ };
  force();
  timer=setInterval(()=>{
   const now=fullSeq();
-  if(now!==lastFull){settle(now);force();}
+  if(now!==lastFull){settle(now);committing=false;force();}
   const nextColor=resultColor();if(nextColor!==lastColor){lastColor=nextColor;arm();paint(true)}
  },650);
  setInterval(force,12000);
  document.addEventListener('change',()=>{setTimeout(force,100)},true);
- window.__V552_FULL_SHOE_LAB__={version:VERSION,rebuild:()=>train(true),features,derived,trapInfo,adaptModel,trainingShoes,
+ for(const id of ['undoBtn','clearBtn','currentRedShoeBtn','currentBlackShoeBtn','combinedShoeBtn']){
+  const button=$(id);if(button)button.addEventListener('click',()=>setTimeout(()=>{
+   const now=fullSeq();if(now!==lastFull)settle(now);
+   committing=false;arm();paint(true);force();
+  },100),false);
+ }
+ window.__V552_FULL_SHOE_LAB__={version:PATCH,rebuild:()=>train(true),features,derived,trapInfo,adaptModel,trainingShoes,
   predict:selection,model:()=>trained,statistics:()=>({...ledger}),reset:resetLedger,training:()=>training,
-  onlySimulated:true};
+  beforeCommit,afterCommit,onlySimulated:true};
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,850),{once:true});
 else setTimeout(boot,850);
