@@ -1,3 +1,5 @@
+<!-- V569: Add opt-in historical reliability cross-cohort replay and exact card-composition research panel. Both are observational only: no changes to Player/Banker-only calls, ML, central result ledger, or shoe library. -->
+<!-- V568: Repair official ML pre-result locks across later V84 re-arms; route ML scan/training completion through ACTIVE central accuracy armer. No model/validation/other-AI changes. -->
 <!-- V567: Added multi-window sliding and appropriately mirrored inverted historical matching to the Player-only and Banker-only AIs; persistent V566 accuracy ledgers preserved. -->
 <!-- V565: Live Streak AI roster now checks installed visible next-pick panels before showing, scoring, or ranking AIs; no other AI predictions or saved shoes changed. -->
 <!-- V563: Removed Full-Shoe Learning Lab V557 panel and model, training timers, two commit hooks, and lab-only banner. All other AIs and saved shoes untouched. -->
@@ -130,7 +132,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V567 • Sliding & Inverted Player/Banker AIs • Baccarat Dashboard</title>
+<title>V569 • Reliability Replay and Card Composition Lab • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -12714,7 +12716,17 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
   function freshLocks(){
     const a=acc(),hand=currentSequence().length+1,seq=currentSequence().join(''),c=context();
     const next={};
+    // V568: The qualified ML call is immutable once locked BEFORE this hand.
+    // The old V84 re-arm unconditionally replaced it with WAIT during a temporary
+    // training/retrieval pause, so the official W/L counter never received a grade.
+    // Preserve only the same-hand, same-prefix, same-color P/B lock; a new hand,
+    // New Shoe or a tie still gets a fresh lock through the original flow.
+    const oldML=a.pending?.mlroad;
+    const keepML=oldML && (oldML.side==='P'||oldML.side==='B') &&
+      Number(oldML.hand)===hand && String(oldML.seq||'')===seq &&
+      String(oldML.color||'combined')===String(c.color||'combined');
     defs().forEach(([key,name,get])=>{
+      if(key==='mlroad' && keepML){next.mlroad=oldML;return;}
       let x=null; try{x=get()}catch(e){}
       const m=a.models[key]||(a.models[key]={name,wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
       const side=x?.side;
@@ -19528,7 +19540,9 @@ function startLiveScan(row){
     // Only arm the NEXT unplayed hand. Existing locked picks are never rewritten.
     if(scanIdentity()!==id)return;
     try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(e){}
-    try{window.__V178_ACCURACY_COUNTS__?.arm?.()}catch(e){}
+    // V568: use the installed core armer, not V178's superseded export.
+    try{window.__armVerifiedPredictions?.()}catch(e){}
+    try{window.__V519_ML_ACCURACY_FIX__?.paint?.()}catch(e){}
   };
   setTimeout(step,0);
 }
@@ -22549,7 +22563,7 @@ function paint(){
     panel.appendChild(reset);
   }
   const m=model(),w=Number(m?.wins)||0,l=Number(m?.losses)||0,n=Number(m?.predictions)||0;
-  const p=pending(),hand=nextHand(),locked=p?.side&&(p.side==='P'||p.side==='B')&&Number(p.hand)===hand;
+  const p=pending(),hand=nextHand(),seq=(()=>{try{return currentSequence().join('')}catch(_){return ''}})(),locked=p?.side&&(p.side==='P'||p.side==='B')&&Number(p.hand)===hand&&String(p.seq||'')===seq;
   put('mlv203Accuracy',n?(100*w/n).toFixed(1)+'%':'—');
   put('mlv203WL',w+'W / '+l+'L');
   put('mlv203Count','N='+n);
@@ -22630,7 +22644,13 @@ function start(reason){
     if(signature()!==mode)throw Error('Shoe color or tie mode changed during ML training. Rebuilding for current selection.');
     lastSuccess=mode;
   }catch(e){lastError=String(e?.message||e);lastSuccess=''}
-  finally{running=false;paint();try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(_){};try{window.__V519_ML_ACCURACY_FIX__?.paint?.()}catch(_){};}
+  finally{
+    running=false;paint();
+    // V568: newly qualified live ML calls must lock before the next result.
+    try{window.__armVerifiedPredictions?.()}catch(_){}
+    try{window.__V307_ML_SINGLE_OWNER__?.paint?.()}catch(_){};
+    try{window.__V519_ML_ACCURACY_FIX__?.paint?.()}catch(_){};
+  }
  },60);
 }
 function initialize(){
@@ -23426,6 +23446,191 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 })();
 </script>
 
+<style id="v569-research-style">
+#v569Lab{margin:10px 0;border:2px solid #4b7891;background:#13212b;color:#e7f3fb;border-radius:13px;padding:12px;font:12px system-ui,-apple-system,sans-serif}
+#v569Lab h3{font-size:16px;margin:0 0 4px;font-weight:900}#v569Lab h4{font-size:13px;margin:14px 0 4px;font-weight:900}
+#v569Lab .v569small{font-size:11px;line-height:1.45;color:#becfda;margin:5px 0}
+#v569Lab .v569actions{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+#v569Lab button,#v569Lab select{font:800 12px system-ui;background:#223b4e;border:1px solid #7394a8;color:white;border-radius:9px;padding:9px 11px;touch-action:manipulation}
+#v569Lab button:disabled{opacity:.45}#v569Lab button.v569main{background:#326383}
+#v569Lab .v569grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:7px 0}
+#v569Lab .v569tile{border:1px solid #3c5a6a;border-radius:9px;background:#1a2b36;padding:9px;min-width:0}
+#v569Lab .v569tile b{display:block;font-size:12px;margin-bottom:4px}
+#v569Lab .v569table{width:100%;border-collapse:collapse;font-size:11px;margin:8px 0}
+#v569Lab .v569table td,#v569Lab .v569table th{padding:7px 5px;border-bottom:1px solid #3f5262;text-align:left}
+#v569Lab .v569table th{color:#c5d8e6;font-weight:800}
+#v569Lab .v569keys{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0}
+#v569Lab .v569keys button{padding:11px 3px;font-size:16px;font-weight:900;min-width:0}
+#v569Lab .v569notice{color:#e4ca83}#v569Lab .v569result{font-size:12px;font-weight:700;line-height:1.5;white-space:pre-line}
+#v569Lab label{display:flex;align-items:flex-start;gap:7px;line-height:1.35}#v569Lab input[type=checkbox]{width:18px;height:18px;flex:none;accent-color:#68b7e8}
+@media(max-width:520px){#v569Lab .v569grid{grid-template-columns:1fr}#v569Lab .v569table{font-size:10px}}
+</style>
+<script id="v569-reliability-card-research">
+(function(){
+'use strict';
+if(window.__V569_RESEARCH__)return;
+const ID='v569Lab',KEY='baccarat-v569-observed-ranks',fmt=x=>Number.isFinite(x)?(100*x).toFixed(2)+'%':'—';
+const $=id=>document.getElementById(id);
+const inv=s=>s.replace(/[PB]/g,c=>c==='P'?'B':'P');
+const pb=s=>String(s||'').toUpperCase().replace(/[^PB]/g,'');
+function getShoes(){
+ const a=[...(Array.isArray(state?.redPatternLibrary)?state.redPatternLibrary:[]),...(Array.isArray(state?.blackPatternLibrary)?state.blackPatternLibrary:[])],seen=new Set(),out=[];
+ for(const sh of a){const q=pb(sh?.sequence);if(q.length<16||seen.has(q))continue;seen.add(q);out.push({sequence:q,date:String(sh?.savedAt||''),color:String(sh?.shoeColor||sh?.__color||'')});}
+ out.sort((a,b)=>a.date.localeCompare(b.date));return out;
+}
+function build(shoes){
+ return shoes.map((sh,i)=>{const q=sh.sequence,m7=new Map(),m6=new Map();for(let k=6;k<q.length;k++){
+  for(const [len,m] of [[7,m7],[6,m6]]){if(k<len)continue;const key=q.slice(k-len,k),c=m.get(key)||[0,0];c[q[k]==='P'?0:1]++;m.set(key,c);}
+ }return {m7,m6,i};});
+}
+function getVote(lib,context,enableInverse=true){
+ if(context.length<7)return null;
+ const q7=context.slice(-7),q6=context.slice(-6),iq=inv(q7),middle=Math.floor(lib.length/2);
+ let p=0,w=0,matches=0;const group=[[0,0],[0,0]];
+ for(const shoe of lib){let c,wt,flip=false;
+  if((c=shoe.m7.get(q7))){wt=1;}
+  else if(enableInverse&&(c=shoe.m7.get(iq))){wt=.25;flip=true;}
+  else if((c=shoe.m6.get(q6))){wt=.20;}
+  else continue;
+  const v=wt*(flip?c[1]:c[0])/(c[0]+c[1]);
+  p+=v;w+=wt;matches++;
+  const g=group[shoe.i>=middle?1:0];g[0]+=v;g[1]+=wt;
+ }
+ if(matches<12||w<12)return null;
+ return {share:(p+1)/(w+2),group,matches,weight:w};
+}
+function shadowPass(side,e){
+ return !!e&&e.group.every(g=>g[1]>=4 && (side==='P'?g[0]/g[1]:1-g[0]/g[1])>=.51);
+}
+let mounted=false,busy=false,liveCache='',lastSeenHand=-1,allCards=[],decks=8,confirmed=false,estimate=null;
+try{const saved=JSON.parse(localStorage.getItem(KEY)||'null');if(saved&&[6,8].includes(saved.decks)&&Array.isArray(saved.cards)){decks=saved.decks;allCards=saved.cards.filter(x=>Number.isInteger(x)&&x>=0&&x<=9).slice(0,416);}}catch(e){}
+function store(){try{localStorage.setItem(KEY,JSON.stringify({decks,cards:allCards}))}catch(e){}}
+function text(id,s){const el=$(id);if(el)el.textContent=String(s)}
+function mount(){
+ if($(ID))return true;
+ const side=$('v566SideOnlyWrap');if(!side)return false;
+ const box=document.createElement('section');box.id=ID;
+ box.innerHTML=`<h3>Historical Reliability Lab • V569</h3>
+ <div class="v569small">Two separate research checks for Player Only and Banker Only. <b>Shadow mode:</b> neither check changes the official predictions, wins/losses, or reset buttons.</div>
+ <div class="v569grid"><div class="v569tile"><b>Player Only — current shadow gate</b><div id="v569LiveP">Checking…</div></div><div class="v569tile"><b>Banker Only — current shadow gate</b><div id="v569LiveB">Checking…</div></div></div>
+ <div class="v569small">The added filter requires the same direction in both time-ordered halves of the historical evidence (at least four effective votes and a 51% descriptive share in each). This is a structural check, <b>not</b> a proven probability advantage.</div>
+ <div class="v569actions"><button class="v569main" type="button" id="v569Replay">Run chronological 70/30 replay</button></div>
+ <div class="v569small" id="v569Progress">Replay not run. The saved shoes are not changed.</div><div id="v569ReplayOutput"></div>
+ <h4>Card Composition Research • independent of P/B roads</h4>
+ <div class="v569small">Manually enter the numeric value of <b>every card removed</b> since a fully known shuffle. Enter 0 for 10/J/Q/K. The existing shoe library contains only results, not card ranks, so card-composition accuracy cannot be backtested from it.</div>
+ <div class="v569actions"><label for="v569Decks">Initial decks</label><select id="v569Decks"><option value="8">8 decks</option><option value="6">6 decks</option></select><button type="button" id="v569Undo">Undo card</button><button type="button" id="v569Clear">New shoe / clear cards</button></div>
+ <div class="v569keys" id="v569Keys"></div>
+ <div class="v569small" id="v569CardStatus">—</div>
+ <label><input id="v569Complete" type="checkbox" />I have recorded all cards removed since the shuffle (including burn cards and all dealt cards), and no cards are missing.</label>
+ <div class="v569actions"><button class="v569main" type="button" id="v569Calculate">Calculate exact next-hand odds</button></div>
+ <div class="v569result" id="v569CardResult">No card-rank calculation yet.</div>
+ <div class="v569small v569notice">Research only. These exact rules-based probabilities assume standard baccarat dealing without replacement from the specified complete shoe. They are not AI predictions and cannot reliably reflect a reused/reshuffled or partially observed shoe. Normal Banker/Player bets retain a house edge at a fresh shoe.</div>`;
+ side.insertAdjacentElement('afterend',box);
+ const keys=$('v569Keys');for(let rank=0;rank<=9;rank++){const b=document.createElement('button');b.type='button';b.textContent=String(rank);b.title=rank?'Remove rank '+rank:'Remove a 10, J, Q, or K';b.addEventListener('click',()=>addCard(rank));keys.appendChild(b)}
+ $('v569Decks').value=String(decks);
+ $('v569Decks').addEventListener('change',e=>{const d=Number(e.target.value);if(allCards.length&&!confirm('Changing initial decks clears the recorded card history. Continue?')){e.target.value=String(decks);return;}decks=d;allCards=[];confirmed=false;estimate=null;store();paintCards()});
+ $('v569Undo').addEventListener('click',()=>{if(allCards.length){allCards.pop();confirmed=false;estimate=null;store();paintCards()}});
+ $('v569Clear').addEventListener('click',()=>{if(allCards.length&&!confirm('Clear all recorded ranks and start a new shoe?'))return;allCards=[];confirmed=false;estimate=null;store();paintCards()});
+ $('v569Complete').addEventListener('change',e=>{confirmed=!!e.target.checked;estimate=null;paintCards()});
+ $('v569Calculate').addEventListener('click',calcClick);
+ $('v569Replay').addEventListener('click',runReplay);
+ paintCards();return true;
+}
+function fullCounts(){return Array.from({length:10},(_,i)=>(i===0?16:4)*decks)}
+function remaining(){const counts=fullCounts();for(const c of allCards)counts[c]--;return counts;}
+function addCard(r){const counts=remaining();if(counts[r]<=0){text('v569CardResult','No cards of that value remain in the selected deck count.');return;}allCards.push(r);confirmed=false;estimate=null;store();paintCards();}
+function paintCards(){if(!$(ID))return;const n=decks*52-allCards.length,counts=remaining();const negative=counts.some(x=>x<0);
+ $('v569Complete').checked=confirmed; text('v569CardStatus',`Recorded ${allCards.length} / ${decks*52} cards • ${n} remain • last 12: ${allCards.slice(-12).join(' ')||'none'}`);
+ $('v569Calculate').disabled=!confirmed||negative||n<6;
+ text('v569CardResult',estimate||'Enter observed card ranks, confirm the complete record, then calculate. No outcomes are inferred from the existing P/B/T results.');
+}
+// Exact baccarat probabilities: exhaustive rank-conditioned ordered draws without replacement.
+// Player cards: P1, B1, P2, B2; optional P3, then optional B3. Standard third-card rules.
+function exactOdds(initial){
+ const c=initial.slice(),N=c.reduce((a,b)=>a+b,0);if(N<6)return null;
+ const scores=new Float64Array(3);
+ function outcome(p,b,wt){scores[p>b?0:p<b?1:2]+=wt}
+ function bankerDraw(bt,pt){if(pt<0)return bt<=5;return bt<=2||(bt===3&&pt!==8)||(bt===4&&pt>=2&&pt<=7)||(bt===5&&pt>=4&&pt<=7)||(bt===6&&(pt===6||pt===7));}
+ const invN=1/N,invN1=1/(N-1),invN2=1/(N-2),invN3=1/(N-3),invN4=1/(N-4),invN5=1/(N-5);
+ for(let p1=0;p1<10;p1++){let w1=c[p1]*invN;if(!w1)continue;c[p1]--;
+ for(let b1=0;b1<10;b1++){let w2=w1*c[b1]*invN1;if(!w2)continue;c[b1]--;
+ for(let p2=0;p2<10;p2++){let w3=w2*c[p2]*invN2;if(!w3)continue;c[p2]--;
+ for(let b2=0;b2<10;b2++){let w4=w3*c[b2]*invN3;if(!w4)continue;c[b2]--;
+ const pt=(p1+p2)%10,bt=(b1+b2)%10;
+ if(pt>=8||bt>=8){outcome(pt,bt,w4)}
+ else if(pt>5){if(!bankerDraw(bt,-1))outcome(pt,bt,w4);
+  else for(let b3=0;b3<10;b3++){if(!c[b3])continue;outcome(pt,(bt+b3)%10,w4*c[b3]*invN4)}
+ }else{
+  for(let p3=0;p3<10;p3++){const cnt=c[p3];if(!cnt)continue;const wt=w4*cnt*invN4;c[p3]--;
+   const ps=(pt+p3)%10;
+   if(!bankerDraw(bt,p3))outcome(ps,bt,wt);
+   else for(let b3=0;b3<10;b3++){if(!c[b3])continue;outcome(ps,(bt+b3)%10,wt*c[b3]*invN5)}
+   c[p3]++;
+  }
+ }
+ c[b2]++;
+ }c[p2]++;
+ }c[b1]++;
+ }c[p1]++;
+ }
+ return {player:scores[0],banker:scores[1],tie:scores[2],sum:scores[0]+scores[1]+scores[2]};
+}
+function calcClick(){if(!confirmed)return;const c=remaining(),btn=$('v569Calculate');btn.disabled=true;text('v569CardResult','Calculating exact baccarat third-card outcomes…');setTimeout(()=>{
+ try{const z=exactOdds(c);if(!z||Math.abs(z.sum-1)>1e-7)throw Error('probability total did not normalize ('+(z?.sum||0)+')');
+  const base=exactOdds(fullCounts());
+  estimate=`NEXT HAND (including ties) • ${decks} decks, ${allCards.length} fully observed removed cards\nBanker: ${fmt(z.banker)} (fresh shoe ${fmt(base.banker)})\nPlayer: ${fmt(z.player)} (fresh shoe ${fmt(base.player)})\nTie: ${fmt(z.tie)} (fresh shoe ${fmt(base.tie)})\nThese are theoretical probabilities, not a guarantee or a betting recommendation.`;
+  }catch(e){estimate='Calculation unavailable: '+String(e?.message||e)}paintCards();
+ },10)}
+function liveShadow(){if(!mount())return;
+ const api=window.__V566_SIDE_AIS__,current=pb((state?.hands||[]).map(x=>typeof x==='string'?x:x?.r||'').join(''));
+ const enabled=typeof v452IgnoreTies==='function'?v452IgnoreTies():false;
+ if(!enabled){text('v569LiveP','Unavailable: turn Ignore Ties ON for this research rule.');text('v569LiveB','Unavailable: turn Ignore Ties ON for this research rule.');return}
+ const shoes=getShoes();const stamp=current+'|'+shoes.length+'|'+(typeof v534MLLibraryFingerprint==='function'?v534MLLibraryFingerprint():'');if(liveCache===stamp)return;liveCache=stamp;
+ // Uses the currently eligible library; the official side-only calls remain untouched.
+ const subset=typeof v510RawShoes==='function'?v510RawShoes():[],seqs=[],seen=new Set();for(const sh of subset){const q=pb(sh?.sequence);if(q.length<16||seen.has(q))continue;seen.add(q);seqs.push({sequence:q,date:String(sh?.savedAt||'')})}
+ seqs.sort((a,b)=>a.date.localeCompare(b.date));const historical=build(seqs);
+ for(const side of ['P','B']){
+  const z=api?.signal?.(side),m=api?.mode?.(side),has=z?.side===side;
+  if(!has){text('v569Live'+side,'Official AI: WAIT • shadow filter not evaluated');continue}
+  const e=getVote(historical,current,m?.inverted!==false);
+  const pass=shadowPass(side,e);
+  text('v569Live'+side,(pass?'PASS':'BLOCK')+' (research only) • '+(e?e.group.map(g=>g[1].toFixed(1)+' effective votes').join(' / '):'insufficient historical matches')+'. Official '+(side==='P'?'Player':'Banker')+' call remains unchanged.');
+ }
+}
+function runReplay(){if(busy)return;if(!mount())return;
+ const shoes=getShoes();if(shoes.length<30){text('v569Progress','Not enough distinct saved shoes to run chronological replay.');return}
+ busy=true;$('v569Replay').disabled=true;$('v569ReplayOutput').textContent='';const cut=Math.floor(.70*shoes.length),train=shoes.slice(0,cut),test=shoes.slice(cut),lib=build(train),out={P:{base:[0,0],filtered:[0,0]},B:{base:[0,0],filtered:[0,0]}};
+ let index=0,opps=0;function step(){
+  const sh=test[index];for(let i=10;i<sh.sequence.length;i++){
+   opps++;const e=getVote(lib,sh.sequence.slice(0,i));if(!e)continue;
+   for(const side of ['P','B']){
+    const share=side==='P'?e.share:1-e.share;if(share<.55)continue;
+    const correct=sh.sequence[i]===side?1:0;
+    out[side].base[0]+=correct;out[side].base[1]++;
+    if(shadowPass(side,e)){out[side].filtered[0]+=correct;out[side].filtered[1]++;}
+   }
+  }
+  index++;text('v569Progress',`Replay ${index}/${test.length} test shoes • no current or future results used as reference.`);
+  if(index<test.length){setTimeout(step,0);return}
+  const rate=a=>a[1]?(100*a[0]/a[1]).toFixed(1)+'%':'—';const cell=a=>`${a[0]}W / ${a[1]-a[0]}L • ${rate(a)} • ${a[1]} calls`;
+  $('v569ReplayOutput').innerHTML=`<div class="v569small">${shoes.length} distinct shoes, savedAt order: first ${cut} historical reference, last ${test.length} completely held out. ${opps} P/B opportunities after hand 10; ties ignored; existing V567 7/6 sliding/inverted method. This is one retrospective split, not proof of live advantage.</div><table class="v569table"><tr><th>AI</th><th>Original calls</th><th>2-cohort filter</th></tr><tr><td>Player</td><td>${cell(out.P.base)}</td><td>${cell(out.P.filtered)}</td></tr><tr><td>Banker</td><td>${cell(out.B.base)}</td><td>${cell(out.B.filtered)}</td></tr></table><div class="v569small v569notice">If the filter does not improve results across independent test periods, it remains research-only. It cannot be activated as a live betting gate from this panel.</div>`;
+  busy=false;$('v569Replay').disabled=false;
+  window.__V569_RESEARCH__.lastReplay={shoes:shoes.length,train:cut,test:test.length,opportunities:opps,results:out};
+ }setTimeout(step,0);
+}
+function boot(){if(mount()){lastSeenHand=Array.isArray(state?.hands)?state.hands.length:0;liveShadow();}
+ if(!window.__v569Timer)window.__v569Timer=setInterval(()=>{
+  if(document.visibilityState==='hidden')return;
+  if(!mount())return;
+  const n=Array.isArray(state?.hands)?state.hands.length:0;
+  if(lastSeenHand>=0&&n!==lastSeenHand){confirmed=false;estimate=null;paintCards()}
+  lastSeenHand=n;liveShadow();
+ },4000);
+}
+window.__V569_RESEARCH__={version:569,runReplay,exactOdds,shadowPass,getVote,build,lastReplay:null,officialAisChanged:false,savedShoesChanged:false};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,450),{once:true});else setTimeout(boot,450);
+})();
+</script>
 </body>
 </html>
 
