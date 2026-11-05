@@ -1,3 +1,4 @@
+<!-- V567: Added multi-window sliding and appropriately mirrored inverted historical matching to the Player-only and Banker-only AIs; persistent V566 accuracy ledgers preserved. -->
 <!-- V565: Live Streak AI roster now checks installed visible next-pick panels before showing, scoring, or ranking AIs; no other AI predictions or saved shoes changed. -->
 <!-- V563: Removed Full-Shoe Learning Lab V557 panel and model, training timers, two commit hooks, and lab-only banner. All other AIs and saved shoes untouched. -->
 <!-- V562: Fully removed Main Future Awareness V480 and Big Eye Sliding+Inverted V516 panel/engine, disabled commit hooks, and cleaned live streak/after-tie lists. V277 and other AIs, libraries, and ledgers remain unchanged. -->
@@ -129,7 +130,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V565 • Active-AI Streak Monitor • Baccarat Dashboard</title>
+<title>V567 • Sliding & Inverted Player/Banker AIs • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -660,7 +661,7 @@ body { overscroll-behavior-y: none; }
 <div id="v423TrustTable"></div>
 </section>
 <section aria-label="AI Streak Signals" id="v422StreakPanel">
-<div class="streak-title">AI Streak Signals V565 • Installed AIs Only</div>
+<div class="streak-title">AI Streak Signals V567 • Installed AIs Only</div>
 <div class="streak-note">ALTERNATING = last six graded calls W-L-W-L-W-L or L-W-L-W-L-W. HOT = 3+ consecutive graded wins. Only active next-hand P/B predictors are tracked. Deleted AIs, inactive panels and paper/simulation tests are excluded. Counts are recorded on actual P/B results from picks locked before the hand; WAIT/ties never count as wins or losses. Historical results cannot establish next-hand odds.</div>
 <div class="streak-note" id="v491StreakCoverage">Checking available analyzers…</div>
 <div aria-live="polite" class="streak-note" id="v422Summary">Monitoring live AI calls; waiting for the next result.</div>
@@ -13113,6 +13114,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       // V527: grade only the pre-result locked 7-Win Opportunity AI call.
       ()=>{try{window.__V527_SEVEN_WIN_AI__?.settle?.(actual)}catch(e){console.warn('V527 7-win settle',e)}},
       ()=>{try{window.__V542_PATTERN_RESEARCH__?.settle?.(actual)}catch(e){console.warn('V542 Pattern research settle',e)}},
+      // V566: grade both side-only AIs using their NEXT-hand locks, before the hand enters history.
+      ()=>{try{window.__V566_SIDE_AIS__?.settle?.(actual)}catch(e){console.warn('V566 side-only settle',e)}},
       ()=>{try{settleGPTMirrorPrediction(actual)}catch(e){console.warn('V135 Mirror settle',e)}},
       // V324: Best Estimate + AI Pattern must settle inside the ONE authoritative
       // result transaction. V102 blocks all legacy result listeners, so grading them
@@ -13166,6 +13169,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__chartPatternRecognizerV156?.render?.()}catch(e){console.warn('V168 chart queued refresh',e)}
       try{window.__V527_SEVEN_WIN_AI__?.arm?.()}catch(e){}
       try{window.__V542_PATTERN_RESEARCH__?.arm?.()}catch(e){}
+      try{window.__V566_SIDE_AIS__?.arm?.()}catch(e){}
       // Keep the queue reserved while handing off to the next scheduled result.
       // Otherwise a fresh click can overtake an older queued result.
       const queued=pendingResults.shift();
@@ -13223,6 +13227,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         if(j>=jobs.length){
           try{window.__V527_SEVEN_WIN_AI__?.arm?.()}catch(e){}
       try{window.__V542_PATTERN_RESEARCH__?.arm?.()}catch(e){}
+      try{window.__V566_SIDE_AIS__?.arm?.()}catch(e){}
           const queued=pendingResults.shift();
           if(queued){setTimeout(()=>commit(queued.actual,queued.isPreview,true),0);}
           else{
@@ -13300,6 +13305,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         try{window.__V489_COUNTEREXAMPLE_AUDITOR__?.afterCommit?.()}catch(e){}
         try{window.__V527_SEVEN_WIN_AI__?.afterCommit?.()}catch(e){}
         try{window.__V542_PATTERN_RESEARCH__?.afterCommit?.()}catch(e){}
+        try{window.__V566_SIDE_AIS__?.afterCommit?.()}catch(e){}
         if(!isPreview){
           state.pp=state.bp=state.special=false;
           document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
@@ -13333,6 +13339,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.__BEAD_HISTORY_AI_V379__?.clearPending?.();window.__BEAD_HISTORY_AI_V379__?.arm?.()}catch(e){}
     try{window.renderVerifiedAccuracy?.();window.__V86_MATCHER_ACCURACY__?.render?.();window.__V84_MAIN_FUTURE_TUNE__?.render?.();window.__V332_BEST_ESTIMATE_2__?.paint?.()}catch(e){}
     try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
+    try{window.__V566_SIDE_AIS__?.historyChanged?.()}catch(e){}
   },0);
   document.getElementById('undoBtn')?.addEventListener('click',resync,false);
   document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';lastPhysicalInputAt=0;lastPhysicalInputActual=null;busy=false;pendingResults.length=0;resync()},false);
@@ -21761,6 +21768,8 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   ['Bead Plate History AI','beadHistSide'],
   ['Main Future Awareness','v277Action'],
   ['ML Trainer','mlv307Pick'],
+  ['Player Only AI V567','v566PlayerPick'],
+  ['Banker Only AI V567','v566BankerPick'],
   ['Black Big Eye + Bead Signal V512','v512Pick'],
   ['Big Eye Precision Reversal V513','v513Pick'],
  ];
@@ -21938,9 +21947,9 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
  function gradeCommittedResult(){scan()}
  $('v422Reset')?.addEventListener('click',reset);
  $('v406ResetAllAccuracy')?.addEventListener('click',reset);
- window.__V422_STREAK__={version:565,lockBeforeResult,gradeCommittedResult,
+ window.__V422_STREAK__={version:567,lockBeforeResult,gradeCommittedResult,
   get models(){return activeModels().map(x=>x[0])},reset,scan,
-  inspect:()=>({version:565,models:activeModels().map(x=>x[0]),research:[...research],
+  inspect:()=>({version:567,models:activeModels().map(x=>x[0]),research:[...research],
     visible:[...document.querySelectorAll('#v422StreakRows .v422name')].map(x=>x.textContent),
     missing:[], // missing/removed names are no longer part of the active roster
     calls:Object.fromEntries(activeModels().map(([name])=>[name,journal[name].length])),
@@ -23182,6 +23191,238 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(cleanup,1200),{once:true});
   else setTimeout(cleanup,1200);
   setTimeout(cleanup,3200);
+})();
+</script>
+
+<!-- V567: Sliding and inverse historical matching for separately graded Player and Banker AIs.
+     Each is an actual pre-result P/B-or-WAIT predictor with an independent ledger.
+     No other AI prediction code, historical shoe, or existing accuracy score is edited. -->
+<style id="v566-side-only-styles">
+#v566SideOnlyWrap{margin:9px 0;display:grid;gap:9px;grid-template-columns:repeat(2,minmax(0,1fr));}
+.v566-panel{color:#f1f5fb;background:#15202c;border:1px solid #506880;border-radius:13px;padding:12px;min-width:0;font:12px system-ui,-apple-system,sans-serif;}
+#v566PlayerPanel{border-top:3px solid #427dff}#v566BankerPanel{border-top:3px solid #e14c4c}
+.v566-head{font-size:16px;font-weight:900;margin-bottom:3px}
+.v566-sub{font-size:11px;opacity:.85;line-height:1.4;min-height:30px}
+.v566-pick{font-size:23px;font-weight:900;margin-top:11px;line-height:1.2}
+#v566PlayerPick{color:#a5beff}#v566BankerPick{color:#ffa8a8}
+.v566-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:10px 0;}
+.v566-cell{border-radius:8px;background:#233443;padding:7px 5px;text-align:center;min-width:0}
+.v566-cell span{display:block;color:#bac9d7;font-size:9px}
+.v566-cell b{display:block;font-size:16px;margin-top:2px;word-break:break-word;font-variant-numeric:tabular-nums}
+.v566-note{font-size:11px;line-height:1.4;color:#bdcddb;margin:7px 0;overflow-wrap:anywhere}
+.v566-reset{border:1px solid #6a829a;border-radius:8px;background:#2c475e;color:#fff;font:800 12px system-ui;padding:10px 6px;width:100%;margin-top:7px;touch-action:manipulation}
+.v566-mode{border:1px solid #657b8e;border-radius:8px;background:#193344;color:#e0f3ff;font:800 12px system-ui;padding:9px 6px;width:100%;margin-top:6px;touch-action:manipulation}
+.v566-mode[aria-pressed='false']{background:#343b44;color:#c5ced9}
+.v566-warning{font-size:10px;line-height:1.35;color:#b9c6d5;margin-top:6px}
+@media(max-width:700px){#v566SideOnlyWrap{grid-template-columns:1fr}}
+</style>
+<script id="v566-player-banker-only-runtime">
+(function(){
+'use strict';
+if(window.__V566_SIDE_AIS__)return;
+// V567 keeps V566 ledger keys so previously recorded W/L and resets persist.
+const VER=567, PREFIX='baccarat-v566-side-only-v1-';
+const settings={P:{key:'player',name:'Player Only AI',minimum:12,floor:0.55},B:{key:'banker',name:'Banker Only AI',minimum:12,floor:0.55}};
+const $=id=>document.getElementById(id);
+const raw=()=>{try{return (state.hands||[]).map(h=>typeof h==='string'?h:h?.r||'').filter(c=>c==='P'||c==='B'||c==='T').join('')}catch(e){return ''}};
+const pb=()=>raw().replace(/T/g,'');
+const scope=()=>{try{return typeof v510ScopeKey==='function'?v510ScopeKey():'combined'}catch(e){return 'combined'}};
+const ignore=()=>{try{return typeof v452IgnoreTies==='function'&&v452IgnoreTies()}catch(e){return false}};
+const invert=seq=>seq.replace(/[PB]/g,c=>c==='P'?'B':'P');
+const newLedger=()=>({wins:0,losses:0,waits:0,ties:0,shoeWins:0,shoeLosses:0,rows:[],last:'—',lastSettled:''});
+const ledger={},pending={P:null,B:null},inversionOn={};
+let lastArmSig='',indexCache=null,lastHistory='';
+function save(side){try{localStorage.setItem(PREFIX+settings[side].key,JSON.stringify(ledger[side]))}catch(e){}}
+for(const side of ['P','B']){
+ const fresh=newLedger();let obj=null;
+ try{obj=JSON.parse(localStorage.getItem(PREFIX+settings[side].key)||'null')}catch(e){}
+ ledger[side]=obj&&typeof obj==='object'?{...fresh,...obj,rows:Array.isArray(obj.rows)?obj.rows.slice(-350):[]}:fresh;
+ try{inversionOn[side]=localStorage.getItem(PREFIX+'invert-'+side)!=='0'}catch(e){inversionOn[side]=true}
+}
+// Historical match semantics: every 7- or 6-result motif can occur ANYWHERE
+// (sliding windows) in a saved shoe. A saved shoe contributes a maximum of ONE
+// weighted fractional vote, no matter how often or by how many routes it matches.
+// Prefer 7 direct (1.0), then 7 inverted (.25, reverse the NEXT result),
+// then 6 direct (.20). Longer/direct evidence always wins inside a shoe.
+// These modest weights performed slightly better than V566 on the held-out split;
+// their past results do not establish predictive ability on a new live shoe.
+function libraryIndex(){
+ const sc=scope(),tie=ignore();let fp='';
+ try{fp=typeof v534MLLibraryFingerprint==='function'?v534MLLibraryFingerprint():''}catch(e){}
+ const signature=sc+'|'+tie+'|'+fp;
+ if(indexCache?.signature===signature)return indexCache;
+ let pool=[];try{pool=typeof v510RawShoes==='function'?v510RawShoes():[]}catch(e){}
+ const seen=new Set(), shoes=[];
+ for(const sh of pool){
+  let seq=String(typeof sh==='string'?sh:sh?.sequence||'').toUpperCase().replace(/[^PBT]/g,'');
+  if(tie)seq=seq.replace(/T/g,'');
+  if(seq.replace(/T/g,'').length<16||seen.has(seq))continue;
+  seen.add(seq);
+  const direct7=new Map(),direct6=new Map();
+  for(let j=6;j<seq.length;j++){
+   const actual=seq[j];if(actual!=='P'&&actual!=='B')continue;
+   for(const k of [6,7]){
+    if(j<k)continue;
+    const motif=seq.slice(j-k,j),where=k===7?direct7:direct6;
+    let counts=where.get(motif);
+    if(!counts){counts=[0,0];where.set(motif,counts)}
+    counts[actual==='P'?0:1]++;
+   }
+  }
+  shoes.push({direct7,direct6});
+ }
+ indexCache={signature,shoes,size:shoes.length};return indexCache;
+}
+function evidence(side){
+ const history=raw(),n=history.replace(/T/g,'').length,lib=libraryIndex(),mode=ignore();
+ if(n<10)return {share:null,matches:0,shoes:lib.size,weight:0,counts:{direct:0,inverted:0,sliding:0},reason:'Needs 10 Player/Banker results before searching.'};
+ const context=mode?history.replace(/T/g,''):history;
+ if(context.length<7)return {share:null,matches:0,shoes:lib.size,weight:0,counts:{direct:0,inverted:0,sliding:0},reason:'Waiting for enough recent results.'};
+ const q7=context.slice(-7),q6=context.slice(-6),iq7=invert(q7);
+ let weightedPlayer=0,weight=0,matches=0;
+ const counts={direct:0,inverted:0,sliding:0};
+ for(const shoe of lib.shoes){
+  let c=null,w=0,flipped=false,kind='';
+  if((c=shoe.direct7.get(q7))){w=1;kind='direct'}
+  else if(inversionOn[side]&&(c=shoe.direct7.get(iq7))){w=.25;flipped=true;kind='inverted'}
+  else if((c=shoe.direct6.get(q6))){w=.20;kind='sliding'}
+  if(!c)continue;
+  const total=c[0]+c[1];if(!total)continue;
+  weightedPlayer+=w*(flipped?c[1]:c[0])/total;
+  weight+=w;matches++;counts[kind]++;
+ }
+ if(matches<settings[side].minimum||weight<settings[side].minimum)
+  return {share:null,matches,shoes:lib.size,weight,counts,reason:'WAIT: too little weighted independent-shoe evidence (12 effective votes required).'};
+ const share=(weightedPlayer+1)/(weight+2); // smoothed, descriptive share; NOT chance of next outcome
+ return {share,matches,shoes:lib.size,weight,counts,reason:'Sliding 7/6 results • inverted 7 fallback (when enabled) • one weighted vote per shoe.'};
+}
+function decide(side,e){
+ const sideShare=side==='P'?e.share:(e.share==null?null:1-e.share);
+ const qualified=sideShare!=null&&e.weight>=settings[side].minimum&&sideShare>=settings[side].floor;
+ return {side:qualified?side:null,strength:sideShare,matches:e.matches,shoes:e.shoes,weight:e.weight,counts:e.counts,
+  reason:e.share==null?e.reason:qualified?
+   'Historical matches favor '+(side==='P'?'Player':'Banker')+'; unverified next-hand call.':
+   'WAIT: '+(side==='P'?'Player':'Banker')+' did not meet the independent 55% historical-vote gate.'};
+}
+function mount(){
+ const anchor=$('sequenceAiPanel')||$('roadPreviewAiPanel')||document.querySelector('.app');
+ if(!anchor)return false;
+ let host=$('v566SideOnlyWrap');if(host)return true;
+ host=document.createElement('div');host.id='v566SideOnlyWrap';host.setAttribute('aria-label','Separate Player and Banker Only AIs');
+ for(const side of ['P','B']){
+  const id=side==='P'?'v566PlayerPanel':'v566BankerPanel',name=settings[side].name;
+  const section=document.createElement('section');section.className='v566-panel';section.id=id;
+  section.innerHTML='<div class="v566-head">'+name+' • V567</div>'+
+   '<div class="v566-sub">'+(side==='P'?'Can call PLAYER or WAIT; never Banker.':'Can call BANKER or WAIT; never Player.')+' Sliding search ON.</div>'+
+   '<div class="v566-pick" id="v566'+(side==='P'?'Player':'Banker')+'Pick">WAIT</div>'+
+   '<div class="v566-grid"><div class="v566-cell"><span>WINS</span><b data-m="wins">0</b></div><div class="v566-cell"><span>LOSSES</span><b data-m="losses">0</b></div><div class="v566-cell"><span>ACCURACY</span><b data-m="accuracy">—</b></div></div>'+
+   '<div class="v566-grid"><div class="v566-cell"><span>THIS SHOE W/L</span><b data-m="shoe">0W–0L</b></div><div class="v566-cell"><span>WAIT / TIES</span><b data-m="wait">0 / 0</b></div><div class="v566-cell"><span>SHOES MATCHED</span><b data-m="matches">0</b></div></div>'+
+   '<div class="v566-note" data-m="explain">Preparing sliding and inverted shoe index.</div>'+
+   '<div class="v566-note" data-m="last">Last graded result: —</div>'+
+   '<button type="button" class="v566-mode" data-m="invert">Inverted matching ON</button>'+
+   '<button type="button" class="v566-reset" id="v566'+(side==='P'?'Player':'Banker')+'Reset">Reset '+(side==='P'?'Player':'Banker')+' Only AI Accuracy</button>'+
+   '<div class="v566-warning">Historical matching is not a proven betting edge. Ties are pushes; WAIT is not a bet. Only pre-result calls count.</div>';
+  section.querySelector('[data-m="invert"]').addEventListener('click',()=>{
+   inversionOn[side]=!inversionOn[side];
+   try{localStorage.setItem(PREFIX+'invert-'+side,inversionOn[side]?'1':'0')}catch(e){}
+   // Changing mode refreshes only the next ungraded call, not the existing ledger.
+   lastArmSig='';arm(true);
+  });
+  section.querySelector('.v566-reset').addEventListener('click',()=>{
+   if(window.confirm('Reset only the '+name+' wins, losses, accuracy and WAIT counts? Saved shoes and other AIs are unchanged.'))reset(side);
+  });
+  host.appendChild(section);
+ }
+ anchor.insertAdjacentElement('beforebegin',host);return true;
+}
+function paint(){
+ if(!mount())return;
+ for(const side of ['P','B']){
+  const id=side==='P'?'v566PlayerPanel':'v566BankerPanel',root=$(id),a=ledger[side],p=pending[side];if(!root)continue;
+  const set=(q,v)=>{const x=root.querySelector('[data-m="'+q+'"]');if(x)x.textContent=v};
+  const el=$(side==='P'?'v566PlayerPick':'v566BankerPick');
+  if(el){el.textContent=p?.decision?.side===side?(side==='P'?'PLAYER':'BANKER'):'WAIT';el.dataset.v566Locked=p?.decision?.side===side?'1':'0'}
+  set('wins',a.wins);set('losses',a.losses);set('accuracy',a.wins+a.losses?(100*a.wins/(a.wins+a.losses)).toFixed(1)+'%':'—');
+  set('shoe',a.shoeWins+'W–'+a.shoeLosses+'L');set('wait',a.waits+' / '+a.ties);
+  set('matches',p?.decision?.matches??'0');
+  const d=p?.decision,c=d?.counts||{};
+  set('explain',(d?.reason||'Calculating…')+' • '+(d?.shoes??0)+' eligible shoes • 7-direct: '+(c.direct||0)+', 7-inverted: '+(c.inverted||0)+', 6-sliding: '+(c.sliding||0)+' • effective votes: '+(d?.weight||0).toFixed(1)+
+   (d?.strength==null?'':' • Historical '+(side==='P'?'Player':'Banker')+' share: '+(100*d.strength).toFixed(1)+'% (not odds).'));
+  set('last','Last graded result: '+(a.last||'—'));
+  const mode=root.querySelector('[data-m="invert"]');
+  if(mode){mode.textContent='Inverted matching '+(inversionOn[side]?'ON':'OFF');mode.setAttribute('aria-pressed',String(inversionOn[side]));}
+ }
+}
+function arm(force=false){
+ try{
+  mount();const r=raw(),sc=scope(),ig=ignore(),fp=typeof v534MLLibraryFingerprint==='function'?v534MLLibraryFingerprint():'';
+  const k=r+'|'+sc+'|'+ig+'|'+fp+'|'+(+inversionOn.P)+'|'+(+inversionOn.B);
+  if(!force&&k===lastArmSig&&pending.P&&pending.B){paint();return}
+  for(const side of ['P','B']){
+   pending[side]={before:r,scope:sc,ignore:ig,mode:inversionOn[side],decision:decide(side,evidence(side))};
+  }
+  lastArmSig=k;lastHistory=r;paint();
+ }catch(e){console.warn('V567 arm failed',e);pending.P=pending.B=null;paint()}
+}
+function settle(actual){
+ if(actual!=='P'&&actual!=='B'&&actual!=='T')return;
+ const before=raw(),sc=scope(),t=ignore();
+ for(const side of ['P','B']){
+  const a=ledger[side],q=pending[side];
+  if(!q||q.before!==before||q.scope!==sc||q.ignore!==t||q.mode!==inversionOn[side])continue;
+  const key=before+'>'+actual;
+  if(a.lastSettled===key)continue;
+  const called=q.decision.side===side;
+  const result=actual==='T'?'TIE':!called?'WAIT':actual===side?'WIN':'LOSS';
+  if(result==='WIN'){a.wins++;a.shoeWins++}
+  else if(result==='LOSS'){a.losses++;a.shoeLosses++}
+  else if(result==='WAIT')a.waits++;
+  else if(result==='TIE')a.ties++;
+  a.rows.push({key,before,after:before+actual,actual,pick:called?side:null,result,scope:sc,mode:q.mode?'inverted-on':'inverted-off'});
+  if(a.rows.length>350)a.rows.shift();
+  a.last=result+(called?' • '+side+' vs '+actual:' • no graded bet');a.lastSettled=key;save(side);
+ }
+ paint();
+}
+function afterCommit(){lastArmSig='';arm(true)}
+function historyChanged(){
+ const now=raw();
+ for(const side of ['P','B']){
+  const a=ledger[side],last=a.rows.at(-1);
+  if(last&&lastHistory===last.after&&now===last.before){
+   if(last.result==='WIN'){a.wins=Math.max(0,a.wins-1);a.shoeWins=Math.max(0,a.shoeWins-1)}
+   if(last.result==='LOSS'){a.losses=Math.max(0,a.losses-1);a.shoeLosses=Math.max(0,a.shoeLosses-1)}
+   if(last.result==='WAIT')a.waits=Math.max(0,a.waits-1);
+   if(last.result==='TIE')a.ties=Math.max(0,a.ties-1);
+   a.rows.pop();a.last='Previous entry undone';a.lastSettled='';save(side);
+  }else if(!now&&lastHistory){
+   a.shoeWins=0;a.shoeLosses=0;a.last='New shoe — previous totals preserved';a.lastSettled='';save(side);
+  }else if(now!==lastHistory&&now.length<lastHistory.length){
+   a.lastSettled='';save(side);
+  }
+ }
+ lastArmSig='';lastHistory=now;arm(true);
+}
+function reset(side){
+ if(!settings[side])return;
+ ledger[side]=newLedger();save(side);lastArmSig='';arm(true);
+}
+function boot(){
+ mount();arm(true);
+ for(const id of ['undoBtn','clearBtn','sampleBtn','redShoeReset','blackShoeReset'])$(id)?.addEventListener('click',()=>setTimeout(historyChanged,180),false);
+ document.addEventListener('click',e=>{
+  if(e.target?.closest?.('#v452TieToggle,[id*="Color"],[id*="color"],[id*="library" i]'))setTimeout(()=>{lastArmSig='';arm(true)},120);
+ },false);
+ document.addEventListener('change',()=>setTimeout(()=>{lastArmSig='';arm(true)},120),false);
+ window.addEventListener('pageshow',()=>{lastArmSig='';arm(true)});
+ window.__V566_SIDE_AIS__.ready=true;
+}
+window.__V566_SIDE_AIS__={version:VER,ready:false,arm,settle,afterCommit,historyChanged,reset,
+ stats:side=>settings[side]?{...ledger[side],pending:pending[side]}:null,
+ signal:side=>settings[side]?pending[side]?.decision:null,
+ mode:side=>settings[side]?{sliding:true,inverted:inversionOn[side],ignoreTies:ignore()}:null,
+ independentLedgers:true,preResultGrading:true,oneVotePerHistoricalShoe:true,noGuarantee:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,180),{once:true});else setTimeout(boot,180);
 })();
 </script>
 
