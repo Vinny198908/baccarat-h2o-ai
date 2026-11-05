@@ -125,6 +125,7 @@
 <!-- V341: Test 2 selective qualification loosening retained. Test 3 was later removed. -->
 <html lang="en">
 <head>
+<!-- V571: Restore Main Future Awareness V277 evaluation from V558/V400, leaving ML V570 and all other modules intact. -->
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" name="viewport"/>
 <meta content="yes" name="apple-mobile-web-app-capable"/>
@@ -18415,9 +18416,8 @@ window.__V271_LIVE_DECISION_GUARD__={version:VERSION,signal,render,refreshLearni
 (function(){
 'use strict';
 if(window.__V277_MAIN_FUTURE_AWARENESS__)return;
-const VERSION=555;
-// New policy: archive old advisory-lean W/L under its old untouched key.
-const STORE='v555_main_future_awareness_qualified_ledger';
+const VERSION=400;
+const STORE='v400_main_future_awareness_ledger';
 function fresh(){return {w:0,l:0,wait:0,pending:null,last:'Not graded yet'}}
 let ledger=fresh();try{const r=JSON.parse(localStorage.getItem(STORE)||'null');if(r&&typeof r==='object')ledger={...ledger,...r}}catch(e){}
 function save(){try{localStorage.setItem(STORE,JSON.stringify(ledger))}catch(e){}}
@@ -18447,8 +18447,8 @@ function evaluate(){
   if(!side&&n>=6){const pn=Number(x?.p?.norm),bn=Number(x?.b?.norm);if(Number.isFinite(pn)&&Number.isFinite(bn)&&pn!==bn){side=pn>bn?'P':'B';source='Main Future projected-score lean'}}
   const roads=Array.isArray(x?.roadSigs)?x.roadSigs:[];
   const votes=roads.map(r=>({name:r.label||'Road',side:roadVote(r.sig),sig:r.sig})).filter(r=>r.side);
-  if(!side&&n>=6){const ps=votes.filter(v=>v.side==='P').length,bs=votes.filter(v=>v.side==='B').length;if(ps!==bs&&ps+bs>0){side=ps>bs?'P':'B';source='Derived-road majority lean'}}
   const support=votes.filter(r=>r.side===side).length,oppose=votes.filter(r=>side&&r.side!==side).length;
+  if(!side&&n>=6){const ps=votes.filter(v=>v.side==='P').length,bs=votes.filter(v=>v.side==='B').length;if(ps!==bs&&ps+bs>0){side=ps>bs?'P':'B';source='Derived-road majority lean'}}
   const ready=roads.filter(r=>r?.sig?.pMark&&r?.sig?.bMark&&r.sig.pMark!==r.sig.bMark).length;
   const short=switches(a.slice(-6)),long=switches(a.slice(-14)),shift=Math.abs(short-long),runNow=run(a);
   const afterTie=all.at(-1)==='T',losses=recentLossStreak(accuracy()),edge=Number(x?.edge)||0;
@@ -18469,27 +18469,24 @@ function evaluate(){
   if(runNow>=6&&oppose){penalty+=8;reasons.push(`mature ${runNow}-hand run has break conflict`)}
   const adjusted=side?Math.round(clamp(baseConfidence+bonus-penalty,0,88)):0;
   let grade='QUALIFIED';
-  const baseQualified=x?.side==='P'||x?.side==='B';
-  if(!side||!baseQualified||n<10||oppose>=2||losses>=2||shift>=.32||adjusted<55)grade='WAIT';
+  if(!side||n<10||oppose>=2||losses>=2||shift>=.32||adjusted<55)grade='WAIT';
   else if(ready<2||oppose===1||afterTie||edge<7||shift>=.22||adjusted<60)grade='CAUTION';
-  const lean=side&&n>=6?(side==='P'?'PLAYER':'BANKER'):'WAIT';
-  const action=grade==='QUALIFIED'&&baseQualified?lean:'WAIT';
-  if(lean!=='WAIT'&&action==='WAIT')reasons.push('Unqualified lean shown for study only; official call is WAIT');
+  const action=(side&&n>=6)?(side==='P'?'PLAYER':'BANKER'):'WAIT';
+  if(action!=='WAIT'&&grade!=='QUALIFIED')reasons.push('Diagnostic lean only: advisory still '+grade);
   if(!reasons.length)reasons.push('clean road agreement and stable live structure');
-  return {version:VERSION,grade,action,lean,baseQualified,side,source,adjusted,baseConfidence,n,ready,support,oppose,edge,shift,run:runNow,afterTie,lossStreak:losses,reasons,votes,predictionChanged:false};
+  return {version:VERSION,grade,action,side,source,adjusted,baseConfidence,n,ready,support,oppose,edge,shift,run:runNow,afterTie,lossStreak:losses,reasons,votes,predictionChanged:false};
 }
 function ensure(){
   let root=document.getElementById('v277MainFutureAwareness');if(root)return root;
   root=document.createElement('div');root.id='v277MainFutureAwareness';root.className='analyzer';root.innerHTML=`
     <div class="analyzer-title">🧠 Main Future Awareness V277</div>
-    <div class="analyzer-sub">Structure-only diagnostic, not a calibrated winning probability. Only QUALIFIED structure is issued and graded as a tracked pick. Other leans remain untracked research. Main Future Road is unchanged.</div>
+    <div class="analyzer-sub">Independent next-hand diagnostic lean and caution advisory. A CAUTION/WAIT grade is not a recommended bet; the Main Future Road engine is unchanged.</div>
     <div class="analyzer-grid">
       <div class="analyzer-card"><span>ADVISORY</span><strong id="v277Grade">WAIT</strong></div>
-      <div class="analyzer-card"><span>TRACKED NEXT PICK</span><strong id="v277Action">WAIT</strong></div>
-      <div class="analyzer-card"><span>ROAD STRUCTURE SCORE (NOT WIN %)</span><strong id="v277Confidence">—</strong></div>
+      <div class="analyzer-card"><span>NEXT LEAN (NOT A BET SIGNAL)</span><strong id="v277Action">WAIT</strong></div>
+      <div class="analyzer-card"><span>ADJUSTED CONFIDENCE</span><strong id="v277Confidence">—</strong></div>
       <div class="analyzer-card"><span>ROAD VOTES</span><strong id="v277Votes">0 support / 0 oppose</strong></div>
     </div>
-    <div class="analyzer-sub" style="margin-top:7px">Research lean (NOT a tracked prediction): <strong id="v277Lean">WAIT</strong></div>
     <div class="analyzer-grid">
       <div class="analyzer-card"><span>RHYTHM SHIFT</span><strong id="v277Shift">0%</strong></div>
       <div class="analyzer-card"><span>LOSS STREAK</span><strong id="v277Losses">0</strong></div>
@@ -18510,12 +18507,12 @@ function ensure(){
 function renderAwareness(){
   const root=ensure(),x=evaluate(),set=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v};
   if(!root)return x;root.dataset.grade=x.grade;
-  set('v277Grade',x.grade);set('v277Action',x.action);set('v277Lean',x.lean);set('v277Confidence',x.side?x.adjusted+' structural points':'—');
+  set('v277Grade',x.grade);set('v277Action',x.action);set('v277Confidence',x.side?x.adjusted+'%':'—');
   set('v277Votes',`${x.support} support / ${x.oppose} oppose`);set('v277Shift',Math.round(x.shift*100)+'%');
   set('v277Losses',String(x.lossStreak));set('v277Ready',`${x.ready} / 3`);set('v277Reason',x.source+' • '+x.reasons.join(' • '));showStats();return x;
 }
 function arm(){const x=evaluate(),at=safe(()=>state.hands.length,-1);if(at<0)return;ledger.pending={side:x.action==='PLAYER'?'P':x.action==='BANKER'?'B':null,at};save();renderAwareness()}
-function settle(actual){if(!['P','B','T'].includes(actual))return;const at=safe(()=>state.hands.length,-1);let pending=ledger.pending;if(!pending||pending.at!==at){pending={side:null,at}}if(actual==='T'){ledger.last='Tie skipped';ledger.pending=null;save();showStats();return}if(!pending.side){ledger.wait++;ledger.last='WAIT on hand '+(at+1)}else if(pending.side===actual){ledger.w++;ledger.last='WIN on hand '+(at+1)}else{ledger.l++;ledger.last='LOSS on hand '+(at+1)}ledger.pending=null;save();showStats()}
+function settle(actual){if(!['P','B','T'].includes(actual))return;const at=safe(()=>state.hands.length,-1);let pending=ledger.pending;if(!pending||pending.at!==at){const x=evaluate();pending={side:x.action==='PLAYER'?'P':x.action==='BANKER'?'B':null,at}}if(actual==='T'){ledger.last='Tie skipped';ledger.pending=null;save();showStats();return}if(!pending.side){ledger.wait++;ledger.last='WAIT on hand '+(at+1)}else if(pending.side===actual){ledger.w++;ledger.last='WIN on hand '+(at+1)}else{ledger.l++;ledger.last='LOSS on hand '+(at+1)}ledger.pending=null;save();showStats()}
 function clearPending(){ledger.pending=null;save()}
 function install(){
   ensure();arm();document.getElementById('v277Reset')?.addEventListener('click',()=>{ledger=fresh();save();arm()});
@@ -23631,6 +23628,170 @@ window.__V569_RESEARCH__={version:569,runReplay,exactOdds,shadowPass,getVote,bui
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,450),{once:true});else setTimeout(boot,450);
 })();
 </script>
+
+<style id="v570-ml-top-counts-style">
+/* One ML panel: separate qualified calls and unvalidated raw-lean research. */
+#mlRoadTrainerV155 #mlv203AccuracyBox,
+#mlRoadTrainerV155 #v537RawCounter,
+#mlRoadTrainerV155 #mlv203Reset {display:none!important}
+#mlRoadTrainerV155 #mlv307Canonical {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+#mlRoadTrainerV155 #mlv307Canonical .analyzer-card {display:block!important;min-width:0!important}
+#mlRoadTrainerV155 #v570RawIntro {font-size:12px;font-weight:800;grid-column:1/-1;margin:10px 0 0;color:#bcdaf7}
+#mlRoadTrainerV155 #v570MlStatus {font-size:11px;line-height:1.5;color:#c5d1df;margin-top:8px}
+#mlRoadTrainerV155 #v570ResetMLBoth {display:block!important;width:100%;margin-top:9px}
+</style>
+<script id="v570-ml-top-accuracy-repair">
+(function(){
+'use strict';
+const VER=570, KEY='mlroad', $=id=>document.getElementById(id);
+const winLoss=(w,l)=>`${w}W / ${l}L`;
+function acc(){
+  if(!state.accuracyVerified||typeof state.accuracyVerified!=='object')state.accuracyVerified={models:{},pending:{},ties:0,version:VER};
+  state.accuracyVerified.models ||= {};state.accuracyVerified.pending ||= {};
+  return state.accuracyVerified;
+}
+function raw(){
+  if(!state.mlRawResearchV537||typeof state.mlRawResearchV537!=='object')state.mlRawResearchV537={wins:0,losses:0,pending:null,ledger:[],session:1};
+  const x=state.mlRawResearchV537;
+  x.wins=Number(x.wins)||0;x.losses=Number(x.losses)||0;
+  if(!Array.isArray(x.ledger))x.ledger=[];
+  if(!Number.isInteger(x.session))x.session=1;
+  return x;
+}
+function save(){try{persist()}catch(e){console.warn('ML counter save',e)}}
+function seq(){try{return currentSequence().join('')}catch(e){return ''}}
+function contextColor(){try{return String(state.currentShoeColor||'combined').toLowerCase()}catch(_){return 'combined'}}
+function validOfficial(p){return !!(p&&(p.side==='P'||p.side==='B')&&Number(p.hand)===currentSequence().length+1&&String(p.seq||'')===seq()&&String(p.color||'combined')===contextColor())}
+function qualified(){try{const z=(window.__mlRoadTrainerV3||window.__mlRoadTrainerV2)?.signal?.()||{};return z.qualified&&(z.side==='P'||z.side==='B')?z:null}catch(_){return null}}
+function ensureOfficialLock(){
+  const a=acc(),old=a.pending[KEY];
+  if(validOfficial(old))return;
+  if(old)delete a.pending[KEY];
+  const z=qualified();if(!z)return;
+  const hand=currentSequence().length+1;
+  const p={side:z.side,hand,seq:seq(),lockedAt:Date.now(),strength:Number(z.confidence||z.strength)||0,color:contextColor(),phase:hand<=18?'early':hand<=36?'middle':'late'};
+  a.pending[KEY]=p;save();
+}
+// The normal accuracy engine grades the same locked call first. This ONLY repairs
+// a missed settlement; checking the pre/post official totals prevents duplicates.
+function settleMissed(p,actual,previousN){
+  if((actual!=='P'&&actual!=='B')||!validOfficial(p))return;
+  const a=acc(),m=a.models[KEY]||(a.models[KEY]={name:'ML Road Trainer',wins:0,losses:0,predictions:0,waits:0,last10:[],last25:[],last50:[],splits:{}});
+  if((Number(m.predictions)||0)>previousN)return;
+  const won=p.side===actual;
+  m.predictions=previousN+1;
+  if(won)m.wins=(Number(m.wins)||0)+1;
+  else m.losses=(Number(m.losses)||0)+1;
+  for(const k of ['last10','last25','last50']){
+    const limit=Number(k.slice(4));m[k]=Array.isArray(m[k])?m[k]:[];
+    m[k].push(won?1:0);if(m[k].length>limit)m[k]=m[k].slice(-limit);
+  }
+  m.splits ||= {};
+  for(const k of [p.color==='red'||p.color==='black'?`color:${p.color}`:null,p.phase?`phase:${p.phase}`:null].filter(Boolean)){
+    const x=m.splits[k]||(m.splits[k]={w:0,l:0,n:0});x.n++;if(won)x.w++;else x.l++;
+  }
+  m.last={predicted:p.side,actual,win:won,hand:p.hand,lockedAt:p.lockedAt,settledAt:Date.now(),strength:p.strength,color:p.color,phase:p.phase};
+  delete a.pending[KEY];save();
+}
+function installHooks(){
+  const arm=window.__armVerifiedPredictions;
+  if(typeof arm==='function'&&!arm.__v570ML){
+    const wrap=function(){const result=arm.apply(this,arguments);try{ensureOfficialLock();window.__V537_ML_RAW_RESEARCH__?.arm?.()}catch(e){console.warn('ML arm',e)};return result};
+    wrap.__v570ML=true;window.__armVerifiedPredictions=wrap;
+  }
+  const settle=window.__settleVerifiedPredictions;
+  if(typeof settle==='function'&&!settle.__v570ML){
+    const wrap=function(actual){
+      let locked=null,before=0;
+      try{const a=acc();locked=validOfficial(a.pending[KEY])?{...a.pending[KEY]}:null;before=Number(a.models[KEY]?.predictions)||0;
+        // Raw tracker is independent and clears its lock on ties. Its own legacy
+        // wrapper, if later installed, finds no lock and cannot double-grade.
+        window.__V537_ML_RAW_RESEARCH__?.settle?.(actual);
+      }catch(e){console.warn('ML pre-result snapshot',e)}
+      let result;try{result=settle.apply(this,arguments)}finally{
+        try{if(locked)settleMissed(locked,actual,before);paint()}catch(e){console.warn('ML missed-settlement check',e)}
+      }return result;
+    };
+    wrap.__v570ML=true;window.__settleVerifiedPredictions=wrap;
+  }
+}
+function mkCard(label,id,fallback){
+  const e=document.createElement('div');e.className='analyzer-card';
+  const span=document.createElement('span');span.textContent=label;
+  const value=document.createElement('strong');value.id=id;value.textContent=fallback;
+  e.append(span,value);return e;
+}
+function set(id,value){const e=$(id);if(e&&e.textContent!==String(value))e.textContent=String(value)}
+function mount(){
+  const panel=$('mlRoadTrainerV155');if(!panel)return null;
+  let grid=$('mlv307Canonical');
+  if(!grid){grid=$('v570MlFallbackGrid');if(!grid){
+    grid=document.createElement('div');grid.id='v570MlFallbackGrid';grid.className='analyzer-grid';
+    grid.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:9px';
+    panel.appendChild(grid);
+  }}
+  if(!$('v570RawIntro')){
+    const heading=document.createElement('div');heading.id='v570RawIntro';
+    heading.textContent='ML RAW LEAN — TRACKED RESEARCH (NOT QUALIFIED)';grid.appendChild(heading);
+  }
+  for(const [label,id,initial] of [
+    ['RAW LEAN ACCURACY','v570RawRate','—'],['RAW WINS / LOSSES','v570RawWL','0W / 0L'],
+    ['RAW P/B CALLS','v570RawN','N=0'],['RAW NEXT LOCK','v570RawLock','—']]){
+    if(!$(id))grid.appendChild(mkCard(label,id,initial));
+  }
+  if(!$('v570MlStatus')){const note=document.createElement('div');note.id='v570MlStatus';
+    panel.appendChild(note);}
+  if(!$('v570ResetMLBoth')){
+    const btn=document.createElement('button');btn.type='button';btn.className='tiny-btn';btn.id='v570ResetMLBoth';
+    btn.textContent='Reset ML Accuracy (Official + Raw)';panel.appendChild(btn);
+    btn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();
+      if(!confirm('Reset both ML accuracy counters? Saved shoes, game results, and other AI counters will remain unchanged.'))return;
+      const a=acc();delete a.models[KEY];delete a.pending[KEY];
+      const r=raw();r.wins=0;r.losses=0;r.pending=null;r.ledger=[];r.session++;
+      save();paint();setTimeout(()=>{try{ensureOfficialLock();window.__V537_ML_RAW_RESEARCH__?.arm?.()}catch(_){ }paint()},200);
+    });
+  }
+  return panel;
+}
+function paint(){
+  if(!mount())return;
+  const a=acc(),m=a.models[KEY]||{},w=Number(m.wins)||0,l=Number(m.losses)||0,n=Number(m.predictions)||0;
+  set('mlv203Accuracy',n?(100*w/n).toFixed(1)+'%':'—');
+  set('mlv203WL',winLoss(w,l));set('mlv203Count',`N=${n}`);
+  const lock=validOfficial(a.pending[KEY])?a.pending[KEY]:null;
+  set('mlv203Pending',lock?(lock.side==='P'?'PLAYER':'BANKER')+' #'+lock.hand:'—');
+  const r=raw(),total=r.wins+r.losses;
+  set('v570RawRate',total?(100*r.wins/total).toFixed(1)+'%':'—');
+  set('v570RawWL',winLoss(r.wins,r.losses));set('v570RawN',`N=${total}`);
+  const hp=(state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(x=>x==='P'||x==='B'||x==='T').join('');
+  const p=r.pending;
+  const rawLocked=!!(p&&p.hand===hp.length+1&&p.prefix===hp&&p.color===String(state.currentShoeColor||'none')&&p.session===r.session);
+  set('v570RawLock',rawLocked?(p.side==='P'?'PLAYER':'BANKER')+' #'+p.hand:'—');
+  const noCalls=(n===0&&total===0);
+  set('v570MlStatus',noCalls?'No ML P/B calls have been graded yet. WAIT is not a prediction; a raw P/B lean is tracked separately from qualified calls.':
+      `Qualified ML: ${n} graded • Raw lean: ${total} graded. Both count only predictions recorded BEFORE the next result; ties are excluded. Neither percentage is a guaranteed win rate.`);
+}
+function boot(){installHooks();paint();
+  try{ensureOfficialLock();window.__V537_ML_RAW_RESEARCH__?.arm?.()}catch(_){ }
+  document.addEventListener('click',e=>{
+    if(e.target?.closest?.('[data-result],#previewP,#previewB,#undoBtn,#clearBtn,#mlBuild,#v570ResetMLBoth')){
+      setTimeout(()=>{installHooks();paint()},0);
+      setTimeout(paint,240);setTimeout(paint,900);
+    }
+  },true);
+  if(!window.__v570MLTimer)window.__v570MLTimer=setInterval(()=>{
+    if(document.visibilityState==='hidden')return;
+    installHooks();
+    // A qualified or raw call can arrive asynchronously while the shoe is live.
+    try{ensureOfficialLock();window.__V537_ML_RAW_RESEARCH__?.arm?.()}catch(_){ }
+    paint();
+  },2100);
+}
+window.__V570_ML_TOP_ACCURACY__={version:VER,paint,installHooks,ensureOfficialLock,official:()=>acc().models[KEY]||null,raw:()=>raw(),logicChanged:false};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,500),{once:true});else setTimeout(boot,500);
+})();
+</script>
+
 </body>
 </html>
 
