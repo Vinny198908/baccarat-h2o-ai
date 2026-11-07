@@ -1,3 +1,4 @@
+<!-- V573: Balanced research frequency adjustment to Player Only, Banker Only, and Five-Road Alignment. Separate V573 ledgers, V572 clones/original future engines unchanged. Not validated as an edge. -->
 <!-- V569: Add opt-in historical reliability cross-cohort replay and exact card-composition research panel. Both are observational only: no changes to Player/Banker-only calls, ML, central result ledger, or shoe library. -->
 <!-- V568: Repair official ML pre-result locks across later V84 re-arms; route ML scan/training completion through ACTIVE central accuracy armer. No model/validation/other-AI changes. -->
 <!-- V567: Added multi-window sliding and appropriately mirrored inverted historical matching to the Player-only and Banker-only AIs; persistent V566 accuracy ledgers preserved. -->
@@ -13150,6 +13151,8 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       ()=>{try{window.__settleAdaptiveOriginalDerivedRoads?.(actual)}catch(e){}},
       ()=>{try{settleMainFuture(actual)}catch(e){}},
       ()=>{try{window.__V277_MAIN_FUTURE_AWARENESS__?.settle?.(actual)}catch(e){console.warn('V400 awareness settle',e)}},
+      // V572 experimental clones: only locked pre-result calls; independent ledgers.
+      ()=>{try{window.__V572_FUTURE_CLONES__?.settle?.(actual)}catch(e){console.warn('V572 future clones settle',e)}},
       ()=>{try{window.__V86_MATCHER_ACCURACY__?.settle?.(actual)}catch(e){}},
       ()=>{try{settlePendingPrediction(actual)}catch(e){}},
     ];
@@ -13175,6 +13178,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}
       try{armMainFuture()}catch(e){}
       try{window.__V277_MAIN_FUTURE_AWARENESS__?.arm?.()}catch(e){}
+      try{window.__V572_FUTURE_CLONES__?.arm?.()}catch(e){console.warn('V572 clones queued arm',e)}
       // V377: after a committed hand, arm BE2 from the NEW history only.
       try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 queued arm',e)}
       try{window.__V360_MAIN_FUTURE_TESTS_23__?.arm?.()}catch(e){console.warn('V554 Test 2 queued arm',e)}
@@ -13215,6 +13219,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         ()=>{try{window.__V86_MATCHER_ACCURACY__?.arm?.()}catch(e){}},
         ()=>{try{armMainFuture()}catch(e){}},
         ()=>{try{window.__V277_MAIN_FUTURE_AWARENESS__?.arm?.()}catch(e){}},
+        ()=>{try{window.__V572_FUTURE_CLONES__?.arm?.()}catch(e){console.warn('V572 clones arm',e)}},
         // V377: BE2 is armed only after the committed hand is visible.
         ()=>{try{window.__V332_BEST_ESTIMATE_2__?.arm?.()}catch(e){console.warn('V377 BE2 arm',e)}},
         ()=>{try{window.__V360_MAIN_FUTURE_TESTS_23__?.arm?.()}catch(e){console.warn('V554 Test 2 arm',e)}},
@@ -21779,9 +21784,9 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   ['Bead Plate History AI','beadHistSide'],
   ['Main Future Awareness','v277Action'],
   ['ML Trainer','mlv307Pick'],
-  ['Player Only AI V570','v566PlayerPick'],
-  ['Banker Only AI V570','v566BankerPick'],
-  ['Five-Road Alignment AI V570','v570AlignmentPick'],
+  ['Player Only AI V573','v566PlayerPick'],
+  ['Banker Only AI V573','v566BankerPick'],
+  ['Five-Road Alignment AI V573','v570AlignmentPick'],
   ['Black Big Eye + Bead Signal V512','v512Pick'],
   ['Big Eye Precision Reversal V513','v513Pick'],
  ];
@@ -23239,7 +23244,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){
 'use strict';
 if(window.__V566_SIDE_AIS__)return;
-const VER=570, PREFIX='baccarat-v570-five-road-v1-';
+const VER=573, PREFIX='baccarat-v573-balanced-road-v1-';
+// Relaxed RESEARCH gates: no claim of increased next-hand accuracy. Separate V573 ledgers.
+const START_PB=10, MATCH_FLOOR=.64, TOP_FLOOR=.70, MIN_MATCHES=2, AGREEMENT=.70;
 const SIDE={P:{label:'Player Only AI',panel:'v566PlayerPanel',pick:'v566PlayerPick',name:'player'},
  B:{label:'Banker Only AI',panel:'v566BankerPanel',pick:'v566BankerPick',name:'banker'},
  A:{label:'Five-Road Alignment AI',panel:'v570AlignmentPanel',pick:'v570AlignmentPick',name:'alignment'}};
@@ -23312,7 +23319,7 @@ function libraryIndex(){
  const seen=new Set(),shoes=[];
  for(const sh of pool){
   const seq=normalize(typeof sh==='string'?sh:sh?.sequence||'');
-  if(seq.replace(/T/g,'').length<17||seen.has(seq))continue;
+  if(seq.replace(/T/g,'').length<START_PB+3||seen.has(seq))continue;
   seen.add(seq);shoes.push({seq,id:String(sh?.id||shoes.length),color:String(sh?.shoeColor||sh?.__color||''),cache:new Map()});
  }
  indexCache={signature,shoes};liveEvidence.clear();return indexCache;
@@ -23325,13 +23332,13 @@ function historicalSnap(sh,n){
 }
 function evidence(withInverse){
  const raw=current(),hist=ignore()?raw.replace(/T/g,''):raw,lib=libraryIndex();
- if(hist.length<15)return {ready:false,reason:'WAIT: needs 15 recorded hands before five-road matching.',total:lib.shoes.length,matched:0};
+ if(hist.replace(/T/g,'').length<START_PB)return {ready:false,reason:'WAIT: needs 10 completed Player/Banker hands before matching.',total:lib.shoes.length,matched:0};
  const key=lib.signature+'|'+hist+'|'+(+withInverse);
  if(liveEvidence.has(key))return liveEvidence.get(key);
  const now=snap(hist),pos=hist.length,list=[];
  for(const sh of lib.shoes){
   let best=null;
-  for(let n=Math.max(15,pos-2);n<=Math.min(pos+2,sh.seq.length-1);n++){
+  for(let n=Math.max(START_PB,pos-2);n<=Math.min(pos+2,sh.seq.length-1);n++){
    const past=historicalSnap(sh,n);
    const direct=similarity(now,past,Math.abs(pos-n),false);
    const inv=withInverse?similarity(now,past,Math.abs(pos-n),true):-1;
@@ -23344,30 +23351,34 @@ function evidence(withInverse){
   if(best&&best.actual&&best.actual!=='T')list.push(best);
  }
  list.sort((a,b)=>b.score-a.score||Math.abs(a.hand-pos)-Math.abs(b.hand-pos)||a.shoeId.localeCompare(b.shoeId));
- const top=list[0],matched=top?list.filter(x=>x.score>=.70&&x.score>=top.score-.12).slice(0,9):[];
+ const top=list[0],matched=top?list.filter(x=>x.score>=MATCH_FLOOR&&x.score>=top.score-.16).slice(0,9):[];
  const p=matched.filter(x=>x.actual==='P').length,b=matched.filter(x=>x.actual==='B').length,votes=p+b;
  const share=votes?b/votes:null; // fraction of historical next outcomes, NOT a live probability
  const result={ready:true,position:pos,total:lib.shoes.length,matched:votes,topScore:top?.score||0,
   topHand:top?.hand,topId:top?.shoeId,topInverted:!!top?.inverted,banker:b,player:p,share,
   suggestions:matched.map(x=>({hand:x.hand,score:+x.score.toFixed(3),next:x.actual,inverted:x.inverted,shoeId:x.shoeId})),
   reason:!top?'WAIT: no eligible saved-shoe positions.':
-  votes<3?'WAIT: fewer than three comparable, independent shoes.':
-  top.score<.78?'WAIT: strongest historical similarity is below the research alignment gate.':
-  'Historical matches found; next-result agreement must be unanimous (or at least 85% for larger groups). No predictive advantage is established.'};
+  votes<MIN_MATCHES?'WAIT: fewer than two comparable, distinct saved shoes.':
+  top.score<TOP_FLOOR?'WAIT: top historical structural similarity is below 70%.':
+  'Balanced research gate: two matches must agree; with three or more, at least 70% agree. This is NOT a probability of winning.'};
  liveEvidence.set(key,result);if(liveEvidence.size>6)liveEvidence.delete(liveEvidence.keys().next().value);
  return result;
 }
 function decide(k,e){
  let side=null;const v=e.matched||0,agree=e.share;
- const eligible=e.ready&&v>=3&&e.topScore>=.78;
+ const eligible=e.ready&&v>=MIN_MATCHES&&e.topScore>=TOP_FLOOR;
+ // Two examples cannot establish a reliable trend, but a unanimous pair is
+ // shown as a low-evidence RESEARCH call. With 3+ require at least 70% agreement.
+ const fraction=v===2?1:AGREEMENT;
  if(eligible){
-  if(k==='B'&&agree>=.85)side='B';
-  else if(k==='P'&&(1-agree)>=.85)side='P';
+  if(k==='B'&&agree>=fraction)side='B';
+  else if(k==='P'&&(1-agree)>=fraction)side='P';
   else if(k==='A'){
-   if(agree>=.85)side='B';else if((1-agree)>=.85)side='P';
+   if(agree>=fraction)side='B';else if((1-agree)>=fraction)side='P';
   }
  }
- return {...e,side,reason:side?'Historical matches agree on '+actualText(side)+'; unverified next-hand signal.':e.ready&&eligible?'WAIT: comparable historical shoes disagree on the next outcome.':e.reason||'WAIT: insufficient historical agreement.',
+ const disagreement='WAIT: saved-shoe next results do not reach the balanced agreement gate.';
+ return {...e,side,reason:side?'Historical '+v+'-shoe alignment favors '+actualText(side)+'; unvalidated research call.':e.ready&&eligible?disagreement:e.reason||'WAIT: insufficient historical agreement.',
   matches:e.matched||0,shoes:e.total||0,weight:e.matched||0,
   strength:agree==null?null:k==='P'?1-agree:agree,counts:{direct:e.suggestions?.filter(x=>!x.inverted).length||0,inverted:e.suggestions?.filter(x=>x.inverted).length||0,sliding:e.suggestions?.filter(x=>x.hand!==e.position).length||0}};
 }
@@ -23377,9 +23388,9 @@ function mount(){
  host=document.createElement('div');host.id='v566SideOnlyWrap';host.setAttribute('aria-label','Five-Road saved-shoe analysis and independent prediction scorecards');
  for(const k of letters){
   const meta=SIDE[k],box=document.createElement('section');box.className='v566-panel';box.id=meta.panel;
-  box.innerHTML='<div class="v566-head">'+meta.label+' • V570</div>'+
+  box.innerHTML='<div class="v566-head">'+meta.label+' • V573 Balanced</div>'+
    '<div class="v566-sub">'+(k==='A'?'Can display PLAYER, BANKER or WAIT.':k==='P'?'Can display PLAYER or WAIT only.':'Can display BANKER or WAIT only.')+
-   ' Compares all five roads, shoe dominance and positions ±2, with one vote per distinct saved shoe.</div>'+
+   ' Uses all five roads, shoe dominance and positions ±2. Balanced gate from hand 10; one vote per distinct saved shoe.</div>'+
    '<div class="v566-pick" id="'+meta.pick+'">WAIT</div>'+
    '<div class="v566-grid"><div class="v566-cell"><span>WINS</span><b data-m="wins">0</b></div><div class="v566-cell"><span>LOSSES</span><b data-m="losses">0</b></div><div class="v566-cell"><span>ACCURACY</span><b data-m="accuracy">—</b></div></div>'+
    '<div class="v566-grid"><div class="v566-cell"><span>THIS SHOE W/L</span><b data-m="shoe">0W–0L</b></div><div class="v566-cell"><span>WAIT / TIES</span><b data-m="wait">0 / 0</b></div><div class="v566-cell"><span>MATCHED SHOES</span><b data-m="matches">0</b></div></div>'+
@@ -23388,13 +23399,13 @@ function mount(){
    '<div class="v566-note" data-m="last">Last graded result: —</div>'+
    '<button type="button" class="v566-mode" data-m="invert">Inverted historical matching ON</button>'+
    '<button type="button" class="v566-reset">Reset '+meta.label+' Accuracy</button>'+
-   '<div class="v566-warning">Research only: historical similarity does not establish a betting advantage. A tie is a push. The three derived roads are not independent of the Main Road. WAIT does not count as a win/loss. Counters begin fresh for V570 and do not combine results from older logic.</div>';
+   '<div class="v566-warning">Research only: broader gates increase calls, NOT proven accuracy. A tie is a push. Derived roads share Main Road information. WAIT does not count as win/loss. V573 starts fresh accuracy counters; V570 remains saved separately.</div>';
   box.querySelector('.v566-mode').addEventListener('click',()=>{
    inverse[k]=!inverse[k];try{localStorage.setItem(PREFIX+'invert-'+k,inverse[k]?'1':'0')}catch(e){}
    lastArmSig='';arm(true);
   });
   box.querySelector('.v566-reset').addEventListener('click',()=>{
-   if(window.confirm('Reset only '+meta.label+' V570 accuracy? The library and other AI counts are unchanged.'))reset(k);
+   if(window.confirm('Reset only '+meta.label+' V573 accuracy? The library and other AI counts are unchanged.'))reset(k);
   });
   host.appendChild(box);
  }
@@ -23426,7 +23437,7 @@ function arm(force=false){
   const calculated={};for(const mode of [...new Set(letters.map(k=>String(+inverse[k])))])calculated[mode]=evidence(mode==='1');
   for(const k of letters)pending[k]={before:r,scope:sc,ignore:ig,mode:inverse[k],decision:decide(k,calculated[String(+inverse[k])])};
   lastArmSig=key;lastHistory=r;paint();
- }catch(e){console.warn('V570 five-road arm failed',e);for(const k of letters)pending[k]=null;paint()}
+ }catch(e){console.warn('V573 five-road arm failed',e);for(const k of letters)pending[k]=null;paint()}
 }
 function settle(actual){
  if(!['P','B','T'].includes(actual))return;
@@ -23828,6 +23839,241 @@ function boot(){installHooks();paint();
 }
 window.__V570_ML_TOP_ACCURACY__={version:VER,paint,installHooks,ensureOfficialLock,official:()=>acc().models[KEY]||null,raw:()=>raw(),logicChanged:false};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,500),{once:true});else setTimeout(boot,500);
+})();
+</script>
+
+
+<!-- V572: Independent experimental COPIES of original Main Road Future Test and Awareness V277.
+     Their core functions/ledgers/accuracy buttons are untouched. The copies only score
+     pre-result officially gated P/B calls; no grade for advisory lean during WAIT.
+     One comparison-only library analog summary is observational, never a betting veto. -->
+<style id="v572-future-clones-css">
+  .v572-clone{border:2px solid #669fca;border-radius:16px;background:linear-gradient(160deg,#121d2b,#111923);padding:14px;margin:12px 0;color:#ecf4ff;box-sizing:border-box;min-width:0}
+  .v572-clone.awareness{border-color:#b48ad9;background:linear-gradient(160deg,#211b32,#161623)}
+  .v572-head{font-size:19px;font-weight:850;line-height:1.3;margin-bottom:5px}
+  .v572-sub{color:#bbcbe0;font-size:12px;line-height:1.5}
+  .v572-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:11px 0}
+  .v572-cell{min-width:0;background:rgba(255,255,255,.055);padding:10px;border-radius:10px}
+  .v572-cell span{display:block;font-size:10px;letter-spacing:.045em;color:#bac8dc;margin-bottom:5px}
+  .v572-cell strong{display:block;font-size:19px;overflow-wrap:anywhere}
+  .v572-pick{color:#f5e0aa}.v572-pick.yes{color:#9cf0b7}
+  .v572-status{background:rgba(11,15,24,.68);border:1px solid #4e627b;border-radius:9px;padding:9px;font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+  .v572-reset{background:#324b63;color:#fff;border:1px solid #8ca7c2;border-radius:9px;padding:9px 12px;width:100%;font-size:12px;font-weight:700;margin-top:9px;cursor:pointer}
+  .v572-foot{font-size:11px;color:#abc0d8;line-height:1.45;margin-top:8px}
+  @media(max-width:420px){.v572-head{font-size:17px}.v572-cell strong{font-size:16px}}
+</style>
+<script id="v572-main-future-clones">
+(function(){
+'use strict';
+if(window.__V572_FUTURE_CLONES__)return;
+const VERSION=572;
+const KEYS={future:'v572_main_future_test_copy_ledger_v1',awareness:'v572_main_future_awareness_copy_ledger_v1'};
+const $=id=>document.getElementById(id);
+const safe=(fn,fallback)=>{try{const x=fn();return x===undefined||x===null?fallback:x}catch(e){return fallback}};
+const norm=(v)=>['P','B','T'].includes(v)?v:null;
+const actualHistory=()=>safe(()=>(state.hands||[]).map(h=>typeof h==='string'?h:h?.r).filter(norm).join(''),'');
+const pb=()=>actualHistory().replace(/T/g,'');
+const marker=()=>actualHistory()+'|'+String(safe(()=>state.currentShoeColor,'none'));
+const sideName=x=>x==='P'?'PLAYER':x==='B'?'BANKER':'WAIT';
+const fmt=n=>Number.isFinite(n)?n.toFixed(1):'—';
+function fresh(){return {w:0,l:0,wait:0,ties:0,untracked:0,pending:null,history:[],events:[],last:'Not graded yet'}}
+const stats={};
+for(const k of Object.keys(KEYS)){
+ let x=fresh();try{const saved=JSON.parse(localStorage.getItem(KEYS[k])||'null');if(saved&&typeof saved==='object')x={...x,...saved}}catch(e){}
+ if(!Array.isArray(x.history))x.history=[];if(!Array.isArray(x.events))x.events=[];
+ stats[k]=x;
+}
+function save(k){try{localStorage.setItem(KEYS[k],JSON.stringify(stats[k]))}catch(e){}}
+function switchRate(s){if(s.length<2)return 0;let z=0;for(let i=1;i<s.length;i++)z+=s[i]!==s[i-1]?1:0;return z/(s.length-1)}
+function rhythm(){const s=pb();return s.length<8?1:Math.abs(switchRate(s.slice(-6))-switchRate(s.slice(-14)))}
+function votesFor(roads,side){let support=0,oppose=0,ready=0;
+ for(const r of Array.isArray(roads)?roads:[]){
+  const a=Number(r?.sig?.pPct),b=Number(r?.sig?.bPct);
+  if(!Number.isFinite(a)||!Number.isFinite(b)||a===b)continue;
+  if(r?.sig?.pMark&&r?.sig?.bMark&&r.sig.pMark!==r.sig.bMark)ready++;
+  if((a>b?'P':'B')===side)support++;else oppose++;
+ }return {support,oppose,ready};
+}
+// Historical analogs are shown for RESEARCH ONLY. They have no effect on decisions.
+// Removing duplicate B/P sequences and exact in-library current prefixes prevents
+// a memorized future hand from being described as independent evidence.
+let analogCache={key:'',data:null};
+function analogs(){
+ const live=pb(),n=live.length,mode=String(safe(()=>state.predictionLibraryMode,'combined'));
+ const cacheKey=live+'|'+mode+'|'+String(safe(()=>state.currentShoeColor,'none'))+'|'+String(safe(()=>activePatternLibrary().length,0));
+ if(analogCache.key===cacheKey)return analogCache.data;
+ const out={shoes:0,matches:0,p:0,b:0,excluded:0};
+ if(n<10){analogCache={key:cacheKey,data:out};return out}
+ const pool=safe(()=>activePatternLibrary(),[]),seen=new Set(),tail=live.slice(-6);
+ for(const sh of Array.isArray(pool)?pool.slice(0,1000):[]){
+  const seq=String(typeof sh==='string'?sh:(sh?.sequence||'')).toUpperCase().replace(/[^PBT]/g,'').replace(/T/g,'');
+  if(seq.length<12||seen.has(seq))continue;seen.add(seq);out.shoes++;
+  // Even if a saved shoe contains the current full live prefix, do not peek at its next hand.
+  if(seq.startsWith(live)){out.excluded++;continue}
+  let best=null;
+  for(let j=Math.max(6,n-2);j<=Math.min(seq.length-1,n+2);j++){
+   const t=seq.slice(j-6,j);if(t.length!==6)continue;
+   let eq=0,inv=0;
+   for(let a=0;a<6;a++){if(t[a]===tail[a])eq++;else inv++}
+   if(eq<5&&inv<5)continue;
+   const inverted=inv>eq;const rawNext=seq[j];
+   const next=inverted?(rawNext==='P'?'B':'P'):rawNext;
+   const match={n:Math.max(eq,inv),dist:Math.abs(j-n),next};
+   if(!best||match.n>best.n||(match.n===best.n&&match.dist<best.dist))best=match;
+  }
+  if(best){out.matches++;out[best.next.toLowerCase()]++;}
+ }
+ analogCache={key:cacheKey,data:out};return out;
+}
+function futureDecision(){
+ const x=safe(()=>window.__V227_ORIGINAL_MAIN_FUTURE__?.test?.(),null);
+ const n=pb().length;
+ const side=x?.side==='P'||x?.side==='B'?x.side:null;
+ const edge=Number(x?.edge)||0,shift=rhythm();
+ const v=votesFor(x?.roadSigs,side),issues=[];
+ if(!x)issues.push('original Main Future engine not ready');
+ if(n<10)issues.push('fewer than 10 Player/Banker results');
+ if(!side)issues.push('no original directional lean');
+ if(edge<4)issues.push('weak score difference (under 4 points)');
+ if(v.ready<2)issues.push('fewer than 2 derived roads ready');
+ if(v.support<1)issues.push('no supporting derived-road vote');
+ if(v.oppose>1)issues.push('multiple opposing derived-road votes');
+ if(shift>.23)issues.push('changing six-vs-fourteen-hand rhythm');
+ const pick=!issues.length?side:null;
+ return {pick,side,issues,n,edge,shift,...v,kind:'future'};
+}
+function awarenessDecision(){
+ const x=safe(()=>window.__V277_MAIN_FUTURE_AWARENESS__?.evaluate?.(),null);
+ const n=pb().length,side=x?.side==='P'||x?.side==='B'?x.side:null;
+ const shift=Number(x?.shift)||0,adj=Number(x?.adjusted)||0,edge=Number(x?.edge)||0;
+ const ready=Number(x?.ready)||0;
+ const v=votesFor(safe(()=>window.__V227_ORIGINAL_MAIN_FUTURE__?.test?.().roadSigs,[]),side);
+ const issues=[];
+ if(!x)issues.push('original Awareness engine not ready');
+ if(n<10)issues.push('fewer than 10 Player/Banker results');
+ if(!side)issues.push('no original directional lean');
+ if(adj<55)issues.push('original adjusted score below 55');
+ if(ready<2)issues.push('fewer than 2 derived roads ready');
+ if(v.support<2)issues.push('fewer than 2 supporting road votes');
+ if(v.oppose>1)issues.push('multiple opposing road votes');
+ if(shift>.19)issues.push('rhythm changed more than 19 points');
+ if(edge<4)issues.push('weak Main Future separation');
+ if(x?.grade==='WAIT')issues.push('original Awareness advisory says WAIT');
+ // Experimental enhancement: strong, stable CAUTION can qualify, not any CAUTION.
+ if(x?.grade==='CAUTION'&&(adj<58||edge<5||v.oppose!==0||shift>.12))
+  issues.push('CAUTION lacks the stricter stable-road confirmation');
+ return {pick:!issues.length?side:null,side,issues,n,edge,shift,...v,adjusted:adj,grade:x?.grade||'WAIT',kind:'awareness'};
+}
+const decisions={future:futureDecision,awareness:awarenessDecision};
+const idOf=k=>k==='future'?'v572Future':'v572Awareness';
+function mount(k){
+ const id=idOf(k),existing=$(id);if(existing)return existing;
+ const parent=k==='future'?$('mainRoadFutureTest'):$('v277MainFutureAwareness');
+ if(!parent||!parent.parentNode)return null;
+ const root=document.createElement('section');root.id=id;root.className='v572-clone'+(k==='awareness'?' awareness':'');
+ const human=k==='future'?'Main Road Future Test — Experimental Copy':'Main Future Awareness V277 — Experimental Copy';
+ root.innerHTML=`
+ <div class="v572-head">${k==='future'?'⚡':'🧠'} ${human}</div>
+ <div class="v572-sub">Cloned original engine + additional rhythm/road confirmation. Independent, paper-only experiment. The original model is untouched.</div>
+ <div class="v572-grid">
+  <div class="v572-cell"><span>QUALIFIED NEXT CALL</span><strong class="v572-pick" id="${id}Pick">WAIT</strong></div>
+  <div class="v572-cell"><span>ORIGINAL DIRECTION</span><strong id="${id}Original">—</strong></div>
+  <div class="v572-cell"><span>COPY ACCURACY</span><strong id="${id}Accuracy">—</strong></div>
+  <div class="v572-cell"><span>COPY WINS / LOSSES</span><strong id="${id}WL">0W-0L</strong></div>
+  <div class="v572-cell"><span>GRADED CALLS / WAIT</span><strong id="${id}N">0 / 0</strong></div>
+  <div class="v572-cell"><span>RHYTHM SHIFT / ROAD SUPPORT</span><strong id="${id}Signal">—</strong></div>
+ </div>
+ <div class="v572-status" id="${id}Reason">Checking the original engine.</div>
+ <div class="v572-foot" id="${id}Library">Saved-shoe analogs: research only; no claimed predictive power.</div>
+ <div class="v572-foot" id="${id}Last">Not graded yet</div>
+ <button type="button" id="${id}Reset" class="v572-reset">Reset ${human} Accuracy</button>
+ <div class="v572-foot">Only next-hand calls locked before the actual result are graded; WAIT and ties are not wins or losses. These percentages are observed results, not calibrated winning probabilities. No betting edge established.</div>`;
+ parent.insertAdjacentElement('afterend',root);
+ $(id+'Reset')?.addEventListener('click',()=>reset(k));
+ return root;
+}
+function paint(k,decision){
+ const root=mount(k);if(!root)return;
+ const a=stats[k],id=idOf(k),d=decision||safe(decisions[k],null);
+ const n=a.w+a.l,lock=a.pending?.key===marker()?a.pending:null;
+ const side=lock?.side||null;
+ const original=d?.side||null;
+ const label=(name,v)=>{const x=$(id+name);if(x&&x.textContent!==String(v))x.textContent=String(v)};
+ label('Pick',sideName(side));label('Original',sideName(original));
+ const pickNode=$(id+'Pick');if(pickNode)pickNode.classList.toggle('yes',!!side);
+ label('Accuracy',n?(a.w/n*100).toFixed(1)+'%':'—');label('WL',a.w+'W-'+a.l+'L');label('N',n+' / '+a.wait);
+ label('Signal',d?Math.round(d.shift*100)+'% / '+d.support+' support':'—');
+ label('Reason',(side?'EXPERIMENTAL CALL LOCKED: '+sideName(side):'WAIT')+' • '+((d?.issues?.length)?d.issues.join(' • '):'rhythm and road checks passed')+' • '+(d?.grade?'original advisory '+d.grade:'original score margin '+(d?.edge||0)));
+ const analog=safe(analogs,null);
+ label('Library',analog?.matches?'Saved-shoe analogs (research only): '+analog.matches+' distinct matches; '+analog.p+' next Player / '+analog.b+' next Banker. Excluded '+analog.excluded+' exact-prefix shoes. Not used to choose the call.':'Saved-shoe analogs: none qualifying or still building. Not used to choose the call.');
+ label('Last',a.last+' • ties skipped '+a.ties+(a.untracked?' • untracked inputs '+a.untracked:''));
+}
+function arm(){
+ const key=marker();
+ for(const k of Object.keys(stats)){
+  const a=stats[k];
+  // Preserve the one pre-result lock even if the UI refreshes repeatedly.
+  if(a.pending?.key===key){paint(k);continue}
+  const d=safe(decisions[k],null);
+  const pick=d?.pick==='P'||d?.pick==='B'?d.pick:null;
+  a.pending={key,side:pick,handN:actualHistory().length+1,lockedAt:Date.now(),reason:d?.issues||[]};
+  save(k);paint(k,d);
+ }
+}
+function settle(actual){
+ if(!norm(actual))return;
+ const key=marker();
+ for(const k of Object.keys(stats)){
+  const a=stats[k],lock=a.pending;
+  if(!lock||lock.key!==key){a.untracked++;a.last='No valid pre-result lock; hand not graded';a.pending=null;save(k);continue;}
+  a.pending=null;
+  const kind=actual==='T'?'T':!lock.side?'WAIT':lock.side===actual?'W':'L';
+  a.events.push({before:actualHistory(),actual,kind,handN:lock.handN});
+  if(a.events.length>400)a.events.splice(0,a.events.length-400);
+  if(actual==='T'){a.ties++;a.last='Tie skipped, no W/L';save(k);continue;}
+  if(!lock.side){a.wait++;a.last='WAIT on hand '+lock.handN;save(k);continue;}
+  const win=lock.side===actual;
+  if(win)a.w++;else a.l++;
+  a.last=(win?'WIN':'LOSS')+' on hand '+lock.handN+' • predicted '+sideName(lock.side)+' / actual '+sideName(actual);
+  a.history.push({handN:lock.handN,key,side:lock.side,actual,win,ts:Date.now()});
+  if(a.history.length>300)a.history.splice(0,a.history.length-300);
+  save(k);
+ }
+}
+function reset(k){
+ stats[k]=fresh();save(k);arm();paint(k);
+}
+function rollbackUndo(before,after){
+ for(const k of Object.keys(stats)){
+  const a=stats[k],event=a.events.at(-1);
+  if(!event||event.before+event.actual!==before||event.before!==after)continue;
+  a.events.pop();
+  if(event.kind==='W'){a.w=Math.max(0,a.w-1);a.history.pop()}
+  else if(event.kind==='L'){a.l=Math.max(0,a.l-1);a.history.pop()}
+  else if(event.kind==='WAIT')a.wait=Math.max(0,a.wait-1);
+  else if(event.kind==='T')a.ties=Math.max(0,a.ties-1);
+  a.pending=null;a.last='Undo: reversed score on hand '+event.handN;save(k);
+ }
+ arm();
+}
+function boot(){
+ mount('future');mount('awareness');
+ arm();
+ // Startup/Undo/New-Shoe events are not routed through the authoritative input
+ // transaction; these listeners merely invalidate stale next-hand locks.
+ document.addEventListener('click',e=>{
+  if(e.target?.closest?.('#undoBtn')){const before=actualHistory();setTimeout(()=>rollbackUndo(before,actualHistory()),520)}
+ },true);
+ document.addEventListener('click',e=>{
+  if(e.target?.closest?.('#undoBtn,#clearBtn,#sampleBtn,#newShoeBtn,#redShoeBtn,#blackShoeBtn,#v452TieToggle'))
+   setTimeout(()=>{for(const k of Object.keys(stats)){stats[k].pending=null;save(k)}arm()},450);
+ },false);
+ // A normal result click is stopped by the authoritative capture listener, so
+ // live grading is explicitly wired to that queue above, not a document click.
+ [1000,3000,6000].forEach(ms=>setTimeout(()=>{if(!stats.future.pending||!stats.awareness.pending)arm();else{paint('future');paint('awareness')}},ms));
+}
+window.__V572_FUTURE_CLONES__={version:VERSION,arm,settle,reset,paint,stats:k=>JSON.parse(JSON.stringify(stats[k])),evaluateFuture:futureDecision,evaluateAwareness:awarenessDecision,originalsUnchanged:true,paperOnly:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
 </script>
 
