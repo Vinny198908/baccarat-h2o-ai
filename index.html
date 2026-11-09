@@ -1,3 +1,4 @@
+<!-- V580: Restore user-selectable Main Road / Bead Plate display. View-only: original hands, library, AI engines, road-calculation geometry, and accuracy ledgers remain untouched. -->
 <!-- V573: Balanced research frequency adjustment to Player Only, Banker Only, and Five-Road Alignment. Separate V573 ledgers, V572 clones/original future engines unchanged. Not validated as an edge. -->
 <!-- V569: Add opt-in historical reliability cross-cohort replay and exact card-composition research panel. Both are observational only: no changes to Player/Banker-only calls, ML, central result ledger, or shoe library. -->
 <!-- V568: Repair official ML pre-result locks across later V84 re-arms; route ML scan/training completion through ACTIVE central accuracy armer. No model/validation/other-AI changes. -->
@@ -137,7 +138,7 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V569 • Reliability Replay and Card Composition Lab • Baccarat Dashboard</title>
+<title>V580 • Main Road / Bead Plate View • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -172,6 +173,13 @@
   .road-mode-btn{background:#303b49;color:#ecf1f6;border:1px solid #657282;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;cursor:pointer;}
   .road-mode-btn.active{background:#def0fc;border-color:#9abbd7;color:#182d40;}
   .road-mode-hint{padding:3px 8px 6px;background:#222a35;color:#b6c6d4;font-size:10px;}
+  /* V580: Standard bead-plate appearance. Each actual B/P/T hand occupies one
+     fixed square; 6 results descend per column before moving right. */
+  #bigRoad.road--bead .mark.b{background:var(--b);border-color:var(--b);color:#fff}
+  #bigRoad.road--bead .mark.p{background:var(--p);border-color:var(--p);color:#fff}
+  #bigRoad.road--bead .mark.t{background:var(--t);border-color:var(--t);color:#fff}
+  #bigRoad.road--bead .road-square .pair-dot{z-index:2;outline:1px solid #fff}
+  .road-mode-btn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
   .mark{width:23px;height:23px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;background:#fff}
   .mark.p{border:3px solid var(--p);color:var(--p)}
@@ -704,7 +712,13 @@ body { overscroll-behavior-y: none; }
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
 <div class="scoreboard">
-<div class="road-mode-bar"><span class="road-mode-title">Main Road • collision-aware downward streaks</span></div>
+<div class="road-mode-bar">
+  <span class="road-mode-title" id="mainRoadDisplayTitle">Main Road • collision-aware downward streaks</span>
+  <div class="road-mode-switches" role="group" aria-label="Choose Main Road or Bead Plate display">
+    <button class="road-mode-btn active" type="button" id="roadViewMain" aria-pressed="true">Main Road</button>
+    <button class="road-mode-btn" type="button" id="roadViewBead" aria-pressed="false">Bead Plate</button>
+  </div>
+</div>
 <div class="road-wrap"><div class="road road--exact" id="bigRoad"></div></div>
 <div class="road-mode-hint" id="roadModeHint">When downward space is occupied, the next same-side result goes down-right beside the blocker. Existing circles stay put. Prediction engines are unchanged.</div>
 </div>
@@ -1751,9 +1765,64 @@ function allInCollisionRoadPositions(hands){
   return result;
 }
 
+// V580 view preference is deliberately separate from the shoe state and
+// prediction-facing road generation. A switch never edits or grades a hand.
+let v580RoadDisplayMode=(()=>{
+  try{return localStorage.getItem('v580_road_display')==='bead'?'bead':'main'}
+  catch(e){return 'main'}
+})();
+function v580SetRoadDisplayMode(mode){
+  if(mode!=='main'&&mode!=='bead')return;
+  v580RoadDisplayMode=mode;
+  try{localStorage.setItem('v580_road_display',mode)}catch(e){}
+  renderRoad();
+}
+function v580UpdateRoadDisplayControls(){
+  const isBead=v580RoadDisplayMode==='bead';
+  const title=document.getElementById('mainRoadDisplayTitle');
+  const hint=document.getElementById('roadModeHint');
+  if(title)title.textContent=isBead?'Bead Plate • six rows, newest results down then right':'Main Road • collision-aware downward streaks';
+  if(hint)hint.textContent=isBead
+    ?'Bead Plate: every P, B, and T is a separate result. Fill 6 squares downward, then move one column right. Display only — all AIs continue using the original shoe history.'
+    :'When downward space is occupied, the next same-side result goes down-right beside the blocker. Existing circles stay put. Prediction engines are unchanged.';
+  for(const [id,active] of [['roadViewMain',!isBead],['roadViewBead',isBead]]){
+    const button=document.getElementById(id);
+    if(!button)continue;
+    button.classList.toggle('active',active);
+    button.setAttribute('aria-pressed',String(active));
+  }
+}
+function v580RenderBeadPlate(road){
+  road.classList.add('road--exact','road--bead');
+  const hands=Array.isArray(state.hands)?state.hands:[];
+  const cols=Math.max(20,Math.ceil(hands.length/6)+1);
+  road.style.gridTemplateColumns=`repeat(${cols}, var(--big-road-cell))`;
+  road.style.gridTemplateRows='repeat(6, var(--big-road-cell))';
+  const fragment=document.createDocumentFragment();
+  for(let row=0;row<6;row++){
+    for(let col=0;col<cols;col++){
+      const square=document.createElement('div');
+      square.className='road-square';
+      const hand=hands[col*6+row];
+      if(hand&&['P','B','T'].includes(hand.r)){
+        const mark=document.createElement('div');
+        mark.className='mark '+hand.r.toLowerCase();
+        mark.textContent=hand.r;
+        square.appendChild(mark);
+        if(hand.pp){const dot=document.createElement('i');dot.className='pair-dot pp';square.appendChild(dot)}
+        if(hand.bp){const dot=document.createElement('i');dot.className='pair-dot bp';square.appendChild(dot)}
+      }
+      fragment.appendChild(square);
+    }
+  }
+  road.replaceChildren(fragment);
+}
 function renderRoad(){
   const road=document.getElementById('bigRoad');
   if(!road) return;
+  v580UpdateRoadDisplayControls();
+  if(v580RoadDisplayMode==='bead'){v580RenderBeadPlate(road);return}
+  road.classList.remove('road--bead');
   road.classList.add('road--exact');
   const pos=allInCollisionRoadPositions(state.hands);
   const maxCol=Math.max(19,...pos.map(x=>x.col));
@@ -1792,8 +1861,12 @@ function renderRoad(){
   road.replaceChildren(fragment);
 }
 
-// V547: no ambiguous mode toggle: always use collision-aware display.
-// This does not change the internal standard-road positions used by AIs.
+// V580: Pure display controls. No result input, persistence of hands, road
+// calculations, historical matching, or AI grading are invoked by the switch.
+document.getElementById('roadViewMain')?.addEventListener('click',()=>v580SetRoadDisplayMode('main'));
+document.getElementById('roadViewBead')?.addEventListener('click',()=>v580SetRoadDisplayMode('bead'));
+window.__V580_ROAD_BEAD_VIEW__={setMode:v580SetRoadDisplayMode,getMode:()=>v580RoadDisplayMode,
+  draw:renderRoad,showBead:()=>v580SetRoadDisplayMode('bead'),showMain:()=>v580SetRoadDisplayMode('main')};
 
 function buildBigRoadColumns(hands){
   const base=hands.filter(h=>h.r!=='T');
@@ -13139,6 +13212,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       ()=>{try{window.__V566_SIDE_AIS__?.settle?.(actual)}catch(e){console.warn('V566 side-only settle',e)}},
       // V574: independent direction-clone pre-result grading.
       ()=>{try{window.__V574_SHOE_DIRECTION__?.settle?.(actual)}catch(e){console.warn('V574 direction settle isolated',e)}},
+      ()=>{try{window.__V579_PURE_THREE_ROAD__?.settle?.(actual)}catch(e){console.warn('V579 settle isolated',e)}},
       ()=>{try{settleGPTMirrorPrediction(actual)}catch(e){console.warn('V135 Mirror settle',e)}},
       // V324: Best Estimate + AI Pattern must settle inside the ONE authoritative
       // result transaction. V102 blocks all legacy result listeners, so grading them
@@ -13197,6 +13271,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__V542_PATTERN_RESEARCH__?.arm?.()}catch(e){}
       try{window.__V566_SIDE_AIS__?.arm?.()}catch(e){}
       try{window.__V574_SHOE_DIRECTION__?.arm?.()}catch(e){console.warn('V574 direction arm isolated',e)}
+      try{window.__V579_PURE_THREE_ROAD__?.arm?.()}catch(e){console.warn('V579 arm isolated',e)}
       // Keep the queue reserved while handing off to the next scheduled result.
       // Otherwise a fresh click can overtake an older queued result.
       const queued=pendingResults.shift();
@@ -13257,6 +13332,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
       try{window.__V542_PATTERN_RESEARCH__?.arm?.()}catch(e){}
       try{window.__V566_SIDE_AIS__?.arm?.()}catch(e){}
       try{window.__V574_SHOE_DIRECTION__?.arm?.()}catch(e){console.warn('V574 direction arm isolated',e)}
+      try{window.__V579_PURE_THREE_ROAD__?.arm?.()}catch(e){console.warn('V579 arm isolated',e)}
           const queued=pendingResults.shift();
           if(queued){setTimeout(()=>commit(queued.actual,queued.isPreview,true),0);}
           else{
@@ -13336,6 +13412,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
         try{window.__V542_PATTERN_RESEARCH__?.afterCommit?.()}catch(e){}
         try{window.__V566_SIDE_AIS__?.afterCommit?.()}catch(e){}
         try{window.__V574_SHOE_DIRECTION__?.afterCommit?.()}catch(e){console.warn('V574 direction afterCommit isolated',e)}
+        try{window.__V579_PURE_THREE_ROAD__?.afterCommit?.()}catch(e){console.warn('V579 afterCommit isolated',e)}
         if(!isPreview){
           state.pp=state.bp=state.special=false;
           document.querySelectorAll('.toggle').forEach(x=>x.classList.remove('active'));
@@ -13371,6 +13448,7 @@ window.__V55_1_CALIBRATION__={version:'55.1',sequenceV2Untouched:true,futureDead
     try{window.__chartPatternRecognizerV156?.render?.()}catch(e){}
     try{window.__V566_SIDE_AIS__?.historyChanged?.()}catch(e){}
     try{window.__V574_SHOE_DIRECTION__?.historyChanged?.()}catch(e){console.warn('V574 direction historyChanged isolated',e)}
+    try{window.__V579_PURE_THREE_ROAD__?.historyChanged?.()}catch(e){console.warn('V579 historyChanged isolated',e)}
   },0);
   document.getElementById('undoBtn')?.addEventListener('click',resync,false);
   document.getElementById('clearBtn')?.addEventListener('click',()=>{lastTxnKey='';lastPhysicalInputAt=0;lastPhysicalInputActual=null;busy=false;pendingResults.length=0;resync()},false);
@@ -21861,6 +21939,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   ['Main Future Road','futureFinal'],
   ['Main Future Test 2','v360T2Pick'],
   ['Derived Road AI','v358DerivedResult'],
+  ['3-Road Pure Baccarat AI V579','v579Pick'],
   ['AI Pattern Recognizer','roadAiSide'],
   ['Bead Plate History AI','beadHistSide'],
   ['Main Future Awareness','v277Action'],
@@ -24675,7 +24754,190 @@ else try{paint()}catch(e){console.warn('V576 boot',e)}
     probabilityClaims:false};
 })();
 </script>
-<!-- V578: AI Pattern only Main Road, modestly expanded official calls; no counter/key changes. -->
+<!-- V579: Adds a separate pure-three-derived-road next-hand AI with independent counted results and reset. V578 Pattern logic unchanged. -->
+
+<!-- V579: Standalone pure 3-road AI; no external training or library votes. -->
+<style id="v579-pure-roads-style">
+#v579RoadsOnlyPanel{margin:12px 0;padding:14px 12px;border:2px solid #5e8fba;border-radius:13px;background:#10202e;color:#f0f7ff;font:14px system-ui;line-height:1.45}
+#v579RoadsOnlyPanel .v579-head{font-weight:900;font-size:17px;margin-bottom:7px}
+#v579RoadsOnlyPanel .v579-explain{opacity:.9;font-size:12px;margin-bottom:8px}
+#v579RoadsOnlyPanel .v579-pick{font-size:29px;font-weight:950;text-align:center;padding:10px 6px;border:1px solid #5e8fba;border-radius:9px;background:#152e45;margin-bottom:8px}
+#v579RoadsOnlyPanel .v579-pick[data-side="B"]{color:#ff7d8e}
+#v579RoadsOnlyPanel .v579-pick[data-side="P"]{color:#a2d9ff}
+#v579RoadsOnlyPanel .v579-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:6px 0}
+#v579RoadsOnlyPanel .v579-grid>div{padding:7px 4px;border-radius:8px;text-align:center;background:#1c3448;min-width:0}
+#v579RoadsOnlyPanel .v579-grid small{display:block;color:#c8d8e6;font-size:10px}
+#v579RoadsOnlyPanel .v579-grid b{display:block;font-size:21px;overflow-wrap:anywhere}
+#v579RoadsOnlyPanel .v579-detail{margin-top:7px;padding:6px 8px;background:#1b3041;border-radius:7px;font-size:12px;overflow-wrap:anywhere}
+#v579RoadsOnlyPanel .v579-reset{display:block;width:100%;margin-top:10px;padding:10px;background:#344e67;border:1px solid #829ebc;color:#fff;border-radius:8px;font-weight:800;touch-action:manipulation}
+#v579RoadsOnlyPanel .v579-foot{font-size:11px;margin-top:9px;opacity:.86}
+@media(max-width:420px){#v579RoadsOnlyPanel .v579-grid b{font-size:18px}}
+</style>
+<script id="v579-pure-roads-ai">
+// V579 — road-only signal. Deliberately accepts no library, ML or bead-plate input.
+(function(){'use strict';
+if(window.__V579_PURE_THREE_ROAD__)return;
+const VERSION=579, KEY='v579PureThreeRoadLedger';
+const $=id=>document.getElementById(id);
+const clean=x=>String(x||'').toUpperCase().replace(/[^PBT]/g,'');
+function raw(){return clean((state.hands||[]).map(h=>typeof h==='string'?h:h?.r).join(''))}
+const handsFrom=s=>clean(s).split('').map(r=>({r}));
+const last=a=>a[a.length-1];
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+const one=marks=>marks.filter(m=>m==='R').length;
+// Use only the red/blue pattern already formed on ONE of the three roads.
+// Counts for a matching suffix use only preceding marks (no future peeking).
+function nextRed(marks){
+  if(marks.length<2)return {red:.5,n:marks.length,mode:'not ready'};
+  const trail=marks.slice(-18),base=(one(trail)+2)/(trail.length+4);
+  const from=last(marks);let same=0,total=0;
+  for(let i=1;i<marks.length;i++)if(marks[i-1]===from){same+=marks[i]==='R'?1:0;total++}
+  const transition=(same+1.5)/(total+3);
+  let weighted=0,den=0,maxMatch=0;
+  for(const k of [4,3,2,1]){
+    if(marks.length<=k)continue;
+    const suffix=marks.slice(-k).join('');let red=0,n=0;
+    for(let j=k;j<marks.length;j++){
+      if(marks.slice(j-k,j).join('')===suffix){n++;red+=marks[j]==='R'?1:0}
+    }
+    if(!n)continue;
+    maxMatch=Math.max(maxMatch,k);
+    const weight=(k===4?1.3:k===3?1.15:k===2?1:.75)*Math.min(1,n/3);
+    weighted+=weight*(red+1)/(n+2);den+=weight;
+  }
+  const suffix=den?weighted/den:transition;
+  // Shrink highly variable tiny windows toward 50%, so the signal is a
+  // heuristic road-pattern score and never a claimed success probability.
+  const p=clamp(.12*.5+.21*base+.24*transition+.43*suffix,.22,.78);
+  return {red:p,n:marks.length,maxMatch,mode:den?'road suffix + transitions':'transitions'};
+}
+function decide(sequence){
+  const s=clean(sequence),hands=handsFrom(s),decided=s.replace(/T/g,'').length;
+  const configs=[['Big Eye Boy',1],['Small Road',2],['Cockroach Road',3]];
+  const roads=configs.map(([name,offset])=>{
+    const marks=deriveRoad(hands,offset);
+    const p=nextRed(marks);
+    return {name,offset,length:marks.length,forecast:p.red,predict: p.red>=.5?'RED':'BLUE',
+       player:previewDerivedMark(hands,'P',offset),banker:previewDerivedMark(hands,'B',offset),maxMatch:p.maxMatch||0};
+  });
+  const ready=roads.every(r=>r.length>=2);
+  if(!ready)return {side:null,ready:false,roads,decided,difference:0,discriminating:0,reason:'Building all three derived roads (minimum two marks each).'};
+  let scoreP=0,scoreB=0,discriminating=0;
+  for(const r of roads){
+    if(r.player!==r.banker)discriminating++;
+    scoreP+=(r.player==='R'?r.forecast:r.player==='B'?1-r.forecast:.5);
+    scoreB+=(r.banker==='R'?r.forecast:r.banker==='B'?1-r.forecast:.5);
+  }
+  let difference=scoreP-scoreB;
+  // If equally supported, prefer the most distinctive actual road forecast,
+  // but ONLY when its two hypothetical marks are different.
+  if(Math.abs(difference)<1e-9&&discriminating){
+    const strongest=roads.filter(r=>r.player!==r.banker).sort((a,b)=>
+      Math.abs(b.forecast-.5)-Math.abs(a.forecast-.5)||b.offset-a.offset)[0];
+    difference=(strongest.player==='R'?strongest.forecast:strongest.player==='B'?1-strongest.forecast:.5)-
+      (strongest.banker==='R'?strongest.forecast:strongest.banker==='B'?1-strongest.forecast:.5);
+  }
+  const side=discriminating&&Math.abs(difference)>1e-9?(difference>0?'P':'B'):null;
+  const reason=side?('Three-road path preference • '+discriminating+'/3 roads distinguish P vs B • '+(Math.abs(difference)<.08?'very weak':Math.abs(difference)<.25?'weak':'stronger')+' structural margin'):
+    'WAIT: both hypothetical outcomes produce the same three-road information, or the road votes are exactly tied.';
+  return {side,ready:true,roads,decided,difference:Math.abs(difference),signedDifference:difference,discriminating,reason,scoreP,scoreB};
+}
+const fresh=()=>({wins:0,losses:0,waits:0,ties:0,shoeWins:0,shoeLosses:0,decisions:0,rows:[],last:'No graded hand yet',pending:null});
+const ledger=(()=>{let a=fresh();try{const b=state?.[KEY];if(b&&typeof b==='object')a={...a,...b}}catch(e){};
+  if(!Array.isArray(a.rows))a.rows=[];return a})();
+function save(){try{state[KEY]=ledger;persist()}catch(e){console.warn('V579 save skipped',e)}}
+let lastArm='',lastSeen=raw();
+function mount(){
+  if($('v579RoadsOnlyPanel'))return true;
+  const anchor=$('derivedIndependentFinal')||$('v358DerivedResultPanel')||$('seqV2AccuracyDisplayFix');
+  if(!anchor||!anchor.parentNode)return false;
+  const el=document.createElement('section');el.id='v579RoadsOnlyPanel';el.className='v579-panel';
+  el.innerHTML='<div class="v579-head">3-ROAD PURE BACCARAT AI • V579</div>'+
+    '<div class="v579-explain">Strictly Big Eye Boy + Small Road + Cockroach Road. Compares next Player/Banker hypothetical changes; no library, bead plate, ML or other AI votes. Makes a call on every distinguishable hand once all three roads have started.</div>'+
+    '<div class="v579-pick" id="v579Pick">WAIT</div><div class="v579-grid">'+
+    '<div><small>WINS</small><b id="v579Wins">0</b></div><div><small>LOSSES</small><b id="v579Losses">0</b></div><div><small>ACCURACY</small><b id="v579Accuracy">—</b></div></div>'+
+    '<div class="v579-grid"><div><small>GRADED CALLS</small><b id="v579Count">0</b></div><div><small>THIS SHOE</small><b id="v579Shoe">0W–0L</b></div><div><small>WAIT / TIES</small><b id="v579Wait">0 / 0</b></div></div>'+
+    '<div class="v579-detail" id="v579Status">Waiting for all three roads to form.</div>'+
+    '<div class="v579-detail" id="v579RoadDetail">Big Eye • Small • Cockroach</div>'+
+    '<div class="v579-detail" id="v579Last">Last graded hand: —</div>'+
+    '<button type="button" class="v579-reset" id="v579Reset">Reset 3-Road AI Accuracy</button>'+
+    '<div class="v579-foot">Road color RED/BLUE is not Banker/Player. Road-pattern scores are not calibrated win probabilities. Ties carry the pick forward without a win/loss. WAIT means the roads cannot distinguish outcomes, not an error. No gambling edge has been established.</div>';
+  anchor.insertAdjacentElement('afterend',el);
+  $('v579Reset')?.addEventListener('click',()=>{if(window.confirm('Reset ONLY the new V579 three-road AI accuracy? The current shoe and saved library are kept.'))reset()});
+  return true;
+}
+const fmt=x=>Number.isFinite(x)?(100*x).toFixed(0)+'%':'—';
+function paint(){
+  if(!mount())return;
+  const q=ledger.pending?.decision||decide(raw()),side=q?.side;
+  $('v579Pick').textContent=side?(side==='P'?'PLAYER':'BANKER'):'WAIT';
+  $('v579Pick').dataset.side=side||'WAIT';
+  $('v579Wins').textContent=ledger.wins;$('v579Losses').textContent=ledger.losses;
+  $('v579Accuracy').textContent=ledger.wins+ledger.losses?fmt(ledger.wins/(ledger.wins+ledger.losses)):'—';
+  $('v579Count').textContent=ledger.wins+ledger.losses;
+  $('v579Shoe').textContent=ledger.shoeWins+'W–'+ledger.shoeLosses+'L';
+  $('v579Wait').textContent=ledger.waits+' / '+ledger.ties;
+  $('v579Status').textContent=q.reason||'Waiting for road evidence';
+  $('v579RoadDetail').textContent=q.roads.map(r=>r.name+': '+r.length+' marks • '+r.predict+' next • P→'+(r.player||'—')+', B→'+(r.banker||'—')).join(' | ');
+  $('v579Last').textContent='Last graded hand: '+ledger.last;
+}
+function arm(force=false){
+  const r=raw(),key=r+'|'+String(state.currentShoeColor||'');
+  if(!force&&key===lastArm&&ledger.pending){paint();return ledger.pending.decision}
+  const q=decide(r);
+  ledger.pending={before:r,decision:q,shoeStart:state?.hands?.[0]?.ts||null,side:q.side};
+  lastArm=key;lastSeen=r;paint();return q;
+}
+function settle(actual){
+  if(!['P','B','T'].includes(actual))return;
+  const before=raw(),p=ledger.pending;
+  // Commit transaction calls this BEFORE the incoming hand is added.
+  if(!p||p.before!==before)return;
+  const id=String(p.shoeStart||'fresh')+'|'+before+'>'+actual;
+  if(last(ledger.rows)?.id===id)return;
+  const side=p.side,result=actual==='T'?'TIE':!side?'WAIT':side===actual?'WIN':'LOSS';
+  if(result==='WIN'){ledger.wins++;ledger.shoeWins++}
+  else if(result==='LOSS'){ledger.losses++;ledger.shoeLosses++}
+  else if(result==='WAIT')ledger.waits++;
+  else ledger.ties++;
+  ledger.decisions++;
+  const row={id,before,after:before+actual,side,actual,result,shoeStart:p.shoeStart};
+  ledger.rows.push(row);if(ledger.rows.length>800)ledger.rows.shift();
+  ledger.last=result+' • '+(side?(side==='P'?'Player':'Banker'):'WAIT')+' / actual '+(actual==='P'?'Player':actual==='B'?'Banker':'Tie');
+  save();paint();
+}
+function afterCommit(){lastArm='';arm(true)}
+function historyChanged(){
+  const now=raw(),previous=lastSeen;
+  // Undo: revert every graded row that extended the previous prefix and no
+  // longer exists in the live history. Safely keep lifetime counts on new shoe.
+  if(now.length<previous.length&&now.length){
+    while(ledger.rows.length){
+      const a=last(ledger.rows);
+      if(a.after!==previous||a.before!==now)break;
+      ledger.rows.pop();
+      if(a.result==='WIN'){ledger.wins=Math.max(0,ledger.wins-1);ledger.shoeWins=Math.max(0,ledger.shoeWins-1)}
+      if(a.result==='LOSS'){ledger.losses=Math.max(0,ledger.losses-1);ledger.shoeLosses=Math.max(0,ledger.shoeLosses-1)}
+      if(a.result==='WAIT')ledger.waits=Math.max(0,ledger.waits-1);
+      if(a.result==='TIE')ledger.ties=Math.max(0,ledger.ties-1);
+      ledger.decisions=Math.max(0,ledger.decisions-1);ledger.last='Last hand undone';break;
+    }
+  }else if(!now&&previous){ledger.shoeWins=0;ledger.shoeLosses=0;ledger.last='New shoe • lifetime score retained'}
+  lastArm='';arm(true);save();
+}
+function reset(){Object.assign(ledger,fresh());lastArm='';arm(true);save()}
+function boot(){
+  mount();arm(true);
+  for(const id of ['undoBtn','clearBtn','sampleBtn'])$(id)?.addEventListener('click',()=>setTimeout(historyChanged,190));
+  window.addEventListener('pageshow',()=>{lastArm='';arm(true)});
+}
+window.__V579_PURE_THREE_ROAD__={version:VERSION,decide,arm,settle,afterCommit,historyChanged,reset,paint,
+  stats:()=>({...ledger,rows:ledger.rows.slice(-15)}),signal:()=>ledger.pending?.decision||null,
+  noLibrary:true,noML:true,noBead:true,tieSafe:true,threeRoadsOnly:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,250),{once:true});else setTimeout(boot,250);
+})();
+
+</script>
 </body>
 </html>
 
