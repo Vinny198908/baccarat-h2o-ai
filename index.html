@@ -127,6 +127,7 @@
 <!-- V341: Test 2 selective qualification loosening retained. Test 3 was later removed. -->
 <html lang="en">
 <head>
+<!-- V581 2026-11-09: New 3-road AI relocated from hidden .analyzer-sub to visible root of the app. Derived Road and other AI prediction logic unchanged. -->
 <!-- V577: positional road evidence wired into V573/V574 ranking, other original modules preserved -->
 <!-- V576: universal 3-road repeat recognition and selected-color read-only per-shoe evidence. -->
 <!-- V575: ML 3-road P/B hypothetical transition context, validation-only activation, held-out A/B report; preserves official accuracy. -->
@@ -24756,7 +24757,7 @@ else try{paint()}catch(e){console.warn('V576 boot',e)}
 </script>
 <!-- V579: Adds a separate pure-three-derived-road next-hand AI with independent counted results and reset. V578 Pattern logic unchanged. -->
 
-<!-- V579: Standalone pure 3-road AI; no external training or library votes. -->
+<!-- V581: visible placement fix for standalone pure 3-road AI; no external training or library votes. -->
 <style id="v579-pure-roads-style">
 #v579RoadsOnlyPanel{margin:12px 0;padding:14px 12px;border:2px solid #5e8fba;border-radius:13px;background:#10202e;color:#f0f7ff;font:14px system-ui;line-height:1.45}
 #v579RoadsOnlyPanel .v579-head{font-weight:900;font-size:17px;margin-bottom:7px}
@@ -24848,11 +24849,22 @@ const ledger=(()=>{let a=fresh();try{const b=state?.[KEY];if(b&&typeof b==='obje
 function save(){try{state[KEY]=ledger;persist()}catch(e){console.warn('V579 save skipped',e)}}
 let lastArm='',lastSeen=raw();
 function mount(){
-  if($('v579RoadsOnlyPanel'))return true;
-  const anchor=$('derivedIndependentFinal')||$('v358DerivedResultPanel')||$('seqV2AccuracyDisplayFix');
+  // V581 visibility fix: the old derivedIndependentFinal anchor is inside a
+  // legacy .analyzer-sub element with display:none. Mount OUTSIDE the entire
+  // derived road panel, directly under .app, so the new AI is always visible.
+  const nested=$('derivedIndependentFinal')||$('v358DerivedResultPanel')||$('seqV2AccuracyDisplayFix');
+  const anchor=nested?.closest('.road-predict-panel') ||
+    document.querySelector('.road-predict-panel') || document.querySelector('.app > .road-predict-panel');
   if(!anchor||!anchor.parentNode)return false;
+  const old=$('v579RoadsOnlyPanel');
+  if(old){
+    // Repair older V579/V580 mounts, even after dynamic DOM updates.
+    if(old.parentElement!==anchor.parentElement || old.previousElementSibling!==anchor)
+      anchor.insertAdjacentElement('afterend',old);
+    return true;
+  }
   const el=document.createElement('section');el.id='v579RoadsOnlyPanel';el.className='v579-panel';
-  el.innerHTML='<div class="v579-head">3-ROAD PURE BACCARAT AI • V579</div>'+
+  el.innerHTML='<div class="v579-head">3-ROAD PURE BACCARAT AI • V581 (VISIBLE FIX)</div>'+
     '<div class="v579-explain">Strictly Big Eye Boy + Small Road + Cockroach Road. Compares next Player/Banker hypothetical changes; no library, bead plate, ML or other AI votes. Makes a call on every distinguishable hand once all three roads have started.</div>'+
     '<div class="v579-pick" id="v579Pick">WAIT</div><div class="v579-grid">'+
     '<div><small>WINS</small><b id="v579Wins">0</b></div><div><small>LOSSES</small><b id="v579Losses">0</b></div><div><small>ACCURACY</small><b id="v579Accuracy">—</b></div></div>'+
