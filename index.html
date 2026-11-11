@@ -929,7 +929,7 @@ body { overscroll-behavior-y: none; }
 <div class="analyzer-sub" id="kaggleLibraryNote" style="margin-top:6px">When ON, Kaggle remains available only to supported historical-library diagnostics. Sequence AI V2 and Sequence AI V2 Duplicate remain independent.</div>
 </div>
 <div class="analyzer" id="beadHistoryAiPanel" style="border-color:#547c9e">
-<div class="analyzer-title">🔵🔴 3-Road Translation AI — Red/Blue to Live P/B V591</div>
+<div class="analyzer-title">🔵🔴 3-Road Translation AI — Red/Blue to Live P/B V593</div>
 <div class="analyzer-sub">Works ONLY while the 3-Road Input switch is ON. Select Big Eye Boy, Small Road, or Cockroach Road; enter its RED/BLUE marks in the Main Road area. Matches that specific road against saved shoes and tallies the historical next real Banker/Player result. A derived-road color alone cannot uniquely identify the next live P/B result.</div>
 <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
 <div class="analyzer-card"><span>NEXT REAL RESULT</span><strong id="beadHistSide">OFF</strong></div>
@@ -942,6 +942,14 @@ body { overscroll-behavior-y: none; }
 <div class="analyzer-card"><span>W / L</span><strong id="beadHistWL">0W-0L</strong></div>
 <div class="analyzer-card"><span>GRADED</span><strong id="beadHistN">N 0</strong></div>
 </div>
+<div class="analyzer-sub" style="margin-top:9px;display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+ <label for="v593VoteFrequency" style="font-weight:700">PREDICTION FREQUENCY</label>
+ <select id="v593VoteFrequency" style="min-width:200px;max-width:100%;flex:1;background:#1b293b;color:#fff;padding:9px;border:1px solid #66819e;border-radius:8px">
+  <option value="more" selected>More predictions • majority vote</option>
+  <option value="strict">Selective • 60% agreement</option>
+ </select>
+</div>
+<div class="analyzer-sub" style="margin-top:3px">More predictions shows a real P/B call once 6+ distinct shoes match, 4+ support the leading side, and the historical vote has a majority. Vote share is not a proven probability of winning.</div>
 <div class="analyzer-sub" id="beadHistReason" style="margin-top:7px">AI OFF — switch ON to enter one of the 3 roads.</div>
 <div id="v591ActualGrading" class="v591-grade-row" hidden>
  <span class="v591-grade-heading">Grade predicted actual live hand (not a road mark):</span>
@@ -24917,17 +24925,18 @@ if(window.__V591_THREE_ROAD_TRANSLATION__)return;
 const STORE='v591-three-road-translation-mode';
 const $=id=>document.getElementById(id);
 const types={eye:{offset:1,name:'Big Eye Boy'},small:{offset:2,name:'Small Road'},roach:{offset:3,name:'Cockroach Road'}};
-const fresh=()=>({road:'eye',marks:{eye:[],small:[],roach:[]},grades:[],pending:null,lastSettled:''});
+const fresh=()=>({road:'eye',marks:{eye:[],small:[],roach:[]},grades:[],pending:null,lastSettled:'',frequency:'more'});
 let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch(e){}
 const d=Object.assign(fresh(),saved);
 d.road=types[d.road]?d.road:'eye';
+d.frequency=d.frequency==='strict'?'strict':'more';
 for(const k of Object.keys(types))d.marks[k]=Array.isArray(d.marks?.[k])?d.marks[k].filter(x=>x==='R'||x==='B').slice(-130):[];
 d.grades=Array.isArray(d.grades)?d.grades.filter(x=>x&&typeof x==='object').slice(-10000):[];
 // Always start OFF on reopening an index: no inadvertent red/blue -> P/B commits.
 let enabled=false;
 let indexCache={key:'',data:[],unique:0,available:0};
 let latest=null;
-function save(){try{localStorage.setItem(STORE,JSON.stringify({road:d.road,marks:d.marks,grades:d.grades,pending:d.pending,lastSettled:d.lastSettled}))}catch(e){}}
+function save(){try{localStorage.setItem(STORE,JSON.stringify({road:d.road,marks:d.marks,grades:d.grades,pending:d.pending,lastSettled:d.lastSettled,frequency:d.frequency}))}catch(e){}}
 function set(id,v){const e=$(id);if(e)e.textContent=v;}
 function clearPending(){d.pending=null;latest=null;save();}
 function modePickKey(){return `${d.road}|${d.marks[d.road].join('')}`;}
@@ -24979,10 +24988,11 @@ function vote(){
  const total=p+b,side=p>b?'P':b>p?'B':null;
  const conf=total?Math.max(p,b)/total:0;
  const supporters=side==='P'?pn:bn;
- const qualified=best.size>=6&&supporters>=4&&side!==null&&conf>=0.60;
+ const minShare=d.frequency==='strict'?0.60:0.50;
+  const qualified=best.size>=6&&supporters>=4&&side!==null&&(d.frequency==='strict'?conf>=minShare:conf>minShare);
  const reason=qualified
  ? `${types[d.road].name} • ${best.size} distinct saved-shoe matches • ${pn} Player / ${bn} Banker • ${(conf*100).toFixed(1)}% historical vote share, NOT a calibrated win chance.`
- : `WAIT • ${types[d.road].name}: ${best.size} distinct matched shoes (need 6), ${supporters} supporting top side (need 4), historical share ${(conf*100).toFixed(1)}% (need 60%). Derived road colors cannot uniquely determine Banker/Player.`;
+ : `WAIT • ${types[d.road].name}: ${best.size} distinct matched shoes (need 6), ${supporters} supporting top side (need 4), historical share ${(conf*100).toFixed(1)}% (need ${d.frequency==='strict'?'60%':'a majority over 50%'}). Derived road colors cannot uniquely determine Banker/Player.`;
  return {side:qualified?side:null,conf,evidence:best.size,library:idx,reason,pn,bn};
 }
 function stats(){let w=0,l=0;for(const row of d.grades){if(row.ok===true)w++;else if(row.ok===false)l++}return {w,l}}
@@ -24998,6 +25008,7 @@ function refreshView(){
  }
  if($('v591RoadInputEnabled'))$('v591RoadInputEnabled').checked=enabled;
  if($('v591RoadType'))$('v591RoadType').value=d.road;
+  if($('v593VoteFrequency'))$('v593VoteFrequency').value=d.frequency;
  $('v591ModeState')?.classList.toggle('on',enabled);
  set('v591ModeState',enabled?'ON':'OFF');
  set('mainRoadDisplayTitle',enabled?`${types[d.road].name} • derived RED / BLUE input`:'Main Road • collision-aware downward streaks');
@@ -25079,12 +25090,13 @@ window.__BEAD_HISTORY_AI_V387__=inert;
 function init(){
  $('v591RoadInputEnabled')?.addEventListener('change',e=>setEnabled(e.target.checked));
  $('v591RoadType')?.addEventListener('change',e=>{if(types[e.target.value]){d.road=e.target.value;d.lastSettled='';rearm()}});
+  $('v593VoteFrequency')?.addEventListener('change',e=>{d.frequency=e.target.value==='strict'?'strict':'more';rearm()});
  $('v591GradeP')?.addEventListener('click',()=>grade('P'));
  $('v591GradeB')?.addEventListener('click',()=>grade('B'));
  $('beadHistReset')?.addEventListener('click',()=>{if(confirm('Reset only 3-Road Translation AI verified W/L accuracy?')){d.grades=[];d.pending=null;d.lastSettled='';rearm()}});
  setEnabled(false);
 }
-window.__V591_THREE_ROAD_TRANSLATION__={get enabled(){return enabled},get road(){return d.road},get marks(){return d.marks[d.road].slice()},get pending(){return d.pending},setEnabled,addMark,grade,undo,buildIndex,vote,refresh:refreshView,accuracy:stats};
+window.__V591_THREE_ROAD_TRANSLATION__={get enabled(){return enabled},get road(){return d.road},get frequency(){return d.frequency},get marks(){return d.marks[d.road].slice()},get pending(){return d.pending},setEnabled,addMark,grade,undo,buildIndex,vote,refresh:refreshView,accuracy:stats};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
