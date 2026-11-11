@@ -720,6 +720,13 @@ body { overscroll-behavior-y: none; }
 <div class="analyzer-sub" id="seqAiNote" style="margin-top:8px">Add current hands and saved shoes to build sequence evidence.</div>
 </div>
 <div class="scoreboard">
+<div class="v591-mode-bar" id="v591ModeBar">
+ <label class="v591-switch" for="v591RoadInputEnabled"><input type="checkbox" id="v591RoadInputEnabled" role="switch" aria-describedby="v591ModeHelp"><span>3-Road Input / Translation AI</span></label>
+ <strong id="v591ModeState" class="v591-mode-status">OFF</strong>
+ <label class="v591-road-choice">Road type <select id="v591RoadType"><option value="eye">Big Eye Boy</option><option value="small">Small Road</option><option value="roach">Cockroach Road</option></select></label>
+ <span id="v591ModeHelp" class="v591-mode-help">OFF = normal Player / Banker / Tie entry. ON = RED / BLUE derived-road marks, with only the translation AI active for those marks.</span>
+</div>
+
 <div class="road-mode-bar">
   <span class="road-mode-title" id="mainRoadDisplayTitle">Main Road • collision-aware downward streaks</span>
   <div class="road-mode-switches" role="group" aria-label="Choose Main Road or Bead Plate display">
@@ -727,7 +734,7 @@ body { overscroll-behavior-y: none; }
     <button class="road-mode-btn" type="button" id="roadViewBead" aria-pressed="false">Bead Plate</button>
   </div>
 </div>
-<div class="road-wrap"><div class="road road--exact" id="bigRoad"></div></div>
+<div class="road-wrap"><div class="road road--exact" id="bigRoad"></div><div id="v591DerivedRoadDisplay" class="v591-derived-display" hidden></div></div>
 <div class="road-mode-hint" id="roadModeHint">When downward space is occupied, the next same-side result goes down-right beside the blocker. Existing circles stay put. Prediction engines are unchanged.</div>
 </div>
 <div class="layout">
@@ -921,22 +928,28 @@ body { overscroll-behavior-y: none; }
 <div style="margin-top:8px"><label style="display:flex;align-items:center;gap:9px;font-weight:800;cursor:pointer"><input id="kaggleLibraryToggle" style="width:20px;height:20px" type="checkbox"><span>Kaggle 200,000-Shoe Library</span></input></label></div>
 <div class="analyzer-sub" id="kaggleLibraryNote" style="margin-top:6px">When ON, Kaggle remains available only to supported historical-library diagnostics. Sequence AI V2 and Sequence AI V2 Duplicate remain independent.</div>
 </div>
-<div class="analyzer" id="beadHistoryAiPanel" style="border-color:#53677e">
-<div class="analyzer-title">🧠 Bead Plate History AI — Qualified Evidence V554</div>
-<div class="analyzer-sub">Full-prefix and P/B-prefix recognition first; sliding, inverted, tie, rhythm, and derived-road matching remain. Eventual historical run endings no longer count as next-hand reversal votes. Require six distinct matches, four supporting the chosen side, and a meaningful historical vote margin. The model score is a historical vote share, not a next-hand winning probability.</div>
+<div class="analyzer" id="beadHistoryAiPanel" style="border-color:#547c9e">
+<div class="analyzer-title">🔵🔴 3-Road Translation AI — Red/Blue to Live P/B V591</div>
+<div class="analyzer-sub">Works ONLY while the 3-Road Input switch is ON. Select Big Eye Boy, Small Road, or Cockroach Road; enter its RED/BLUE marks in the Main Road area. Matches that specific road against saved shoes and tallies the historical next real Banker/Player result. A derived-road color alone cannot uniquely identify the next live P/B result.</div>
 <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
-<div class="analyzer-card"><span>NEXT RESULT</span><strong id="beadHistSide">WAIT</strong></div>
-<div class="analyzer-card"><span>HISTORICAL MODEL SCORE</span><strong id="beadHistConf">—</strong></div>
-<div class="analyzer-card"><span>INDEPENDENT SHOES</span><strong id="beadHistEvidence">0</strong></div>
-<div class="analyzer-card"><span>LIBRARY</span><strong id="beadHistLibrary">0 / 0</strong></div>
+<div class="analyzer-card"><span>NEXT REAL RESULT</span><strong id="beadHistSide">OFF</strong></div>
+<div class="analyzer-card"><span>HISTORICAL VOTE SHARE</span><strong id="beadHistConf">—</strong></div>
+<div class="analyzer-card"><span>MATCHED SHOES</span><strong id="beadHistEvidence">0</strong></div>
+<div class="analyzer-card"><span>LIBRARY (unique / available)</span><strong id="beadHistLibrary">0 / 0</strong></div>
 </div>
 <div class="analyzer-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:6px">
 <div class="analyzer-card"><span>VERIFIED ACCURACY</span><strong id="beadHistAccuracy">—</strong></div>
 <div class="analyzer-card"><span>W / L</span><strong id="beadHistWL">0W-0L</strong></div>
 <div class="analyzer-card"><span>GRADED</span><strong id="beadHistN">N 0</strong></div>
 </div>
-<div class="analyzer-sub" id="beadHistReason" style="margin-top:7px">Waiting for at least 6 Player/Banker results.</div>
-<button class="tiny-btn" id="beadHistReset" style="margin-top:7px;width:100%" type="button">Reset Bead Plate History AI Accuracy</button>
+<div class="analyzer-sub" id="beadHistReason" style="margin-top:7px">AI OFF — switch ON to enter one of the 3 roads.</div>
+<div id="v591ActualGrading" class="v591-grade-row" hidden>
+ <span class="v591-grade-heading">Grade predicted actual live hand (not a road mark):</span>
+ <button id="v591GradeP" type="button" class="v591-grade-p">Actual PLAYER</button>
+ <button id="v591GradeB" type="button" class="v591-grade-b">Actual BANKER</button>
+ <span class="v591-grade-note">Only grade the next real hand after an official P/B prediction; ties are skipped.</span>
+</div>
+<button class="tiny-btn" id="beadHistReset" style="margin-top:7px;width:100%" type="button">Reset 3-Road Translation AI Accuracy</button>
 </div>
 <div class="card-entry">
 <div class="analyzer-title">Optional Card-Rank Tracker</div>
@@ -21335,7 +21348,7 @@ window.__V376_BE2_FRESH_ACCURACY__={version:VERSION,newLedger:'state.v376BestEst
 <script id="v377-be2-core-accuracy-marker">
 window.__V377_BE2_CORE_ACCURACY_FIX__={version:377,preCommitSettlement:true,postCommitArm:true,queuedArm:true,resyncOnUndoNewShoe:true,decisionLogicChanged:false};
 </script>
-<script id="v387-bead-history-adaptive-state-ai">
+<script id="v387-bead-history-adaptive-state-ai" type="text/plain">
 (function(){
 'use strict';
 const SCORE_KEY='bead-history-ai-v379-accuracy';
@@ -21952,7 +21965,7 @@ window.__V406_RESET_ALL_AI_ACCURACY__={install,resetAll};
   ['3-Road Pure Baccarat AI V579','v579Pick'],
   ['3-Road 60/40 Derived Hybrid V582','v582Pick'],
   ['AI Pattern Recognizer','roadAiSide'],
-  ['Bead Plate History AI','beadHistSide'],
+  ['3-Road Translation AI','beadHistSide'],
   ['Main Future Awareness','v277Action'],
   ['ML Trainer','mlv307Pick'],
   ['Player Only AI V573','v566PlayerPick'],
@@ -22237,7 +22250,7 @@ const MODELS=[
  ['Best Estimate 3 (Assisted)','v439Alt'],
  ['Main Future Road','futureFinal'],['Main Future Test 2','v360T2Pick'],
  ['Derived Road AI','v358DerivedResult'],['AI Pattern Recognizer','roadAiSide'],
- ['Bead Plate History AI','beadHistSide'],['Main Future Awareness','v277Action'],
+ ['3-Road Translation AI','beadHistSide'],['Main Future Awareness','v277Action'],
  ['ML Trainer','mlv307Pick'],
  ['Black Big Eye + Bead Signal V512','v512Pick'],
  ['Big Eye Precision Reversal V513','v513Pick']
@@ -24641,6 +24654,438 @@ window.__V582_THREE_ROAD_DERIVED40__={version:VERSION,decide,arm,settle,afterCom
   pureRoadWeight:.40,qualifiedDerivedWeight:.60,sharesOriginalRoadDecisionLogic:true,independentLedger:true};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,350),{once:true});
 else setTimeout(boot,350);
+})();
+</script>
+<style id="v588-ml-side-styles">
+#v588MlModes{display:block!important;box-sizing:border-box;margin:11px 0 12px;padding:12px;border:1px solid #667da0;border-radius:10px;background:rgba(20,34,57,.65);font-size:12px;line-height:1.45;color:#f1f5fa}
+#v588MlModes .v588-title{font-weight:850;font-size:14px;letter-spacing:.025em;margin-bottom:8px}
+#v588MlModes .v588-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#v588MlModes .v588-options button{min-width:0;min-height:38px;white-space:normal;padding:7px 4px;border:1px solid #697d97;border-radius:8px;background:#26384e;color:#f2f5fa;font-size:12px;font-weight:750;touch-action:manipulation}
+#v588MlModes .v588-options button.active{background:#235e82;border-color:#8dcaff;outline:2px solid #8dcaff;outline-offset:-2px}
+#v588MlModes .v588-options button[data-v588-mode="banker"].active{background:#853d45;border-color:#f39c9c;outline-color:#f39c9c}
+#v588MlModes .v588-options button[data-v588-mode="player"].active{background:#235e90;border-color:#90c8ff;outline-color:#90c8ff}
+#v588MlModes .v588-note{font-size:11px;color:#dbebf8;line-height:1.45;margin:9px 1px 10px;min-height:31px}
+#v588MlModes .v588-rows{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#v588MlModes .v588-rows>div{min-width:0;background:#263347;border-radius:7px;padding:8px 4px;text-align:center}
+#v588MlModes .v588-rows span{display:block;font-size:11px;color:#e4edf7;font-weight:750}
+#v588MlModes .v588-rows strong{display:block;font-size:19px;margin:2px 0;white-space:nowrap}
+#v588MlModes .v588-rows small{display:block;font-size:10px;white-space:normal;color:#ccd9e7}
+#v588MlModes .v588-reset{width:100%;margin-top:9px;padding:10px 8px;font-size:12px;font-weight:800;border-radius:7px;color:#f8fbff;background:#334a61;border:1px solid #7591af;touch-action:manipulation}
+#v588MlModes .v588-foot{font-size:10px;line-height:1.45;color:#bccfe1;margin-top:7px}
+@media(max-width:350px){#v588MlModes .v588-options button{font-size:11px;padding:6px 2px}}
+
+</style>
+<script id="v588-ml-side-modes">
+(function(){
+'use strict';
+// V588: ML-only prediction filter, pre-result mode locks, and independent official-mode scorecards.
+// The underlying ML model, training, library, and validation cutoffs are NOT modified.
+if(window.__V588_ML_SIDE_MODES__)return;
+const VER=588, STORE='v588_ml_side_mode', LEDGER='v588MLSideAccuracy';
+const modes={both:{name:'Both',label:'BANKER / PLAYER'},banker:{name:'Banker Only',label:'BANKER / WAIT'},player:{name:'Player Only',label:'PLAYER / WAIT'}};
+const $=id=>document.getElementById(id);
+let selected='both';
+try{const m=localStorage.getItem(STORE);if(modes[m])selected=m}catch(_){ }
+const fresh=()=>({wins:0,losses:0,rows:[]});
+function scores(){
+  if(!state[LEDGER]||typeof state[LEDGER]!=='object')state[LEDGER]={both:fresh(),banker:fresh(),player:fresh(),session:0};
+  const a=state[LEDGER];
+  for(const m of Object.keys(modes)){
+    if(!a[m]||typeof a[m]!=='object')a[m]=fresh();
+    a[m].wins=Math.max(0,Number(a[m].wins)||0);a[m].losses=Math.max(0,Number(a[m].losses)||0);
+    if(!Array.isArray(a[m].rows))a[m].rows=[];
+  }
+  if(!Number.isInteger(a.session))a.session=0;
+  return a;
+}
+const save=()=>{try{persist()}catch(e){console.warn('V588 ML score persist',e)}};
+function seq(){try{return currentSequence().join('')}catch(_){return (state.hands||[]).map(x=>typeof x==='string'?x:x?.r||'').join('')}}
+const color=()=>String(state?.currentShoeColor||'combined').toLowerCase();
+function pending(){
+  const p=state?.accuracyVerified?.pending?.mlroad;
+  if(!p||!['P','B'].includes(p.side)||Number(p.hand)!==seq().length+1||String(p.seq||'')!==seq())return null;
+  if(p.color&&p.color!==color())return null;
+  return p;
+}
+function tag(){
+  const p=pending();
+  if(p&&!modes[p.v588Mode]){p.v588Mode=selected;save()}
+  return p;
+}
+function effective(){const p=pending();return p&&modes[p.v588Mode]?p.v588Mode:selected}
+function allowed(s,m){return s==='P'||s==='B'?m==='both'||(m==='banker'?s==='B':s==='P'):false}
+function filterSignal(z){
+  if(!z||typeof z!=='object')return z;
+  const m=effective(),out={...z,predictionMode:m};
+  const orig=out.side;
+  if(!allowed(orig,m)&&orig){
+    out.side=null;out.qualified=false;out.status='WAIT';
+    out.reason='WAIT: '+(orig==='B'?'Banker':'Player')+' passed the existing ML gates, but '+modes[m].name+' mode permits only '+(m==='banker'?'Banker':'Player')+'.';
+  }
+  // RAW LEAN stays research-only. Hide disallowed raw sides too, without flipping them.
+  if(!allowed(out.rawSide,m))out.rawSide=null;
+  if(!allowed(out.displaySide,m))out.displaySide=null;
+  return out;
+}
+function attachFilter(api){
+  if(!api||typeof api.signal!=='function'||api.signal.__v588Filter)return;
+  const original=api.signal;
+  const wrapped=function(){return filterSignal(original.apply(this,arguments))};
+  wrapped.__v588Filter=true;wrapped.__original=original;
+  api.signal=wrapped;
+}
+function patchApis(){
+  attachFilter(window.__mlRoadTrainerV3);attachFilter(window.__mlRoadTrainerV2);
+  attachFilter(window.__V309_ML_INDEPENDENT_SHOE__);
+}
+function grade(p,actual){
+  if(!['P','B'].includes(actual)||!p||!allowed(p.side,p.v588Mode||'both'))return;
+  const a=scores(),mode=modes[p.v588Mode]?p.v588Mode:'both',v=a[mode];
+  const id=a.session+'|'+String(p.color||color())+'|'+p.hand+'|'+p.seq+'|'+actual;
+  if(v.rows.some(r=>r.id===id))return;
+  const won=p.side===actual;
+  if(won)v.wins++;else v.losses++;
+  v.rows.push({id,hand:p.hand,before:p.seq,after:p.seq+actual,side:p.side,actual,won,mode,color:p.color,session:a.session,lockedAt:p.lockedAt||null});
+  if(v.rows.length>1000)v.rows.splice(0,v.rows.length-1000);
+  save();
+}
+function installHooks(){
+  const arm=window.__armVerifiedPredictions;
+  if(typeof arm==='function'&&!arm.__v588Arm){
+    const f=function(){const r=arm.apply(this,arguments);try{tag()}catch(e){}return r};
+    f.__v588Arm=true;window.__armVerifiedPredictions=f;
+  }
+  const settle=window.__settleVerifiedPredictions;
+  if(typeof settle==='function'&&!settle.__v588Settle){
+    const f=function(actual){
+      let p=null;try{p=tag()?{...pending()}:null}catch(e){}
+      const r=settle.apply(this,arguments);
+      try{grade(p,String(actual||'').toUpperCase());setTimeout(paint,0)}catch(e){console.warn('V588 ML grade',e)}
+      return r;
+    };
+    f.__v588Settle=true;window.__settleVerifiedPredictions=f;
+  }
+}
+function resetOne(m){
+  const a=scores();a[m]=fresh();save();paint();
+}
+function rollbackUndo(){
+  const a=scores(),now=seq();
+  for(const m of Object.keys(modes)){
+    const v=a[m],r=v.rows.at(-1);
+    if(r&&r.session===a.session&&r.before===now&&r.after.length===now.length+1){
+      v.rows.pop();if(r.won)v.wins=Math.max(0,v.wins-1);else v.losses=Math.max(0,v.losses-1);
+    }
+  }
+  save();paint();
+}
+function create(){
+  const panel=$('mlRoadTrainerV155');if(!panel)return;
+  let box=$('v588MlModes');if(box)return;
+  box=document.createElement('section');box.id='v588MlModes';
+  box.innerHTML='<div class="v588-title">ML PREDICTION MODE</div>'+
+    '<div class="v588-options" role="group" aria-label="ML prediction mode">'+
+    '<button type="button" data-v588-mode="both">Both</button>'+
+    '<button type="button" data-v588-mode="banker">Banker Only</button>'+
+    '<button type="button" data-v588-mode="player">Player Only</button></div>'+
+    '<div class="v588-note" id="v588ModeStatus">The filter never flips predictions or forces a bet.</div>'+
+    '<div class="v588-rows" id="v588ScoreRows">'+
+    '<div><span>Both</span><strong id="v588RateBoth">—</strong><small id="v588WLBoth">0W / 0L · N=0</small></div>'+
+    '<div><span>Banker Only</span><strong id="v588RateBanker">—</strong><small id="v588WLBanker">0W / 0L · N=0</small></div>'+
+    '<div><span>Player Only</span><strong id="v588RatePlayer">—</strong><small id="v588WLPlayer">0W / 0L · N=0</small></div></div>'+
+    '<button type="button" class="v588-reset" id="v588ResetMode">Reset Selected Mode Accuracy</button>'+
+    '<div class="v588-foot">Only qualified official predictions are counted here. RAW LEAN is unvalidated research. Separate mode histories begin with this update.</div>';
+  const anchor=panel.querySelector('.analyzer-sub');
+  if(anchor)anchor.insertAdjacentElement('afterend',box);
+  else panel.insertBefore(box,panel.firstChild?.nextSibling||null);
+  box.querySelectorAll('[data-v588-mode]').forEach(btn=>btn.addEventListener('click',()=>{
+    tag();selected=btn.dataset.v588Mode;
+    try{localStorage.setItem(STORE,selected)}catch(_){ }
+    // Never erase a prediction locked before the user switched mode.
+    installHooks();patchApis();paint();
+    // If no original qualified lock exists, apply the selected filter on this hand.
+    try{window.__armVerifiedPredictions?.()}catch(e){}
+    setTimeout(paint,80);
+  }));
+  $('v588ResetMode').addEventListener('click',()=>{
+    if(confirm('Reset ONLY '+modes[selected].name+' official ML mode accuracy? Other ML mode scores, saved shoes, and original ML counts remain.'))resetOne(selected);
+  });
+}
+function put(id,v){const n=$(id);if(n&&n.textContent!==String(v))n.textContent=String(v)}
+function paint(){
+  create();const panel=$('v588MlModes');if(!panel)return;
+  const active=effective(),p=tag(),a=scores();
+  panel.querySelectorAll('[data-v588-mode]').forEach(b=>{
+    const on=b.dataset.v588Mode===selected;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));
+  });
+  const frozen=p&&active!==selected;
+  put('v588ModeStatus',frozen?
+    'Selected: '+modes[selected].name+'. An earlier '+modes[active].name+' prediction is already locked for this hand ('+(p.side==='B'?'BANKER':'PLAYER')+'). It will be graded; your new mode starts after this hand.' :
+    'Active: '+modes[active].name+' • Allowed official outputs: '+modes[active].label+'. A disallowed model result becomes WAIT, never the opposite side.');
+  for(const m of Object.keys(modes)){
+    const v=a[m],n=v.wins+v.losses,s=m==='both'?'Both':m==='banker'?'Banker':'Player';
+    put('v588Rate'+s,n?(100*v.wins/n).toFixed(1)+'%':'—');
+    put('v588WL'+s,v.wins+'W / '+v.losses+' · N='+n);
+  }
+  // The archived current-hand lock is already a real pre-result prediction.
+  // Otherwise display only this mode's qualified signal, not the unfiltered raw lean.
+  try{
+    const z=window.__mlRoadTrainerV3?.signal?.()||window.__mlRoadTrainerV2?.signal?.()||{};
+    const official=p?p.side:(z.qualified&&allowed(z.side,active)?z.side:null);
+    put('mlv307Pick',official?(official==='P'?'PLAYER':'BANKER'):'WAIT');
+    const gate=$('mlv307Gate');if(gate&&(!official||p))gate.textContent=p?'QUALIFIED / PRE-RESULT LOCK':(z.qualified?'QUALIFIED':'WAIT / NOT QUALIFIED');
+  }catch(e){}
+}
+function boot(){
+  scores();patchApis();installHooks();tag();create();paint();
+  // Legacy upgrades occasionally replace ML wrappers. Reattach without changing their logic.
+  // Reinstall promptly if delayed legacy initializers replace the verified hooks.
+  [150,600,1050,1950,3000,5600].forEach(ms=>setTimeout(()=>{patchApis();installHooks();tag();paint()},ms));
+  if(!window.__v588MlModeTimer)window.__v588MlModeTimer=setInterval(()=>{
+    if(document.visibilityState==='hidden')return;
+    patchApis();installHooks();tag();paint();
+  },1500);
+  // The master reset invokes each standalone reset button and finally updates its status.
+  // Clear *all* three mode ledgers only after that status confirms the master action ran.
+  const globalStatus=$('v406ResetAllStatus');
+  if(globalStatus&&!globalStatus.__v588MasterObserved){
+    globalStatus.__v588MasterObserved=true;
+    new MutationObserver(()=>{
+      const t=globalStatus.textContent||'';
+      if(!/^(All AI accuracy resets sent|Reset requested for)/.test(t))return;
+      const a=scores();for(const m of Object.keys(modes))a[m]=fresh();
+      save();paint();
+    }).observe(globalStatus,{childList:true,characterData:true,subtree:true});
+  }
+  document.addEventListener('click',e=>{
+    if(e.target?.closest?.('[data-result],#undoBtn,#clearBtn,#mlBuild,#v570ResetMLBoth,#mlv203Reset,#v406ResetAllAccuracy')){
+      setTimeout(paint,0);setTimeout(paint,220);setTimeout(paint,950);
+    }
+  },true);
+  $('undoBtn')?.addEventListener('click',()=>setTimeout(rollbackUndo,30));
+  $('clearBtn')?.addEventListener('click',()=>{
+    const had=seq().length>0;
+    setTimeout(()=>{if(had&&!seq().length){scores().session++;save();paint()}},40);
+  });
+  // Reset selected mode explicitly; global and combined ML reset also clear all new mode scores.
+  for(const id of ['v570ResetMLBoth','v406ResetAllAccuracy']){
+    $(id)?.addEventListener('click',()=>{
+      // Existing action already handles confirmation; don't clear scores after a declined confirmation.
+      // Explicit V588 reset remains available, and existing reset semantics are unchanged.
+      setTimeout(paint,80);
+    });
+  }
+}
+window.__V588_ML_SIDE_MODES__={version:VER,getMode:()=>selected,activeMode:effective,score:()=>scores(),setMode(m){if(!modes[m])return false;tag();selected=m;try{localStorage.setItem(STORE,m)}catch(_){};paint();try{window.__armVerifiedPredictions?.()}catch(_){};return true},resetMode:resetOne,filterSignal,paint,qualifiedOnly:true};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,650),{once:true});else setTimeout(boot,650);
+})();
+
+</script>
+<style id="v591-three-road-mode-css">
+.v591-mode-bar{padding:10px 12px;border:1px solid #537b9b;border-radius:11px;background:rgba(40,75,100,.17);display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 10px}
+.v591-switch{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:850;cursor:pointer}
+.v591-switch input{width:23px;height:23px;accent-color:#2ba3e6;flex-shrink:0}
+.v591-mode-status{font-size:11px;border-radius:16px;padding:5px 10px;background:#4e3b3b;color:#ffd1c7}
+.v591-mode-status.on{background:#145443;color:#c6ffe7}
+.v591-road-choice{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:750}
+.v591-road-choice select{border:1px solid #7892a8;border-radius:6px;padding:6px 8px;color:inherit;background:var(--panel,#142438);max-width:195px}
+.v591-mode-help{flex-basis:100%;font-size:11px;color:var(--muted,#b3c1cf);line-height:1.45}
+.v591-derived-display{display:none;grid-auto-flow:column;grid-template-rows:repeat(6,var(--big-road-cell,27px));grid-auto-columns:var(--big-road-cell,27px);gap:2px;min-height:160px;min-width:max-content;padding:8px}
+.v591-derived-dot{border-radius:50%;width:82%;height:82%;align-self:center;justify-self:center;box-sizing:border-box;border:3px solid #d74549;background:rgba(215,69,73,.12)}
+.v591-derived-dot.blue{border-color:#428de5;background:rgba(66,141,229,.12)}
+.v591-grade-row{margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.v591-grade-row[hidden]{display:none!important}
+.v591-grade-heading{font-size:12px;font-weight:750;flex-basis:100%}
+.v591-grade-row button{padding:9px 12px;border-radius:7px;border:1px solid #6784a0;background:#142638;color:#eaf5ff;font-weight:800;cursor:pointer}
+.v591-grade-row .v591-grade-p{border-color:#5ca7ed}.v591-grade-row .v591-grade-b{border-color:#df7b7b}
+.v591-grade-note{font-size:10px;color:var(--muted,#b1c0ca);flex-basis:100%}
+body.v591-derived-active #bigRoad{display:none!important}
+body.v591-derived-active #v591DerivedRoadDisplay{display:grid!important}
+body.v591-derived-active .road-mode-switches{display:none!important}
+body.v591-derived-active #v538InputDock .main-buttons button[data-result="T"]{display:none!important}
+body.v591-derived-active #v538InputDock .pair-row{display:none!important}
+body.v591-derived-active .road-preview{display:none!important}
+body.v591-derived-active #mainRoadFutureTest{display:none!important}
+body.v591-derived-active #previewP,body.v591-derived-active #previewB{display:none!important}
+body.v591-derived-active #v538InputDock #sampleBtn,body.v591-derived-active #v538InputDock #saveBtn{opacity:.35}
+@media(max-width:550px){.v591-mode-bar{gap:7px}.v591-road-choice{width:100%;justify-content:space-between}.v591-road-choice select{flex:1}.v591-derived-display{--big-road-cell:25px}}
+</style>
+<script id="v591-3-road-translation-toggle">
+(function(){
+'use strict';
+if(window.__V591_THREE_ROAD_TRANSLATION__)return;
+const STORE='v591-three-road-translation-mode';
+const $=id=>document.getElementById(id);
+const types={eye:{offset:1,name:'Big Eye Boy'},small:{offset:2,name:'Small Road'},roach:{offset:3,name:'Cockroach Road'}};
+const fresh=()=>({road:'eye',marks:{eye:[],small:[],roach:[]},grades:[],pending:null,lastSettled:''});
+let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch(e){}
+const d=Object.assign(fresh(),saved);
+d.road=types[d.road]?d.road:'eye';
+for(const k of Object.keys(types))d.marks[k]=Array.isArray(d.marks?.[k])?d.marks[k].filter(x=>x==='R'||x==='B').slice(-130):[];
+d.grades=Array.isArray(d.grades)?d.grades.filter(x=>x&&typeof x==='object').slice(-10000):[];
+// Always start OFF on reopening an index: no inadvertent red/blue -> P/B commits.
+let enabled=false;
+let indexCache={key:'',data:[],unique:0,available:0};
+let latest=null;
+function save(){try{localStorage.setItem(STORE,JSON.stringify({road:d.road,marks:d.marks,grades:d.grades,pending:d.pending,lastSettled:d.lastSettled}))}catch(e){}}
+function set(id,v){const e=$(id);if(e)e.textContent=v;}
+function clearPending(){d.pending=null;latest=null;save();}
+function modePickKey(){return `${d.road}|${d.marks[d.road].join('')}`;}
+function rawShoes(){try{return typeof v510SearchShoes==='function' ? (v510SearchShoes()||[]) : []}catch(e){return []}}
+function pbOf(sh){const a=typeof sh==='string'?sh:(sh?.sequence||sh?.seq||sh?.results||'');return String(a||'').toUpperCase().replace(/[^PBT]/g,'').replace(/T/g,'')}
+function libraryKey(shoes){
+ let hash=2166136261;
+ for(const sh of shoes){const s=pbOf(sh);for(let i=0;i<s.length;i++)hash=Math.imul(hash^s.charCodeAt(i),16777619)}
+ let color='combined';try{color=typeof v510ScopeKey==='function'?v510ScopeKey():color}catch(e){}
+ return `${d.road}|${color}|${shoes.length}|${hash>>>0}`;
+}
+function buildIndex(){
+ const source=rawShoes(),key=libraryKey(source);
+ if(key===indexCache.key)return indexCache;
+ const seen=new Set(),data=[],offset=types[d.road].offset;
+ let distinct=0;
+ for(const sh of source){
+  const seq=pbOf(sh);if(seq.length<8||seen.has(seq))continue;
+  seen.add(seq);const si=distinct++;
+  const hands=[];
+  // Every row is strictly PRE-RESULT: a derived state from the first j actual
+  // hands votes only for the actual j+1 outcome, not for a future derived color.
+  for(let j=1;j<seq.length;j++){
+   hands.push({r:seq[j-1]});
+   let marks=[];try{marks=deriveRoad(hands,offset)}catch(e){continue}
+   if(marks.length<5)continue;
+   data.push({shoe:si,road:marks.join(''),next:seq[j],roadCount:marks.length,hand:j});
+  }
+ }
+ indexCache={key,data,unique:distinct,available:source.length};
+ return indexCache;
+}
+function vote(){
+ if(!enabled)return {side:null,reason:'OFF • Switch ON to use the 3-Road Translation AI.'};
+ const observed=d.marks[d.road].join(''),n=observed.length,idx=buildIndex();
+ if(n<6)return {side:null,conf:0,evidence:0,library:idx,reason:`${types[d.road].name}: ${n} marks entered • need at least 6 for a road-history search.`};
+ const best=new Map();
+ for(const record of idx.data){
+  const max=Math.min(16,n,record.roadCount);let length=0;
+  for(let k=max;k>=5;k--){if(record.road.endsWith(observed.slice(-k))){length=k;break}}
+  if(length<5)continue;
+  const proximity=Math.abs(record.roadCount-n);
+  const weight=(length*length)*(0.68+0.32/(1+proximity/10));
+  const current=best.get(record.shoe);
+  if(!current||weight>current.weight)best.set(record.shoe,{side:record.next,weight,length});
+ }
+ let p=0,b=0,pn=0,bn=0;
+ for(const x of best.values()){if(x.side==='P'){p+=x.weight;pn++}else if(x.side==='B'){b+=x.weight;bn++}}
+ const total=p+b,side=p>b?'P':b>p?'B':null;
+ const conf=total?Math.max(p,b)/total:0;
+ const supporters=side==='P'?pn:bn;
+ const qualified=best.size>=6&&supporters>=4&&side!==null&&conf>=0.60;
+ const reason=qualified
+ ? `${types[d.road].name} • ${best.size} distinct saved-shoe matches • ${pn} Player / ${bn} Banker • ${(conf*100).toFixed(1)}% historical vote share, NOT a calibrated win chance.`
+ : `WAIT • ${types[d.road].name}: ${best.size} distinct matched shoes (need 6), ${supporters} supporting top side (need 4), historical share ${(conf*100).toFixed(1)}% (need 60%). Derived road colors cannot uniquely determine Banker/Player.`;
+ return {side:qualified?side:null,conf,evidence:best.size,library:idx,reason,pn,bn};
+}
+function stats(){let w=0,l=0;for(const row of d.grades){if(row.ok===true)w++;else if(row.ok===false)l++}return {w,l}}
+function refreshView(){
+ const current=d.marks[d.road],road=$('v591DerivedRoadDisplay');
+ if(road){road.replaceChildren();let spots=[];
+  try{if(typeof roadPositionsFromMarks==='function')spots=roadPositionsFromMarks(current)}catch(e){}
+  if(!spots.length)spots=current.map((m,i)=>({m,row:i%6,col:Math.floor(i/6)}));
+  const maxCol=Math.max(11,...spots.map(x=>x.col||0));
+  road.style.gridTemplateColumns=`repeat(${maxCol+2},var(--big-road-cell,27px))`;
+  road.style.gridTemplateRows='repeat(6,var(--big-road-cell,27px))';
+  spots.forEach((spot,i)=>{const dot=document.createElement('div');dot.className='v591-derived-dot'+(current[i]==='B'?' blue':'');dot.style.gridColumn=String((spot.col||0)+1);dot.style.gridRow=String((spot.row||0)+1);dot.title=`${types[d.road].name} mark ${i+1}: ${current[i]==='R'?'RED':'BLUE'}`;road.appendChild(dot)});
+ }
+ if($('v591RoadInputEnabled'))$('v591RoadInputEnabled').checked=enabled;
+ if($('v591RoadType'))$('v591RoadType').value=d.road;
+ $('v591ModeState')?.classList.toggle('on',enabled);
+ set('v591ModeState',enabled?'ON':'OFF');
+ set('mainRoadDisplayTitle',enabled?`${types[d.road].name} • derived RED / BLUE input`:'Main Road • collision-aware downward streaks');
+ set('roadModeHint',enabled?`Showing only ${types[d.road].name} marks; ${current.length} entered. These are NOT real Banker/Player results. Turn OFF to return to the saved Main Road.`:'When downward space is occupied, the next same-side result goes down-right beside the blocker. Existing circles stay put. Prediction engines are unchanged.');
+ set('v538EntryStatus',enabled?`${types[d.road].name} • ${current.length} marks`:`Hand ${((window.state?.hands||[]).length)+1} · normal P/B/T`);
+ const dock=$('v538InputDock');
+ if(dock){const title=dock.querySelector('.v538-input-heading>span');if(title)title.textContent=enabled?'ENTER DERIVED RED / BLUE MARK':'ENTER HAND RESULT';
+  const p=dock.querySelector('[data-result="P"]'),b=dock.querySelector('[data-result="B"]');
+  if(p){const k=p.querySelector('.v538-key'),t=p.querySelector('.v538-key-label');if(k)k.textContent=enabled?'BL':'P';if(t)t.textContent=enabled?'BLUE MARK':'PLAYER';p.setAttribute('aria-label',enabled?'Enter Blue derived-road mark':'Enter Player result')}
+  if(b){const k=b.querySelector('.v538-key'),t=b.querySelector('.v538-key-label');if(k)k.textContent=enabled?'RD':'B';if(t)t.textContent=enabled?'RED MARK':'BANKER';b.setAttribute('aria-label',enabled?'Enter Red derived-road mark':'Enter Banker result')}
+ }
+ if($('v591ActualGrading'))$('v591ActualGrading').hidden=!enabled;
+ document.body.classList.toggle('v591-derived-active',enabled);
+ const score=stats(),tot=score.w+score.l;
+ set('beadHistAccuracy',tot?`${(100*score.w/tot).toFixed(1)}%`:'—');set('beadHistWL',`${score.w}W-${score.l}L`);set('beadHistN',`N ${tot}`);
+ if(!enabled){set('beadHistSide','OFF');set('beadHistConf','—');set('beadHistEvidence','0');set('beadHistLibrary','—');set('beadHistReason','OFF • Turn the 3-Road Input switch ON to activate the translation AI.');return}
+ const x=latest||vote();latest=x;
+ const key=modePickKey(),alreadyGraded=d.grades.some(g=>g.road===d.road&&g.key===key);
+ set('beadHistSide',alreadyGraded?'WAIT':x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
+ set('beadHistConf',x.evidence?(100*x.conf).toFixed(1)+'%':'—');
+ set('beadHistEvidence',String(x.evidence||0));
+ set('beadHistLibrary',x.library?`${x.library.unique} / ${x.library.available}`:'—');
+ const note=d.pending?.key===key?' • Official prediction armed for the next actual hand.':alreadyGraded?' • Already graded; enter another road mark for a new prediction.':'';
+ set('beadHistReason',(x.reason||'No valid history match.')+note);
+}
+function rearm(){
+ latest=enabled?vote():null;
+ const key=modePickKey();
+ const alreadyGraded=d.grades.some(g=>g.road===d.road&&g.key===key);
+ d.pending=enabled&&latest?.side&&!alreadyGraded?{key,side:latest.side,road:d.road}:null;
+ save();refreshView();
+}
+function setEnabled(on){enabled=!!on;d.pending=null;latest=null;rearm();if(!enabled){
+ // Give the pre-existing real Main Road renderer control again.
+ try{if(typeof renderRoad==='function')renderRoad()}catch(e){}
+ // Restore the selected Bead/Main display header if needed.
+ try{if(typeof v580UpdateRoadDisplayControls==='function')v580UpdateRoadDisplayControls()}catch(e){}
+ }}
+function addMark(mark){if(!enabled)return;d.marks[d.road].push(mark);d.lastSettled='';rearm()}
+function grade(actual){
+ if(!enabled||!['P','B'].includes(actual))return;
+ const p=d.pending,key=modePickKey();
+ if(!p||p.key!==key){set('beadHistReason','No new official P/B prediction to grade. Enter another derived mark after a settled hand.');return}
+ d.grades.push({key,road:d.road,side:p.side,actual,ok:p.side===actual});
+ d.lastSettled=key;d.pending=null;latest=null;save();refreshView();
+}
+function undo(){
+ const a=d.marks[d.road];if(!a.length){set('beadHistReason','No derived marks to undo.');return}
+ const key=modePickKey();a.pop();
+ // Revoke the most recent grade when undoing its corresponding road mark.
+ const i=d.grades.findLastIndex?.(x=>x.key===key&&x.road===d.road)??-1;
+ if(i>=0)d.grades.splice(i,1);
+ d.lastSettled='';rearm();
+}
+function newShoe(){
+ if(!confirm(`Clear ${types[d.road].name} RED/BLUE marks for a new translated-road session? Previous accuracy stays.`))return;
+ d.marks[d.road]=[];d.lastSettled='';rearm();
+}
+// Capture input at the document level BEFORE any core result/accuracy listeners.
+// The replacement never pushes R/B into state.hands or alters existing real-shoe libraries.
+document.addEventListener('click',function(event){
+ if(!enabled)return;
+ const target=event.target.closest?.('button');if(!target)return;
+ const input=target.closest('[data-result]');
+ const id=target.id;
+ if(input){event.preventDefault();event.stopImmediatePropagation();
+  if(input.dataset.result==='B')addMark('R');else if(input.dataset.result==='P')addMark('B');return}
+ if(id==='undoBtn'||id==='clearBtn'||id==='saveBtn'||id==='sampleBtn'||id==='previewP'||id==='previewB'){
+  event.preventDefault();event.stopImmediatePropagation();
+  if(id==='undoBtn')undo();else if(id==='clearBtn')newShoe();else if(id==='saveBtn')set('beadHistReason','Derived marks are saved separately in this browser. This mode does not save fake P/B shoes to the real library.');return;
+ }
+},true);
+// Old callers can safely invoke these methods without reviving the removed Bead History predictor.
+const inert={predict:()=>({side:null}),render:()=>({side:null}),arm:()=>null,settle:()=>{},clearPending:()=>{},invalidate:()=>{},accuracy:{w:0,l:0},version:591};
+window.__BEAD_HISTORY_AI_V379__=inert;
+window.__BEAD_HISTORY_AI_V385__=inert;
+window.__BEAD_HISTORY_AI_V386__=inert;
+window.__BEAD_HISTORY_AI_V387__=inert;
+function init(){
+ $('v591RoadInputEnabled')?.addEventListener('change',e=>setEnabled(e.target.checked));
+ $('v591RoadType')?.addEventListener('change',e=>{if(types[e.target.value]){d.road=e.target.value;d.lastSettled='';rearm()}});
+ $('v591GradeP')?.addEventListener('click',()=>grade('P'));
+ $('v591GradeB')?.addEventListener('click',()=>grade('B'));
+ $('beadHistReset')?.addEventListener('click',()=>{if(confirm('Reset only 3-Road Translation AI verified W/L accuracy?')){d.grades=[];d.pending=null;d.lastSettled='';rearm()}});
+ setEnabled(false);
+}
+window.__V591_THREE_ROAD_TRANSLATION__={get enabled(){return enabled},get road(){return d.road},get marks(){return d.marks[d.road].slice()},get pending(){return d.pending},setEnabled,addMark,grade,undo,buildIndex,vote,refresh:refreshView,accuracy:stats};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
 </body>
