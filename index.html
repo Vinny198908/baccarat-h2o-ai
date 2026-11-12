@@ -471,6 +471,7 @@
   #roadPreviewAiPanel .match-pct{padding:4px 2px!important}
 }
 </style>
+<!-- V598: Fix mobile scrolling: float ONLY the primary BL/RD/P/B entry dock. Second Main Road entry stays in its own station. No prediction or accuracy logic changed. -->
 <!-- V405: Mobile input dock and page-jump prevention. No prediction or accuracy logic changed. -->
 <style id="v405-stable-mobile-screen">
 html { scroll-behavior: auto !important; overscroll-behavior-y: none; }
@@ -479,7 +480,7 @@ body { overscroll-behavior-y: none; }
 @media (max-width: 699px) {
   html { overflow-x: hidden; }
   body { overflow-x: hidden; padding-bottom: calc(195px + env(safe-area-inset-bottom)); }
-  .controls {
+  #v538InputDock.controls {
     position: fixed !important;
     left: 0; right: 0;
     bottom: 0 !important;
@@ -494,11 +495,11 @@ body { overscroll-behavior-y: none; }
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
   }
-  .controls .pair-row { margin-bottom: 6px; gap: 7px; }
-  .controls .toggle { padding: 6px 4px; }
-  .controls .main-buttons { gap: 7px; }
-  .controls .big { min-height: 56px; }
-  .controls .utility { margin-top: 6px; }
+  #v538InputDock.controls .pair-row { margin-bottom: 6px; gap: 7px; }
+  #v538InputDock.controls .toggle { padding: 6px 4px; }
+  #v538InputDock.controls .main-buttons { gap: 7px; }
+  #v538InputDock.controls .big { min-height: 56px; }
+  #v538InputDock.controls .utility { margin-top: 6px; }
 }
 </style>
 <style id="v415CompactSharedPanels">
@@ -703,6 +704,36 @@ body { overscroll-behavior-y: none; }
    second panel's independent main/bead selector whenever Road 2 is normal. */
 body.v591-derived-active #v597SecondStation:not(.v597-is-derived) #v597ViewSwitches{display:flex!important}
 
+</style>
+<style id="v598-primary-scroll-dock-only">
+@media (max-width:699px) {
+  /* The main BL/RD/P/B controls follow the viewport during scrolling. */
+  #v538InputDock.controls {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    z-index: 10000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+  /* Road 2 belongs with its independent road; don't float both on top of one another. */
+  #v597SecondStation #v597EntryPanel.controls {
+    position: static !important;
+    inset: auto !important;
+    z-index: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    margin-top: 8px !important;
+    transform: none !important;
+    -webkit-transform: none !important;
+    box-shadow: none !important;
+    border-radius: 14px !important;
+  }
+}
 </style>
 </head>
 <!-- V451: Broaden 8-hand/road matching and relax historical AI qualification with minimum vote margins. Historical agreement is not a betting edge. -->
