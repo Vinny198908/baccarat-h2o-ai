@@ -471,7 +471,7 @@
   #roadPreviewAiPanel .match-pct{padding:4px 2px!important}
 }
 </style>
-<!-- V598: Fix mobile scrolling: float ONLY the primary BL/RD/P/B entry dock. Second Main Road entry stays in its own station. No prediction or accuracy logic changed. -->
+<!-- V599: Pin original live P/B/T or BL/RD dock throughout entire page on phone + iPad + desktop. Road 2 stays inline. Prediction and accuracy logic unchanged. -->
 <!-- V405: Mobile input dock and page-jump prevention. No prediction or accuracy logic changed. -->
 <style id="v405-stable-mobile-screen">
 html { scroll-behavior: auto !important; overscroll-behavior-y: none; }
@@ -705,33 +705,61 @@ body { overscroll-behavior-y: none; }
 body.v591-derived-active #v597SecondStation:not(.v597-is-derived) #v597ViewSwitches{display:flex!important}
 
 </style>
-<style id="v598-primary-scroll-dock-only">
-@media (max-width:699px) {
-  /* The main BL/RD/P/B controls follow the viewport during scrolling. */
+<!-- V599: iPad/tablet/desktop fix: primary result dock pinned to the VIEWPORT, not sticky to the .right column. Road 2 stays inline. -->
+<style id="v599-primary-dock-viewport-all-screens">
+/* At tablet/desktop widths the old 700px media rule used position:sticky;
+   sticky stopped when its containing right-column ended. Pin ONLY the live
+   first road entry dock to the screen at all widths. */
+#v538InputDock.controls {
+  position: fixed !important;
+  top: auto !important;
+  bottom: 12px !important;
+  right: max(10px, calc((100vw - 1200px) / 2 + 12px)) !important;
+  left: auto !important;
+  width: min(44vw, 480px) !important;
+  max-width: calc(100vw - 20px) !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  z-index: 10000 !important;
+  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #191d24 !important;
+  border: 1px solid #3b4450 !important;
+  border-radius: 15px !important;
+  padding: 9px !important;
+  box-shadow: 0 6px 28px rgba(0,0,0,.62) !important;
+  /* Avoid transformed-position quirks in WebKit. */
+  transform: none !important;
+  -webkit-transform: none !important;
+}
+/* Reserve enough end-of-page scroll space so the last section isn't blocked. */
+body { padding-bottom: calc(240px + env(safe-area-inset-bottom)) !important; }
+/* Independent Road 2 buttons must scroll normally inside their own panel. */
+#v597SecondStation #v597EntryPanel.controls {
+  position: static !important;
+  inset: auto !important;
+  z-index: auto !important;
+  width: auto !important;
+  max-width: none !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin-top: 8px !important;
+  transform: none !important;
+  -webkit-transform: none !important;
+  box-shadow: none !important;
+  border-radius: 14px !important;
+}
+@media (max-width: 699px) {
   #v538InputDock.controls {
-    position: fixed !important;
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    top: auto !important;
-    z-index: 10000 !important;
     width: 100% !important;
     max-width: 100% !important;
-    box-sizing: border-box !important;
-    margin: 0 !important;
-  }
-  /* Road 2 belongs with its independent road; don't float both on top of one another. */
-  #v597SecondStation #v597EntryPanel.controls {
-    position: static !important;
-    inset: auto !important;
-    z-index: auto !important;
-    width: auto !important;
-    max-width: none !important;
-    margin-top: 8px !important;
-    transform: none !important;
-    -webkit-transform: none !important;
-    box-shadow: none !important;
-    border-radius: 14px !important;
+    border-radius: 15px 15px 0 0 !important;
+    padding: 8px 9px calc(8px + env(safe-area-inset-bottom)) !important;
   }
 }
 </style>
@@ -743,7 +771,7 @@ body.v591-derived-active #v597SecondStation:not(.v597-is-derived) #v597ViewSwitc
 <div class="topbar">
 <div>
 <div class="title">All-In Style Baccarat Roadmap</div>
-<div id="v586BuildBadge" style="font-size:11px;font-weight:850;color:#e4ceff;margin-top:4px">V597 • SECOND INDEPENDENT MAIN ROAD + TRANSLATION AI</div>
+<div id="v586BuildBadge" style="font-size:11px;font-weight:850;color:#e4ceff;margin-top:4px">V599 • SCROLLING INPUT CONTROLS FIX</div>
 <div class="shoe" id="shoeLabel">New shoe • 0 hands</div>
 </div>
 <button class="util" id="fullscreenBtn" style="padding:8px 10px">Full screen</button>
