@@ -145,7 +145,8 @@
 <meta content="#101114" name="theme-color"/>
 <meta content="V192_MASTER_DECISION_AI_STABILITY_FIX" name="all-in-build"/>
 <meta content="V214_MAIN_FUTURE_LIVE_ADAPT_SCAN_FIX" name="main-future-live-adapt"/>
-<title>V588 • 40/60 3-Road Hybrid • Baccarat Dashboard</title>
+<!-- V595 2026-11-12: normal Both ML score threshold -0.5pp; V259 obsolete source gate bypass for V575; side-only original stricter behavior preserved. No historical validation claim for the loosened live gate. -->
+<title>V595 • ML Normal Gate -0.5pp • 40/60 3-Road Hybrid • Baccarat Dashboard</title>
 <style>
   :root{
     --bg:#0d0f12; --panel:#171a1f; --panel2:#22262d; --line:#343a43;
@@ -929,8 +930,8 @@ body { overscroll-behavior-y: none; }
 <div class="analyzer-sub" id="kaggleLibraryNote" style="margin-top:6px">When ON, Kaggle remains available only to supported historical-library diagnostics. Sequence AI V2 and Sequence AI V2 Duplicate remain independent.</div>
 </div>
 <div class="analyzer" id="beadHistoryAiPanel" style="border-color:#547c9e">
-<div class="analyzer-title">🔵🔴 3-Road Translation AI — Red/Blue to Live P/B V593</div>
-<div class="analyzer-sub">Works ONLY while the 3-Road Input switch is ON. Select Big Eye Boy, Small Road, or Cockroach Road; enter its RED/BLUE marks in the Main Road area. Matches that specific road against saved shoes and tallies the historical next real Banker/Player result. A derived-road color alone cannot uniquely identify the next live P/B result.</div>
+<div class="analyzer-title">🔵🔴 3-Road Translation AI — Historical State Matching V596</div>
+<div class="analyzer-sub">Works ONLY while the 3-Road Input switch is ON. Select Big Eye Boy, Small Road, or Cockroach Road; enter its RED/BLUE marks in the Main Road area. Matches the selected road to saved-shoe states, counting multiple matching historical positions without letting one shoe dominate. Enhanced and original matchers can be compared. Neither road colors nor historical votes guarantee the next live result.</div>
 <div class="analyzer-grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
 <div class="analyzer-card"><span>NEXT REAL RESULT</span><strong id="beadHistSide">OFF</strong></div>
 <div class="analyzer-card"><span>HISTORICAL VOTE SHARE</span><strong id="beadHistConf">—</strong></div>
@@ -949,7 +950,19 @@ body { overscroll-behavior-y: none; }
   <option value="strict">Selective • 60% agreement</option>
  </select>
 </div>
-<div class="analyzer-sub" style="margin-top:3px">More predictions shows a real P/B call once 6+ distinct shoes match, 4+ support the leading side, and the historical vote has a majority. Vote share is not a proven probability of winning.</div>
+<div class="analyzer-sub" style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+<label for="v596Matcher" style="font-weight:800">MATCHING METHOD</label>
+<select id="v596Matcher" style="flex:1;min-width:190px;max-width:100%;background:#1b293b;color:white;border:1px solid #66819e;border-radius:8px;padding:9px"><option value="original" selected>Original V593 • tested baseline</option><option value="enhanced">Enhanced V596 • experimental</option></select>
+</div>
+<details style="border:1px solid #456079;border-radius:8px;padding:8px;margin-top:8px"><summary style="cursor:pointer;font-weight:750;font-size:12px">Optional experimental context • actual live hand</summary>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">
+<label style="font-size:11px;flex:1;min-width:130px">Completed real hand # (optional)<input id="v596LiveHand" type="number" min="1" max="200" placeholder="Unknown" inputmode="numeric" style="display:block;width:100%;padding:8px;background:#1b293b;color:white;border:1px solid #66819e;border-radius:7px"></label>
+<label style="font-size:11px;flex:1;min-width:130px">Most recent ACTUAL Main Road result<select id="v596LastMain" style="display:block;width:100%;padding:8px;background:#1b293b;color:white;border:1px solid #66819e;border-radius:7px"><option value="unknown">Unknown</option><option value="P">Player</option><option value="B">Banker</option></select></label>
+</div>
+<div class="analyzer-sub" style="margin-top:5px">Only use the exact live hand position if you know it. Last actual result means real P/B, not derived-road red/blue. Leave unknown when unsure.</div>
+</details>
+<div id="v596Compare" class="analyzer-sub" style="margin-top:7px;font-weight:750">Original vs Enhanced: waiting for road input.</div>
+<div class="analyzer-sub" style="margin-top:4px">V595 original remains the default. Enhanced is experimental: held-out accuracy improved only 0.14 percentage point in More mode and did worse in Strict mode. W/L is separate for each selected method; RESET clears both. Vote share is not a win probability.</div>
 <div class="analyzer-sub" id="beadHistReason" style="margin-top:7px">AI OFF — switch ON to enter one of the 3 roads.</div>
 <div id="v591ActualGrading" class="v591-grade-row" hidden>
  <span class="v591-grade-heading">Grade predicted actual live hand (not a road mark):</span>
@@ -18035,11 +18048,20 @@ function api(){ return window.__mlRoadTrainerV3||window.__mlRoadTrainerV2||null;
 function setText(id,v){ const e=document.getElementById(id); if(e)e.textContent=v; }
 function installSelective(){
   const a=api(); if(!a) return false;
+  // V595: Modern V575+ ML owns its own hold-out and live evidence gates.
+  // Do not attach the legacy V259 wrapper: it expects a missing "sources"
+  // field and alternates with the V588 mode filter on every render.
+  if(Number(a.version)>=575) return true;
   if(a.signal&&a.signal.__v259SelectiveFn) return true;
   const raw=a.signal?.bind(a); if(typeof raw!=='function') return false;
   a.__v259RawSignal=raw;
   a.signal=function(){
     const z=raw()||{};
+    // V595: V575+ ML already validates held-out qualification, independent shoe
+    // evidence and the live gate. The obsolete V259 "sources" field is absent
+    // from V575 and otherwise forces every official pick to WAIT.
+    // Do not apply V259's legacy source gate to the current ML authority.
+    if(Number(a.version)>=575) return z;
     const r=a.report?.()||z.report||null;
     if(!r){ return {...z,side:null,displaySide:null,qualified:false,strength:0,status:'WAIT',reason:'ML is training / validation is not ready.'}; }
     const side=z.rawSide||z.side||z.displaySide;
@@ -19784,7 +19806,11 @@ function signal(){
   if(runtime.patternQualified&&runtime.patterns)startLiveScan(r);
   const pending=!!(runtime.patternQualified&&runtime.patterns&&!runtime.scan?.ready);
   const z=predict(runtime.model,runtime.weights,r),conf=Math.max(z.p,1-z.p),raw=z.p>=.5?'P':'B';
-  const modelOK=runtime.qualified&&z.families>=2&&z.independent>=4&&z.agreement>=.56&&z.evidence>=1.4&&conf>=runtime.cutoff;
+  // V595: A modest, normal BOTH-mode-only 0.5 percentage-point live reduction.
+  // The validated trainer, held-out pass criterion, and side-only modes are intact.
+  const mlMode=window.__V588_ML_SIDE_MODES__?.activeMode?.()||'both';
+  const liveCutoff=mlMode==='both'?Math.max(.50,runtime.cutoff-.005):runtime.cutoff;
+  const modelOK=runtime.qualified&&z.families>=2&&z.independent>=4&&z.agreement>=.56&&z.evidence>=1.4&&conf>=liveCutoff;
   const m=runtime.scan?.hit||{side:null,edge:0,agreement:0,independent:0,exact:0,inverted:0};
   const rule=runtime.patternRule||{minShoes:6,minAgree:.64};
   const matchOK=runtime.patternQualified&&m.side&&m.independent>=rule.minShoes&&m.agreement>=rule.minAgree;
@@ -19799,7 +19825,7 @@ function signal(){
     :(!runtime.qualified&&!runtime.patternQualified)?'WAIT: neither ML nor library retrieval passed held-out shoe validation. RAW LEAN is not an official prediction.'
     :runtime.qualified&&!modelOK?'WAIT: validated ML trained, but current hand does not meet model score, family agreement or independent-shoe evidence gates.'
     :'WAIT: historical retrieval did not meet independent-shoe match gates.';
-  return runtime.lastSignal={side,displaySide,rawSide:raw,qualified,modelPassedHoldout:!!runtime.qualified,searchPassedHoldout:!!runtime.patternQualified,modelLiveEligible:!!modelOK,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:+z.evidence.toFixed(2),independentShoes:z.independent,agreement:+(z.agreement*100).toFixed(1),cutoff:+(runtime.cutoff*100).toFixed(1),matchShoes:m.independent,matchAgreement:+(m.agreement*100).toFixed(1),matchExact:m.exact,matchInverted:m.inverted,analyzing:!!pending,elapsedMs:runtime.scan?.elapsed||0,timedOut:!!runtime.scan?.timedOut,reason,report:runtime.report};
+  return runtime.lastSignal={side,displaySide,rawSide:raw,qualified,modelPassedHoldout:!!runtime.qualified,searchPassedHoldout:!!runtime.patternQualified,modelLiveEligible:!!modelOK,confidence:+(conf*100).toFixed(1),strength:+(conf*100).toFixed(1),status:side==='P'?'PLAYER':side==='B'?'BANKER':'WAIT',pPct:+(z.p*100).toFixed(1),bPct:+((1-z.p)*100).toFixed(1),families:z.families,evidence:+z.evidence.toFixed(2),independentShoes:z.independent,agreement:+(z.agreement*100).toFixed(1),cutoff:+(liveCutoff*100).toFixed(1),matchShoes:m.independent,matchAgreement:+(m.agreement*100).toFixed(1),matchExact:m.exact,matchInverted:m.inverted,analyzing:!!pending,elapsedMs:runtime.scan?.elapsed||0,timedOut:!!runtime.scan?.timedOut,reason,report:runtime.report};
 }
 function paint(){
   const panel=document.getElementById('mlRoadTrainerV155');if(!panel)return;
@@ -24864,7 +24890,7 @@ function paint(){
   const frozen=p&&active!==selected;
   put('v588ModeStatus',frozen?
     'Selected: '+modes[selected].name+'. An earlier '+modes[active].name+' prediction is already locked for this hand ('+(p.side==='B'?'BANKER':'PLAYER')+'). It will be graded; your new mode starts after this hand.' :
-    'Active: '+modes[active].name+' • Allowed official outputs: '+modes[active].label+'. '+(active==='both'?'Original normal ML selection unchanged.':'Side-only uses a slightly stricter post-qualification evidence check.')+' Disallowed results become WAIT, never the opposite side.');
+    'Active: '+modes[active].name+' • Allowed official outputs: '+modes[active].label+'. '+(active==='both'?'Normal ML live score gate reduced by 0.5 percentage points; all evidence checks remain.':'Side-only uses the original ML score gate plus a stricter evidence check.')+' Disallowed results become WAIT, never the opposite side.');
   for(const m of Object.keys(modes)){
     const v=a[m],n=v.wins+v.losses,s=m==='both'?'Both':m==='banker'?'Banker':'Player';
     put('v588Rate'+s,n?(100*v.wins/n).toFixed(1)+'%':'—');
@@ -24953,6 +24979,82 @@ body.v591-derived-active #previewP,body.v591-derived-active #previewB{display:no
 body.v591-derived-active #v538InputDock #sampleBtn,body.v591-derived-active #v538InputDock #saveBtn{opacity:.35}
 @media(max-width:550px){.v591-mode-bar{gap:7px}.v591-road-choice{width:100%;justify-content:space-between}.v591-road-choice select{flex:1}.v591-derived-display{--big-road-cell:25px}}
 </style>
+<script id="v596-translation-core">
+/* V596 – independent read-only 3-Road historical-state comparator. */
+const V596TranslationCore = (function(){
+ 'use strict';
+ function suffix(s,n){return s.slice(-n)}
+ function buildBuckets(data){
+  const by4=new Map(),by5=new Map();
+  for(const r of data){const a=r.road.slice(-4),b=r.road.slice(-5);if(!by4.has(a))by4.set(a,[]);by4.get(a).push(r);if(!by5.has(b))by5.set(b,[]);by5.get(b).push(r)}
+  return {by4,by5};
+ }
+ function tailMatch(record,observed){
+  const lim=Math.min(16,observed.length,record.roadCount);let exact=0;
+  for(let k=lim;k>=5;k--){if(record.road.endsWith(observed.slice(-k))){exact=k;break}}
+  let quality=exact>=5?exact*exact:0,near=false,len=exact;
+  // Limited one-color tolerance is a secondary, discounted candidate only.
+  if(lim>=8 && record.road.endsWith(observed.slice(-4))){
+   const a=record.road,b=observed;
+   for(let k=lim;k>=8;k--){let misses=0;for(let j=1;j<=k;j++){if(a[a.length-j]!==b[b.length-j] && ++misses>1)break}
+    if(misses===1 && quality < k*k*0.58){quality=k*k*0.58;near=true;len=k;break}
+   }
+  }
+  return quality?{quality,len,near,exact}:null;
+ }
+ function evaluate(index,observed,opts){
+  const n=observed.length,frequency=opts?.frequency==='strict'?'strict':'more';
+  if(n<6)return {side:null,reason:'Need at least six entered red/blue road marks.',evidence:0,conf:0,exactShoes:0};
+  const candidates=index.buckets?.by4?.get(observed.slice(-4))||[];
+  const grouped=new Map();
+  const liveHand=Number.isFinite(opts?.liveHand)&&opts.liveHand>0?opts.liveHand:null;
+  const liveAge=Number.isFinite(opts?.roadAge)&&opts.roadAge>=0?opts.roadAge:null;
+  const lastMain=['P','B'].includes(opts?.lastMain)?opts.lastMain:null;
+  const excluded=opts?.excludedShoe;
+  for(const r of candidates){
+   if(excluded!==undefined && r.shoe===excluded)continue;
+   const match=tailMatch(r,observed);if(!match)continue;
+   let quality=match.quality;
+   quality*=0.65+0.35/(1+Math.abs(r.roadCount-n)/10);
+   if(liveHand!==null)quality*=0.48+0.52/(1+Math.abs(r.hand-liveHand)/10);
+   if(liveAge!==null)quality*=0.52+0.48/(1+Math.abs((r.age||0)-liveAge));
+   if(lastMain)quality*=r.lastMain===lastMain?1.10:0.56;
+   // Repeat/switch rhythm is encoded in the marks; use a small consistency
+   // penalty for the part not covered by the exact tail, not an invented signal.
+   const a=r.road.slice(-12),b=observed.slice(-12);
+   const changes=s=>{let c=0;for(let i=1;i<s.length;i++)if(s[i]!==s[i-1])c++;return c};
+   quality*=1/(1+Math.abs(changes(a)-changes(b))*0.08);
+   let g=grouped.get(r.shoe);if(!g){g={rows:[],top:0,exact:false};grouped.set(r.shoe,g)}
+   if(quality>g.top)g.top=quality;
+   if(!match.near && match.exact>=5)g.exact=true;
+   g.rows.push({side:r.next,weight:quality,near:match.near,length:match.len});
+  }
+  let p=0,b=0,pn=0,bn=0,exactShoes=0,used=0;
+  for(const g of grouped.values()){
+   if(!g.top)continue;
+   let ps=0,bs=0;
+   for(const x of g.rows){
+    if(x.weight < 0.70*g.top)continue;
+    if(x.side==='P')ps+=x.weight;else if(x.side==='B')bs+=x.weight;
+   }
+   if(!ps&&!bs)continue;
+   // One shoe contributes one fractional vote, no matter how many times its
+   // derived road stayed frozen across real hands.
+   const shoeWeight=Math.max(0.35,Math.min(1.25,Math.sqrt(g.top)/12));
+   const pv=ps/(ps+bs);
+   p+=shoeWeight*pv;b+=shoeWeight*(1-pv);used++;
+   if(pv>0.5)pn++;else if(pv<0.5)bn++;
+   if(g.exact)exactShoes++;
+  }
+  const total=p+b,side=p>b?'P':b>p?'B':null,conf=total?Math.max(p,b)/total:0;
+  const supporters=side==='P'?pn:bn;
+  const qualifying=used>=6 && exactShoes>=3 && supporters>=4 && side!==null && (frequency==='strict'?conf>=0.60:conf>0.50);
+  return {side:qualifying?side:null,conf,evidence:used,pn,bn,exactShoes,nearShoes:used-exactShoes,qualified:qualifying};
+ }
+ return {buildBuckets,evaluate,tailMatch};
+})();
+
+</script>
 <script id="v591-3-road-translation-toggle">
 (function(){
 'use strict';
@@ -24960,18 +25062,21 @@ if(window.__V591_THREE_ROAD_TRANSLATION__)return;
 const STORE='v591-three-road-translation-mode';
 const $=id=>document.getElementById(id);
 const types={eye:{offset:1,name:'Big Eye Boy'},small:{offset:2,name:'Small Road'},roach:{offset:3,name:'Cockroach Road'}};
-const fresh=()=>({road:'eye',marks:{eye:[],small:[],roach:[]},grades:[],pending:null,lastSettled:'',frequency:'more'});
+const fresh=()=>({road:'eye',marks:{eye:[],small:[],roach:[]},grades:[],pending:null,lastSettled:'',frequency:'more',matcher:'original',liveHand:'',lastMain:'unknown'});
 let saved={};try{saved=JSON.parse(localStorage.getItem(STORE)||'{}')||{}}catch(e){}
 const d=Object.assign(fresh(),saved);
 d.road=types[d.road]?d.road:'eye';
 d.frequency=d.frequency==='strict'?'strict':'more';
+d.matcher=d.matcher==='enhanced'?'enhanced':'original';
+d.liveHand=/^[1-9][0-9]{0,2}$/.test(String(d.liveHand||''))?String(d.liveHand):'';
+d.lastMain=['P','B'].includes(d.lastMain)?d.lastMain:'unknown';
 for(const k of Object.keys(types))d.marks[k]=Array.isArray(d.marks?.[k])?d.marks[k].filter(x=>x==='R'||x==='B').slice(-130):[];
 d.grades=Array.isArray(d.grades)?d.grades.filter(x=>x&&typeof x==='object').slice(-10000):[];
 // Always start OFF on reopening an index: no inadvertent red/blue -> P/B commits.
 let enabled=false;
-let indexCache={key:'',data:[],unique:0,available:0};
+let indexCache={key:'',data:[],buckets:null,unique:0,available:0};
 let latest=null;
-function save(){try{localStorage.setItem(STORE,JSON.stringify({road:d.road,marks:d.marks,grades:d.grades,pending:d.pending,lastSettled:d.lastSettled,frequency:d.frequency}))}catch(e){}}
+function save(){try{localStorage.setItem(STORE,JSON.stringify({road:d.road,marks:d.marks,grades:d.grades,pending:d.pending,lastSettled:d.lastSettled,frequency:d.frequency,matcher:d.matcher,liveHand:d.liveHand,lastMain:d.lastMain}))}catch(e){}}
 function set(id,v){const e=$(id);if(e)e.textContent=v;}
 function clearPending(){d.pending=null;latest=null;save();}
 function modePickKey(){return `${d.road}|${d.marks[d.road].join('')}`;}
@@ -24991,20 +25096,21 @@ function buildIndex(){
  for(const sh of source){
   const seq=pbOf(sh);if(seq.length<8||seen.has(seq))continue;
   seen.add(seq);const si=distinct++;
-  const hands=[];
+  const hands=[];let lastMarkCount=0,roadAge=0;
   // Every row is strictly PRE-RESULT: a derived state from the first j actual
   // hands votes only for the actual j+1 outcome, not for a future derived color.
   for(let j=1;j<seq.length;j++){
    hands.push({r:seq[j-1]});
    let marks=[];try{marks=deriveRoad(hands,offset)}catch(e){continue}
+   roadAge=marks.length>lastMarkCount?0:roadAge+1;lastMarkCount=marks.length;
    if(marks.length<5)continue;
-   data.push({shoe:si,road:marks.join(''),next:seq[j],roadCount:marks.length,hand:j});
+   data.push({shoe:si,road:marks.join(''),next:seq[j],roadCount:marks.length,hand:j,age:roadAge,lastMain:seq[j-1]});
   }
  }
- indexCache={key,data,unique:distinct,available:source.length};
+ indexCache={key,data,buckets:V596TranslationCore.buildBuckets(data),unique:distinct,available:source.length};
  return indexCache;
 }
-function vote(){
+function originalVote(){
  if(!enabled)return {side:null,reason:'OFF • Switch ON to use the 3-Road Translation AI.'};
  const observed=d.marks[d.road].join(''),n=observed.length,idx=buildIndex();
  if(n<6)return {side:null,conf:0,evidence:0,library:idx,reason:`${types[d.road].name}: ${n} marks entered • need at least 6 for a road-history search.`};
@@ -25030,7 +25136,18 @@ function vote(){
  : `WAIT • ${types[d.road].name}: ${best.size} distinct matched shoes (need 6), ${supporters} supporting top side (need 4), historical share ${(conf*100).toFixed(1)}% (need ${d.frequency==='strict'?'60%':'a majority over 50%'}). Derived road colors cannot uniquely determine Banker/Player.`;
  return {side:qualified?side:null,conf,evidence:best.size,library:idx,reason,pn,bn};
 }
-function stats(){let w=0,l=0;for(const row of d.grades){if(row.ok===true)w++;else if(row.ok===false)l++}return {w,l}}
+function enhancedVote(){
+ if(!enabled)return {side:null,reason:'OFF • Switch ON to use the 3-Road Translation AI.'};
+ const idx=buildIndex();const observed=d.marks[d.road].join('');
+ const x=V596TranslationCore.evaluate(idx,observed,{frequency:d.frequency,liveHand:d.liveHand?Number(d.liveHand):null,roadAge:null,lastMain:d.lastMain});
+ x.library=idx;
+ x.reason=x.qualified
+  ? `${types[d.road].name} • ${x.evidence} distinct saved shoes (${x.exactShoes} exact) • ${x.pn} P / ${x.bn} B shoe-majorities • ${(x.conf*100).toFixed(1)}% historical fractional vote (not win odds). Repeated historical matching positions are grouped within each shoe.`
+  : `WAIT • ${types[d.road].name}: ${x.evidence} matched shoes (${x.exactShoes} exact); ${Math.max(x.pn||0,x.bn||0)} leading-side supporters. Need 6 shoes, 3 exact, 4 supporters and ${d.frequency==='strict'?'at least 60%':'a majority'}.`;
+ return x;
+}
+function vote(){return d.matcher==='original'?originalVote():enhancedVote()}
+function stats(){let w=0,l=0;for(const row of d.grades){if((row.matcher||'original')!==d.matcher)continue;if(row.ok===true)w++;else if(row.ok===false)l++}return {w,l}}
 function refreshView(){
  const current=d.marks[d.road],road=$('v591DerivedRoadDisplay');
  if(road){road.replaceChildren();let spots=[];
@@ -25044,6 +25161,9 @@ function refreshView(){
  if($('v591RoadInputEnabled'))$('v591RoadInputEnabled').checked=enabled;
  if($('v591RoadType'))$('v591RoadType').value=d.road;
   if($('v593VoteFrequency'))$('v593VoteFrequency').value=d.frequency;
+ if($('v596Matcher'))$('v596Matcher').value=d.matcher;
+ if($('v596LiveHand'))$('v596LiveHand').value=d.liveHand;
+ if($('v596LastMain'))$('v596LastMain').value=d.lastMain;
  $('v591ModeState')?.classList.toggle('on',enabled);
  set('v591ModeState',enabled?'ON':'OFF');
  set('mainRoadDisplayTitle',enabled?`${types[d.road].name} • derived RED / BLUE input`:'Main Road • collision-aware downward streaks');
@@ -25059,8 +25179,11 @@ function refreshView(){
  document.body.classList.toggle('v591-derived-active',enabled);
  const score=stats(),tot=score.w+score.l;
  set('beadHistAccuracy',tot?`${(100*score.w/tot).toFixed(1)}%`:'—');set('beadHistWL',`${score.w}W-${score.l}L`);set('beadHistN',`N ${tot}`);
- if(!enabled){set('beadHistSide','OFF');set('beadHistConf','—');set('beadHistEvidence','0');set('beadHistLibrary','—');set('beadHistReason','OFF • Turn the 3-Road Input switch ON to activate the translation AI.');return}
- const x=latest||vote();latest=x;
+ if(!enabled){set('v596Compare','Original vs Enhanced: enable road input to compare.');set('beadHistSide','OFF');set('beadHistConf','—');set('beadHistEvidence','0');set('beadHistLibrary','—');set('beadHistReason','OFF • Turn the 3-Road Input switch ON to activate the translation AI.');return}
+ const old=originalVote(),newer=enhancedVote();
+ const x=d.matcher==='original'?old:newer;latest=x;
+ const label=y=>y.side?`${y.side==='P'?'PLAYER':'BANKER'} (${(100*y.conf).toFixed(1)}%, ${y.evidence} shoes)`:`WAIT (${y.evidence||0} shoes)`;
+ set('v596Compare',`ORIGINAL V593: ${label(old)}  •  ENHANCED V596: ${label(newer)} • Official: ${d.matcher.toUpperCase()}`);
  const key=modePickKey(),alreadyGraded=d.grades.some(g=>g.road===d.road&&g.key===key);
  set('beadHistSide',alreadyGraded?'WAIT':x.side?(x.side==='P'?'PLAYER':'BANKER'):'WAIT');
  set('beadHistConf',x.evidence?(100*x.conf).toFixed(1)+'%':'—');
@@ -25073,7 +25196,7 @@ function rearm(){
  latest=enabled?vote():null;
  const key=modePickKey();
  const alreadyGraded=d.grades.some(g=>g.road===d.road&&g.key===key);
- d.pending=enabled&&latest?.side&&!alreadyGraded?{key,side:latest.side,road:d.road}:null;
+ d.pending=enabled&&latest?.side&&!alreadyGraded?{key,side:latest.side,road:d.road,matcher:d.matcher}:null;
  save();refreshView();
 }
 function setEnabled(on){enabled=!!on;d.pending=null;latest=null;rearm();if(!enabled){
@@ -25087,7 +25210,7 @@ function grade(actual){
  if(!enabled||!['P','B'].includes(actual))return;
  const p=d.pending,key=modePickKey();
  if(!p||p.key!==key){set('beadHistReason','No new official P/B prediction to grade. Enter another derived mark after a settled hand.');return}
- d.grades.push({key,road:d.road,side:p.side,actual,ok:p.side===actual});
+ d.grades.push({key,road:d.road,matcher:p.matcher||d.matcher,side:p.side,actual,ok:p.side===actual});
  d.lastSettled=key;d.pending=null;latest=null;save();refreshView();
 }
 function undo(){
@@ -25100,7 +25223,7 @@ function undo(){
 }
 function newShoe(){
  if(!confirm(`Clear ${types[d.road].name} RED/BLUE marks for a new translated-road session? Previous accuracy stays.`))return;
- d.marks[d.road]=[];d.lastSettled='';rearm();
+ d.marks[d.road]=[];d.liveHand='';d.lastMain='unknown';d.lastSettled='';rearm();
 }
 // Capture input at the document level BEFORE any core result/accuracy listeners.
 // The replacement never pushes R/B into state.hands or alters existing real-shoe libraries.
@@ -25124,14 +25247,17 @@ window.__BEAD_HISTORY_AI_V386__=inert;
 window.__BEAD_HISTORY_AI_V387__=inert;
 function init(){
  $('v591RoadInputEnabled')?.addEventListener('change',e=>setEnabled(e.target.checked));
- $('v591RoadType')?.addEventListener('change',e=>{if(types[e.target.value]){d.road=e.target.value;d.lastSettled='';rearm()}});
+ $('v591RoadType')?.addEventListener('change',e=>{if(types[e.target.value]){d.road=e.target.value;d.liveHand='';d.lastMain='unknown';d.lastSettled='';rearm()}});
   $('v593VoteFrequency')?.addEventListener('change',e=>{d.frequency=e.target.value==='strict'?'strict':'more';rearm()});
+ $('v596Matcher')?.addEventListener('change',e=>{d.matcher=e.target.value==='original'?'original':'enhanced';rearm()});
+ $('v596LiveHand')?.addEventListener('change',e=>{const n=Number(e.target.value);d.liveHand=Number.isInteger(n)&&n>=1&&n<=200?String(n):'';rearm()});
+ $('v596LastMain')?.addEventListener('change',e=>{d.lastMain=e.target.value;rearm()});
  $('v591GradeP')?.addEventListener('click',()=>grade('P'));
  $('v591GradeB')?.addEventListener('click',()=>grade('B'));
  $('beadHistReset')?.addEventListener('click',()=>{if(confirm('Reset only 3-Road Translation AI verified W/L accuracy?')){d.grades=[];d.pending=null;d.lastSettled='';rearm()}});
  setEnabled(false);
 }
-window.__V591_THREE_ROAD_TRANSLATION__={get enabled(){return enabled},get road(){return d.road},get frequency(){return d.frequency},get marks(){return d.marks[d.road].slice()},get pending(){return d.pending},setEnabled,addMark,grade,undo,buildIndex,vote,refresh:refreshView,accuracy:stats};
+window.__V591_THREE_ROAD_TRANSLATION__={get enabled(){return enabled},get road(){return d.road},get frequency(){return d.frequency},get marks(){return d.marks[d.road].slice()},get pending(){return d.pending},setEnabled,addMark,grade,undo,buildIndex,vote,originalVote,enhancedVote,refresh:refreshView,accuracy:stats};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
