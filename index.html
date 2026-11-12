@@ -24722,6 +24722,35 @@ function tag(){
 }
 function effective(){const p=pending();return p&&modes[p.v588Mode]?p.v588Mode:selected}
 function allowed(s,m){return s==='P'||s==='B'?m==='both'||(m==='banker'?s==='B':s==='P'):false}
+// V594: side-only selectivity is a POST-qualification filter, not a model change.
+// Both mode (the original normal ML behavior) never runs these extra checks.
+// The independent model and historical-retrieval paths use different evidence,
+// so they require separate modest increases rather than comparing wrong scores.
+function sideOnlySelectiveGate(z,mode){
+  if(mode==='both'||!z?.qualified||!['P','B'].includes(z.side))return {pass:true};
+  if(z.modelLiveEligible===true){
+    // V575 normal ML already enforced held-out qualification, cutoff, 4 independent
+    // shoes, agreement and evidence >=1.4. Raise only the live side-mode bar.
+    const cutoff=Number(z.cutoff),confidence=Number(z.confidence),evidence=Number(z.evidence);
+    if(!Number.isFinite(cutoff)||!Number.isFinite(confidence)||!Number.isFinite(evidence))
+      return {pass:false,detail:'missing ML score/evidence details'};
+    const neededScore=Math.min(100,cutoff+2); // two percentage points more than normal
+    if(confidence+1e-8<neededScore||evidence+1e-8<1.5)
+      return {pass:false,detail:'ML score '+confidence.toFixed(1)+'% (side-only needs '+neededScore.toFixed(1)+'%) · evidence '+evidence.toFixed(2)+' (needs 1.50)'};
+    return {pass:true};
+  }
+  // V575 retrieval-only qualification is separate from the ML score. Do not
+  // gate it on a potentially disagreeing raw model confidence value.
+  const rule=z.report?.patternRule||{},baseShoes=Number(rule.minShoes),baseAgree=Number(rule.minAgree);
+  const minShoes=(Number.isFinite(baseShoes)&&baseShoes>0?baseShoes:6)+1;
+  const minAgree=(Number.isFinite(baseAgree)&&baseAgree>0?baseAgree*100:64)+2;
+  const shoes=Number(z.matchShoes),agreement=Number(z.matchAgreement);
+  if(!Number.isFinite(shoes)||!Number.isFinite(agreement))
+    return {pass:false,detail:'missing independent historical-match details'};
+  if(shoes<minShoes||agreement+1e-8<minAgree)
+    return {pass:false,detail:'historical matches '+shoes+' (needs '+minShoes+') · agreement '+agreement.toFixed(1)+'% (needs '+minAgree.toFixed(1)+'%)'};
+  return {pass:true};
+}
 function filterSignal(z){
   if(!z||typeof z!=='object')return z;
   const m=effective(),out={...z,predictionMode:m};
@@ -24729,6 +24758,12 @@ function filterSignal(z){
   if(!allowed(orig,m)&&orig){
     out.side=null;out.qualified=false;out.status='WAIT';
     out.reason='WAIT: '+(orig==='B'?'Banker':'Player')+' passed the existing ML gates, but '+modes[m].name+' mode permits only '+(m==='banker'?'Banker':'Player')+'.';
+  }else if(m!=='both'&&out.qualified&&allowed(orig,m)){
+    const extra=sideOnlySelectiveGate(out,m);
+    if(!extra.pass){
+      out.side=null;out.qualified=false;out.status='WAIT';out.sideOnlySelectiveWait=true;
+      out.reason='WAIT: '+modes[m].name+' requires slightly stronger evidence than normal Both mode: '+extra.detail+'.';
+    }
   }
   // RAW LEAN stays research-only. Hide disallowed raw sides too, without flipping them.
   if(!allowed(out.rawSide,m))out.rawSide=null;
@@ -24829,7 +24864,7 @@ function paint(){
   const frozen=p&&active!==selected;
   put('v588ModeStatus',frozen?
     'Selected: '+modes[selected].name+'. An earlier '+modes[active].name+' prediction is already locked for this hand ('+(p.side==='B'?'BANKER':'PLAYER')+'). It will be graded; your new mode starts after this hand.' :
-    'Active: '+modes[active].name+' • Allowed official outputs: '+modes[active].label+'. A disallowed model result becomes WAIT, never the opposite side.');
+    'Active: '+modes[active].name+' • Allowed official outputs: '+modes[active].label+'. '+(active==='both'?'Original normal ML selection unchanged.':'Side-only uses a slightly stricter post-qualification evidence check.')+' Disallowed results become WAIT, never the opposite side.');
   for(const m of Object.keys(modes)){
     const v=a[m],n=v.wins+v.losses,s=m==='both'?'Both':m==='banker'?'Banker':'Player';
     put('v588Rate'+s,n?(100*v.wins/n).toFixed(1)+'%':'—');
@@ -24884,7 +24919,7 @@ function boot(){
     });
   }
 }
-window.__V588_ML_SIDE_MODES__={version:VER,getMode:()=>selected,activeMode:effective,score:()=>scores(),setMode(m){if(!modes[m])return false;tag();selected=m;try{localStorage.setItem(STORE,m)}catch(_){};paint();try{window.__armVerifiedPredictions?.()}catch(_){};return true},resetMode:resetOne,filterSignal,paint,qualifiedOnly:true};
+window.__V588_ML_SIDE_MODES__={version:VER,getMode:()=>selected,activeMode:effective,score:()=>scores(),setMode(m){if(!modes[m])return false;tag();selected=m;try{localStorage.setItem(STORE,m)}catch(_){};paint();try{window.__armVerifiedPredictions?.()}catch(_){};return true},resetMode:resetOne,filterSignal,sideOnlySelectiveGate,paint,qualifiedOnly:true,sideOnlySelectiveVersion:594};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,650),{once:true});else setTimeout(boot,650);
 })();
 
@@ -25100,6 +25135,7 @@ window.__V591_THREE_ROAD_TRANSLATION__={get enabled(){return enabled},get road()
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
+<!-- V594 ML side-mode gate: BOTH unchanged; Banker/Player-only +2pp live score and +0.1 evidence, or +1 historical shoe and +2pp match agreement. -->
 </body>
 </html>
 
